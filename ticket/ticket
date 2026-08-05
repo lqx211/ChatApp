@@ -1,0 +1,112 @@
+# ChatApp Ticket CLI Tool
+# Usage: ./ticket.zsh <command> [args]
+
+BASE_URL="http://localhost"
+COOKIE_FILE="/tmp/chatapp_ticket_cookie.txt"
+USERNAME="assistant"
+PASSWORD="ot-^j=V19fCfvjbXRswkdj512_j1=B6=.xsCY%dKRQa^NKBruDFd"
+
+# Auto-login
+_login() {
+    if [[ ! -f "$COOKIE_FILE" ]] || ! curl -s -b "$COOKIE_FILE" "$BASE_URL/api/auth.php?action=check" | grep -q '"success":true'; then
+        curl -s -c "$COOKIE_FILE" -X POST "$BASE_URL/api/auth.php" \
+            -d "action=login" \
+            -d "username=$USERNAME" \
+            -d "password=$PASSWORD" > /dev/null
+    fi
+}
+
+_usage() {
+    echo "ChatApp Ticket CLI"
+    echo "  list [open|closed]  List tickets (default: open)"
+    echo "  show <id>           Show ticket details"
+    echo "  reply <id> <msg>    Reply to ticket"
+    echo "  close <id>          Close ticket"
+    echo "  status <id> <new>   Set status (open|in_progress|resolved|closed)"
+}
+
+case "$1" in
+    list)
+        status="${2:-open}"
+        _login
+        curl -s -b "$COOKIE_FILE" "$BASE_URL/api/incident.php?action=list&status=$status&per_page=100" | \
+            python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+if d.get('success'):
+    for i in d['incidents']:
+        print(f'#{i[\"id\"]} [{i[\"status\"]}] {i[\"priority\"]} {i[\"subject\"]}')
+        print(f'  by {i[\"reporter_name\"]} at {i[\"created_at\"]}')
+    print(f'Total: {d[\"total\"]}')
+else:
+    print('Failed')
+"
+        ;;
+
+    show)
+        if [[ -z "$2" ]]; then _usage; exit 1; fi
+        _login
+        curl -s -b "$COOKIE_FILE" "$BASE_URL/api/incident.php?action=detail&id=$2" | \
+            python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+if d.get('success'):
+    i=d['incident']
+    print(f'#{i[\"id\"]} [{i[\"status\"]}] {i[\"priority\"]} {i[\"type\"]}: {i[\"subject\"]}')
+    print(f'Reporter: {i[\"reporter_name\"]} at {i[\"created_at\"]}')
+    print(f'{i[\"reason\"]}')
+    print()
+    for r in i['responses']:
+        staff=' (Staff)' if r['is_staff'] else ''
+        print(f'  [{r[\"username\"]}{staff}] {r[\"message\"]}')
+else:
+    print('Failed')
+"
+        ;;
+
+    reply)
+        if [[ -z "$2" || -z "$3" ]]; then _usage; exit 1; fi
+        _login
+        resp=$(curl -s -b "$COOKIE_FILE" -X POST "$BASE_URL/api/incident.php" \
+            -d "action=respond" \
+            -d "id=$2" \
+            -d "message=$3")
+        if echo "$resp" | grep -q '"success":true'; then
+            echo "Replied to #$2"
+        else
+            echo "Failed: $resp"
+        fi
+        ;;
+
+    close)
+        if [[ -z "$2" ]]; then _usage; exit 1; fi
+        _login
+        resp=$(curl -s -b "$COOKIE_FILE" -X POST "$BASE_URL/api/incident.php" \
+            -d "action=update_status" \
+            -d "id=$2" \
+            -d "status=closed")
+        if echo "$resp" | grep -q '"success":true'; then
+            echo "Closed #$2"
+        else
+            echo "Failed: $resp"
+        fi
+        ;;
+
+    status)
+        if [[ -z "$2" || -z "$3" ]]; then _usage; exit 1; fi
+        _login
+        resp=$(curl -s -b "$COOKIE_FILE" -X POST "$BASE_URL/api/incident.php" \
+            -d "action=update_status" \
+            -d "id=$2" \
+            -d "status=$3")
+        if echo "$resp" | grep -q '"success":true'; then
+            echo "Status of #$2 set to $3"
+        else
+            echo "Failed: $resp"
+        fi
+        ;;
+
+    *)
+        _usage
+        ;;
+esac

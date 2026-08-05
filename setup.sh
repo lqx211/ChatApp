@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+# ======================================================================
+# ChatApp — Open‑source setup script
+# ======================================================================
+# This script:
+#   1. Creates all required directory structures
+#   2. Places .gitkeep files so Git tracks empty directories
+#   3. Creates database + tables via schema.sql
+#   4. Copies example config files when real configs are missing
+#
+# Usage:
+#   chmod +x setup.sh
+#   ./setup.sh
+#
+# Environment variables (optional, for automated deploys):
+#   DB_HOST     — MySQL host           (default: 127.0.0.1)
+#   DB_PORT     — MySQL port           (default: 3306)
+#   DB_NAME     — Database name        (default: chatapp)
+#   DB_USER     — MySQL user           (default: root)
+#   DB_PASS     — MySQL password       (default: empty)
+#   MAINT_USER  — Maintenance username (default: admin)
+#   MAINT_PASS  — Maintenance password (default: auto‑generated)
+# ======================================================================
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT_DIR"
+
+echo "===== ChatApp Setup ====="
+echo ""
+
+# ----------------------------------------------------------------------
+# 1.  Ensure directory structure
+# ----------------------------------------------------------------------
+echo "[1/4] Creating directory structure ..."
+
+# Data directories (user‑generated content lives here)
+mkdir -p data/ce
+mkdir -p data/cep
+mkdir -p data/donation
+mkdir -p data/res/emoji
+mkdir -p data/res/fileicon
+mkdir -p data/res/sound
+mkdir -p data/res/svg
+mkdir -p data/res/wallpaper
+mkdir -p data/sc
+mkdir -p data/ticket
+mkdir -p data/user
+
+# Application directories
+mkdir -p apps/music/css
+mkdir -p apps/music/images
+mkdir -p apps/music/js
+mkdir -p apps/music/plugins
+mkdir -p apps/devtools/bootstrap
+mkdir -p apps/devtools/codemirror
+mkdir -p apps/devtools/css
+mkdir -p apps/devtools/developtoolbox
+mkdir -p apps/devtools/icons
+mkdir -p apps/devtools/img
+mkdir -p apps/devtools/js
+mkdir -p apps/devtools/page
+
+mkdir -p css/fonts
+mkdir -p errors
+mkdir -p filedown/indexfiles
+mkdir -p lang
+mkdir -p maintenance
+mkdir -p modern
+mkdir -p ticket
+
+# ----------------------------------------------------------------------
+# 2.  Place .gitkeep files so Git tracks empty directories
+# ----------------------------------------------------------------------
+echo "[2/4] Creating .gitkeep markers ..."
+
+# Determine which directories need a .gitkeep.
+# We skip directories that already have tracked content.  The heuristic:
+# if an ignore rule hides all files inside, we still place .gitkeep manually.
+#
+# We also skip .gitkeep inside user‑sub‑dirs (data/user/{uid}/) because
+# those are created at runtime.
+
+KEEP_DIRS=(
+    "data/ce"
+    "data/cep"
+    "data/donation"
+    "data/res/emoji"
+    "data/res/fileicon"
+    "data/res/sound"
+    "data/res/svg"
+    "data/res/wallpaper"
+    "data/sc"
+    "data/ticket"
+    "data/user"
+    "apps/music/css"
+    "apps/music/images"
+    "apps/music/js"
+    "apps/music/plugins"
+    "apps/devtools/bootstrap"
+    "apps/devtools/codemirror"
+    "apps/devtools/css"
+    "apps/devtools/developtoolbox"
+    "apps/devtools/icons"
+    "apps/devtools/img"
+    "apps/devtools/js"
+    "apps/devtools/page"
+    "css/fonts"
+    "errors"
+    "filedown/indexfiles"
+    "lang"
+    "modern"
+    "ticket"
+)
+
+for d in "${KEEP_DIRS[@]}"; do
+    touch "$d/.gitkeep" 2>/dev/null || true
+done
+
+# ----------------------------------------------------------------------
+# 3.  Create example config files (when real ones are missing)
+# ----------------------------------------------------------------------
+echo "[3/4] Creating config templates ..."
+
+if [ ! -f maintenance/config.php ]; then
+    cat > maintenance/config.php << 'PHPEOF'
+<?php
+/**
+ * ChatApp — Maintenance admin credentials
+ *
+ * Copy this file to config.php and fill in your own values.
+ * NEVER commit config.php to version control!
+ */
+$MAINT_USER   = 'admin';
+$MAINT_PASS   = '__CHANGE_ME__';
+$MAINT_SECRET = '__CHANGE_ME_32_HEX__';
+PHPEOF
+    echo "  → maintenance/config.php created (change the placeholders!)"
+else
+    echo "  → maintenance/config.php already exists — skipping"
+fi
+
+# Copy api/config.php as a template if it doesn't exist
+if [ ! -f api/config.example.php ]; then
+    cp api/config.php api/config.example.php
+    echo "  → api/config.example.php created (template for reference)"
+fi
+
+# ----------------------------------------------------------------------
+# 4.  MySQL database setup
+# ----------------------------------------------------------------------
+echo "[4/4] Setting up MySQL database ..."
+
+DB_HOST="${DB_HOST:-127.0.0.1}"
+DB_PORT="${DB_PORT:-3306}"
+DB_NAME="${DB_NAME:-chatapp}"
+DB_USER="${DB_USER:-root}"
+DB_PASS="${DB_PASS:-}"
+
+# Build MySQL connection args
+MYSQL_CMD="mysql -h ${DB_HOST} -P ${DB_PORT} -u ${DB_USER}"
+if [ -n "${DB_PASS}" ]; then
+    MYSQL_CMD="${MYSQL_CMD} -p${DB_PASS}"
+fi
+
+# Create database if it doesn't exist
+echo "  → Ensuring database '${DB_NAME}' exists ..."
+${MYSQL_CMD} -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_unicode_ci;" 2>/dev/null || {
+    echo "  ⚠  Could not create database. Is MySQL running? Check your credentials."
+    echo "     You can import schema.sql manually later."
+}
+
+# Run schema
+if [ -f schema.sql ]; then
+    echo "  → Importing schema.sql ..."
+    ${MYSQL_CMD} "${DB_NAME}" < schema.sql 2>/dev/null || {
+        echo "  ⚠  schema.sql import had errors. Some tables may already exist — that's usually fine."
+    }
+else
+    echo "  ⚠  schema.sql not found. Skipping."
+fi
+
+# ----------------------------------------------------------------------
+# Done
+# ----------------------------------------------------------------------
+echo ""
+echo "===== Setup complete! ====="
+echo ""
+echo "Next steps:"
+echo "  1. Edit maintenance/config.php and set your own credentials."
+echo "  2. Review api/config.php for DB_HOST / DB_PASS if using a remote DB."
+echo "  3. Point your web server to:  $(pwd)"
+echo "  4. Open the app in your browser."
+echo ""

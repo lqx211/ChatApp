@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>开发工具箱 - UserAgent</title>
+<link type="text/css" rel="stylesheet" href="../bootstrap/css/bootstrap.css" />
+<link href="../css/popup.css" rel="stylesheet" />
+<link rel="icon" href="/icons/favicon.ico" mce_href="/icons/favicon.ico" type="image/x-icon">
+<style>
+.dl-horizontal dt{width: 110px;}
+.dl-horizontal dd{margin-left: 137px;}
+</style>
+</head>
+<body>
+
+<div class="navbar navbar-inverse navbar-fixed-top" style="width:100%">
+  <div class="navbar-inner" style="width:100%">
+    <div class="container" style="width:100%">
+      <a class="brand active" href="" target="_self" style="width:130px;margin-left:3px;" id="nav-href"><img src="/icons/icon32.png" class="custom-header-img">UserAgent</a>
+    </div>
+  </div>
+</div>
+
+<div style="width:100%; margin-top:60px; margin-bottom:60px;">
+
+<div style="clear:both;margin-left:20px;margin-right:20px">
+<h3>User Agent</h3>
+<textarea rows="3" id="useragent" style="width:97%;"></textarea>
+</div>
+</div>
+
+<script src="../bootstrap/js/jquery-1.9.1.js"></script>
+<script src="../bootstrap/js/bootstrap.js"></script>
+<script src="../js/toolbox/library.js"></script>
+<script>
+$(function(){
+	$("#useragent").text(navigator.userAgent ? navigator.userAgent : '未知浏览器').css('font-size', '22px').css('line-height', '33px');		  
+	func.copyright();
+	
+	var height = $('#useragent').get(0).scrollHeight;
+	$('#useragent').css('height', height + 'px');
+})
+</script>
+
+</body>
+</html>

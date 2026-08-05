@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>开发工具箱 - 帮助中心</title>
+<link type="text/css" rel="stylesheet" href="bootstrap/css/bootstrap.css" />
+<link href="css/buttons/main.css" rel="stylesheet" />
+<link href="css/buttons/buttons.css" rel="stylesheet" />
+<link href="css/popup.css" rel="stylesheet" />
+<link href="css/icheck/flat/_all.css" rel="stylesheet" />
+</head>
+<body>
+
+<div class="navbar navbar-inverse navbar-fixed-top">
+  <div class="navbar-inner">
+    <div class="container">
+      <a class="brand active" href="help.html" target="_self" style="width:130px;" id="nav-href"><img src="icons/icon32.png" class="custom-header-img">帮助中心</a>
+      <div class="nav-collapse collapse">
+        <ul class="nav">
+          <li class="menu" name="menu_one">
+            <a href="#"><i class="icon-time"></i> 亲，页面还剩余（<span id="timeout">10分</span>）自动关闭！</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container" style="width:1260px;">
+<div class="tabbable tabs-left" style="margin-top:10px;">
+  <ul class="nav nav-tabs" style="margin-top:10px; width:170px;">
+    <li class="active"><a href="#btn-help-a" data-toggle="tab">帮助中心</a></li>
+    <li class=""><a href="#btn-help-d" data-toggle="tab">更新日志</a></li>
+  </ul>
+  <div class="tab-content" style="padding-left:30px;margin-bottom:42px;">
+    <div class="tab-pane active" id="btn-help-a">
+
+    <div class="tabbable"> <!-- Only required for left/right tabs -->
+      <ul class="nav nav-tabs">
+        <li class="active"><a href="#tab1" data-toggle="tab">常规说明</a></li>
+        <li><a href="#tab2" data-toggle="tab">时间戳日期互转说明</a></li>
+      </ul>
+      <div class="tab-content">
+        <div class="tab-pane active" id="tab1">
+          	<ol class="help_others">
+		
+            <li>啊！某某功能使用不了 或 您为什么有这新功能等，请清理浏览器缓存 或 （键盘）Ctrl + F5 刷新页面</li>
+            <li>在右边文本框中输入内容、粘贴内容</li>
+            <li>在左边选择具体功能按钮，导航有分类切换</li>
+            <li>撤销：上一步操作。 重做： 已经存在的下一步操作</li>
+            
+            <li>光标在文本框内：
+                <ul>
+                <li>搜索：Ctrl - F</li>
+                <li>往下查找：Ctrl - G 往上查找：Shift - Ctrl - G </li>
+                <li>替换: Shift - Ctrl - F 全部替换：Shift - Ctrl - R </li>
+                <li>F11 全屏，再次F11 / ESC 退出全屏</li>
+                </ul>
+            </li>
+            
+            <li>计算字符长度：按UTF-8编码获取字符串长度</li>
+            <li>农历、阳历：2014-01-01 00:01:04 、2014/01/01、2014年1月1日</li>
+            <li> → ：代表中文意思 转</li>
+            <li>通用代码压缩、通用代码美化：不要用于纯CSS样式文件代码。有此两个按钮是为了简化平常操作</li>
+            <li>命令行：已有功能快捷方式，按下键盘（a-z）、输入中文看到直观下拉菜单效果，暂不支持PHP、JAVA语言动态解析</li>
+            
+            <li class="text-success">如果您喜欢开发工具箱，请推荐给身边的朋友吧，感谢您的大力支持！</li>
+            
+          </ol>
+        </div>
+        <div class="tab-pane" id="tab2">
+<pre style="background-color:#FFF; border:none;">日期转时间戳兼容格式: 默认值当前Unix时间戳、毫秒时间戳
+
+2014年5月26
+2014年5月26日
+2014年5月26日10
+2014年5月26日10时
+2014年5月26日10时13
+2014年5月26日10时13分
+2014年5月26日10时13分31
+2014年5月26日10时13分31秒
+2014年5月26日10时13分31秒560
+2014年5月26日10时13分31秒560毫秒
+
+2014-05-16
+2014-05-16 12
+2014-05-16 12:01
+2014-05-16 12:13:14
+2014-05-16 12:13:14:560
+
+2014/05/16
+2014/05/16 12
+2014/05/16 12:01
+2014/05/16 12:13:14
+2014/05/16 12:13:14:560
+<hr />
+<div class="alert alert-error">Unix时间戳转日期、毫秒时间戳转日期、日期转两种时间戳 都支持批量转换功能，以回车（换行）符分割。</div>
+</pre>
+        </div>
+      </div>
+    </div>
+
+    </div>
+    <div class="tab-pane" id="btn-help-d">
+      <form>
+      <fieldset>
+      <legend>更新日志 <small>v2.2.0</small></legend>
+      <ol class="help_css">
+      <li>二维码功能增强，首次尝试采用新开页面</li>
+      <li>二维码生成 重命名 漂亮二维码，追加了一个小图标</li>
+      <li>附属页版权信息，统一用代码输出</li>
+      <li>快捷功能，图片按钮 换为 普通按钮。解决在某些浏览器中，产生掉行问题</li>
+      <li>提供更新日志查阅</li>
+	  <li>新增 汉字转拼音</li>
+	  <li>新增 Unix时间戳转日期、毫秒时间戳转日期、日期转时间戳；以前时间戳日期互转功能接口保留，但不提供界面。</li>
+	  <li>修复 日期转时间戳 少8小时</li>
+      <li>帮助中心界面调整、文档更新</li>
+      <li>新增 常用对照表（六大类）</li>
+      <li>数字大小写对照表 归类到 常用对照表，追加了一个小图标</li>
+      <li>新增 Serializez转JSON，更直观查看数据</li>
+	  <li>新增 去除行首行号 （1. 1, 1。1: 1：）</li>
+	  <li>新增 Trim，批量去掉字符串起始和结尾的空格 </li>
+      <li>新增：下载页面，分别提供各浏览器扩展版本程序下载</li>
+      </ol>
+      </fieldset>
+    </form>
+    </div>
+    
+  </div>
+</div>
+</div>
+
+<script src="bootstrap/js/jquery-1.9.1.js"></script>
+<script src="bootstrap/js/bootstrap.js"></script>
+
+<script src="js/icheck/icheck.js"></script>
+<script src="js/toolbox/menu.js"></script>
+<script src="js/toolbox/jquery.cookie.js"></script>
+<script src="js/toolbox/library.js"></script>
+<script src="js/toolbox/settings.js"></script>
+
+</body>
+</html>

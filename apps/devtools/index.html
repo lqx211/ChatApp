@@ -1,0 +1,437 @@
+﻿<!DOCTYPE html>
+<html lang="zh-cmn-Hans">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+<title>开发工具箱 - 走南闯北，千锤百炼</title>
+<meta name="keywords" content="开发工具箱,js加密解密工具,浏览器扩展程序,开发工具箱官方网站" />
+<meta name="description" content="开发工具箱分为在线版本、离线版本（浏览器扩展程序）, 通过可视化界面操作完成一系列需要编程才能实现的功能。常用小工具集合于一身，为我们的工作带来了福音。" />
+<link type="text/css" rel="stylesheet" href="./bootstrap/css/bootstrap.css" />
+<link href="./codemirror/codemirror.css" rel="stylesheet" />
+<link href="./codemirror/display/fullscreen.css" rel="stylesheet" />
+<link href="./codemirror/dialog/dialog.css" rel="stylesheet" />
+<link href="./codemirror/theme/solarized.css" rel="stylesheet" />
+<link href="./css/popup.css" rel="stylesheet" />
+<link href="./css/buttons/main.css" rel="stylesheet" />
+<link href="./css/buttons/buttons.css" rel="stylesheet" />
+<link href="./css/loading.css" rel="stylesheet" />
+<link rel="icon" href="/icons/favicon.ico" mce_href="/icons/favicon.ico" type="image/x-icon">
+</head>
+<body style="background:#2d0f0f">
+<!--菜单栏 start-->
+<div class="navbar navbar-inverse navbar-fixed-top">
+  <div class="navbar-inner">
+    <div class="container" style="width:1233px" id="develop_menu">
+      <a class="brand custom-header" href="#" target="_self" style="width:130px;" id="nav-href"><img src="icons/icon32.png" class="custom-header-img">开发工具箱</a>
+      <div class="nav-collapse collapse">
+        <ul class="nav">
+          <li class="active menu" name="menu_one">
+            <!--#关闭chrome扩展权限问题提示#-->
+            <a href="#"><i class="icon-tag"></i> 热门工具</a>
+          </li>
+          <li class="menu" name="menu_two">
+            <a href="#"><i class="icon-tag"></i> 编码转换</a>
+          </li>
+          <li class="menu" name="menu_three">
+            <a href="#"><i class="icon-tag"></i> 加密解密</a>
+          </li>
+          <li class="menu" name="menu_four">
+            <a href="#"><i class="icon-tag"></i> 进制转换</a>
+          </li>
+          <li class="menu" name="menu_five">
+            <a href="#"><i class="icon-tag"></i> HTML/JS/CSS</a>
+          </li>
+          <li class="menu" name="menu_six">
+            <a href="#"><i class="icon-tag"></i> 综合归类</a>
+          </li>
+          <li name="menu_six">
+            <a href="settings.html" target="_blank"><i class="icon-wrench"></i> 私人定制</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+<!--菜单栏 end-->
+
+<!--loading start-->
+<div id="loading" style="position:absolute;z-index:1026;top:50%;left:50%;height:50px;margin-left:-80px;">
+非常努力加载中... ...
+<div class="spinner">
+  <div class="bounce1"></div>
+  <div class="bounce2"></div>
+  <div class="bounce3"></div>
+</div>
+</div>
+<!--loading end-->
+
+<!--内容主题 start-->
+<div class="container" id="develop_tools" style="position:relative;z-index:1026;display:none">
+<div style="clear:both; height:auto;">
+    <div class="accordion" id="menu_one" style="margin-left:0px; width:320px; float:left;">
+        <div class="accordion-group">
+          <div class="accordion-heading">
+            <span class="accordion-toggle">
+              当前位置：热门工具前20名　/　编码：UTF-8
+            </span>
+          </div>
+          <div id="collapseOne" class="accordion-body in" style="height: auto;">
+            <div class="accordion-inner" data-toggle="buttons-radio">
+            </div>
+          </div>
+        </div>
+     </div>
+     
+     <div class="accordion" id="menu_two" style="margin-left:0px; width:320px; float:left; display:none;">
+        <div class="accordion-group">
+          <div class="accordion-heading">
+            <span class="accordion-toggle">
+              当前位置：编码转换　/　编码：UTF-8
+            </span>
+          </div>
+          <div id="collapseOne" class="accordion-body in" style="height: auto;">
+            <div class="accordion-inner" data-toggle="buttons-radio">
+            </div>
+          </div>
+        </div>
+     </div>
+     
+     <div class="accordion" id="menu_three" style="margin-left:0px; width:320px; float:left; display:none;">
+        <div class="accordion-group">
+          <div class="accordion-heading">
+            <span class="accordion-toggle">
+              当前位置：加密解密　/　编码：UTF-8
+            </span>
+          </div>
+          <div id="collapseOne" class="accordion-body in" style="height: auto;">
+            <div class="accordion-inner" data-toggle="buttons-radio">
+            </div>
+          </div>
+        </div>
+     </div>
+     
+     <div class="accordion" id="menu_four" style="margin-left:0px; width:320px; float:left; display:none;">
+        <div class="accordion-group">
+          <div class="accordion-heading">
+            <span class="accordion-toggle">
+              当前位置：进制转换　/　编码：UTF-8
+            </span>
+          </div>
+          <div id="collapseOne" class="accordion-body in" style="height: auto;">
+            <div class="accordion-inner" data-toggle="buttons-radio">
+            </div>
+          </div>
+        </div>
+     </div>
+	 
+	 <div class="accordion" id="menu_five" style="margin-left:0px; width:320px; float:left; display:none;">
+        <div class="accordion-group">
+          <div class="accordion-heading">
+            <span class="accordion-toggle">
+              当前位置：HTML/JS/CSS　/　编码：UTF-8
+            </span>
+          </div>
+          <div id="collapseOne" class="accordion-body in" style="height: auto;">
+            <div class="accordion-inner" data-toggle="buttons-radio">
+            </div>
+          </div>
+        </div>
+     </div>
+	 
+	 <div class="accordion" id="menu_six" style="margin-left:0px; width:320px; float:left; display:none;">
+        <div class="accordion-group">
+          <div class="accordion-heading">
+            <span class="accordion-toggle">
+              当前位置：综合归类　/　编码：UTF-8
+            </span>
+          </div>
+          <div id="collapseOne" class="accordion-body in" style="height: auto;">
+            <div class="accordion-inner" data-toggle="buttons-radio">
+            </div>
+          </div>
+        </div>
+     </div>
+    
+    <span class="span12">
+    <textarea id="output" style="display:none;"></textarea>
+	<span class="span3" style="float:none;position:absolute;z-index: 2; width: 60px; height:auto; line-height:25px; text-align:center; display:none;" id="tools">
+    <p><button class="button button-circle" id="tools_undo" style="width:45px; height:45px; line-height:39px; font-size:14px;">撤销</button></p>
+    <p><button class="button button-circle" id="tools_redo" style="width:45px; height:45px; line-height:39px; font-size:14px;">重做</button></p>
+	
+	<p><button class="button button-circle" id="output_clear" style="width:45px; height:45px; line-height:39px; font-size:14px;margin-top:20px;">清空</button></p>
+	<p><button class="button button-circle" id="output_fullscreen" style="width:45px; height:45px; line-height:39px; font-size:14px;">全屏</button></p>
+		
+    <p><button class="button button-circle" data="help.html" style="width:45px; height:45px; line-height:39px; font-size:14px; margin-top:20px;">帮助</button></p>
+	</span>
+    <div id="command" class="form-inline">
+     <label style="margin-left: -7px;"></label>
+ 	 <input type="text" data-provide="typeahead" id="typeahead" placeholder="功能快速搜索" autocomplete="off" style="width:195px;"> <button class="btn" style="width:100px;" id="command_do"><i class="icon-ok"></i> 确认</button> <span id="ipaddr"><code>正在加载中 ...</code></span>
+	</div> 
+    </span>
+</div>
+</div>
+<!--内容主题 end-->
+
+<!--alert start-->
+<div class="alert alert-block alert-error fade" id="alert-msg" style="z-index:2015;display:none;">
+    <button class="close" id="alert-close">×</button>
+    <h4 class="alert-heading">亲，您有新的消息！</h4>
+    <p style="margin-top:5px;" id="alert-msg-txt">请在文本框里填写内容。</p>
+</div>
+<!--alert end-->
+
+<!--modal_key start-->
+<div id="myModal-key" class="modal hide fade" tabindex="-1" data-backdrop="static" aria-labelledby="myModalLabel" aria-hidden="true">
+  <div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+    <h3 id="myModalLabel">请填写加密或解密的密钥</h3>
+  </div>
+  <div class="alert alert-error" id="on_sha_key_error" style="margin-left:15px;margin-right:15px;margin-bottom:0;margin-top:15px;display:none"></div>
+  <div class="modal-body">
+  	<textarea class="input-xlarge" name="" style="width:513px;" rows="3" id="output-key"></textarea>
+  </div>
+  <div class="modal-footer">
+    <button class="btn" data-dismiss="modal" aria-hidden="true">关闭</button>
+    <button class="btn btn-primary on_sha_key">提交</button>
+  </div>
+</div>
+<!--modal_key end-->
+
+<!--cssbeautify start-->
+<div id="myModal-cssbeautify" class="modal hide fade" tabindex="-1" data-backdrop="static" aria-labelledby="myModalLabel" aria-hidden="true">
+  <div class="modal-body">
+      <form>
+      <fieldset>
+        <legend>缩进宽度</legend>
+        <label class="radio inline">
+          <input type="radio" name="cssbeautify-space" value="4" checked> 4个空格
+        </label>
+        <label class="radio inline">
+          <input type="radio" name="cssbeautify-space" value="2"> 2个空格
+        </label>
+        <label class="radio inline">
+          <input type="radio" name="cssbeautify-space" value="tab"> Tab制表符
+        </label>
+        
+        <legend style="margin-top:10px;">括号风格</legend>
+         <label class="radio inline">
+          <input type="radio" name="cssbeautify-brackets" value="end-of-line" checked> 行结尾
+        </label>
+         <label class="radio inline">
+          <input type="radio" name="cssbeautify-brackets" value="separate-line"> 单独一行
+        </label>
+        
+        <legend style="margin-top:10px;"></legend>
+        <label class="checkbox">
+          <input type="checkbox" name="cssbeautify-auto" value="1" checked> 自动补全分号 （总是为真）
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="cssbeautify-note" value="1"> 删除注释
+        </label>
+      </fieldset>
+    </form>
+
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-primary" id="cssbeautify-submit">提交</button>
+  </div>
+</div>
+<!--cssbeautify end-->
+
+<!--jsmin start-->
+<div id="myModal-jsmin" class="modal hide fade" tabindex="-1" data-backdrop="static" aria-labelledby="myModalLabel" aria-hidden="true">
+  <div class="modal-body">
+      <form>
+      <fieldset>
+        <legend>压缩强度</legend>
+        <label class="radio">
+          <input type="radio" name="jsmin-level" value="1"> 低 <span class="muted">原算法，但保留换行original algorithm but keep linefeeds if single</span>
+        </label>
+        <label class="radio">
+          <input type="radio" name="jsmin-level" value="2" checked> 中 <span class="muted">原来的算法</span>
+        </label>
+        <label class="radio">
+          <input type="radio" name="jsmin-level" value="3"> 高 <span class="muted">比原来的算法删除更多的换行</span>
+        </label>
+      </fieldset>
+    </form>
+
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-primary" id="jsmin-submit">提交</button>
+  </div>
+</div>
+<!--jsmin end-->
+
+<!--jsbeautify start-->
+<div id="myModal-jsbeautify" class="modal hide fade" tabindex="-1" data-backdrop="static" aria-labelledby="myModalLabel" aria-hidden="true">
+  <div class="modal-body">
+      <form>
+      <fieldset>
+        <legend>缩进宽度</legend>
+        <label class="radio inline">
+          <input type="radio" name="jsbeautify-space" value="4" checked> 4个空格
+        </label>
+        <label class="radio inline">
+          <input type="radio" name="jsbeautify-space" value="2"> 2个空格
+        </label>
+        <label class="radio inline">
+          <input type="radio" name="jsbeautify-space" value="tab"> Tab制表符
+        </label>
+        
+        <legend style="margin-top:10px;">换行符</legend>
+         <label class="radio inline">
+          <input type="radio" name="jsbeautify-newline" value="-1" checked> 删除所有多余的换行符
+        </label>
+         <label class="radio inline">
+          <input type="radio" name="jsbeautify-newline" value="2"> 允许标记之间2换行符
+        </label>
+        <label class="radio inline">
+          <input type="radio" name="jsbeautify-newline" value="2"> 保留所有换行符
+        </label>
+        
+        <legend style="margin-top:10px;">每行字符数</legend>
+         <label class="radio inline">
+          <input type="radio" name="jsbeautify-wrap" value="0" checked> 无限制
+        </label>
+        <label class="radio inline">
+          <input type="radio" name="jsbeautify-wrap" value="40"> 40个字符
+        </label>
+         <label class="radio inline">
+          <input type="radio" name="jsbeautify-wrap" value="80"> 80个字符
+        </label>
+        <label class="radio inline">
+          <input type="radio" name="jsbeautify-wrap" value="120"> 120个字符
+        </label>
+        <label class="radio inline">
+          <input type="radio" name="jsbeautify-wrap" value="160"> 160个字符
+        </label>
+        
+        <legend style="margin-top:10px;">括号风格</legend>
+         <label class="radio inline">
+          <input type="radio" name="jsbeautify-bracestyle" value="collapse" checked> 本行成对出现
+        </label>
+        <label class="radio inline">
+          <input type="radio" name="jsbeautify-bracestyle" value="expand"> 单独一行
+        </label>
+         <label class="radio inline">
+          <input type="radio" name="jsbeautify-bracestyle" value="end-expand"> 前括号单独一行
+        </label>
+        
+        <legend style="margin-top:10px;"></legend>
+         <label class="checkbox inline">
+          <input type="checkbox" name="jsbeautify-unescape-strings" value="1" checked>解码 \xNN or \uNNNN
+        </label>
+         <label class="checkbox inline">
+          <input type="checkbox" name="jsbeautify-note" value="1"> 删除注释
+        </label>
+        <label class="checkbox inline">
+          <input type="checkbox" name="jsbeautify-space-before-conditional" value="1"> if(x) -> if (x)
+        </label>
+
+      </fieldset>
+    </form>
+
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-primary jsbeautify-submit" data="jsbeautify">提交</button>
+  </div>
+</div>
+<!--jsbeautify end-->
+
+<!--timedate start-->
+<div id="myModal-timedate" class="modal hide fade" tabindex="-1" data-backdrop="static" aria-labelledby="myModalLabel" aria-hidden="true">
+  <div class="modal-body">
+      <form>
+      <fieldset>
+        <legend>转换格式</legend>
+        <label class="radio">
+          <input type="radio" name="timedate-level" value="1" checked> Unix时间戳 <span class="muted">1400242394</span>
+        </label>
+        <label class="radio">
+          <input type="radio" name="timedate-level" value="2"> 毫秒时间戳 <span class="muted">1400242394560</span>
+        </label>
+      </fieldset>
+    </form>
+
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-primary" id="timedate-submit">提交</button>
+  </div>
+</div>
+<!--timedate end-->
+<!--copyright start-->
+<div class="bar" id="bar" style="color:#777; text-align:center; margin-top:10px; padding-top:10px; margin-bottom:10px; border-top: 1px solid #e5e5e5;display:none;">
+<div class="barr">
+<p>Copyright &copy;<strong style="color:#08c">2016</strong>　<code><a>Luojie</a> </code>版本号：<strong style="color:#08c">v2.2.9.5</strong> 上次更新：<strong style="color:#08c">2016-05-05</strong>　<span id="out">字符长度：<strong style="color:#08c" id="out_size">0</strong> 字节</span></p>
+<p id="useragent" style="color:#999999;display:none"></p>
+<table class="table-nav">
+<tr>
+	<td class="table-one"></td>
+    <td class="table-two" id="mj">轻轻的我来了，正如我轻轻的走。</td>
+    <td class="table-three"></td>
+</tr>
+</table>
+</div>
+</div>
+<!--copyright end-->
+
+<script src="./bootstrap/js/jquery-1.9.1.js"></script>
+<script src="./bootstrap/js/bootstrap.js"></script>
+
+<script src="./js/library/snowfall.jquery.js"></script>
+<script>
+$(document).snowfall();
+if ((navigator.userAgent.indexOf('MSIE') >= 0) && (navigator.userAgent.indexOf('Opera') < 0))
+{
+	$('.spinner').remove();
+}
+</script>
+
+<script src="./js/toolbox/library.js"></script>
+<script src="./js/toolbox/menu.js"></script>
+
+<script src="./codemirror/codemirror.js"></script>
+<script src="./codemirror/selection/active-line.js"></script>
+<script src="./codemirror/dialog/dialog.js"></script>
+<script src="./codemirror/search/search.js"></script>
+<script src="./codemirror/search/searchcursor.js"></script>
+<script src="./codemirror/mode/javascript.js"></script>
+<script src="./codemirror/display/fullscreen.js"></script>
+
+<script src="./js/jquery.base64.js"></script>
+<script src="./js/cntw.js"></script>
+<script src="./js/jquery.md5.js"></script>
+<script src="./js/jquery.cxcolor.js"></script>
+
+<script src="./js/rmb.js"></script>
+
+<script src="./js/jquery.json-2.4.js"></script>
+<script src="./js/calconvert.js"></script>
+<script src="./js/rgbHex.js"></script>
+
+<script src="./js/crypto-js/hmac-sha1.js"></script>
+<script src="./js/crypto-js/hmac-sha256.js"></script>
+<script src="./js/crypto-js/hmac-sha512.js"></script>
+<script src="./js/crypto-js/hmac-sha3.js"></script>
+<script src="./js/crypto-js/ripemd160.js"></script>
+<script src="./js/crypto-js/aes.js"></script>
+<script src="./js/crypto-js/tripledes.js"></script>
+<script src="./js/crypto-js/rabbit.js"></script>
+
+<script src="./js/crypto-js/rc4.js"></script>
+<script src="./js/css-beautify.js"></script>
+<script src="./js/js-min.js"></script>
+<script src="./js/js-beautify.js"></script>
+<script src="./js/beautify-html.js"></script>
+<script src="./js/toolbox/lunar_calendar.js"></script>
+<script src="./js/jquery.unicode.js"></script>
+
+<script src="./js/jquery.htmlentities.js"></script>
+<script src="./js/crc32.js"></script>
+<script src="./js/compress.js"></script>
+<script src="./js/toolbox/popup_newyear.js"></script>
+<script src="./js/toolbox/jquery.cookie.js"></script>
+
+</body>
+</html>

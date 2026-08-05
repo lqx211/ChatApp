@@ -1,0 +1,55 @@
+A {
+	TEXT-DECORATION: none;
+}
+A:HOVER {
+	TEXT-DECORATION: none;
+}
+.THEBODY {
+	BACKGROUND-COLOR: #FFFFFF;
+}
+.text {
+	FONT: 13px Verdana;
+	COLOR: #333333;
+}
+.dir_text {
+	FONT: 13px Verdana;
+	COLOR: #ECC11C;
+	FONT-WEIGHT: bold;
+}
+.file_text {
+	FONT: 13px Verdana;
+	COLOR: #336699;
+}
+.small_text {
+	FONT: 12px Verdana;
+	COLOR: #666666;
+}
+.small_red_text {
+	FONT: 12px Verdana;
+	COLOR: #DD0000;
+}
+.main_table {
+	BACKGROUND: #FFFFFF;
+	COLOR: #000000;
+	BORDER-RIGHT: #CECEDE 1px solid;
+	BORDER-TOP: #CECEDE 1px solid;;
+	BORDER-LEFT: #CECEDE 1px solid;
+	BORDER-BOTTOM: #DEDEDE 1px solid;
+	FONT: 13px Verdana;
+}
+.tab_header_cell {
+	BBACKGROUND: #DCDCC5;
+	BACKGROUND: #D9DAD5
+	COLOR: #000000;
+	BORDER-RIGHT: #9E9E9E 1px solid;
+	BORDER-TOP: #BEBEBE 0px solid;;
+	BORDER-LEFT: #BEBEBE 0px solid;
+	BORDER-BOTTOM: #9E9E9E 1px solid;
+	FONT: 12px Verdana;
+	FONT-WEIGHT: bold;
+}
+.page_nr_text {
+	FONT: 12px Verdana;
+	COLOR: #0033CC;
+	FONT-WEIGHT: bold;
+}

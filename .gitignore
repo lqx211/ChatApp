@@ -1,0 +1,59 @@
+# =================== macOS ===================
+.DS_Store
+**/.DS_Store
+
+# =================== Backups ===================
+bkup/
+*.sql
+tablet-archive-*.tar.gz
+
+# =================== IDE / Editor ===================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# =================== Logs ===================
+*.log
+error_log
+
+# =================== Something not important ===================
+ASSISTANT_ChatApp_README.md
+ca-bkup-*.sql
+ca-fullbkup-*.tar.*
+tablet-archive-20260803.tar.gz
+jh.md
+
+# =================== User-generated / runtime data ===================
+# Custom emoji (user-uploaded)
+data/ce/*
+data/cep/*
+data/ticket/*
+data/sc/*
+
+# User uploads
+data/user/*
+
+# Tickets
+data/ticket/*
+
+# Donation records
+data/donation/*
+
+# Screenshots / screen captures
+data/sc/*
+
+# Temporary / cache resources (keep directory, ignore content)
+data/res/fileicon/*
+data/res/sound/*
+data/res/svg/*
+data/res/wallpaper/*
+
+# =================== Sensitive config (track example files only) ===================
+# maintenance/config.php contains credentials — use config.example.php instead
+maintenance/config.php
+
+# =================== Keep directory structure ===================
+# Ensure empty directories are tracked via .gitkeep
+# (setup.sh will create .gitkeep files where needed)

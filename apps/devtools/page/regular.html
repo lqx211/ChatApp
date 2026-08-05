@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-cmn-Hans">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+<title>开发工具箱 - 正则表达式在线测试</title>
+<meta name="keywords" content="html, js, css 正则表达式在线测试" />
+<meta name="description" content="html, js, css 正则表达式在线测试" />
+<link type="text/css" rel="stylesheet" href="http://cdn.box3.cn/bootstrap/css/bootstrap.min.css" />
+<link href="http://cdn.box3.cn/codemirror/codemirror.css" rel="stylesheet" />
+<link href="http://cdn.box3.cn/codemirror/display/fullscreen.css" rel="stylesheet" />
+<link href="http://cdn.box3.cn/codemirror/dialog/dialog.css" rel="stylesheet" />
+<link href="http://cdn.box3.cn/codemirror/theme/solarized.css" rel="stylesheet" />
+<link href="http://cdn.box3.cn/css/popup.css" rel="stylesheet" />
+<link rel="icon" href="/icons/favicon.ico" mce_href="/icons/favicon.ico" type="image/x-icon">
+<style>.CodeMirror{text-align: left; min-height:100px;-webkit-border-radius:4px;-moz-border-radius:4px;border-radius:4px}</style>
+</head>
+<body>
+<div class="navbar navbar-inverse navbar-fixed-top">
+  <div class="navbar-inner">
+    <div class="container" style="width:1260px;min-width:200px" id="header">
+      <a class="brand active" href="/" target="_self" style="width:70px" id="nav-href"><img src="/icons/icon32.png" class="custom-header-img">首页</a> <a class="brand active">-</a> <a class="brand active" href="#">正则表达式在线测试</a>
+    </div>
+  </div>
+</div>
+
+<div class="container" style="text-align:center;width:1260px;margin-top:60px; margin-bottom:60px;" id="content">
+
+<table class="table table-hover table-bordered table-striped">
+	<tbody>
+	  <tr>
+		<td><a href="###" class="match" data="chinese">提取中文字符</a></td>
+		<td><a href="###" class="match" data="common">随机数</a></td>
+		<td><a href="###" class="match" data="trim-all">过滤前后、中间空格</a></td>
+		<td><a href="###" class="match" data="email">匹配Email地址</a></td>
+		<td><a href="###" class="match" data="url">匹配网址URL</a></td>
+	  </tr>
+	  <tr>
+		<td><a href="###" class="match" data="phone">匹配国内手机号码</a></td>
+		<td><a href="###" class="match" data="qq">匹配腾讯QQ号</a></td>
+		<td><a href="###" class="match" data="postal">匹配中国邮政编码</a></td>
+		<td><a href="###" class="match" data="id-card">匹配18位身份证号</a></td>
+		<td><a href="###" class="match" data="date">匹配(年-月-日)格式日期</a></td>
+	  </tr>
+	  <tr>
+		<td><a href="###" class="match" data="number">匹配数字</a></td>
+		<td><a href="###" class="match" data="letter">匹配大小写字母</a></td>
+		<td><a href="###" class="match" data="ip">匹配IP（IPV4）</a></td>
+		<td><a href="###" class="match" data="insert">字符串中间插入其它字符</a></td>
+		<td>---</td>
+	  </tr>
+	</tbody>
+  </table>
+
+<div style="width:610px;float:left;" id="con_left">
+<div style="text-align:left;color:#ff5400;text-decoration:underline;"><h4>编辑你的代码:</h4></div>
+<textarea id="input_text" style="display:none;"></textarea>
+<p id="load">Loading...</p>
+</div>
+
+<div style="width:610px;float:left;margin-left:20px" id="con_right">
+<div style="text-align:left;color:#ff5400;text-decoration:underline;"><h4>实时显示结果:</h4></div>
+<iframe id="result" name="result" style="border:1px solid #ccc;-webkit-border-radius:4px;-moz-border-radius:4px;border-radius:4px;min-height:100px;" width="100%" height="100%" frameborder="0"></iframe>
+</div>
+</div>
+
+<script src="http://cdn.box3.cn/bootstrap/js/jquery-1.9.1.min.js"></script>
+<script src="http://cdn.box3.cn/bootstrap/js/bootstrap.min.js"></script>
+
+<script src="http://cdn.box3.cn/codemirror/codemirror.js"></script>
+<script src="http://cdn.box3.cn/codemirror/selection/active-line.js"></script>
+<script src="http://cdn.box3.cn/codemirror/dialog/dialog.js"></script>
+<script src="http://cdn.box3.cn/codemirror/search/search.js"></script>
+<script src="http://cdn.box3.cn/codemirror/search/searchcursor.js"></script>
+<script src="http://cdn.box3.cn/codemirror/mode/javascript.js"></script>
+<script src="http://cdn.box3.cn/codemirror/display/fullscreen.js"></script>
+
+<script src="http://cdn.box3.cn/js/developtoolbox/library.js"></script>
+<script src="http://cdn.box3.cn/js/developtoolbox/scrolltopcontrol.js"></script>
+<script src="http://cdn.box3.cn/js/page/page-regular.js"></script>
+</body>
+</html>

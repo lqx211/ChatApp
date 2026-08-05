@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>开发工具箱 - 漂亮二维码</title>
+<link type="text/css" rel="stylesheet" href="../bootstrap/css/bootstrap.css" />
+<link type="text/css" rel="stylesheet" href="../css/popup.css"  />
+</head>
+<body class="qrcode_bg">
+<div class="navbar navbar-inverse navbar-fixed-top">
+  <div class="navbar-inner">
+    <div class="container">
+      <a class="brand active" href="qrcode.html" target="_self" style="width:130px;" id="nav-href"><img src="../icons/icon32.png" class="custom-header-img">漂亮二维码</a>
+      <div class="nav-collapse collapse">
+        <ul class="nav">
+          <li class="menu" name="menu_one">
+            <a href="#"><i class="icon-time"></i> 亲，页面还剩余（<span id="timeout">10分</span>）自动关闭！</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="qrcode_container"></div>
+<div class="qrcode_control left">
+    <label for="render">生成类型</label>
+    <select id="render">
+        <option value="canvas" selected="selected">Canvas</option>
+        <option value="image">Image</option>
+        <option value="div">DIV</option>
+    </select>
+    <hr>
+    <label for="size">画布大小: 400px</label>
+    <input id="size" type="range" value="400" min="100" max="1000" step="50">
+    <label for="fill">填充颜色</label>
+    <input id="fill" type="color" value="#333333">
+    <label for="background">背景颜色</label>
+    <input id="background" type="color" value="#ffffff">
+    <label for="text">文本内容</label>
+    <textarea id="text" rows="5"></textarea>
+    <hr>
+    <label for="minversion">MIN VERSION: 6</label>
+    <input id="minversion" type="range" value="6" min="1" max="10" step="1">
+    <label for="eclevel">纠错等级</label>
+    <select id="eclevel">
+        <option value="L">L - Low (7%)</option>
+        <option value="M">M - Medium (15%)</option>
+        <option value="Q">Q - Quartile (25%)</option>
+        <option value="H" selected="selected">H - High (30%)</option>
+    </select>
+    <label for="quiet">空白边界: 1 modules</label>
+    <input id="quiet" type="range" value="1" min="0" max="4" step="1">
+    <label for="radius">圆角效应(非Opera): 50%</label>
+    <input id="radius" type="range" value="50" min="0" max="50" step="10">
+    <hr>
+	<a id="qrcode_download" download="qrcode.png">下载当前生成的二维码</a>
+	<div style="clear:both;margin-bottom:42px;"></div>
+</div>
+
+<div class="qrcode_control right">
+<div class="alert alert-error" style="margin-right: 20px;">
+  注：低版本浏览器不支持。
+</div>
+<hr>
+    <label for="mode">模式</label>
+    <select id="mode">
+        <option value="0">0 - Normal</option>
+        <option value="1">1 - Label-Strip</option>
+        <option value="2" selected="selected">2 - Label-Box</option>
+        <option value="3">3 - Image-Strip</option>
+        <option value="4">4 - Image-Box</option>
+    </select>
+    <hr>
+    <label for="msize">大小: 11%</label>
+    <input id="msize" type="range" value="11" min="0" max="40" step="1">
+    <label for="mposx">X 坐标: 50%</label>
+    <input id="mposx" type="range" value="50" min="0" max="100" step="1">
+    <label for="mposy">Y 坐标: 50%</label>
+    <input id="mposy" type="range" value="50" min="0" max="100" step="1">
+    <hr>
+    <label for="label">标签内容</label>
+    <input id="label" type="text" value="开发工具箱">
+    <label for="font">字体</label>
+    <input id="font" type="text" value="Ubuntu">
+    <label for="fontcolor">字体颜色；图片无效</label>
+    <input id="fontcolor" type="color" value="#ff9818">
+    <hr>
+    <label for="image">插入图片</label>
+    <input id="image" type="file">
+</div>
+
+<img id="qrcode_img_buffer" src="../icons/icon32.png" />
+
+<script src="../bootstrap/js/jquery-1.9.1.js"></script>
+<script src="../bootstrap/js/bootstrap.js"></script>
+<script src="../js/jquery.qrcode-0.7.0.js"></script>
+<script src="../js/toolbox/library.js"></script>
+<script src="../js/page/jquery.qrcode-page.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,21 @@
+<h2><span>accessToken</span></h2>
+<blockquote>
+    <p>有效期为24小时,其他所有接口调用都需要此参数 accessToken=XXX;</p>
+</blockquote>
+<p>
+  <strong>请求方式</strong>：<code>GET</code>;
+    <br><strong>请求地址</strong>：<code>http://[server]/?user/loginSubmit</code>
+    <br><strong>请求参数</strong>：
+</p>
+<pre>
+link:http://[server]/?user/accessToken  //说明:server为kod的服务器地址
+login_token:XXX                         //说明:base64encode([用户名])+|+MD5([用户名]+[apiLoginTonken])
+                                        //apiLoginTonken 配置: config/setting.php $config['settings']
+</pre>
+<p>
+    <strong><em>例如</em></strong>: 以admin用户身份登录，获取身份认证口令.
+    <br><strong>apiLoginTonken假设配置为</strong>: <code>aabbcc</code>
+    <br><strong>计算login_token</strong>: <code>base64_encode('admin').'|'.md5('admin'.'aabbcc')</code>
+    <br><strong>得到login_token</strong>: <code>YWRtaW4=|dcac15090c4d478fa67e6258129c25af</code>
+    <br><strong>请求url</strong>: <code>http://[server]/?user/loginSubmit&amp;link=http://[server]/你的地址&amp;login_token=YWRtaW4=|dcac15090c4d478fa67e6258129c25af</code> 注意:link需要url编码一下.
+</p>
