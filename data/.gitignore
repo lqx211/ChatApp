@@ -1,13 +1,7 @@
 # =================== User-generated content (directory kept, content ignored) ===================
 # Custom emoji (user-uploaded)
-ce/*.png
-ce/*.jpg
-ce/*.gif
-ce/*.webp
-cep/*.png
-cep/*.jpg
-cep/*.gif
-cep/*.webp
+ce/*
+cep/*
 
 # User file uploads
 user/*/
@@ -20,13 +14,6 @@ donation/*
 
 # Screenshots
 sc/*
-
-# Resource directories — files ignored, directory kept via .gitkeep in setup.sh
-res/emoji/*
-res/fileicon/*
-res/sound/*
-res/svg/*
-res/wallpaper/*
 
 # macOS
 .DS_Store
