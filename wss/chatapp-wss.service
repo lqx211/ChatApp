@@ -1,0 +1,30 @@
+[Unit]
+Description=ChatApp WebSocket Server
+After=network.target mysql.service
+
+[Service]
+Type=simple
+# 修改为你的实际路径
+WorkingDirectory=/var/www/html
+ExecStart=/usr/bin/php /var/www/html/wss/wss_server.php
+Restart=always
+RestartSec=3
+# 日志由 PHP 内部写 wss/wss.log，systemd journal 也会捕获 stdout/stderr
+StandardOutput=journal
+StandardError=journal
+# 安全加固（可选）
+NoNewPrivileges=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target
+
+# ============================================================
+# 使用方法:
+#   1. 修改上面的 WorkingDirectory 和 ExecStart 为你的实际路径
+#   2. sudo cp wss/chatapp-wss.service /etc/systemd/system/
+#   3. sudo systemctl daemon-reload
+#   4. sudo systemctl enable --now chatapp-wss
+#   5. 查看状态: sudo systemctl status chatapp-wss
+#   6. 查看日志: sudo journalctl -u chatapp-wss -f
+# ============================================================

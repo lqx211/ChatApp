@@ -140,6 +140,13 @@ return [
     'admin_add_placeholder'  => '添加占位用户',
     'admin_placeholder_status' => '占位',
     'admin_restricted_status' => '受限',
+    'msg_restricted_login_title' => '受限',
+    'msg_restricted_login_body' => '您的账户目前受到限制。您的账户可能被举报或存在安全问题。',
+    'msg_restricted_reason' => '原因：%s',
+    'btn_continue_login' => '继续登录',
+    'btn_log_out' => '退出登录',
+    'admin_set_restrict_reason' => '设置限制原因',
+    'admin_restrict_reason_prompt' => '限制原因：',
     'admin_placeholder_confirm' => '此账户无法登录，确认？',
     'admin_cannot_toggle'    => '无法操作管理员。',
 

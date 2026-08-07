@@ -18,11 +18,18 @@ tablet-archive-*.tar.gz
 error_log
 
 # =================== Something not important ===================
+*test*
 ASSISTANT_ChatApp_README.md
+prompt_obfuscator.md
 ca-bkup-*.sql
 ca-fullbkup-*.tar.*
 tablet-archive-20260803.tar.gz
 jh.md
+littlelab
+getdb.sh
+jsvm-obfuscator
+a
+plan
 
 # =================== User-generated / runtime data ===================
 # Custom emoji (user-uploaded)

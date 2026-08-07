@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS users (
     token_reset DATETIME DEFAULT NULL,
     deleted_at DATETIME DEFAULT NULL,
     role VARCHAR(20) NOT NULL DEFAULT 'user',
+    restricted_reason TEXT DEFAULT NULL,
     last_ping DATETIME DEFAULT NULL,
     typing_to VARCHAR(20) DEFAULT NULL,
     typing_at DATETIME DEFAULT NULL,

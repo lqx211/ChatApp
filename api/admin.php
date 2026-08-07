@@ -167,7 +167,7 @@ switch ($action) {
     case 'user_detail':
         $username = trim($_GET['username'] ?? '');
         if (empty($username)) { echo json_encode(['success'=>false]); exit; }
-        $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, enabled, restricted, placeholder, dnd, role, created_at, last_login, exp, level FROM users WHERE username = ?");
+        $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, enabled, restricted, restricted_reason, placeholder, dnd, role, created_at, last_login, exp, level FROM users WHERE username = ?");
         $stmt->execute([$username]);
         $u = $stmt->fetch();
         if (!$u) { echo json_encode(['success'=>false]); exit; }
@@ -233,11 +233,23 @@ switch ($action) {
         chatapp_log_admin('change_status', $uid, $username, ['new' => $status]);
         break;
 
-    case 'adjust_level':
+    case 'set_restrict_reason':
         if (!chatapp_has_permission($myUid, 'users.edit_role')) { echo json_encode(['success'=>false]); exit; }
         $username = trim($_POST['username'] ?? '');
         $uid = _uid($pdo, $username);
         if ($uid === 10000 || empty($username)) { echo json_encode(['success'=>false]); exit; }
+        $reason = trim(mb_substr($_POST['reason'] ?? '', 0, 1000));
+        $pdo->prepare("UPDATE users SET restricted_reason = ? WHERE username = ?")->execute([$reason ?: null, $username]);
+        echo json_encode(['success'=>true]);
+        chatapp_log_admin('set_restrict_reason', $uid, $username, ['reason' => $reason ?: '']);
+        break;
+
+    case 'adjust_level':
+        if (!chatapp_has_permission($myUid, 'users.edit_role')) { echo json_encode(['success'=>false,'error'=>'Permission denied']); exit; }
+        $username = trim($_POST['username'] ?? '');
+        if (empty($username)) { echo json_encode(['success'=>false,'error'=>'Missing username']); exit; }
+        $uid = _uid($pdo, $username);
+        if (!$uid) { echo json_encode(['success'=>false,'error'=>'User not found']); exit; }
         $newLevel = (int)($_POST['level'] ?? 0);
         if ($newLevel < 1 || $newLevel > 100) { echo json_encode(['success'=>false,'error'=>'Level must be 1-100']); exit; }
         $pdo->prepare("UPDATE users SET level = ? WHERE user_id = ?")->execute([$newLevel, $uid]);
@@ -246,10 +258,11 @@ switch ($action) {
         break;
 
     case 'adjust_exp':
-        if (!chatapp_has_permission($myUid, 'users.edit_role')) { echo json_encode(['success'=>false]); exit; }
+        if (!chatapp_has_permission($myUid, 'users.edit_role')) { echo json_encode(['success'=>false,'error'=>'Permission denied']); exit; }
         $username = trim($_POST['username'] ?? '');
+        if (empty($username)) { echo json_encode(['success'=>false,'error'=>'Missing username']); exit; }
         $uid = _uid($pdo, $username);
-        if ($uid === 10000 || empty($username)) { echo json_encode(['success'=>false]); exit; }
+        if (!$uid) { echo json_encode(['success'=>false,'error'=>'User not found']); exit; }
         $newExp = max(0, (int)($_POST['exp'] ?? 0));
         $pdo->prepare("UPDATE users SET exp = ? WHERE user_id = ?")->execute([$newExp, $uid]);
         echo json_encode(['success'=>true, 'exp'=>$newExp]);
@@ -257,10 +270,11 @@ switch ($action) {
         break;
 
     case 'reset_exp':
-        if (!chatapp_has_permission($myUid, 'users.edit_role')) { echo json_encode(['success'=>false]); exit; }
+        if (!chatapp_has_permission($myUid, 'users.edit_role')) { echo json_encode(['success'=>false,'error'=>'Permission denied']); exit; }
         $username = trim($_POST['username'] ?? '');
+        if (empty($username)) { echo json_encode(['success'=>false,'error'=>'Missing username']); exit; }
         $uid = _uid($pdo, $username);
-        if ($uid === 10000 || empty($username)) { echo json_encode(['success'=>false]); exit; }
+        if (!$uid) { echo json_encode(['success'=>false,'error'=>'User not found']); exit; }
         $pdo->prepare("UPDATE users SET exp = 0 WHERE user_id = ?")->execute([$uid]);
         echo json_encode(['success'=>true]);
         chatapp_log_admin('reset_exp', $uid, $username, ['reset' => true]);

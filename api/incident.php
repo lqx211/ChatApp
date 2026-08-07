@@ -62,28 +62,31 @@ switch ($action) {
         $newIncidentId = (int)$pdo->lastInsertId();
 
         // ---- Level system: ticket creation EXP (after persisted) ----
+        // UID 10000 (root/owner) does not earn EXP from its own bug/suggestion reports.
         try {
-            if ($type === 'bug') {
-                // Bug: +20 with 12h cooldown; first-ever bug gets extra +75 (once)
-                $stmt = $pdo->prepare("SELECT last_exp_bug_at FROM users WHERE user_id = ?");
-                $stmt->execute([$myUid]);
-                $lastBugAt = $stmt->fetchColumn();
-                $lastBugTs = $lastBugAt ? strtotime((string)$lastBugAt) : 0;
-                if (!$lastBugAt || (time() - $lastBugTs) >= 12 * 3600) {
-                    $pdo->prepare("UPDATE users SET last_exp_bug_at = NOW() WHERE user_id = ?")->execute([$myUid]);
-                    exp_add($myUid, 20, 'bug', true, 'ticket:' . $newIncidentId);
-                }
-                // First-time bug bonus +75 (independent of cooldown)
-                exp_bonus_claim($myUid, 'first_bug', 75, 'bonus_first_bug', 'ticket:' . $newIncidentId);
-            } elseif ($type === 'recommendation') {
-                // Suggestion: +10 with 12h cooldown
-                $stmt = $pdo->prepare("SELECT last_exp_suggestion_at FROM users WHERE user_id = ?");
-                $stmt->execute([$myUid]);
-                $lastSugAt = $stmt->fetchColumn();
-                $lastSugTs = $lastSugAt ? strtotime((string)$lastSugAt) : 0;
-                if (!$lastSugAt || (time() - $lastSugTs) >= 12 * 3600) {
-                    $pdo->prepare("UPDATE users SET last_exp_suggestion_at = NOW() WHERE user_id = ?")->execute([$myUid]);
-                    exp_add($myUid, 10, 'suggestion', true, 'ticket:' . $newIncidentId);
+            if ($myUid !== 10000) {
+                if ($type === 'bug') {
+                    // Bug: +20 with 12h cooldown; first-ever bug gets extra +75 (once)
+                    $stmt = $pdo->prepare("SELECT last_exp_bug_at FROM users WHERE user_id = ?");
+                    $stmt->execute([$myUid]);
+                    $lastBugAt = $stmt->fetchColumn();
+                    $lastBugTs = $lastBugAt ? strtotime((string)$lastBugAt) : 0;
+                    if (!$lastBugAt || (time() - $lastBugTs) >= 12 * 3600) {
+                        $pdo->prepare("UPDATE users SET last_exp_bug_at = NOW() WHERE user_id = ?")->execute([$myUid]);
+                        exp_add($myUid, 20, 'bug', true, 'ticket:' . $newIncidentId);
+                    }
+                    // First-time bug bonus +75 (independent of cooldown)
+                    exp_bonus_claim($myUid, 'first_bug', 75, 'bonus_first_bug', 'ticket:' . $newIncidentId);
+                } elseif ($type === 'recommendation') {
+                    // Suggestion: +10 with 12h cooldown
+                    $stmt = $pdo->prepare("SELECT last_exp_suggestion_at FROM users WHERE user_id = ?");
+                    $stmt->execute([$myUid]);
+                    $lastSugAt = $stmt->fetchColumn();
+                    $lastSugTs = $lastSugAt ? strtotime((string)$lastSugAt) : 0;
+                    if (!$lastSugAt || (time() - $lastSugTs) >= 12 * 3600) {
+                        $pdo->prepare("UPDATE users SET last_exp_suggestion_at = NOW() WHERE user_id = ?")->execute([$myUid]);
+                        exp_add($myUid, 10, 'suggestion', true, 'ticket:' . $newIncidentId);
+                    }
                 }
             }
         } catch (Exception $e) {
@@ -213,11 +216,12 @@ switch ($action) {
         // Award AFTER persisted + mark exp_awarded so it can never double-pay
         if ($rewardType && $rewardExp > 0) {
             try {
-                $pdo->prepare("UPDATE incidents SET exp_awarded = 1 WHERE id = ?")->execute([$id]);
                 $stmt = $pdo->prepare("SELECT reporter_id FROM incidents WHERE id = ?");
                 $stmt->execute([$id]);
                 $reporterUid = (int)($stmt->fetchColumn() ?: 0);
-                if ($reporterUid > 0) {
+                // UID 10000 (root/owner) does not earn EXP from its own bug/suggestion reports.
+                if ($reporterUid > 0 && $reporterUid !== 10000) {
+                    $pdo->prepare("UPDATE incidents SET exp_awarded = 1 WHERE id = ?")->execute([$id]);
                     exp_add($reporterUid, $rewardExp, $rewardType, true, 'ticket:' . $id);
                 }
             } catch (Exception $e) {

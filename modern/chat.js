@@ -20,6 +20,57 @@ var _contactNotes = {};
 var _loaded = false;
 var _msgSearchPage = 1, _msgSearchQ = '', _dmLoading = false, _dmOldest = 0, _annLoading = false, _grpLoading = false, _grpOldest = 0;
 
+/**
+ * ChatApp — 统一 API 通信层（POST → WSS，失败自动降级 HTTP）
+ *
+ * 路由表：已迁移到 WSS 的 action 走 wssRequest，其余全部走原始 HTTP。
+ * 规则：
+ *   - 附件请求（attachment/temp_upload_id）永远强制 HTTP，不进 WSS
+ *   - WSS 未连接 / 请求超时(3s) / 断线 / 服务端报错(FORCE_HTTP 等) → 自动降级原始 HTTP
+ *   - 降级后 HTTP 失败仍由调用方原有 catch 处理，保证功能永可用
+ *
+ * @param {string} action  action 名（send/revoke/mark_read/unread_counts 等）
+ * @param {Object} params  参数对象（与 HTTP POST body 同字段）
+ * @param {Object} [opts]  {timeoutMs, forceHttp}
+ * @returns {Promise<Object>} 服务器 JSON 响应
+ */
+function apiRequest(action, params, opts) {
+    opts = opts || {};
+    var paramsObj = params || {};
+    // 附件/闪传：强制 HTTP（经 Cloudflare HTTPS 有保障，且避免阻塞 WSS 单线程）
+    var hasAttachment = !!(paramsObj.attachment || paramsObj.temp_upload_id);
+    var route = { send: 'ws', revoke: 'ws', mark_read: 'ws', unread_counts: 'ws' }[action] || 'http';
+    var useWs = !opts.forceHttp && !hasAttachment && route === 'ws' &&
+        typeof window.wssRequest === 'function' && window.wssRequestAvailable();
+
+    function httpFallback() {
+        // 构造与原始调用完全一致的 POST body（application/x-www-form-urlencoded）
+        var f = new URLSearchParams();
+        f.append('action', action);
+        for (var k in paramsObj) {
+            if (Object.prototype.hasOwnProperty.call(paramsObj, k) && paramsObj[k] !== undefined && paramsObj[k] !== null) {
+                f.append(k, paramsObj[k]);
+            }
+        }
+        return fetch('../api/chat.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: f.toString()
+        }).then(function(r) { return r.json(); });
+    }
+
+    if (!useWs) return httpFallback();
+
+    return window.wssRequest(action, paramsObj, opts.timeoutMs || 3000).then(function(d) {
+        // WSS 服务端返回 FORCE_HTTP（附件/闪传被拒）→ 降级 HTTP
+        if (d && d.success === false && d.error === 'FORCE_HTTP') return httpFallback();
+        return d;
+    }).catch(function() {
+        // WSS 不可用/超时/断线 → 降级 HTTP
+        return httpFallback();
+    });
+}
+
 function T(key, fallback) {
     if (typeof LANG !== 'undefined' && LANG && LANG[key]) return LANG[key];
     return fallback !== undefined ? fallback : key;
@@ -325,6 +376,7 @@ function ping() {
         body: 'action=ping'
     }).catch(function() {})
 }
+// 在线状态判定依赖 last_ping < 15s，必须保持 5s HTTP ping（WS 只负责消息接收）
 setInterval(ping, 5000);
 ping();
 async function toggleDnd() {
@@ -446,6 +498,7 @@ function autoResize(ta) {
     ta.style.height = 'auto';
     ta.style.height = Math.min(ta.scrollHeight, parseFloat(getComputedStyle(ta).maxHeight) || 300) + 'px';
 }
+// 在线状态/打字指示仍走 HTTP（WS 只推消息，不替代在线轮询）
 setInterval(checkOnline, 3000);
 
 function loadContacts() {
@@ -716,10 +769,13 @@ async function resolveReport(id) {
     } else alert('Failed to resolve.');
 }
 async function banResolveReport(id) {
+    var reason = await xprompt('Restrict reason for this user:', '');
+    if (reason === null || reason === false) return;
     var f = new URLSearchParams();
     f.append('action', 'resolve');
     f.append('id', id);
     f.append('ban', '1');
+    f.append('reason', reason);
     var r = await fetch('../api/report.php', {
         method: 'POST',
         headers: {
@@ -1064,6 +1120,7 @@ async function openUserDetail(username) {
     if (u.role !== 'root') {
         h += '<div class="ng"><div class="ngh" onclick="usAction(\'us_change_role\')" style="cursor:pointer"><span>Change role</span></div></div>';
     }
+    h += '<div class="ng"><div class="ngh" onclick="usAction(\'us_set_restrict_reason\')" style="cursor:pointer"><span>Set restrict reason</span></div></div>';
     h += '<div class="ng"><div class="ngh" onclick="usAction(\'us_toggle_dnd\')" style="cursor:pointer"><span>Toggle DND</span></div></div>';
     h += '<div class="ng"><div class="ngh" onclick="usAction(\'us_expire_tokens\')" style="cursor:pointer"><span>Expire all login tokens</span></div></div>';
     h += '<div class="ng"><div class="ngh" onclick="usAction(\'us_send_friend_request\')" style="cursor:pointer"><span>Send friend request</span></div></div>';
@@ -1087,6 +1144,7 @@ async function openUserDetail(username) {
         'UID: ' + u.user_id + '<br>' +
         'Role: ' + u.role + '<br>' +
         'Status: ' + stLabel + '<br>' +
+        'Restrict reason: ' + (u.restricted_reason || '-') + '<br>' +
         'Level: ' + (u.level || 1) + '<br>' +
         'Total Exp: ' + (u.exp || 0) + '<br>' +
         'DND: ' + (u.dnd ? 'Yes' : 'No') + '</div>';
@@ -1290,6 +1348,30 @@ async function usAction(type) {
         else xalert(d.error || 'Failed.');
         return;
     }
+    if (type === 'us_set_restrict_reason') {
+        var curReason = '';
+        try {
+            var dd = await fetch('../api/admin.php?action=user_detail&username=' + encodeURIComponent(u)).then(r => r.json());
+            if (dd.success) curReason = dd.user.restricted_reason || '';
+        } catch (e) {}
+        var rr = await xprompt('Set restrict reason for ' + u + ':', curReason);
+        if (rr === null || rr === false) return;
+        var f = new URLSearchParams();
+        f.append('action', 'set_restrict_reason');
+        f.append('username', u);
+        f.append('reason', rr);
+        var r = await fetch('../api/admin.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: f.toString()
+        });
+        var d = await r.json();
+        if (d.success) openUserDetail(u);
+        else xalert(d.error || 'Failed.');
+        return;
+    }
     if (type === 'us_adjust_level') {
         var nl = await xprompt('Set level for ' + u + ' (1-100):', '');
         if (!nl) return;
@@ -1303,7 +1385,10 @@ async function usAction(type) {
             method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString()
         });
         var d = await r.json();
-        if (d.success) openUserDetail(u);
+        if (d.success) {
+            closeUserDetail();
+            openUserDetail(u);
+        }
         else xalert(d.error || 'Failed.');
         return;
     }
@@ -1320,8 +1405,11 @@ async function usAction(type) {
             method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString()
         });
         var d = await r.json();
-        if (d.success) openUserDetail(u);
-        else xalert('Failed.');
+        if (d.success) {
+            closeUserDetail();
+            openUserDetail(u);
+        }
+        else xalert(d.error || 'Failed.');
         return;
     }
     if (type === 'us_reset_exp') {
@@ -1333,8 +1421,11 @@ async function usAction(type) {
             method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString()
         });
         var d = await r.json();
-        if (d.success) openUserDetail(u);
-        else xalert('Failed.');
+        if (d.success) {
+            closeUserDetail();
+            openUserDetail(u);
+        }
+        else xalert(d.error || 'Failed.');
         return;
     }
     if (type === 'us_change_uid') {
@@ -1476,15 +1567,7 @@ function openDm(u) {
     _replyData = null;
     updateReplyIndicator();
     var f = new URLSearchParams();
-    f.append('action', 'mark_read');
-    f.append('from', u);
-    fetch('../api/chat.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: f.toString()
-    }).catch(function() {});
+    apiRequest('mark_read', { from: u }).catch(function() {});
     unreadCounts[u] = 0;
     updateUnreads();
 }
@@ -1831,6 +1914,7 @@ async function loadDmMessages(before) {
 function onDmInput() {
     if (!D || S) return;
     clearTimeout(typingTimer);
+    // typing 走 HTTP（原样保留）
     fetch('../api/status.php', {
         method: 'POST',
         headers: {
@@ -1857,26 +1941,19 @@ async function sendDmMessage() {
     S = true;
     document.getElementById('dmSendBtn').disabled = true;
     try {
-        var f = new URLSearchParams();
-        f.append('action', 'send');
-        f.append('message', m);
-        f.append('recipient', D);
-        if (_replyTarget) f.append('reply_to', _replyTarget);
-        if (document.getElementById('mdCheckDm').checked) f.append('md', '1');
+        var pDm = {
+            message: m,
+            recipient: D
+        };
+        if (_replyTarget) pDm.reply_to = _replyTarget;
+        if (document.getElementById('mdCheckDm').checked) pDm.md = '1';
         if (pendingDmMedia) {
             var _at = pendingDmMedia;
             pendingDmMedia = null;
-            f.append('attachment', _at.data || _at);
-            if (_at.name) f.append('filename', _at.name);
+            pDm.attachment = _at.data || _at;
+            if (_at.name) pDm.filename = _at.name;
         }
-        var r = await fetch('../api/chat.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
-                body: f.toString()
-            }),
-            d = await r.json();
+        var d = await apiRequest('send', pDm);
         if (d.success) {
             i.value = '';
             _replyTarget = null;
@@ -1971,21 +2048,12 @@ var _gPoll = null;
 function maybePollGroups() {
     if (G) loadGroupMessages(G);
 }
-// Start group chat polling
+// 群轮询保持原 1500ms（WS 只推当前订阅的群，轮询兜底保证新加入的群不漏消息）
 if (_gPoll === null) {
     _gPoll = setInterval(maybePollGroups, 1500);
 }
 async function revokeDmMessage(id) {
-    var f = new URLSearchParams();
-    f.append('action', 'revoke');
-    f.append('message_id', id);
-    var d = await fetch('../api/chat.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: f.toString()
-    }).then(r => r.json());
+    var d = await apiRequest('revoke', { message_id: id });
     if (d.success) {
         var el = document.querySelector('#dmMessagesArea [data-msgid="' + id + '"]');
         if (el) {
@@ -2157,25 +2225,18 @@ async function sendAnnouncement() {
     S = true;
     document.getElementById('sendBtn').disabled = true;
     try {
-        var f = new URLSearchParams();
-        f.append('action', 'send');
-        f.append('message', m);
-        if (_replyTarget) f.append('reply_to', _replyTarget);
-        if (document.getElementById('mdCheckAnn').checked) f.append('md', '1');
+        var pAnn = {
+            message: m
+        };
+        if (_replyTarget) pAnn.reply_to = _replyTarget;
+        if (document.getElementById('mdCheckAnn').checked) pAnn.md = '1';
         if (pendingMedia) {
             var _at = pendingMedia;
             pendingMedia = null;
-            f.append('attachment', _at.data || _at);
-            if (_at.name) f.append('filename', _at.name);
+            pAnn.attachment = _at.data || _at;
+            if (_at.name) pAnn.filename = _at.name;
         }
-        var r = await fetch('../api/chat.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
-                body: f.toString()
-            }),
-            d = await r.json();
+        var d = await apiRequest('send', pAnn);
         if (d.success) {
             i.value = '';
             _replyTarget = null;
@@ -2200,16 +2261,7 @@ async function sendAnnouncement() {
     }
 }
 async function revokeAnnouncement(id) {
-    var f = new URLSearchParams();
-    f.append('action', 'revoke');
-    f.append('message_id', id);
-    var d = await fetch('../api/chat.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: f.toString()
-    }).then(r => r.json());
+    var d = await apiRequest('revoke', { message_id: id });
     if (d.success) {
         var el = document.querySelector('#messagesArea [data-msgid="' + id + '"]');
         if (el) {
@@ -2799,7 +2851,7 @@ async function doSupportUpdateStatus(id) {
 }
 
 if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
-fetch('../api/chat.php?action=unread_counts').then(r => r.json()).then(function(d) {
+apiRequest('unread_counts', {}).then(function(d) {
     if (d.success && d.counts) {
         for (var k in d.counts) unreadCounts[k] = d.counts[k];
         updateUnreads();
@@ -2807,7 +2859,8 @@ fetch('../api/chat.php?action=unread_counts').then(r => r.json()).then(function(
 }).catch(function() {});
 initialLoad();
 setTimeout(lcInit, 500);
-P = setInterval(pm, 1500);
+// WS 收到新消息时会主动更新 L 并渲染（wss_client.js），此 1500ms 轮询降为 30s 兜底
+P = setInterval(pm, 30000);
 loadContacts();
 loadPending();
 loadMyGroups();
@@ -3733,15 +3786,7 @@ function openForwardModal(el) {
 var _fwdRaw = '';
 function forwardTo(username) {
     if (!_fwdRaw || !username) return;
-    var f = new URLSearchParams();
-    f.append('action', 'send');
-    f.append('message', _fwdRaw);
-    f.append('recipient', username);
-    fetch('../api/chat.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: f.toString()
-    }).then(function(r) { return r.json() }).then(function(d) {
+    apiRequest('send', { message: _fwdRaw, recipient: username }).then(function(d) {
         if (d.success) {
             closeForwardModal();
         } else xalert('Failed.');
@@ -3823,7 +3868,7 @@ function clearEmojiContextTimer() {
 }
 document.addEventListener('contextmenu', function(e) {
     var target = e.target && e.target.closest ? e.target.closest('.chat-emoji, .mr') : null;
-    if (target) {
+    if (target && !e.target.closest('.file-dl-btn')) {
         e.preventDefault();
         e.stopPropagation();
         openMessageMenuForTarget(target, e);
@@ -3853,7 +3898,7 @@ document.addEventListener('click', function(e) {
     // Mobile touch: tapping a message bubble opens the context menu; desktop keeps current behavior.
     var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0);
     var bubbling = isTouch && e.target && e.target.closest ? e.target.closest('.mr') : null;
-    if (bubbling && !e.target.closest('.msg-more-btn') && !e.target.closest('.msg-menu') && !e.target.closest('.msg-emoji-add')) {
+    if (bubbling && !e.target.closest('.msg-more-btn') && !e.target.closest('.msg-menu') && !e.target.closest('.msg-emoji-add') && !e.target.closest('.file-dl-btn')) {
         openMessageMenuForTarget(bubbling, e);
         return;
     }
@@ -4157,15 +4202,7 @@ function _doFlashUpload(file, target) {
 }
 
 function flashSendAnnouncement(d) {
-    var form = new URLSearchParams();
-    form.append('action', 'send');
-    form.append('message', '');
-    form.append('temp_upload_id', d.id);
-    fetch('../api/chat.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: form.toString()
-    }).then(function(r) { return r.json(); }).then(function(res) {
+    apiRequest('send', { message: '', temp_upload_id: d.id }).then(function(res) {
         if (res.success) {
             copyText(d.url || '');
             pm();
@@ -4177,16 +4214,7 @@ function flashSendAnnouncement(d) {
 
 function flashSendDm(d) {
     if (!D) return;
-    var form = new URLSearchParams();
-    form.append('action', 'send');
-    form.append('message', '');
-    form.append('recipient', D);
-    form.append('temp_upload_id', d.id);
-    fetch('../api/chat.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: form.toString()
-    }).then(function(r) { return r.json(); }).then(function(res) {
+    apiRequest('send', { message: '', recipient: D, temp_upload_id: d.id }).then(function(res) {
         if (res.success) {
             delete seenMsgIds['dm_' + res.message_id];
             loadDmMessages();
@@ -4335,16 +4363,7 @@ function flashForward(el, tempId) {
 }
 
 function flashForwardTo(tempId, username) {
-    var form = new URLSearchParams();
-    form.append('action', 'send');
-    form.append('message', '');
-    form.append('recipient', username);
-    form.append('temp_upload_id', tempId);
-    fetch('../api/chat.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: form.toString()
-    }).then(function(r) { return r.json() }).then(function(d) {
+    apiRequest('send', { message: '', recipient: username, temp_upload_id: tempId }).then(function(d) {
         if (d.success) closeForwardModal();
         else xalert(T('flash_fail', '闪传失败'));
     });
@@ -5021,7 +5040,7 @@ function dbRunQuery() {
             b += '<tr>';
             for (var j = 0; j < d.columns.length; j++) {
                 var val = d.rows[i][d.columns[j]];
-                b += '<td style="padding:3px 8px;border-bottom:1px solid #333;white-space:nowrap">' + eh(val !== null ? val : 'NULL') + '</td>';
+                b += '<td style="padding:3px 8px;border-bottom:1px solid #333;max-width:400px;overflow:hidden">' + dbFormatCell(val) + '</td>';
             }
             b += '</tr>';
         }
@@ -5030,6 +5049,39 @@ function dbRunQuery() {
     }).catch(function() {
         statusEl.textContent = '请求失败';
     });
+}
+
+// Detect base64 image data (data:image/*;base64,...)
+function dbIsBase64Image(val) {
+    return typeof val === 'string' && /^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(val);
+}
+
+// Format a cell value; collapse base64 image data by default
+function dbFormatCell(val) {
+    if (dbIsBase64Image(val)) {
+        var prefix = val.substring(0, 80);
+        var totalLen = val.length;
+        return '<span class="db-b64" onclick="dbToggleB64(this)" title="点击展开/折叠" style="cursor:pointer;color:#e0a040">'
+            + '<span class="db-b64-label" style="font-weight:bold">[图片数据]</span> '
+            + '<span class="db-b64-preview" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px;display:inline-block;vertical-align:bottom">' + eh(prefix) + '...</span>'
+            + '<span class="db-b64-full" style="display:none;word-break:break-all;white-space:pre-wrap">' + eh(val) + '</span>'
+            + ' <span class="db-b64-meta" style="color:#888">(' + totalLen + ' chars)</span>'
+            + '</span>';
+    }
+    return eh(val !== null ? val : 'NULL');
+}
+
+// Toggle collapsed base64 image data cell
+function dbToggleB64(el) {
+    var full = el.querySelector('.db-b64-full');
+    var preview = el.querySelector('.db-b64-preview');
+    if (full.style.display === 'none') {
+        full.style.display = 'inline';
+        preview.style.display = 'none';
+    } else {
+        full.style.display = 'none';
+        preview.style.display = 'inline';
+    }
 }
 
 // ================= Session heartbeat (every 10s) =================

@@ -96,7 +96,9 @@ switch ($action) {
             $stmt->execute([$id]);
             $inc = $stmt->fetch();
             if ($inc && $inc['target_id']) {
-                $pdo->prepare("UPDATE users SET restricted = 1, enabled = 0 WHERE user_id = ?")->execute([$inc['target_id']]);
+                $reason = trim(mb_substr($_POST['reason'] ?? '', 0, 1000));
+                $pdo->prepare("UPDATE users SET restricted = 1, enabled = 0, restricted_reason = ? WHERE user_id = ?")
+                    ->execute([$reason ?: null, $inc['target_id']]);
             }
         }
         $pdo->prepare("UPDATE incidents SET status = 'resolved' WHERE id = ? AND type = 'report'")->execute([$id]);

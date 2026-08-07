@@ -140,6 +140,13 @@ return [
     'admin_add_placeholder'  => 'Add Placeholder',
     'admin_placeholder_status' => 'Placeholder',
     'admin_restricted_status' => 'Restricted',
+    'msg_restricted_login_title' => 'Restricted',
+    'msg_restricted_login_body' => 'Your account is currently restricted. Your account may be reported or have security issues.',
+    'msg_restricted_reason' => 'Reason: %s',
+    'btn_continue_login' => 'Continue login',
+    'btn_log_out' => 'Log out',
+    'admin_set_restrict_reason' => 'Set restrict reason',
+    'admin_restrict_reason_prompt' => 'Restrict reason:',
     'admin_placeholder_confirm' => 'This account cannot log in. Continue?',
     'admin_cannot_toggle'    => 'Cannot toggle admin.',
 

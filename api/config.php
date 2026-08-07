@@ -354,6 +354,7 @@ function init_db(): void {
     db_add_column_if_missing('users', 'deleted_at', "DATETIME DEFAULT NULL");
     db_add_column_if_missing('users', 'role', "VARCHAR(20) NOT NULL DEFAULT 'user'");
     db_add_column_if_missing('users', 'duress_password', "VARCHAR(255) DEFAULT NULL");
+    db_add_column_if_missing('users', 'restricted_reason', "TEXT DEFAULT NULL");
     db_add_column_if_missing('messages', 'read_at', "DATETIME DEFAULT NULL");
     db_add_column_if_missing('users', 'emoji_panel_mode', "VARCHAR(10) NOT NULL DEFAULT 'dynamic'");
     db_add_column_if_missing('messages', 'reply_to', "INT DEFAULT NULL");

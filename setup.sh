@@ -24,6 +24,10 @@
 
 set -euo pipefail
 
+read -p "Are you sure to run setup? [yn] " a
+
+if [ "$a" != "y" ]; then exit; fi
+
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT_DIR"
 

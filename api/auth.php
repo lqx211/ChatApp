@@ -59,7 +59,7 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => t('msg_too_many_attempts') ?? 'Too many attempts. Please try again later.']);
             exit;
         }
-        $stmt = $pdo->prepare('SELECT username, password, duress_password, enabled, preferred_language, placeholder, token_reset, restricted, user_id, cache_key, local_cache_enabled FROM users WHERE username = ?');
+        $stmt = $pdo->prepare('SELECT username, password, duress_password, enabled, preferred_language, placeholder, token_reset, restricted, restricted_reason, display_name, user_id, cache_key, local_cache_enabled FROM users WHERE username = ?');
         $stmt->execute([$username]);
         $user = $stmt->fetch();
         if (!$user || $user['placeholder'] || !$user['enabled']) {
@@ -74,6 +74,21 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => t('msg_session_expired')]); exit;
         }
         if (password_verify($password, $user['password'])) {
+            // Restricted account: return restricted info instead of logging in,
+            // unless the user explicitly confirmed continuing (confirm=1).
+            if (!empty($user['restricted']) && ($_POST['confirm'] ?? '') !== '1') {
+                // Set the session language to this user's preferred language so
+                // the restricted notice screen renders in their own i18n.
+                $_SESSION['preferred_language'] = $user['preferred_language'] ?? 'en';
+                echo json_encode([
+                    'success' => false,
+                    'restricted' => true,
+                    'display_name' => $user['display_name'] ?: $user['username'],
+                    'reason' => $user['restricted_reason'] ?? '',
+                    'preferred_language' => $user['preferred_language'] ?? 'en',
+                ]);
+                break;
+            }
             session_regenerate_id(true);
             $_SESSION['login_time'] = time();
             $_SESSION['username'] = $user['username'];

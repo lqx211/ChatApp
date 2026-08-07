@@ -5,6 +5,16 @@ $currentUser = chatapp_get_user();
 $isAdmin = chatapp_has_permission($currentUser['user_id'] ?? 0, 'users.view');
 $isRoot = chatapp_get_role((int)($currentUser['user_id'] ?? 0)) === 'root';
 $customTitle = $currentUser['custom_title'] ?? '';
+
+// 根据访问 Host 决定 WebSocket 地址:
+//   localhost/127.0.0.1 调试 -> 直连本机 9090 (不走 Tunnel)
+//   公网域名               -> 经 Cloudflare Tunnel 走 wss.lqx211.com
+$__host = $_SERVER['HTTP_HOST'] ?? '';
+if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !== false) {
+    $wssUrl = 'ws://' . $__host . ':9090';
+} else {
+    $wssUrl = 'wss://wss.lqx211.com';
+}
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -425,8 +435,11 @@ var EMOJI_PANEL='<?php echo $currentUser['emoji_panel_mode'] ?? 'dynamic';?>';
 var EMOJI_CHAT='<?php echo $currentUser['emoji_chat_mode'] ?? 'dynamic';?>';
 var MYLV=<?php echo (int)($currentUser['level'] ?? 1);?>;
 var MYEXP=<?php echo (int)($currentUser['exp'] ?? 0);?>;
+var WSS_URL=<?php echo json_encode($wssUrl);?>;
 </script>
 <script src="chat.js?v=<?php echo time();?>"></script>
+<script src="wss_client.js?v=<?php echo time();?>"></script>
+<script>try{wssInit();}catch(e){}</script>
 <div class="modal-overlay" id="addDonModal"><div class="modal-box"><h3>Add Donation</h3><table style="width:100%;border-collapse:collapse;font-size:.82em"><tr><td style="padding:6px 12px">DateTime</td><td style="padding:6px"><input type="text" id="addDonDateTime" placeholder="YYYY-MM-DD HH:MM:SS" style="width:100%;padding:6px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:inherit"></td></tr><tr><td style="padding:6px 12px">User</td><td style="padding:6px"><input type="text" id="addDonUserSearch" placeholder="Search username or UID..." autocomplete="off" oninput="searchDonUser()" style="width:100%;padding:6px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:inherit"><input type="hidden" id="addDonUserId"><div id="donUserSearchResults" style="max-height:120px;overflow-y:auto;border:1px solid #333;background:#1a1a1a;display:none"></div></td></tr><tr><td style="padding:6px 12px">WeixinID</td><td style="padding:6px"><input type="text" id="addDonWeixin" placeholder="Optional" style="width:100%;padding:6px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:inherit"></td></tr><tr><td style="padding:6px 12px">QQ</td><td style="padding:6px"><input type="text" id="addDonQQ" placeholder="Optional" style="width:100%;padding:6px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:inherit"></td></tr></table><div class="modal-actions" style="margin-top:10px"><button class="bsm" onclick="closeAddDonModal()">Cancel</button><button class="bsm" onclick="doAddDonation()" style="background:#2a4a2a;border-color:#3a6a3a">Save</button></div></div></div>
 <input type="file" id="customEmojiFile" accept="image/*" multiple style="display:none" onchange="uploadCustomEmoji()"><div class="emoji-popup" id="emojiPopup" style="display:none"><div class="emoji-sidebar"><button class="active" id="emojiTabBuiltin" onclick="switchEmojiTab('builtin')">内置表情</button><button id="emojiTabCustom" onclick="switchEmojiTab('custom')">自定义表情</button></div><div class="emoji-grid" id="emojiGrid"></div></div>
 
