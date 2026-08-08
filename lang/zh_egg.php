@@ -208,6 +208,7 @@ return [
     'btn_resolve'           => '处理',
     'msg_user_restricted'   => '该使用者已受限制。',
     'msg_failed_send_restricted' => '发送失败：该使用者已受限制。',
+    'msg_not_friends'       => '介只能给已经是朋友的人发送消息。',
 
     'title_support'          => '支援与Bug回馈',
     'title_create_ticket'    => '建立新工单',

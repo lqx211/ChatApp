@@ -64,6 +64,10 @@ function apiRequest(action, params, opts) {
     return window.wssRequest(action, paramsObj, opts.timeoutMs || 3000).then(function(d) {
         // WSS 服务端返回 FORCE_HTTP（附件/闪传被拒）→ 降级 HTTP
         if (d && d.success === false && d.error === 'FORCE_HTTP') return httpFallback();
+        // WSS 返回原始错误码，统一翻译 not_friends（HTTP 路径已在 api/chat.php 翻译）
+        if (d && d.success === false && d.error === 'not_friends') {
+            d.error = T('msg_not_friends', 'You can only send messages to your friends.');
+        }
         return d;
     }).catch(function() {
         // WSS 不可用/超时/断线 → 降级 HTTP
@@ -1971,7 +1975,7 @@ async function sendDmMessage() {
             xalert('Failed to send: The user is restricted.');
         } else if (d.error === 'Too large') {
             xalert('Attachment too large for your level. Max: ' + fmtSize((d.max_attach_kb || 0) * 1024));
-        } else xalert('Something went wrong.');
+        } else xalert(d.error || 'Something went wrong.');
     } catch (e) {
         xalert('Something went wrong.');
     } finally {
@@ -2179,6 +2183,8 @@ async function loadGroupHistoryChunk(before) {
 }
 async function pm() {
     if (!_loaded) return;
+    // WSS 在线时跳过 HTTP 轮询：新消息已由 WSS 推送（type:msg）
+    if (typeof window.wssRequestAvailable === 'function' && window.wssRequestAvailable()) return;
     try {
         var r = await fetch('../api/chat.php?action=fetch&after=' + L),
             d = await r.json();
@@ -3789,7 +3795,7 @@ function forwardTo(username) {
     apiRequest('send', { message: _fwdRaw, recipient: username }).then(function(d) {
         if (d.success) {
             closeForwardModal();
-        } else xalert('Failed.');
+        } else xalert(d.error || 'Failed.');
     });
 }
 function closeForwardModal() {
@@ -4268,6 +4274,58 @@ function tempDownload(id) {
     a.remove();
 }
 
+// ---- Flash card UI 更新（WSS 推送 temp_status 时调用；也供本地 HTTP 轮询复用） ----
+window.updateTempCardFromPush = function(state, item) {
+    if (!state || !item) return;
+    var bubble = state.closest('.flash-card');
+    if (!bubble) return;
+    var expireEl = bubble.querySelector('.flash-expire');
+
+    // 更新过期时间
+    if (expireEl && item.expires_at) {
+        expireEl.setAttribute('data-expires', item.expires_at);
+    }
+
+    // 更新下载按钮状态（被撤销）
+    if (item.revoked) {
+        state.textContent = T('flash_revoked_msg', '已被撤回并删除');
+        var btn = bubble.querySelector('.flash-dl');
+        if (btn && btn.tagName === 'BUTTON') {
+            var sp = document.createElement('span');
+            sp.className = 'flash-dl flash-dl-dis';
+            sp.textContent = T('btn_download', '下载');
+            btn.parentNode.replaceChild(sp, btn);
+        }
+        return;
+    }
+
+    // 更新状态文本
+    var isOwner = state.getAttribute('data-owner') === '1';
+    if (item.status === 'complete') {
+        state.textContent = isOwner
+            ? (T('flash_complete', '对方已经下载完成') + ' ✓')
+            : T('flash_has_downloaded', '已下载');
+    } else if (item.status === 'in_progress' && isOwner && typeof item.downloaded_bytes === 'number' && item.size > 0) {
+        var pct = Math.round(item.downloaded_bytes / item.size * 100);
+        state.textContent = T('flash_downloading', '对方正在下载') + ': ' + pct + '%';
+    } else if (item.status === 'in_progress') {
+        state.textContent = T('flash_has_downloaded', '已下载');
+    } else if (item.status === 'revoked') {
+        state.textContent = T('flash_revoked_msg', '已被撤回并删除');
+        var btn2 = bubble.querySelector('.flash-dl');
+        if (btn2 && btn2.tagName === 'BUTTON') {
+            var sp2 = document.createElement('span');
+            sp2.className = 'flash-dl flash-dl-dis';
+            sp2.textContent = T('btn_download', '下载');
+            btn2.parentNode.replaceChild(sp2, btn2);
+        }
+    } else {
+        state.textContent = isOwner
+            ? T('flash_not_started', '对方还没下载完成')
+            : T('flash_not_downloaded', '是否已下载: 否');
+    }
+};
+
 // ---- Flash status polling + countdown + speed ----
 function startTempPoll(bubble) {
     var state = bubble.querySelector('.flash-state');
@@ -4337,7 +4395,18 @@ function startTempPoll(bubble) {
         }).catch(function() {});
     }
     tick();
-    setInterval(tick, 2000);
+    // WSS 在线时：状态由 temp_status 推送驱动，HTTP 降至 10s 低频兜底；
+    // WSS 断线时：保持 2s 高频轮询确保实时性。
+    function scheduleNext() {
+        var interval = (typeof window.wssRequestAvailable === 'function' && window.wssRequestAvailable()) ? 10000 : 2000;
+        setTimeout(function() {
+            if (bubble.isConnected) {
+                tick();
+                scheduleNext();
+            }
+        }, interval);
+    }
+    scheduleNext();
 }
 
 // ---- Flash forward (share same temp file, new message) ----
@@ -4365,7 +4434,7 @@ function flashForward(el, tempId) {
 function flashForwardTo(tempId, username) {
     apiRequest('send', { message: '', recipient: username, temp_upload_id: tempId }).then(function(d) {
         if (d.success) closeForwardModal();
-        else xalert(T('flash_fail', '闪传失败'));
+        else xalert(d.error || T('flash_fail', '闪传失败'));
     });
 }
 

@@ -216,6 +216,7 @@ return [
     'btn_resolve'           => 'Resolve',
     'msg_user_restricted'   => 'The user is restricted.',
     'msg_failed_send_restricted' => 'Failed to send: The user is restricted.',
+    'msg_not_friends'       => 'You can only send messages to users who are your friends.',
 
     // Support / Incidents
     'title_support'          => 'Support & Bug Report',

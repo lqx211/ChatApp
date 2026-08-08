@@ -206,6 +206,7 @@ return [
     'btn_resolve'           => '了結',
     'msg_user_restricted'   => '此人已受制。',
     'msg_failed_send_restricted' => '傳書不遂：此人已受制。',
+    'msg_not_friends'       => '惟友朋之間方可傳書。',
 
     'title_support'          => '匡助與陳弊',
     'title_create_ticket'    => '立新牒',

@@ -36,6 +36,9 @@ switch ($action) {
         if (isset($res['error']) && $res['error'] === 'restricted') {
             $res['error'] = t('msg_user_restricted');
         }
+        if (isset($res['error']) && $res['error'] === 'not_friends') {
+            $res['error'] = t('msg_not_friends');
+        }
         echo json_encode($res);
         break;
 
