@@ -25,8 +25,8 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
 </head>
 <body>
  <div class="sidebar">
-  <div class="sidebar-profile" id="sidebarProfile">
-   <div class="sa" id="sidebarAvatar"><?php if($currentUser['avatar']):?><img src="<?php echo htmlspecialchars($currentUser['avatar']);?>"><?php endif;?></div>
+   <div class="sidebar-profile" id="sidebarProfile">
+    <div class="sa" id="sidebarAvatar" onclick="openMyProfile()" title="<?php echo t('btn_view_profile','View Profile');?>" style="cursor:pointer"><?php if($currentUser['avatar']):?><img src="<?php echo htmlspecialchars($currentUser['avatar']);?>"><?php endif;?></div>
    <div class="sun" id="sidebarName"><?php echo chatapp_display_name($currentUser);?></div>
    <a class="sdnd <?php echo ($currentUser['restricted'] ?? 0) ? 'rstr' : (($currentUser['dnd'] ?? 0) ? 'dnd' : 'on'); ?>" id="dndToggle" onclick="<?php echo ($currentUser['restricted'] ?? 0) ? '' : 'toggleDnd()'; ?>" style="<?php echo ($currentUser['restricted'] ?? 0) ? 'cursor:default' : ''; ?>"><?php echo ($currentUser['restricted'] ?? 0) ? t('admin_restricted_status') : (($currentUser['dnd'] ?? 0) ? t('msg_dnd_status') : t('msg_online_status')); ?></a>
   </div>
@@ -436,6 +436,9 @@ var EMOJI_CHAT='<?php echo $currentUser['emoji_chat_mode'] ?? 'dynamic';?>';
 var MYLV=<?php echo (int)($currentUser['level'] ?? 1);?>;
 var MYEXP=<?php echo (int)($currentUser['exp'] ?? 0);?>;
 var WSS_URL=<?php echo json_encode($wssUrl);?>;
+// 服务器数据库本地时区偏移（PHP date_default_timezone_set 决定，如 +08:00）
+// fmtTime/relTime 用它把 "YYYY-MM-DD HH:MM:SS" 字符串精确换算成时间戳
+var SERVER_TZ='<?php echo date('P');?>';
 </script>
 <script src="chat.js?v=<?php echo time();?>"></script>
 <script src="wss_client.js?v=<?php echo time();?>"></script>
@@ -460,4 +463,12 @@ var WSS_URL=<?php echo json_encode($wssUrl);?>;
 <!-- Mobile sidebar drawer: overlay + toggle button -->
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobileSidebar()"></div>
 <button id="sidebarToggleBtn" class="hidden" onclick="openMobileSidebar()" title="菜单">&#x276E;</button>
+
+<!-- ================================================================
+     QQ-style Profile Drawer (right side overlay, iframe renders test.html)
+     ================================================================ -->
+<div class="profile-overlay" id="profileOverlay" onclick="closeMyProfile()"></div>
+<div class="user-sidebar" id="userSidebar">
+ <iframe id="profileFrame" src="" title="Profile"></iframe>
+</div>
 </body></html>

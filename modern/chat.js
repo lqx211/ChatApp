@@ -342,12 +342,29 @@ function eh(t) {
     return d.innerHTML
 }
 
+// 服务器数据库里存储的本地时区（chat.php 注入 SERVER_TZ）。
+// messages.time / datetime 由 PHP date('Y-m-d H:i:s')（Asia/Hong_Kong）写入，
+// 并非 UTC —— 解析时必须显式按此偏移换算，绝不能追加 'Z' 当 UTC 用。
+var SERVER_TZ = (typeof SERVER_TZ !== 'undefined') ? SERVER_TZ : '+08:00';
+
+// 把一个 "YYYY-MM-DD HH:MM:SS" 字符串（服务器本地钟面时间）精确换算成时间戳。
+// 直接 Date.UTC 构造 + 减去服务器时区偏移，杜绝 getHours() 受浏览器本地时区影响。
+function timeToTs(s) {
+    if (!s) return null;
+    var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
+    if (!m) return null;
+    var mt = String(SERVER_TZ).match(/^([+-])(\d{2}):(\d{2})$/);
+    var offMin = 0;
+    if (mt) offMin = (mt[2] * 60 + +mt[3]) * (mt[1] === '-' ? -1 : 1);
+    return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) - offMin * 60000;
+}
+
 function relTime(dt) {
     if (!dt) return '';
-    var now = new Date(),
-        then = new Date(dt.replace(' ', 'T') + ':00Z');
-    if (isNaN(then.getTime())) return dt;
-    var diff = Math.floor((now - then) / 1000);
+    var ts = timeToTs(dt);
+    if (ts === null) return dt;
+    var now = Date.now(),
+        diff = Math.floor((now - ts) / 1000);
     if (diff < 60) return diff + 's ago';
     if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
     if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
@@ -358,17 +375,19 @@ function relTime(dt) {
 }
 
 function fmtTime(utc) {
-    var d = new Date(utc.replace(' ', 'T') + ':00Z');
-    if (isNaN(d.getTime())) return eh(utc);
-    var m = TZ.match(/^([+-])(\\d{2}):(\\d{2})$/);
+    var ts = timeToTs(utc);
+    if (ts === null) return eh(utc);
+    var m = TZ.match(/^([+-])(\d{2}):(\d{2})$/);
+    if (!m) m = String(SERVER_TZ).match(/^([+-])(\d{2}):(\d{2})$/);
     if (m) {
         var off = (m[2] * 60 + +m[3]) * (m[1] === '-' ? -1 : 1);
-        d = new Date(d.getTime() + off * 60000)
+        ts += off * 60000
     }
+    var d = new Date(ts);
     var p = function(v) {
         return v < 10 ? '0' + v : '' + v
     };
-    return d.getFullYear() + '/' + p(d.getMonth() + 1) + '/' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds())
+    return d.getUTCFullYear() + '/' + p(d.getUTCMonth() + 1) + '/' + p(d.getUTCDate()) + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':' + p(d.getUTCSeconds())
 }
 
 function ping() {
@@ -1600,8 +1619,7 @@ function toggleDmOptions(e) {
 function viewDmProfile() {
     if (!D) return;
     document.getElementById('dmOptionsMenu').classList.remove('active');
-    openDm(D);
-    xalert('Profile: ' + D);
+    openMyProfile(D);
 }
 
 function deleteDmContact() {
@@ -1807,6 +1825,7 @@ function addDmMessage(m, prepend) {
         d = document.createElement('div');
     d.className = 'mr' + (own ? ' own' : '');
     d.setAttribute('data-msgid', m.id);
+    d.setAttribute('data-msguser', m.username);
     d.setAttribute('data-raw', m.message || '');
     if (prepend) d.style.order = '-1';
     var dl = m.is_deleted === true,
@@ -2085,6 +2104,7 @@ function addAnnouncement(m, prepend) {
         d = document.createElement('div');
     d.className = 'mr' + (own ? ' own' : '');
     d.setAttribute('data-msgid', m.id);
+    d.setAttribute('data-msguser', m.username);
     d.setAttribute('data-raw', m.message || '');
     if (prepend) d.style.order = '-1';
     var dl = m.is_deleted === true,
@@ -5212,3 +5232,68 @@ document.addEventListener('click', function(e) {
 document.addEventListener('DOMContentLoaded', sidebarInit);
 window.addEventListener('resize', function() { sidebarInit(); });
 sidebarInit();
+
+// ================================================================
+// QQ-style Profile Drawer (right-side overlay, iframe renders test.html)
+// ================================================================
+function openMyProfile(username) {
+    var src = '/modern/profile.php';
+    if (username) src += '?user=' + encodeURIComponent(username);
+    document.getElementById('profileFrame').src = src;
+    document.getElementById('userSidebar').classList.add('active');
+    document.getElementById('profileOverlay').classList.add('active');
+}
+
+function closeMyProfile() {
+    document.getElementById('userSidebar').classList.remove('active');
+    document.getElementById('profileOverlay').classList.remove('active');
+}
+
+// ---- Profile drawer: click avatar in sidebar contacts or chat messages to view profile ----
+(function() {
+    // Sidebar contact list: click on avatar (.ca) → open profile (stop propagation to avoid openDm)
+    var fc = document.getElementById('friendContacts');
+    if (fc) {
+        fc.addEventListener('click', function(e) {
+            var csi = e.target.closest('.csi');
+            if (!csi) return;
+            var username = csi.getAttribute('data-cuser');
+            if (!username) return;
+            // Only if clicking on the avatar area (.ca), not the name
+            if (e.target.closest('.ca')) {
+                e.stopPropagation();
+                e.preventDefault();
+                openMyProfile(username);
+            }
+        }, true); // use capture to beat the inline onclick
+    }
+
+    // Chat message bubbles: click on avatar → open profile
+    var dma = document.getElementById('dmMessagesArea');
+    if (dma) {
+        dma.addEventListener('click', function(e) {
+            var avatar = e.target.closest('.msg-avatar');
+            if (!avatar) return;
+            var mr = avatar.closest('.mr');
+            if (!mr) return;
+            var username = mr.getAttribute('data-msguser');
+            if (!username) return;
+            e.stopPropagation();
+            openMyProfile(username);
+        });
+    }
+
+    var ma = document.getElementById('messagesArea');
+    if (ma) {
+        ma.addEventListener('click', function(e) {
+            var avatar = e.target.closest('.msg-avatar');
+            if (!avatar) return;
+            var mr = avatar.closest('.mr');
+            if (!mr) return;
+            var username = mr.getAttribute('data-msguser');
+            if (!username) return;
+            e.stopPropagation();
+            openMyProfile(username);
+        });
+    }
+})();

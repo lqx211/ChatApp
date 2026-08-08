@@ -37,7 +37,7 @@ function temp_dir(): string {
 function temp_cleanup(PDO $pdo): void {
     $now = gmdate('Y-m-d H:i:s');
     // 1) Hard expired (24h)
-    $rows = $pdo->query("SELECT id, hash FROM temp_uploads WHERE expires_at < NOW()")->fetchAll();
+    $rows = $pdo->query("SELECT id, hash FROM temp_uploads WHERE expires_at < UTC_TIMESTAMP()")->fetchAll();
     foreach ($rows as $r) {
         $fp = temp_dir() . '/' . $r['hash'];
         if (is_file($fp)) @unlink($fp);
@@ -188,7 +188,7 @@ switch ($action) {
             exit;
         }
         // Lazy expiry check
-        if (strtotime($rec['expires_at']) < time()) {
+        if (strtotime($rec['expires_at'] . ' UTC') < time()) {
             $fp = temp_dir() . '/' . $rec['hash'];
             if (is_file($fp)) @unlink($fp);
             $pdo->prepare("DELETE FROM temp_uploads WHERE id = ?")->execute([$id]);

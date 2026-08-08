@@ -29,7 +29,7 @@ littlelab
 getdb.sh
 jsvm-obfuscator
 a
-plan
+plan/
 
 # =================== User-generated / runtime data ===================
 # Custom emoji (user-uploaded)

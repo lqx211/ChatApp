@@ -1,0 +1,307 @@
+/* ================================================================
+   个人主页 · 暗色版 · 428px 基准 · QQ 风格
+   字体：抄 global.css 的 Roboto + Chinese
+   ================================================================ */
+
+/* === 字体（抄 css/global.css）=== */
+@font-face {
+  font-family: 'Roboto';
+  src: url('../css/fonts/Roboto-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Chinese';
+  src: url('../css/fonts/chinese.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+/* === 全局重置 === */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html {
+  overflow-y: scroll;               /* 始终显示滚动条，避免布局抖动 */
+  -webkit-overflow-scrolling: touch;
+}
+
+body {
+  font-family: 'Roboto', 'Chinese', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0f1117;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.card {
+  width: 428px;
+  background: #1a1d27;
+  margin: 0 auto;
+  position: relative;
+  /* 关键：去掉 overflow:hidden，让 body 正常滚动 */
+  /* 各区块自行管理溢出 */
+  padding-bottom: 80px;             /* 为底部固定按钮留空间 */
+}
+
+/* ==================================================================
+   1. 导航栏 —— 固定在屏幕顶部，不随滚动走
+   ================================================================== */
+.nav-bar {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 428px;
+  height: 97px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 16px 8px 12px;
+  z-index: 10;
+  /* 渐变背景：顶部不透明，底部透明 */
+  background: linear-gradient(to bottom,
+    rgba(15,17,23,0.92) 0%,
+    rgba(15,17,23,0.6) 50%,
+    rgba(15,17,23,0) 100%);
+  pointer-events: auto;
+}
+.nav-btn {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.12);
+  border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; color: #e0e0e0;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.nav-right {
+  display: flex;
+  gap: 8px;
+}
+.nav-right .nav-btn {
+  width: 28px; height: 28px;
+  font-size: 13px;
+}
+
+/* ==================================================================
+   2. 封面 —— 随滚动缩放 + 视差
+       cover-wrap 负责裁剪超出的部分
+   ================================================================== */
+.cover-wrap {
+  height: 223px;
+  overflow: hidden;                 /* 裁剪缩放后超出的部分 */
+  position: relative;
+  z-index: 1;
+}
+.cover {
+  width: 100%;
+  height: 100%;
+  background: url('gx.jpg') center top / cover no-repeat;
+  transform-origin: top center;     /* 从顶部中心放大，向下扩展 */
+  will-change: transform, background-position;
+}
+
+/* ==================================================================
+   3. 头像区 - 圆形头像（覆盖在 cover 底部）
+   ================================================================== */
+.profile-row {
+  display: flex;
+  align-items: flex-start;
+  padding: 0 16px;
+  margin-top: -12px;
+  position: relative;
+  z-index: 3;
+}
+.avatar { overflow:hidden;
+  width: 90px; height: 90px;
+  border-radius: 50%;
+  border: 3px solid #1a1d27;
+  background: linear-gradient(135deg, #43e97b, #38f9d7);
+  box-shadow: 0 2px 8px rgba(0,0,0,.3);
+  flex-shrink: 0;
+}
+.name-col {
+  flex: 1;
+  margin-left: 16px;
+  padding-top: 2px;
+}
+.nickname-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nickname {
+  font-size: 17px; font-weight: 600; color: #e8eaed;
+}
+.status-tag {
+  font-size: 11px; color: #8b93a1;
+  background: rgba(255,255,255,.08);
+  padding: 2px 8px; border-radius: 10px;
+}
+.uid-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.uid {
+  font-size: 13px; color: #6b7280;
+}
+
+.like-btn {
+  flex-shrink: 0;
+  margin-left: 8px;
+  background: #232936;
+  border: none; border-radius: 20px;
+  padding: 6px 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 4px;
+}
+.like-icon { font-size: 18px; line-height: 1; color: #d0d5dd; }
+.like-num { font-size: 11px; color: #6b7280; margin-top: 2px; }
+
+/* ==================================================================
+   4. 个人信息行
+   ================================================================== */
+.info-line {
+  padding: 10px 16px;
+  font-size: 13px; color: #9aa0b0;
+  border-bottom: 0.5px solid #262c38;
+  line-height: 1.8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+/* ==================================================================
+   5. 个性签名
+   ================================================================== */
+.sig-row {
+  display: flex; align-items: center;
+  padding: 12px 16px;
+  border-bottom: 0.5px solid #262c38;
+  cursor: pointer;
+}
+.sig-text {
+  color: #e0e3ea; font-size: 15px;
+  flex: 1;
+}
+.arrow {
+  margin-left: auto;
+  color: #4a5260; font-size: 18px; line-height: 1;
+  font-weight: 300;
+}
+
+/* ==================================================================
+   8. 分隔线
+   ================================================================== */
+.section-divider {
+  height: 6px;
+  background: #10141b;
+}
+
+/* ==================================================================
+   8. 底部按钮栏 —— 固定在屏幕最下方
+   ================================================================== */
+.bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 428px;
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px 14px;
+  border-top: 0.5px solid #262c38;
+  background: #1a1d27;
+  z-index: 10;
+  /* iPhone 底部安全区 */
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
+}
+.bottom-bar button {
+  flex: 1;
+  padding: 12px 0;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.btn-edit   { background: #232936; color: #9ca3af; }
+.btn-chat   { background: #3b82f6; color: #fff; }
+
+/* ==================================================================
+   9. 横滑照片区（精选照片）
+   ================================================================== */
+.photo-section {
+  padding: 10px 16px;
+  border-bottom: 0.5px solid #262c38;
+}
+.photo-section .photo-title {
+  font-size: 15px; font-weight: 600;
+  color: #e0e3ea;
+  margin-bottom: 8px;
+}
+.photo-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+  /* 隐藏滚动条 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.photo-scroll::-webkit-scrollbar {
+  display: none;
+}
+.photo-scroll img {
+  width: 120px;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+  scroll-snap-align: start;
+}
+
+/* ==================================================================
+   10. 添加标签行
+   ================================================================== */
+.tag-row {
+  display: flex; align-items: center;
+  padding: 12px 16px;
+  border-bottom: 0.5px solid #262c38;
+  cursor: pointer;
+  font-size: 14px; color: #8b93a1;
+}
+.tag-hint {
+  color: #5a6270; font-size: 13px;
+  margin-left: auto;
+  margin-right: 2px;
+}
+
+/* ==================================================================
+   11. 资料完成度
+   ================================================================== */
+.completion-row {
+  display: flex; align-items: center;
+  padding: 12px 16px;
+  border-bottom: 0.5px solid #262c38;
+  cursor: pointer;
+  font-size: 14px; color: #e0e3ea;
+}
+.completion-row .comp-text {
+  margin-left: 8px;
+}
+.completion-row .comp-action {
+  margin-left: auto;
+  color: #60a5fa; font-size: 13px;
+  margin-right: 4px;
+}
