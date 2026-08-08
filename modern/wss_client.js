@@ -186,6 +186,20 @@
                     }
                 }
                 break;
+
+            case 'temp_status':
+                // 闪传状态推送（替代前端每 2s HTTP 轮询 of api/temp.php?action=status）
+                // 由 chat.js 暴露的 window.updateTempCardFromPush(stateEl, item) 负责更新 UI
+                if (d.items && d.items.length && typeof window.updateTempCardFromPush === 'function') {
+                    for (var ti2 = 0; ti2 < d.items.length; ti2++) {
+                        var item = d.items[ti2];
+                        var cards = document.querySelectorAll('.flash-status.flash-state[data-temp="' + item.id + '"]');
+                        for (var c = 0; c < cards.length; c++) {
+                            window.updateTempCardFromPush(cards[c], item);
+                        }
+                    }
+                }
+                break;
         }
     }
 

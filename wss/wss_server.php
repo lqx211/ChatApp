@@ -183,6 +183,8 @@ $GLOBALS['clients'] = [];
 $GLOBALS['id_count'] = 0;
 // 全局游标：WS 服务自己查过的消息最大 id（跨所有类型）
 $GLOBALS['poll_latest'] = 0;
+// 闪传状态指纹缓存：cid => [temp_id => fingerprint]，仅推送变化的闪传状态
+$GLOBALS['temp_fp'] = [];
 
 function ws_clients(): array {
     return $GLOBALS['clients'];
@@ -391,6 +393,8 @@ function ws_close_conn(int $cid, int $code = 1000): void {
     $username = $cl['username'];
     $uid = $cl['user_id'];
     unset($GLOBALS['clients'][$cid]);
+    // 清理该连接的闪传指纹缓存
+    unset($GLOBALS['temp_fp'][(string)$cid]);
     ws_log("断开连接 #$cid ($username)");
     // 该用户是否还有别的连接？
     $stillOnline = false;
@@ -597,6 +601,105 @@ function ws_poll_messages(): void {
 }
 
 /**
+ * 闪传状态推送：检测 temp_uploads 变化，仅在有变更时推送 type=temp_status 给相关用户。
+ * 用于替代前端 2s HTTP 轮询（WSS 在线时）。
+ * 采用全局指纹缓存：只有状态/进度/撤销发生变化才推送，避免每轮循环重复发送。
+ */
+function ws_poll_temp_status(): void {
+    $clients = $GLOBALS['clients'] ?? [];
+    if (empty($clients)) return;
+    $pdo = ws_db();
+
+    // 为控制查询量，只查询有状态/进度的记录（not_started 无变化无需推送）
+    try {
+        $stmt = $pdo->query("SELECT id, owner_uid, revoked, download_complete, downloaded_bytes, size, expires_at, last_download_at
+            FROM temp_uploads
+            WHERE revoked = 1 OR download_complete = 1 OR downloaded_bytes > 0 OR download_started_at IS NOT NULL
+            ORDER BY id DESC LIMIT 200");
+        $rows = $stmt->fetchAll();
+    } catch (\Throwable $e) {
+        return;
+    }
+    if (empty($rows)) return;
+
+    // 构建 id => row 的映射
+    $tempById = [];
+    foreach ($rows as $r) {
+        $tempById[(int)$r['id']] = $r;
+    }
+
+    // 对每个在线用户：找到与他们相关的 temp（自己是 owner，或消息中包含该 temp）
+    foreach ($clients as $cid => $cl) {
+        $uid = (int)$cl['user_id'];
+        $userTemps = [];
+
+        // 自己是 owner 的 temp
+        foreach ($tempById as $tid => $tr) {
+            if ((int)$tr['owner_uid'] === $uid) {
+                $userTemps[$tid] = $tr;
+            }
+        }
+
+        // 收到的消息中引用该 temp（recipient 是我 或 我是 sender）
+        $tidList = array_keys($tempById);
+        if ($tidList) {
+            $placeholders = implode(',', array_fill(0, count($tidList), '?'));
+            try {
+                $stmt = $pdo->prepare("SELECT DISTINCT temp_upload_id FROM messages
+                    WHERE temp_upload_id IN ($placeholders)
+                      AND (sender_id = ? OR recipient_id = ? OR recipient_id IS NULL)
+                    ORDER BY id DESC LIMIT 50");
+                $stmt->execute(array_merge($tidList, [$uid, $uid]));
+                foreach ($stmt->fetchAll() as $mt) {
+                    $tid = (int)$mt['temp_upload_id'];
+                    if (isset($tempById[$tid])) {
+                        $userTemps[$tid] = $tempById[$tid];
+                    }
+                }
+            } catch (\Throwable $e) {}
+        }
+
+        if (empty($userTemps)) continue;
+
+        // 收集变更项：与上次推送的指纹比对，仅推送有变化的
+        $statuses = [];
+        $newFingerprint = $GLOBALS['temp_fp'][(string)$cid] ?? [];
+        foreach ($userTemps as $tid => $tr) {
+            $isOwner = ((int)$tr['owner_uid'] === $uid);
+            $status = 'not_started';
+            if ((int)$tr['revoked']) $status = 'revoked';
+            elseif ((int)$tr['download_complete']) $status = 'complete';
+            elseif (!empty($tr['download_started_at'])) $status = 'in_progress';
+            $item = [
+                'id' => $tid,
+                'status' => $status,
+                'revoked' => (int)$tr['revoked'],
+                'expires_at' => $tr['expires_at'],
+            ];
+            if ($isOwner) {
+                $item['downloaded_bytes'] = (int)$tr['downloaded_bytes'];
+                $item['size'] = (int)$tr['size'];
+                $item['download_complete'] = (int)$tr['download_complete'];
+                if (!empty($tr['last_download_at'])) $item['last_download_at'] = $tr['last_download_at'];
+            }
+
+            // 指纹：status + revoked + (owner 时 downloaded_bytes)
+            $fp = $status . '|' . (int)$tr['revoked'] . '|' . ($isOwner ? (int)$tr['downloaded_bytes'] : '');
+            if (($newFingerprint[$tid] ?? null) === $fp) continue; // 无变化跳过
+
+            $newFingerprint[$tid] = $fp;
+            $statuses[] = $item;
+        }
+
+        // 保存新指纹并推送变更
+        $GLOBALS['temp_fp'][(string)$cid] = $newFingerprint;
+        if (!empty($statuses)) {
+            ws_send_json($cid, ['type' => 'temp_status', 'items' => $statuses]);
+        }
+    }
+}
+
+/**
  * 请求消息刷新（客户端刚上线时）
  */
 function ws_refresh_client(int $cid): void {
@@ -742,6 +845,7 @@ function ws_main(): void {
     } catch (\Throwable $e) {}
 
     $nextPollTime = microtime(true);
+    $nextTempPollTime = microtime(true);  // 闪传状态推送独立调度（2s）
     $lastCleanup = microtime(true);
 
     while (true) {
@@ -873,6 +977,16 @@ function ws_main(): void {
                 ws_log("轮询异常: " . $e->getMessage());
             }
             $nextPollTime = microtime(true) + (WSS_POLL_MS / 1000);
+        }
+
+        // ---- 闪传状态轮询（2s，替代前端每 2s HTTP 轮询） ----
+        if ($now >= $nextTempPollTime) {
+            try {
+                ws_poll_temp_status();
+            } catch (\Throwable $e) {
+                ws_log("闪传状态轮询异常: " . $e->getMessage());
+            }
+            $nextTempPollTime = microtime(true) + 2;
         }
 
         // ---- 心跳超时清理 ----
