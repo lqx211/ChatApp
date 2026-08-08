@@ -212,7 +212,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .profile-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:890;opacity:0;pointer-events:none;transition:opacity .25s}
 .profile-overlay.active{opacity:1;pointer-events:auto}
 
-.user-sidebar{position:fixed;top:0;right:0;width:428px;max-width:100vw;height:100vh;height:100dvh;z-index:900;transform:translateX(100%);transition:transform .28s cubic-bezier(.4,0,.2,1);box-shadow:-4px 0 24px rgba(0,0,0,.5)}
+.user-sidebar{position:fixed;top:0;right:0;width:428px;max-width:100vw;height:100vh;height:100dvh;z-index:900;transform:translateX(100%);transition:transform .35s cubic-bezier(.4,0,.2,1);box-shadow:-4px 0 24px rgba(0,0,0,.5)}
 .user-sidebar.active{transform:translateX(0)}
 .user-sidebar iframe{width:100%;height:100%;border:0;display:block}
 

@@ -38,9 +38,43 @@ body {
   background: #1a1d27;
   margin: 0 auto;
   position: relative;
-  /* 关键：去掉 overflow:hidden，让 body 正常滚动 */
-  /* 各区块自行管理溢出 */
-  padding-bottom: 80px;             /* 为底部固定按钮留空间 */
+  padding-bottom: 80px;
+}
+
+.card.slide-in {
+  animation: slideInFromRight .3s cubic-bezier(.4,0,.2,1) forwards;
+}
+
+.card.slide-in-back {
+  animation: slideInFromLeft .3s cubic-bezier(.4,0,.2,1) forwards;
+}
+
+@keyframes slideInFromRight {
+  from { transform: translateX(80px); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideInFromLeft {
+  from { transform: translateX(-80px); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+.card.slide-out-right {
+  animation: slideOutToRight .28s cubic-bezier(.4,0,.2,1) forwards;
+}
+
+.card.slide-out-left {
+  animation: slideOutToLeft .28s cubic-bezier(.4,0,.2,1) forwards;
+}
+
+@keyframes slideOutToRight {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(80px); opacity: 0; }
+}
+
+@keyframes slideOutToLeft {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(-80px); opacity: 0; }
 }
 
 /* ==================================================================
@@ -176,6 +210,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+/* 非自己的主页（无 onclick）不显示手型，也不可点击 */
+.info-line:not([onclick]) {
+  cursor: default;
 }
 /* ==================================================================
    5. 个性签名

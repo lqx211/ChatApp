@@ -9,32 +9,31 @@ $isSelf = !$viewUsername || $viewUsername === ($currentUser['username'] ?? '');
 $profileUser = $currentUser;
 
 if (!$isSelf) {
-    // Fetch target user info via local API call (reuse current session cookie)
-    $apiUrl = 'http://[::1]:8080/api/admin.php';
-    $cookie = '';
-    foreach ($_COOKIE as $k => $v) { $cookie .= urlencode($k) . '=' . urlencode($v) . '; '; }
-    $ctx = stream_context_create(['http' => [
-        'method'  => 'POST',
-        'header'  => "Content-Type: application/x-www-form-urlencoded\r\nCookie: $cookie",
-        'content' => http_build_query(['action' => 'user_detail', 'username' => $viewUsername]),
-        'timeout' => 5
-    ]]);
-    $resp = @file_get_contents($apiUrl, false, $ctx);
-    if ($resp) {
-        $data = json_decode($resp, true);
-        if (!empty($data['success']) && !empty($data['user'])) {
-            $profileUser = $data['user'];
-        }
+    // Fetch target user info directly from DB
+    $pdo = db();
+    $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, enabled, restricted, restricted_reason, placeholder, dnd, role, created_at, last_login, exp, level, bg_image, custom_title FROM users WHERE username = ?");
+    $stmt->execute([$viewUsername]);
+    $row = $stmt->fetch();
+    if ($row) {
+        $profileUser = $row;
+        $profileUser['enabled'] = (int)$row['enabled'];
+        $profileUser['restricted'] = (int)$row['restricted'];
+        $profileUser['dnd'] = (int)$row['dnd'];
+        $profileUser['level'] = (int)$row['level'];
+        $profileUser['exp'] = (int)$row['exp'];
+        $profileUser['user_id'] = (int)$row['user_id'];
+        $profileUser['bg_image'] = $row['bg_image'] ?? '';
+        $profileUser['custom_title'] = $row['custom_title'] ?? '';
     }
 }
 
 $displayName = htmlspecialchars($profileUser['display_name'] ?? $profileUser['username'] ?? '');
 $userId = (int)($profileUser['user_id'] ?? 0);
 $avatar = $profileUser['avatar'] ?? '';
-$bg = $profileUser['bg'] ?? '';
+$bg = $profileUser['bg_image'] ?? '';
 $dnd = (int)($profileUser['dnd'] ?? 0);
 $restricted = (int)($profileUser['restricted'] ?? 0);
-$statusText = htmlspecialchars($profileUser['status'] ?? '……');
+$statusText = htmlspecialchars($profileUser['custom_title'] ?? '……');
 $statusLabel = $restricted ? 'Restricted' : ($dnd ? '请勿打扰' : '在线');
 $statusClass = $restricted ? 'rstr' : ($dnd ? 'dnd' : 'on');
 $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? '');
@@ -86,8 +85,8 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
     </button>
   </div>
 
-  <!-- 4. 个人信息行 -->
-  <div class="info-line">女 | n岁 | y月m日 x1+x2座 | 来自p1+p2 | example@example.com</div>
+  <!-- 4. 个人信息行（仅自己可点击跳转编辑） -->
+  <div class="info-line"<?php if($isSelf):?> onclick="parent.document.getElementById('profileFrame').src='editinfo.php'"<?php endif;?>>女 | n岁 | y月m日 x1+x2座 | 来自p1+p2 | example@example.com</div>
 
   <!-- 5. 个性签名 -->
   <div class="sig-row">
