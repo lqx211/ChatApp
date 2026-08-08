@@ -314,6 +314,22 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
             $uidStmt->execute([$recipientName]);
             $recipientId = (int)($uidStmt->fetchColumn() ?: 0);
             if (!$recipientId) return ['success' => false];
+
+            // ---- Security: 私聊必须互为好友，防止骚扰 ----
+            // 公告（recipient_id 为 NULL）无需校验；
+            // 自己给自己发送（如转发给自己）无需好友关系。
+            if ($recipientId !== $senderUid) {
+                $frStmt = $pdo->prepare(
+                    "SELECT 1 FROM contacts
+                     WHERE status = 'accepted' AND (
+                         (user_from = ? AND user_to = ?) OR (user_from = ? AND user_to = ?)
+                     ) LIMIT 1"
+                );
+                $frStmt->execute([$senderUid, $recipientId, $recipientId, $senderUid]);
+                if (!$frStmt->fetch()) {
+                    return ['success' => false, 'error' => 'not_friends'];
+                }
+            }
         }
         $pdo->prepare('INSERT INTO messages (sender_id, recipient_id, message, msg_type, attachment, reply_to, time, datetime, temp_upload_id) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)')
             ->execute([$senderUid, $recipientId, $msg, $msgType, $attachmentFilename, $replyTo ?: null, $time, $tempUploadId ?: null]);
