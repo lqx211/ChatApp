@@ -25,7 +25,7 @@ if ($birthTs > 0) {
         [23, '天秤座'],[24, '天蝎座'],[23, '射手座'],[22, '摩羯座']
     ];
     $z = $zodiacMap[$bm - 1];
-    $zodiac = ($bd >= $z[0]) ? $zodiacMap[$bm % 12][1] : $z[1];
+    $zodiac = ($bd >= $z[0]) ? $z[1] : $zodiacMap[($bm - 2 + 12) % 12][1];
 }
 $displayBirthday = $birthday ? htmlspecialchars($birthday) : '';
 ?>
@@ -35,7 +35,7 @@ $displayBirthday = $birthday ? htmlspecialchars($birthday) : '';
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
 <title>选择出生日期</title>
-<link rel="stylesheet" href="../plan/editinfo.css">
+<link rel="stylesheet" href="../plan/editinfo.css?v=20260809">
 </head>
 <body>
 
@@ -131,7 +131,7 @@ function computeZodiac(m, d) {
         [23, '天秤座'],[24, '天蝎座'],[23, '射手座'],[22, '摩羯座']
     ];
     var z = map[m - 1];
-    return (d >= z[0]) ? map[m % 12][1] : z[1];
+    return (d >= z[0]) ? z[1] : map[(m - 2 + 12) % 12][1];
 }
 
 function computeAge(y, m, d) {

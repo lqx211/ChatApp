@@ -146,6 +146,47 @@ switch ($action) {
         echo json_encode(['success' => true]);
         break;
 
+    case 'save_gender':
+        $g = $_POST['gender'] ?? '';
+        if ($g === '') {
+            $gv = null; // 未设置
+        } elseif ($g === '0' || $g === '1') {
+            $gv = (int)$g; // 0=女 1=男
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit;
+        }
+        db()->prepare('UPDATE users SET gender = ? WHERE username = ?')->execute([$gv, $_SESSION['username']]);
+        echo json_encode(['success' => true]);
+        break;
+
+    case 'save_gender_privacy':
+        $p = $_POST['privacy'] ?? '';
+        if ($p !== '0' && $p !== '1' && $p !== '2') {
+            echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit;
+        }
+        // 0=所有人可见 1=仅好友可见 2=所有人不可见
+        db()->prepare('UPDATE users SET gender_privacy = ? WHERE username = ?')->execute([(int)$p, $_SESSION['username']]);
+        echo json_encode(['success' => true]);
+        break;
+
+    case 'save_birthday':
+        $b = trim($_POST['birthday'] ?? '');
+        if ($b === '') {
+            $bv = null; // 未设置
+        } else {
+            if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $b, $m)) {
+                echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit;
+            }
+            $by = (int)$m[1]; $bm = (int)$m[2]; $bd = (int)$m[3];
+            if ($by < 1900 || $by > 2026 || $bm < 1 || $bm > 12 || $bd < 1 || $bd > 31 || !checkdate($bm, $bd, $by)) {
+                echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit;
+            }
+            $bv = sprintf('%04d-%02d-%02d', $by, $bm, $bd);
+        }
+        db()->prepare('UPDATE users SET birthday = ? WHERE username = ?')->execute([$bv, $_SESSION['username']]);
+        echo json_encode(['success' => true]);
+        break;
+
     case 'delete_account':
         $password = $_POST['password'] ?? '';
         if (empty($password)) { echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit; }

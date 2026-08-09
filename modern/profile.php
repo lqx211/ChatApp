@@ -11,7 +11,7 @@ $profileUser = $currentUser;
 if (!$isSelf) {
     // Fetch target user info directly from DB
     $pdo = db();
-    $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, enabled, restricted, restricted_reason, placeholder, dnd, role, created_at, last_login, exp, level, bg_image, custom_title FROM users WHERE username = ?");
+    $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, enabled, restricted, restricted_reason, placeholder, dnd, role, created_at, last_login, exp, level, bg_image, custom_title, gender, gender_privacy, birthday FROM users WHERE username = ?");
     $stmt->execute([$viewUsername]);
     $row = $stmt->fetch();
     if ($row) {
@@ -24,6 +24,9 @@ if (!$isSelf) {
         $profileUser['user_id'] = (int)$row['user_id'];
         $profileUser['bg_image'] = $row['bg_image'] ?? '';
         $profileUser['custom_title'] = $row['custom_title'] ?? '';
+        $profileUser['gender'] = $row['gender'] ?? '';
+        $profileUser['gender_privacy'] = $row['gender_privacy'] ?? 0;
+        $profileUser['birthday'] = $row['birthday'] ?? '';
     }
 }
 
@@ -34,6 +37,53 @@ $bg = $profileUser['bg_image'] ?? '';
 $dnd = (int)($profileUser['dnd'] ?? 0);
 $restricted = (int)($profileUser['restricted'] ?? 0);
 $statusText = htmlspecialchars($profileUser['custom_title'] ?? '……');
+
+// ---- 性别可见性过滤（0=所有人可见 1=仅好友可见 2=所有人不可见）----
+$genderVal = $profileUser['gender'] ?? '';
+$genderPrivacy = (int)($profileUser['gender_privacy'] ?? 0);
+$canSeeGender = false;
+if ($isSelf) {
+    $canSeeGender = true;
+} elseif ($genderPrivacy === 0) {
+    $canSeeGender = true;
+} elseif ($genderPrivacy === 1) {
+    $meUid = (int)($currentUser['user_id'] ?? 0);
+    $targetUid = (int)($profileUser['user_id'] ?? 0);
+    if ($meUid > 0 && $targetUid > 0) {
+        $cstmt = db()->prepare("SELECT COUNT(*) FROM contacts WHERE status='accepted' AND ((user_from=? AND user_to=?) OR (user_from=? AND user_to=?))");
+        $cstmt->execute([$meUid, $targetUid, $targetUid, $meUid]);
+        $canSeeGender = (int)$cstmt->fetchColumn() > 0;
+    }
+}
+$genderDisplay = '';
+if ($canSeeGender) {
+    $genderDisplay = ($genderVal === '0' || $genderVal === 0) ? '女' : (($genderVal === '1' || $genderVal === 1) ? '男' : '');
+}
+
+// ---- 生日 -> 年龄 + 月日 + 星座 ----
+$birthdayVal = $profileUser['birthday'] ?? '';
+$ageDisplay = '';
+$monthDayDisplay = '';
+$zodiacDisplay = '';
+$birthTs = $birthdayVal ? strtotime($birthdayVal) : 0;
+if ($birthTs > 0) {
+    $by = (int)date('Y', $birthTs);
+    $cy = (int)date('Y');
+    $bm = (int)date('n', $birthTs);
+    $bd = (int)date('j', $birthTs);
+    $age = $cy - $by;
+    // 未到今年生日则减一岁
+    if ((int)date('n') < $bm || ((int)date('n') === $bm && (int)date('j') < $bd)) $age--;
+    $ageDisplay = $age . '岁';
+    $monthDayDisplay = date('n月j日', $birthTs);
+    $zodiacMap = [
+        [20, '水瓶座'],[19, '双鱼座'],[21, '白羊座'],[20, '金牛座'],
+        [21, '双子座'],[22, '巨蟹座'],[23, '狮子座'],[23, '处女座'],
+        [23, '天秤座'],[24, '天蝎座'],[23, '射手座'],[22, '摩羯座']
+    ];
+    $z = $zodiacMap[$bm - 1];
+    $zodiacDisplay = ($bd >= $z[0]) ? $z[1] : $zodiacMap[($bm - 2 + 12) % 12][1];
+}
 $statusLabel = $restricted ? 'Restricted' : ($dnd ? '请勿打扰' : '在线');
 $statusClass = $restricted ? 'rstr' : ($dnd ? 'dnd' : 'on');
 $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? '');
@@ -86,7 +136,7 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
   </div>
 
   <!-- 4. 个人信息行（仅自己可点击跳转编辑） -->
-  <div class="info-line"<?php if($isSelf):?> onclick="parent.document.getElementById('profileFrame').src='editinfo.php'"<?php endif;?>>女 | n岁 | y月m日 x1+x2座 | 来自p1+p2 | example@example.com</div>
+  <div class="info-line"<?php if($isSelf):?> onclick="parent.document.getElementById('profileFrame').src='editinfo.php'"<?php endif;?>><?php echo $genderDisplay ? $genderDisplay . ' | ' : '';?><?php echo $ageDisplay ? $ageDisplay . ' | ' : '';?><?php echo $monthDayDisplay ? $monthDayDisplay . ' ' . $zodiacDisplay . ' | ' : '';?>现居中国 | example@example.com</div>
 
   <!-- 5. 个性签名 -->
   <div class="sig-row">
