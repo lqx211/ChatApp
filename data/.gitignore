@@ -1,19 +1,22 @@
 # =================== User-generated content (directory kept, content ignored) ===================
 # Custom emoji (user-uploaded)
-ce/*
-cep/*
+ce
+cep
+
+# Background image
+bgi
 
 # User file uploads
-user/*/
+user
 
 # Tickets / support attachments
-ticket/*
+ticket
 
 # Donation records
-donation/*
+donation
 
 # Screenshots
-sc/*
+sc
 
 # macOS
 .DS_Store

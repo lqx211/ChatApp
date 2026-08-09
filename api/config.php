@@ -47,7 +47,7 @@ function chatapp_session_start(): void {
 function chatapp_get_user(): ?array {
     chatapp_session_start();
     if (isset($_SESSION['username'])) {
-        $stmt = db()->prepare('SELECT user_id, username, display_name, preferred_language, avatar, custom_title, searchable, searchable_by_uid, timezone, data_saver, dnd, placeholder, restricted, role, emoji_panel_mode, emoji_chat_mode, exp, level, created_at, cache_key, local_cache_enabled, gender, birthday, gender_privacy FROM users WHERE username = ?');
+        $stmt = db()->prepare('SELECT user_id, username, display_name, preferred_language, avatar, custom_title, searchable, searchable_by_uid, timezone, data_saver, dnd, placeholder, restricted, role, emoji_panel_mode, emoji_chat_mode, exp, level, created_at, cache_key, local_cache_enabled, gender, birthday, gender_privacy, bg_image, bg_updated_at, bg_privacy, bg_blacklist, bg_whitelist, bg_no_friend, bg_private_image FROM users WHERE username = ?');
         $stmt->execute([$_SESSION['username']]);
         $user = $stmt->fetch();
         if ($user) {
@@ -377,6 +377,12 @@ function init_db(): void {
     db_add_column_if_missing('users', 'gender', "TINYINT(1) DEFAULT NULL");
     db_add_column_if_missing('users', 'birthday', "DATE DEFAULT NULL");
     db_add_column_if_missing('users', 'gender_privacy', "TINYINT(1) NOT NULL DEFAULT 0");
+    // ---- Background privacy (0=blacklist 1=whitelist 2=only self) ----
+    db_add_column_if_missing('users', 'bg_privacy', "TINYINT(1) NOT NULL DEFAULT 0");
+    db_add_column_if_missing('users', 'bg_blacklist', "TEXT DEFAULT NULL");
+    db_add_column_if_missing('users', 'bg_whitelist', "TEXT DEFAULT NULL");
+    db_add_column_if_missing('users', 'bg_no_friend', "TINYINT(1) NOT NULL DEFAULT 0");
+    db_add_column_if_missing('users', 'bg_private_image', "VARCHAR(255) DEFAULT NULL");
     db_add_column_if_missing('incidents', 'exp_awarded', "TINYINT(1) NOT NULL DEFAULT 0");
     db_add_column_if_missing('messages', 'temp_upload_id', "INT DEFAULT NULL");
     $pdo->exec("CREATE TABLE IF NOT EXISTS temp_uploads (

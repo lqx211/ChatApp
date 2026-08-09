@@ -28,7 +28,6 @@ function ph($v) { return $v === '' || $v === null ? ' placeholder' : ''; }
 <body>
 
 <div class="card">
-
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
     <span class="nav-title">编辑资料</span>

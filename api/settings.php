@@ -351,43 +351,108 @@ switch ($action) {
 
     case 'upload_background':
         $pdo = db();
+
+        // ---- 优先支持原文件上传（multipart $_FILES['file']），可获真实上传进度 ----
+        if (!empty($_FILES['file']['tmp_name']) && is_uploaded_file($_FILES['file']['tmp_name'])) {
+            $raw = file_get_contents($_FILES['file']['tmp_name']);
+            if ($raw === false || $raw === '') { echo json_encode(['success' => false, 'error' => 'Empty media']); exit; }
+            $origName = $_FILES['file']['name'] ?? '';
+            $clientType = strtolower($_FILES['file']['type'] ?? '');
+            // 由内容实际检测类型：png/jpg 走 GD；mp4/webm 走文件头
+            $type = 'image/png';
+            $fmt = 'png';
+            if (!@imagecreatefromstring($raw)) {
+                // 不是图片 → 检查视频头
+                if (strlen($raw) > 12 && substr($raw, 4, 4) === 'ftyp') { $type = 'video/mp4'; $fmt = 'mp4'; }
+                elseif (strlen($raw) > 4 && substr($raw, 0, 4) === "\x1A\x45\xDF\xA3") { $type = 'video/webm'; $fmt = 'webm'; }
+                else { echo json_encode(['success' => false, 'error' => 'Invalid media']); exit; }
+            }
+            $b64 = '';
+            $m = [null, $type, $fmt];
+            $b64Body = base64_encode($raw);
+            // 下面共用校验逻辑（危险串检查、大小、格式处理），用虚拟 data URI 继续
+            $b64 = 'data:' . $type . ';base64,' . $b64Body;
+            // 跳过 base64 分支的格式校验，直接走危险串+大小+存储
+            $danger = ['PD9waHA=', 'PD89', 'Pz4=', 'PHNjcmlwdA==', 'PC9zY3JpcHQ+', 'amF2YXNjcmlwdDo=', 'ZXZhbCg=', 'c2hlbGxfZXhlYw==', 'c3lzdGVtKA==', 'cGFzc3RocnU=', 'ZXhlYyg='];
+            foreach ($danger as $d) {
+                if (strpos($b64Body, $d) !== false) { echo json_encode(['success' => false, 'error' => 'Suspicious content']); exit; }
+            }
+            if (strlen($raw) > 64 * 1024 * 1024) { echo json_encode(['success' => false, 'error' => 'File too large (max 64MB)']); exit; }
+            $isVideo = ($type !== 'image/png');
+            goto bg_save;
+        }
+
         $b64 = $_POST['image'] ?? '';
         if (empty($b64)) { echo json_encode(['success' => false, 'error' => 'No image']); exit; }
-        if (!preg_match('/^data:(image\/(png|jpeg|jpg|webp));base64,(.+)$/', $b64, $m)) {
+        // 支持图片（png/jpeg/jpg/webp）或视频（mp4/webm）
+        if (!preg_match('/^data:(image\/(png|jpeg|jpg|webp)|video\/(mp4|webm));base64,(.+)$/', $b64, $m)) {
             echo json_encode(['success' => false, 'error' => 'Unsupported format']); exit;
         }
-        $fmt = strtolower($m[2]);
+        $type = $m[1]; $fmt = strtolower($m[2]);
         if ($fmt === 'jpeg') $fmt = 'jpg';
-        // Reject disguised content (check base64 string, not binary data — binary JPEG/GIF/PNG data may contain bytes that accidentally match text patterns)
-        $danger = ['PD9waHA=', 'PD89', 'Pz4=', 'PHNjcmlwdA==', 'PC9zY3JpcHQ+', 'amF2YXNjcmlwdDo=', 'ZXZhbCg=', 'c2hlbGxfZXhlYw==', 'c3lzdGVtKA==', 'cGFzc3RocnU=', 'ZXhlYyg='];
         $b64Body = $m[3];
+        // Reject disguised content (check base64 string, not binary data — binary data may contain bytes that accidentally match text patterns)
+        $danger = ['PD9waHA=', 'PD89', 'Pz4=', 'PHNjcmlwdA==', 'PC9zY3JpcHQ+', 'amF2YXNjcmlwdDo=', 'ZXZhbCg=', 'c2hlbGxfZXhlYw==', 'c3lzdGVtKA==', 'cGFzc3RocnU=', 'ZXhlYyg='];
         foreach ($danger as $d) {
             if (strpos($b64Body, $d) !== false) { echo json_encode(['success' => false, 'error' => 'Suspicious content']); exit; }
         }
         $raw = base64_decode($b64Body);
-        if ($raw === false || $raw === '') { echo json_encode(['success' => false, 'error' => 'Empty image']); exit; }
-        // 32MB cap
-        if (strlen($raw) > 32 * 1024 * 1024) { echo json_encode(['success' => false, 'error' => 'Image too large (max 32MB)']); exit; }
-        // Validate real image via GD
-        $img = @imagecreatefromstring($raw);
-        if (!$img) { echo json_encode(['success' => false, 'error' => 'Invalid image']); exit; }
-        imagedestroy($img);
+        if ($raw === false || $raw === '') { echo json_encode(['success' => false, 'error' => 'Empty media']); exit; }
+        // 64MB cap（视频可能较大）
+        if (strlen($raw) > 64 * 1024 * 1024) { echo json_encode(['success' => false, 'error' => 'File too large (max 64MB)']); exit; }
 
-        // Save to data/user/<uid>/bg.<fmt>
+        $isVideo = (strpos($type, 'video/') === 0);
+        if (!$isVideo) {
+            // 图片：GD 校验
+            $img = @imagecreatefromstring($raw);
+            if (!$img) { echo json_encode(['success' => false, 'error' => 'Invalid image']); exit; }
+            imagedestroy($img);
+        } else {
+            // 视频：文件头校验（mp4: 4-7 字节 "ftyp"；webm: 0x1A45DFA3 EBML）
+            $headOk = false;
+            if ($fmt === 'mp4') {
+                $headOk = strlen($raw) > 12 && substr($raw, 4, 4) === 'ftyp';
+            } elseif ($fmt === 'webm') {
+                $headOk = strlen($raw) > 4 && substr($raw, 0, 4) === "\x1A\x45\xDF\xA3";
+            }
+            if (!$headOk) { echo json_encode(['success' => false, 'error' => 'Invalid video']); exit; }
+        }
+
+        // 文件上传（$_FILES）与 base64 均汇流至此进行存储
+        bg_save:
         $stmt = $pdo->prepare('SELECT user_id FROM users WHERE username = ?');
         $stmt->execute([$_SESSION['username']]);
         $uid = (int)$stmt->fetchColumn();
         if (!$uid) { echo json_encode(['success' => false]); exit; }
-        $dir = __DIR__ . '/../data/user/' . $uid;
+        $dir = __DIR__ . '/../data/bgi';
         if (!is_dir($dir)) mkdir($dir, 0755, true);
-        // Remove old bg files
-        foreach (glob($dir . '/bg.*') as $old) @unlink($old);
-        $file = $dir . '/bg.' . $fmt;
-        file_put_contents($file, $raw);
+        // Remove old bg files (统一 bgi/<uid>.* + 旧 user/<uid>/bg.*)
+        foreach (glob($dir . '/' . $uid . '.png') as $old) @unlink($old);
+        foreach (glob($dir . '/' . $uid . '.jpg') as $old) @unlink($old);
+        foreach (glob($dir . '/' . $uid . '.mp4') as $old) @unlink($old);
+        foreach (glob($dir . '/' . $uid . '.webm') as $old) @unlink($old);
+        $legacyDir = __DIR__ . '/../data/user/' . $uid;
+        if (is_dir($legacyDir)) foreach (glob($legacyDir . '/bg.*') as $old) @unlink($old);
+
+        $ext = $isVideo ? $fmt : 'png';
+        $file = $dir . '/' . $uid . '.' . $ext;
+        if ($isVideo) {
+            // 视频直接存原字节
+            file_put_contents($file, $raw);
+            chmod($file, 0644);
+        } else {
+            // 图片重编码为 PNG
+            $img = imagecreatefromstring($raw);
+            if (!$img) { echo json_encode(['success' => false, 'error' => 'Invalid image']); exit; }
+            imagepng($img, $file);
+            imagedestroy($img);
+        }
         $pdo->prepare("UPDATE users SET bg_image = ?, bg_updated_at = NOW() WHERE user_id = ?")
-            ->execute(['user/' . $uid . '/bg.' . $fmt, $uid]);
-        $url = '../api/file.php?u=' . $uid . '&f=bg.' . $fmt . '&v=' . time();
-        echo json_encode(['success' => true, 'url' => $url, 'version' => time()]);
+            ->execute(['bgi/' . $uid . '.' . $ext, $uid]);
+        $ver = time();
+        // 经 file.php 隐私鉴权读取，不暴露 data/bgi 实际路径
+        $url = '../api/file.php?type=bgi&u=' . $uid . '&v=' . $ver;
+        echo json_encode(['success' => true, 'url' => $url, 'version' => $ver, 'video' => $isVideo]);
         break;
 
     case 'remove_background':
@@ -396,8 +461,16 @@ switch ($action) {
         $stmt->execute([$_SESSION['username']]);
         $uid = (int)$stmt->fetchColumn();
         if (!$uid) { echo json_encode(['success' => false]); exit; }
+        // Remove unified files (png/jpg/mp4/webm) + legacy files
+        $bgiDir = __DIR__ . '/../data/bgi';
+        if (is_dir($bgiDir)) {
+            foreach (glob($bgiDir . '/' . $uid . '.png') as $old) @unlink($old);
+            foreach (glob($bgiDir . '/' . $uid . '.jpg') as $old) @unlink($old);
+            foreach (glob($bgiDir . '/' . $uid . '.mp4') as $old) @unlink($old);
+            foreach (glob($bgiDir . '/' . $uid . '.webm') as $old) @unlink($old);
+        }
         $dir = __DIR__ . '/../data/user/' . $uid;
-        foreach (glob($dir . '/bg.*') as $old) @unlink($old);
+        if (is_dir($dir)) foreach (glob($dir . '/bg.*') as $old) @unlink($old);
         $pdo->prepare("UPDATE users SET bg_image = NULL, bg_updated_at = NOW() WHERE user_id = ?")->execute([$uid]);
         echo json_encode(['success' => true]);
         break;
@@ -410,7 +483,17 @@ switch ($action) {
         $url = null; $version = null;
         if ($u && $u['bg_image']) {
             $ver = strtotime($u['bg_updated_at'] ?: date('Y-m-d H:i:s'));
-            $url = '../api/file.php?f=' . rawurlencode($u['bg_image']) . '&v=' . $ver;
+            $bgImg = $u['bg_image'];
+            if (strpos($bgImg, 'bgi/') === 0) {
+                // data/bgi/<uid>.png 走 file.php 隐私鉴权
+                $url = '../api/file.php?type=bgi&u=' . (int)$u['user_id'] . '&v=' . $ver;
+            } elseif (strpos($bgImg, 'res/wallpaper/') === 0) {
+                // 预设壁纸公开静态访问
+                $url = '../data/' . $bgImg . '?v=' . $ver;
+            } else {
+                // 旧 user/<uid>/bg.* 走 file.php 原逻辑
+                $url = '../api/file.php?f=' . rawurlencode($bgImg) . '&v=' . $ver;
+            }
             $version = $ver;
         }
         // Built-in presets from data/res/wallpaper/
@@ -443,6 +526,184 @@ switch ($action) {
         $ver = time();
         $url = '../data/res/wallpaper/' . $name . '.' . pathinfo($f, PATHINFO_EXTENSION) . '?v=' . $ver;
         echo json_encode(['success' => true, 'url' => $url, 'version' => $ver]);
+        break;
+
+    // ================= Background privacy (blacklist/whitelist/only-self) =================
+
+    case 'get_bg_privacy':
+        $stmt = db()->prepare('SELECT bg_blacklist, bg_whitelist, bg_privacy, bg_no_friend, bg_private_image FROM users WHERE username = ?');
+        $stmt->execute([$_SESSION['username']]);
+        $row = $stmt->fetch();
+        if (!$row) { echo json_encode(['success' => false]); exit; }
+        $black = $row['bg_blacklist'] ? json_decode($row['bg_blacklist'], true) : [];
+        $white = $row['bg_whitelist'] ? json_decode($row['bg_whitelist'], true) : [];
+        if (!is_array($black)) $black = [];
+        if (!is_array($white)) $white = [];
+        echo json_encode([
+            'success' => true,
+            'privacy' => (int)$row['bg_privacy'],
+            'no_friend' => (int)$row['bg_no_friend'],
+            'blacklist' => array_values($black),
+            'whitelist' => array_values($white),
+            'private_image' => $row['bg_private_image'] ?? '',
+        ]);
+        break;
+
+    case 'upload_bg_private':
+        // 用户自行上传「不可见时背景图」→ 存 data/bgi/<uid>.private.{png|mp4|webm}（与主背景分开）
+        $pdo = db();
+
+        // ---- 优先支持原文件上传（multipart $_FILES['file']），可获真实上传进度 ----
+        if (!empty($_FILES['file']['tmp_name']) && is_uploaded_file($_FILES['file']['tmp_name'])) {
+            $raw = file_get_contents($_FILES['file']['tmp_name']);
+            if ($raw === false || $raw === '') { echo json_encode(['success' => false, 'error' => 'Empty media']); exit; }
+            // 由内容实际检测类型
+            $type = 'image/png';
+            $fmt = 'png';
+            if (!@imagecreatefromstring($raw)) {
+                if (strlen($raw) > 12 && substr($raw, 4, 4) === 'ftyp') { $type = 'video/mp4'; $fmt = 'mp4'; }
+                elseif (strlen($raw) > 4 && substr($raw, 0, 4) === "\x1A\x45\xDF\xA3") { $type = 'video/webm'; $fmt = 'webm'; }
+                else { echo json_encode(['success' => false, 'error' => 'Invalid media']); exit; }
+            }
+            $b64Body = base64_encode($raw);
+            $danger = ['PD9waHA=', 'PD89', 'Pz4=', 'PHNjcmlwdA==', 'PC9zY3JpcHQ+', 'amF2YXNjcmlwdDo=', 'ZXZhbCg=', 'c2hlbGxfZXhlYw==', 'c3lzdGVtKA==', 'cGFzc3RocnU=', 'ZXhlYyg='];
+            foreach ($danger as $d) {
+                if (strpos($b64Body, $d) !== false) { echo json_encode(['success' => false, 'error' => 'Suspicious content']); exit; }
+            }
+            if (strlen($raw) > 64 * 1024 * 1024) { echo json_encode(['success' => false, 'error' => 'File too large (max 64MB)']); exit; }
+            $isVideo = ($type !== 'image/png');
+            goto bg_private_save;
+        }
+
+        $b64 = $_POST['image'] ?? '';
+        if (empty($b64)) { echo json_encode(['success' => false, 'error' => 'No media']); exit; }
+        if (!preg_match('/^data:(image\/(png|jpeg|jpg|webp)|video\/(mp4|webm));base64,(.+)$/', $b64, $m)) {
+            echo json_encode(['success' => false, 'error' => 'Unsupported format']); exit;
+        }
+        $type = $m[1]; $fmt = strtolower($m[2]);
+        if ($fmt === 'jpeg') $fmt = 'jpg';
+        $b64Body = $m[3];
+        $danger = ['PD9waHA=', 'PD89', 'Pz4=', 'PHNjcmlwdA==', 'PC9zY3JpcHQ+', 'amF2YXNjcmlwdDo=', 'ZXZhbCg=', 'c2hlbGxfZXhlYw==', 'c3lzdGVtKA==', 'cGFzc3RocnU=', 'ZXhlYyg='];
+        foreach ($danger as $d) {
+            if (strpos($b64Body, $d) !== false) { echo json_encode(['success' => false, 'error' => 'Suspicious content']); exit; }
+        }
+        $raw = base64_decode($b64Body);
+        if ($raw === false || $raw === '') { echo json_encode(['success' => false, 'error' => 'Empty media']); exit; }
+        if (strlen($raw) > 64 * 1024 * 1024) { echo json_encode(['success' => false, 'error' => 'File too large (max 64MB)']); exit; }
+
+        $isVideo = (strpos($type, 'video/') === 0);
+        if (!$isVideo) {
+            $img = @imagecreatefromstring($raw);
+            if (!$img) { echo json_encode(['success' => false, 'error' => 'Invalid image']); exit; }
+            imagedestroy($img);
+        } else {
+            $headOk = false;
+            if ($fmt === 'mp4') {
+                $headOk = strlen($raw) > 12 && substr($raw, 4, 4) === 'ftyp';
+            } elseif ($fmt === 'webm') {
+                $headOk = strlen($raw) > 4 && substr($raw, 0, 4) === "\x1A\x45\xDF\xA3";
+            }
+            if (!$headOk) { echo json_encode(['success' => false, 'error' => 'Invalid video']); exit; }
+        }
+
+        // 文件上传（$_FILES）与 base64 均汇流至此进行存储
+        bg_private_save:
+        $stmt = $pdo->prepare('SELECT user_id FROM users WHERE username = ?');
+        $stmt->execute([$_SESSION['username']]);
+        $uid = (int)$stmt->fetchColumn();
+        if (!$uid) { echo json_encode(['success' => false]); exit; }
+        $dir = __DIR__ . '/../data/bgi';
+        if (!is_dir($dir)) mkdir($dir, 0755, true);
+        // 清理旧的 private 变体（png/jpg/mp4/webm）
+        foreach (glob($dir . '/' . $uid . '.private.png') as $old) @unlink($old);
+        foreach (glob($dir . '/' . $uid . '.private.mp4') as $old) @unlink($old);
+        foreach (glob($dir . '/' . $uid . '.private.webm') as $old) @unlink($old);
+        $ext = $isVideo ? $fmt : 'png';
+        $file = $dir . '/' . $uid . '.private.' . $ext;
+        if ($isVideo) {
+            file_put_contents($file, $raw);
+            chmod($file, 0644);
+        } else {
+            $img = imagecreatefromstring($raw);
+            if (!$img) { echo json_encode(['success' => false, 'error' => 'Invalid image']); exit; }
+            imagepng($img, $file);
+            imagedestroy($img);
+        }
+        $pdo->prepare("UPDATE users SET bg_private_image = ? WHERE username = ?")
+            ->execute(['bgi/' . $uid . '.private.' . $ext, $_SESSION['username']]);
+        $ver = time();
+        $url = '../api/file.php?type=bgi_private&u=' . $uid . '&v=' . $ver;
+        echo json_encode(['success' => true, 'url' => $url, 'private_image' => 'bgi/' . $uid . '.private.' . $ext, 'video' => $isVideo]);
+        break;
+
+    case 'set_bg_private':
+        $img = trim($_POST['private_image'] ?? '');
+        // 允许空（清除）、预设名（res/wallpaper/xxx.jpg|png）、或本人 bgi/<uid>.private.{png|mp4|webm}
+        $valid = false;
+        if ($img === '') {
+            $valid = true;
+        } elseif (preg_match('/^res\/wallpaper\/[a-zA-Z0-9_-]+\.(jpg|png)$/', $img)) {
+            $f = __DIR__ . '/../data/' . $img;
+            $valid = file_exists($f);
+        } elseif (preg_match('/^bgi\/\d+\.private\.(png|mp4|webm)$/', $img)) {
+            $stmt = db()->prepare('SELECT user_id FROM users WHERE username = ?');
+            $stmt->execute([$_SESSION['username']]);
+            $uid = (int)$stmt->fetchColumn();
+            $valid = (strpos($img, 'bgi/' . $uid . '.private.') === 0) && file_exists(__DIR__ . '/../data/' . $img);
+        }
+        if (!$valid) { echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit; }
+        db()->prepare('UPDATE users SET bg_private_image = ? WHERE username = ?')->execute([$img ?: null, $_SESSION['username']]);
+        echo json_encode(['success' => true, 'private_image' => $img]);
+        break;
+
+    case 'set_bg_privacy':
+        $p = $_POST['privacy'] ?? '';
+        if ($p !== '0' && $p !== '1' && $p !== '2') {
+            echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit;
+        }
+        // 0=黑名单 1=白名单 2=仅自己能看见
+        db()->prepare('UPDATE users SET bg_privacy = ? WHERE username = ?')->execute([(int)$p, $_SESSION['username']]);
+        echo json_encode(['success' => true]);
+        break;
+
+    case 'set_bg_blacklist':
+        $raw = $_POST['blacklist'] ?? '';
+        $list = $raw === '' ? [] : json_decode($raw, true);
+        if (!is_array($list)) { echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit; }
+        // 校验仅包含数字 UID
+        $clean = [];
+        foreach ($list as $v) {
+            if (is_numeric($v)) $clean[] = (int)$v;
+            else { echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit; }
+        }
+        $clean = array_values(array_unique($clean));
+        $json = $clean ? json_encode($clean) : null;
+        db()->prepare('UPDATE users SET bg_blacklist = ? WHERE username = ?')->execute([$json, $_SESSION['username']]);
+        echo json_encode(['success' => true, 'blacklist' => $clean]);
+        break;
+
+    case 'set_bg_whitelist':
+        $raw = $_POST['whitelist'] ?? '';
+        $list = $raw === '' ? [] : json_decode($raw, true);
+        if (!is_array($list)) { echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit; }
+        $clean = [];
+        foreach ($list as $v) {
+            if (is_numeric($v)) $clean[] = (int)$v;
+            else { echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit; }
+        }
+        $clean = array_values(array_unique($clean));
+        $json = $clean ? json_encode($clean) : null;
+        db()->prepare('UPDATE users SET bg_whitelist = ? WHERE username = ?')->execute([$json, $_SESSION['username']]);
+        echo json_encode(['success' => true, 'whitelist' => $clean]);
+        break;
+
+    case 'set_bg_no_friend':
+        $nf = $_POST['no_friend'] ?? '';
+        if ($nf !== '0' && $nf !== '1') {
+            echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit;
+        }
+        db()->prepare('UPDATE users SET bg_no_friend = ? WHERE username = ?')->execute([(int)$nf, $_SESSION['username']]);
+        echo json_encode(['success' => true, 'no_friend' => (int)$nf]);
         break;
 
     default: echo json_encode(['success' => false, 'error' => 'Something went wrong.']);
