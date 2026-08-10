@@ -227,6 +227,11 @@ function ajaxPlayList(lid, id, callback){
             musicList[id].isloading = false;    // 列表已经加载完了
         },  // complete
         success: function(jsonData){
+            // 歌单接口返回错误/为空（如网易云风控 code=400 或 playlist=null）时直接跳过，避免崩溃
+            if (!jsonData || !jsonData.playlist || !jsonData.playlist.name) {
+                musicList[id].isloading = false;
+                return;
+            }
             // 存储歌单信息
             var tempList = {
                 id: lid,    // 列表的网易云 id
