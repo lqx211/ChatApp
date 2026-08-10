@@ -393,9 +393,10 @@ return [
     'set_clear_fail'            => '清除失败（请输入当前密码验证）',
 
     // 注销账号页
-    'set_bye_hint'              => '注销后账号将无法恢复。也可以选择只清除聊天记录、保留账号。',
-    'set_del_mode_delete'       => '直接删除账号',
-    'set_del_mode_revoke'       => '清除全部聊天记录（账号保留）',
+    'set_bye_hint'              => '注销后账号将无法恢复。可选择只删除账号并保留聊天记录、仅清空自己的聊天记录，或删除所有相关数据。',
+    'set_del_mode_delete'       => '只删除账号（保留聊天记录）',
+    'set_del_mode_revoke'       => '清空自己的聊天记录（保留账号）',
+    'set_del_mode_all'          => '删除所有与我有关的数据',
     'set_del_password'          => '输入密码确认',
     'set_del_confirm_label'     => '我已知晓此操作不可恢复',
     'set_del_submit'            => '注销账号',

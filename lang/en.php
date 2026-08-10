@@ -404,9 +404,10 @@ return [
     'set_clear_fail'            => 'Clear failed (please enter current password to verify).',
 
     // Deactivate account page
-    'set_bye_hint'              => 'After deactivation the account cannot be recovered. You can also choose to only clear chat records and keep the account.',
-    'set_del_mode_delete'       => 'Delete account directly',
-    'set_del_mode_revoke'       => 'Clear all chat records (keep account)',
+    'set_bye_hint'              => 'After deactivation the account cannot be recovered. You can delete the account and keep chat history, clear only your own chat records, or delete all data related to you.',
+    'set_del_mode_delete'       => 'Delete account only (keep chat history)',
+    'set_del_mode_revoke'       => 'Clear my chat records (keep account)',
+    'set_del_mode_all'          => 'Delete all data related to me',
     'set_del_password'          => 'Enter password to confirm',
     'set_del_confirm_label'     => 'I understand this action cannot be undone',
     'set_del_submit'            => 'Deactivate Account',

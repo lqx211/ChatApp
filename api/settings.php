@@ -216,12 +216,14 @@ switch ($action) {
         if (!$user || !password_verify($password, $user['password'])) {
             echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit;
         }
+        $uid = (int)$user['user_id'];
+        $username = $_SESSION['username'];
         $mode = $_POST['mode'] ?? 'delete';
         if ($mode === 'revoke') {
-            // Revoke all chat records but DO NOT delete the account.
-            $uid = (int)$user['user_id'];
+            // Clear all of MY chat records but KEEP the account.
+            // Sent messages → revoke (deleted_at) so the other side still sees them as revoked.
             $pdo->prepare("UPDATE messages SET deleted_at = NOW() WHERE sender_id = ? AND deleted_at IS NULL")->execute([$uid]);
-            // Also delete messages received by this user so the account has no chat history.
+            // Received messages → physically delete so my chat history is empty.
             $pdo->prepare("DELETE FROM messages WHERE recipient_id = ?")->execute([$uid]);
             // Remove uploaded files.
             $dir = __DIR__ . '/../data/user/' . $uid;
@@ -239,8 +241,41 @@ switch ($action) {
             echo json_encode(['success' => true, 'revoked' => true]);
             break;
         }
-        // Default: permanently delete account.
-        $pdo->prepare('DELETE FROM users WHERE username = ?')->execute([$_SESSION['username']]);
+        if ($mode === 'delete_all') {
+            // Delete account AND all chat records / contacts / groups / files.
+            chatapp_destroy_user($uid, $username, false);
+            session_destroy();
+            echo json_encode(['success' => true]);
+            break;
+        }
+        // Default: delete account only — keep chat history so the other side can still read it.
+        // Soft-delete the user row so old messages still render the sender's name/avatar.
+        $pdo->beginTransaction();
+        try {
+            $pdo->prepare("UPDATE users SET username = CONCAT('deleted_', user_id), enabled = 0, placeholder = 1, deleted_at = NOW() WHERE user_id = ?")->execute([$uid]);
+            // Account is gone: remove its relationships, memberships, owned groups and files (messages stay).
+            $pdo->prepare("DELETE FROM contacts WHERE user_from = ? OR user_to = ?")->execute([$uid, $uid]);
+            $pdo->prepare("DELETE FROM group_members WHERE user_id = ?")->execute([$uid]);
+            $pdo->prepare("DELETE FROM group_requests WHERE user_id = ?")->execute([$uid]);
+            $pdo->prepare("DELETE FROM `groups` WHERE owner_id = ?")->execute([$uid]);
+            $pdo->commit();
+        } catch (\Exception $e) {
+            $pdo->rollBack();
+            echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit;
+        }
+        // Remove uploaded files.
+        $dir = __DIR__ . '/../data/user/' . $uid;
+        if (is_dir($dir)) {
+            $files = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::CHILD_FIRST
+            );
+            foreach ($files as $fileinfo) {
+                $todo = ($fileinfo->isDir() ? 'rmdir' : 'unlink');
+                $todo($fileinfo->getRealPath());
+            }
+            rmdir($dir);
+        }
         session_destroy();
         echo json_encode(['success' => true]);
         break;

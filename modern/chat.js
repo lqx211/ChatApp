@@ -2689,9 +2689,17 @@ async function confirmDeleteAccount() {
         sm('error', 'Something went wrong.');
         return
     }
+    if (!document.getElementById('deleteConfirm').checked) {
+        sm('error', 'Something went wrong.');
+        return
+    }
+    var mode = 'delete';
+    var checked = document.querySelector('input[name="delMode"]:checked');
+    if (checked) mode = checked.value;
     var f = new URLSearchParams();
     f.append('action', 'delete_account');
     f.append('password', p);
+    f.append('mode', mode);
     var d = await fetch('../api/settings.php', {
         method: 'POST',
         headers: {
@@ -2699,8 +2707,14 @@ async function confirmDeleteAccount() {
         },
         body: f.toString()
     }).then(r => r.json());
-    if (d.success) window.location.href = 'login.php';
-    else sm('error', 'Something went wrong.')
+    if (d.success) {
+        if (mode === 'revoke') {
+            hideDeleteModal();
+            sm('success', 'Chat records cleared');
+        } else {
+            window.location.href = 'login.php';
+        }
+    } else sm('error', 'Something went wrong.')
 }
 async function logout() {
     var f = new URLSearchParams();

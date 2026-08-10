@@ -17,16 +17,17 @@ chatapp_require_login();
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title"><?php echo t('set_deactivate', 'Deactivate Account');?></span>
+    <span class="nav-title"><?php echo t('set_deactivate');?></span>
     <span style="width:28px"></span>
   </div>
 
-  <p class="set-hint"><?php echo t('set_bye_hint', 'After deactivation the account cannot be recovered. You can also choose to only clear chat records and keep the account.');?></p>
+  <p class="set-hint"><?php echo t('set_bye_hint');?></p>
 
-  <div class="set-group" style="color:#ff8a8a"><?php echo t('set_deactivate', 'Deactivate Account');?></div>
+  <div class="set-group" style="color:#ff8a8a"><?php echo t('set_deactivate');?></div>
   <div class="set-block">
-    <label class="set-check-row"><input type="radio" name="delMode" value="delete" checked> <?php echo t('set_del_mode_delete', 'Delete account directly');?></label>
-    <label class="set-check-row"><input type="radio" name="delMode" value="revoke"> <?php echo t('set_del_mode_revoke', 'Clear all chat records (keep account)');?></label>
+    <label class="set-check-row"><input type="radio" name="delMode" value="delete" checked> <?php echo t('set_del_mode_delete');?></label>
+    <label class="set-check-row"><input type="radio" name="delMode" value="revoke"> <?php echo t('set_del_mode_revoke');?></label>
+    <label class="set-check-row"><input type="radio" name="delMode" value="delete_all"> <?php echo t('set_del_mode_all');?></label>
     <div class="set-field">
       <label><?php echo t('set_del_password', 'Enter password to confirm');?></label>
       <input type="password" id="delPwd" autocomplete="current-password">
@@ -77,22 +78,17 @@ function api(action, data) {
 }
 
 function deleteAccount() {
-    if (!document.getElementById('delConfirm').checked) { showErr('<?php echo t('set_del_need_check', 'Please check the confirmation box.');?>'); return; }
+    if (!document.getElementById('delConfirm').checked) { showErr('<?php echo t('set_del_need_check');?>'); return; }
     var pwd = document.getElementById('delPwd').value;
-    if (!pwd) { showErr('<?php echo t('set_del_need_password', 'Please enter your password to confirm.');?>'); return; }
-    if (!confirm('<?php echo t('set_del_confirm', 'Are you sure you want to do this? This cannot be undone!');?>')) return;
+    if (!pwd) { showErr('<?php echo t('set_del_need_password');?>'); return; }
+    if (!confirm('<?php echo t('set_del_confirm');?>')) return;
     var mode = document.querySelector('input[name="delMode"]:checked').value;
     api('delete_account', { password: pwd, mode: mode }).then(function(d) {
         if (d.success) {
-            if (mode === 'revoke') {
-                showToast();
-                setTimeout(function() { goBack(); }, 900);
-            } else {
-                // 账号已删除：让父页面跳到登录页（不能只改 iframe 内部）
-                if (window.parent && window.parent.location) window.parent.location.href = 'login.php';
-                else window.location.href = 'login.php';
-            }
-        } else showErr('<?php echo t('set_del_fail', 'Wrong password or operation failed.');?>');
+            // 账号已注销：让父页面跳到登录页（不能只改 iframe 内部）
+            if (window.parent && window.parent.location) window.parent.location.href = 'login.php';
+            else window.location.href = 'login.php';
+        } else showErr('<?php echo t('set_del_fail');?>');
     });
 }
 </script>

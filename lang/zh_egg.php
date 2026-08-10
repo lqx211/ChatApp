@@ -409,9 +409,10 @@ return [
     'set_clear_fail'            => '清除失败了（请输入当时的通关口令以验证）。',
 
     // 注销户口页
-    'set_bye_hint'              => '注销后户口不能被恢复。你也可以选择只清除聊天记录并保留户口。',
-    'set_del_mode_delete'       => '直接删除户口',
-    'set_del_mode_revoke'       => '清除全部聊天记录（保留户口）',
+    'set_bye_hint'              => '注销后户口不能被恢复。可选择只删除户口并保留聊天记录、仅清空自己的聊天记录，或删除所有与本人有关的数据。',
+    'set_del_mode_delete'       => '只删除户口（保留聊天记录）',
+    'set_del_mode_revoke'       => '清空自己的聊天记录（保留户口）',
+    'set_del_mode_all'          => '删除所有与本人有关的数据',
     'set_del_password'          => '输入通关口令以确认',
     'set_del_confirm_label'     => '我明白这个动作不能被撤销',
     'set_del_submit'            => '注销户口',
