@@ -13,6 +13,21 @@ if (!isset($_SESSION['username'])) {
 header('Content-Type: application/json');
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
+/**
+ * 设置页通用 0/1 开关：读取并翻转 users 表中指定列。
+ * 必须在 switch 外定义（条件结构内的函数不会提升）。
+ */
+function settings_toggle_col(string $col): void {
+    $pdo = db();
+    $colSafe = preg_replace('/[^a-zA-Z_]/', '', $col);
+    $stmt = $pdo->prepare("SELECT $colSafe FROM users WHERE username = ?");
+    $stmt->execute([$_SESSION['username']]);
+    $row = $stmt->fetch();
+    $newVal = $row && $row[$colSafe] ? 0 : 1;
+    $pdo->prepare("UPDATE users SET $colSafe = ? WHERE username = ?")->execute([$newVal, $_SESSION['username']]);
+    echo json_encode(['success' => true, $colSafe => $newVal]);
+}
+
 switch ($action) {
 
     case 'change_password':
@@ -329,6 +344,58 @@ switch ($action) {
         $newVal = $row && $row['dnd'] ? 0 : 1;
         $pdo->prepare('UPDATE users SET dnd = ? WHERE username = ?')->execute([$newVal, $_SESSION['username']]);
         echo json_encode(['success' => true, 'dnd' => $newVal]);
+        break;
+
+    // ============ 设置页开关（重设计） ============
+    case 'toggle_notif_system':
+        settings_toggle_col('notif_system'); break;
+    case 'toggle_notif_banner':
+        settings_toggle_col('notif_banner'); break;
+    case 'toggle_typing_visible':
+        settings_toggle_col('typing_visible'); break;
+    case 'toggle_stranger_invite_group':
+        settings_toggle_col('stranger_invite_group'); break;
+    case 'toggle_stranger_like':
+        settings_toggle_col('stranger_like'); break;
+    case 'toggle_anyone_add_friend':
+        settings_toggle_col('anyone_add_friend'); break;
+
+    // ============ 黑名单管理 ============
+    case 'get_blocks':
+        $s = db()->prepare('SELECT user_id FROM users WHERE username = ?');
+        $s->execute([$_SESSION['username']]);
+        $myUid = (int)$s->fetchColumn();
+        if (!$myUid) { echo json_encode(['success' => false]); exit; }
+        $list = db()->prepare("SELECT b.blocked_uid AS uid, COALESCE(u.display_name, u.username) AS display_name, u.username, u.avatar, b.created_at
+            FROM user_blocks b JOIN users u ON u.user_id = b.blocked_uid
+            WHERE b.user_id = ? ORDER BY b.created_at DESC");
+        $list->execute([$myUid]);
+        echo json_encode(['success' => true, 'blocks' => $list->fetchAll()]);
+        break;
+
+    case 'add_block':
+        $target = (int)($_POST['uid'] ?? 0);
+        $s = db()->prepare('SELECT user_id FROM users WHERE username = ?');
+        $s->execute([$_SESSION['username']]);
+        $myUid = (int)$s->fetchColumn();
+        if (!$myUid || $target <= 0 || $target === $myUid) {
+            echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit;
+        }
+        $t = db()->prepare('SELECT 1 FROM users WHERE user_id = ? AND deleted_at IS NULL');
+        $t->execute([$target]);
+        if (!$t->fetchColumn()) { echo json_encode(['success' => false, 'error' => '用户不存在']); exit; }
+        db()->prepare('INSERT IGNORE INTO user_blocks (user_id, blocked_uid) VALUES (?, ?)')->execute([$myUid, $target]);
+        echo json_encode(['success' => true]);
+        break;
+
+    case 'remove_block':
+        $target = (int)($_POST['uid'] ?? 0);
+        $s = db()->prepare('SELECT user_id FROM users WHERE username = ?');
+        $s->execute([$_SESSION['username']]);
+        $myUid = (int)$s->fetchColumn();
+        if (!$myUid || $target <= 0) { echo json_encode(['success' => false]); exit; }
+        db()->prepare('DELETE FROM user_blocks WHERE user_id = ? AND blocked_uid = ?')->execute([$myUid, $target]);
+        echo json_encode(['success' => true]);
         break;
 
     case 'toggle_local_cache':

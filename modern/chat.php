@@ -72,7 +72,7 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
    <div class="ng"><div class="ngh" onclick="switchPanel('dbadmin')" style="cursor:pointer"><span>数据库管理</span></div></div>
    <?php endif;?>
    <div class="ng"><div class="ngh" onclick="switchPanel('level')" style="cursor:pointer"><span><?php echo t('title_level');?></span></div></div>
-   <div class="ng"><div class="ngh" onclick="switchPanel('more')" style="cursor:pointer"><span><?php echo t('title_settings');?></span></div></div>
+   <div class="ng"><div class="ngh" onclick="openSettings()" style="cursor:pointer"><span><?php echo t('title_settings');?></span></div></div>
    <div class="ng">
     <div class="ngh" onclick="toggleGroup('moreGroup')"><span><?php echo t('title_more');?></span><span class="ar" id="arrow-moreGroup">&#9654;</span></div>
     <div class="ngb" id="body-moreGroup">
@@ -427,6 +427,9 @@ var TZ='<?php echo $currentUser['timezone'] ?? '+08:00';?>';
 var DND=<?php echo (int)($currentUser['dnd'] ?? 0);?>;
 var RSTR=<?php echo (int)($currentUser['restricted'] ?? 0);?>;
 var DS=<?php echo (int)($currentUser['data_saver'] ?? 0);?>;
+var NOTIF_SYS=<?php echo (int)($currentUser['notif_system'] ?? 1);?>;
+var NOTIF_BANNER=<?php echo (int)($currentUser['notif_banner'] ?? 1);?>;
+var TYPING_VIS=<?php echo (int)($currentUser['typing_visible'] ?? 1);?>;
 var ADMIN=<?php echo $isAdmin ? 'true' : 'false';?>;
 var CACHE_KEY='<?php echo htmlspecialchars($currentUser['cache_key'] ?? '', ENT_QUOTES);?>';
 var LOCAL_CACHE=<?php echo (int)($currentUser['local_cache_enabled'] ?? 0);?>;
@@ -465,7 +468,7 @@ var SERVER_TZ='<?php echo date('P');?>';
 <button id="sidebarToggleBtn" class="hidden" onclick="openMobileSidebar()" title="菜单">&#x276E;</button>
 
 <!-- ================================================================
-     QQ-style Profile Drawer (right side overlay, iframe renders test.html)
+     Profile Drawer (right side overlay, iframe renders test.html)
      ================================================================ -->
 <div class="profile-overlay" id="profileOverlay" onclick="closeMyProfile()"></div>
 <div class="user-sidebar" id="userSidebar">

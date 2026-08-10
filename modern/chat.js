@@ -64,9 +64,15 @@ function apiRequest(action, params, opts) {
     return window.wssRequest(action, paramsObj, opts.timeoutMs || 3000).then(function(d) {
         // WSS 服务端返回 FORCE_HTTP（附件/闪传被拒）→ 降级 HTTP
         if (d && d.success === false && d.error === 'FORCE_HTTP') return httpFallback();
-        // WSS 返回原始错误码，统一翻译 not_friends（HTTP 路径已在 api/chat.php 翻译）
+        // WSS 返回原始错误码，统一翻译（HTTP 路径已在 api/chat.php 翻译）
         if (d && d.success === false && d.error === 'not_friends') {
             d.error = T('msg_not_friends', 'You can only send messages to your friends.');
+        }
+        if (d && d.success === false && d.error === 'blocked') {
+            d.error = T('msg_blocked', 'You cannot send messages to this user.');
+        }
+        if (d && d.success === false && d.error === 'not_accepting') {
+            d.error = T('msg_not_accepting', 'This user is not accepting friend requests.');
         }
         return d;
     }).catch(function() {
@@ -634,12 +640,13 @@ function searchUsers() {
             if (d.success && d.users.length > 0) {
                 var h = '';
                 for (var i = 0; i < d.users.length; i++) {
-                    var u = d.users[i],
-                        b = '';
+                    var u = d.users[i];
+                    // 整栏可点击：打开该用户个人主页（Add 按钮单独 stopPropagation）
+                    var b = '';
                     if (u.relation === 'accepted') b = '<span style="color:#666">Friends</span>';
                     else if (u.relation === 'pending') b = '<span style="color:#e0a040">Pending</span>';
-                    else b = '<button class="bt" onclick="sendFriendRequest(\'' + u.username + '\')">Add</button>';
-                    h += '<div class="sri"><span>' + eh(u.username) + ' (' + u.user_id + ')</span>' + b + '</div>';
+                    else b = '<button class="bt" onclick="event.stopPropagation();event.preventDefault();sendFriendRequest(\'' + u.username + '\')">Add</button>';
+                    h += '<div class="sri" style="cursor:pointer" onclick="openMyProfile(\'' + u.username + '\')"><span>' + eh(u.username) + ' (' + u.user_id + ')</span>' + b + '</div>';
                 }
                 e.innerHTML = h;
             } else e.innerHTML = '<div class="sri"><span>' + T('msg_no_users_found') + '</span></div>';
@@ -680,7 +687,8 @@ function discoverUsers(page) {
             for (var i = 0; i < d.users.length; i++) {
                 var u = d.users[i],
                     av = u.avatar ? '<span class="srch-avatar"><img src="' + u.avatar + '" alt=""></span>' : '<span class="srch-avatar"></span>';
-                h += '<tr><td>' + u.user_id + '</td><td>' + av + eh(u.display_name || u.username) + '</td><td>' + eh(u.username) + '</td><td><button class="srch-btn" onclick="openFriendReqModal(\'' + u.username + '\')">Add Friend</button></td></tr>';
+                // 整行可点击 → 打开该用户个人主页（Add Friend 按钮单独 stopPropagation）
+                h += '<tr style="cursor:pointer" onclick="openMyProfile(\'' + u.username + '\')"><td>' + u.user_id + '</td><td>' + av + eh(u.display_name || u.username) + '</td><td>' + eh(u.username) + '</td><td><button class="srch-btn" onclick="event.stopPropagation();event.preventDefault();openFriendReqModal(\'' + u.username + '\')">Add Friend</button></td></tr>';
             }
         t.innerHTML = h;
         var tp = Math.ceil(d.total / d.per_page),
@@ -1938,6 +1946,8 @@ async function loadDmMessages(before) {
 function onDmInput() {
     if (!D || S) return;
     clearTimeout(typingTimer);
+    // 「我的输入状态可见」关闭时不发送打字指示
+    if (typeof TYPING_VIS !== 'undefined' && !TYPING_VIS) return;
     // typing 走 HTTP（原样保留）
     fetch('../api/status.php', {
         method: 'POST',
@@ -2202,6 +2212,62 @@ async function loadGroupHistoryChunk(before) {
     _grpLoading = false;
     _dmLoading = false;
 }
+/* ============ 新消息提醒（浏览器通知 + App 内横幅） ============ */
+/* 门控：DND（勿扰）> NOTIF_SYS（系统消息通知）> NOTIF_BANNER（App 内横幅） */
+window.notifyNewMessage = function(m) {
+    if (!m) return;
+    if (typeof DND !== 'undefined' && DND) return;
+    var nTitle = m.display_name || m.username;
+    var nBody = m.message || '';
+    if (m.attachment_url) nBody = nBody || '[Photo/Video]';
+    // 浏览器系统通知
+    if (typeof NOTIF_SYS === 'undefined' || NOTIF_SYS) {
+        if ('Notification' in window && Notification.permission === 'granted') {
+            var nOpt = { body: nBody, tag: 'chatapp-' + (m.id || Date.now()) };
+            if (m.avatar) nOpt.icon = m.avatar;
+            try {
+                var notif = new Notification(nTitle, nOpt);
+                notif.onclick = function() {
+                    window.focus();
+                    if (m.recipient) openDm(m.username);
+                    else switchPanel('announcements');
+                    notif.close();
+                };
+            } catch (e) {}
+        }
+    }
+    // App 内横幅
+    if (typeof NOTIF_BANNER === 'undefined' || NOTIF_BANNER) {
+        showInAppBanner(nTitle, nBody, m.username);
+    }
+};
+
+var _inAppBannerTimer = null;
+function showInAppBanner(title, body, username) {
+    var host = document.getElementById('inAppBanner');
+    if (!host) {
+        host = document.createElement('div');
+        host.id = 'inAppBanner';
+        document.body.appendChild(host);
+    }
+    host.innerHTML = '';
+    var el = document.createElement('div');
+    el.className = 'app-banner';
+    el.innerHTML = '<b>' + eh(title) + '</b><span>' + eh(body || '') + '</span>';
+    if (username) {
+        el.addEventListener('click', function() {
+            if (typeof openDm === 'function') { openDm(username); closeInAppBanner(); }
+        });
+    }
+    host.appendChild(el);
+    if (_inAppBannerTimer) clearTimeout(_inAppBannerTimer);
+    _inAppBannerTimer = setTimeout(closeInAppBanner, 4000);
+}
+function closeInAppBanner() {
+    var host = document.getElementById('inAppBanner');
+    if (host) { host.innerHTML = ''; }
+}
+
 async function pm() {
     if (!_loaded) return;
     // WSS 在线时跳过 HTTP 轮询：新消息已由 WSS 推送（type:msg）
@@ -2218,24 +2284,9 @@ async function pm() {
                     if (!unreadCounts[m.username]) unreadCounts[m.username] = 0;
                     unreadCounts[m.username]++;
                 }
-                if (m.username !== U && !m.is_deleted && !DND && !seenMsgIds['notif_' + m.id] && m.id > L) {
+                if (m.username !== U && !m.is_deleted && !seenMsgIds['notif_' + m.id] && m.id > L) {
                     seenMsgIds['notif_' + m.id] = 1;
-                    var nTitle = m.display_name || m.username,
-                        nBody = m.message || '';
-                    if (m.attachment_url) nBody = nBody || '[Photo/Video]';
-                    var nOpt = {
-                        body: nBody,
-                        tag: 'chatapp-' + m.id
-                    };
-                    if (m.avatar) nOpt.icon = m.avatar;
-                    if (Notification.permission === 'granted') {
-                        var notif = new Notification(nTitle, nOpt);
-                        notif.onclick = function() {
-                            window.focus();
-                            window.location.href = '/modern/chat.php';
-                            notif.close();
-                        };
-                    }
+                    notifyNewMessage(m);
                 }
             }
         }
@@ -3069,18 +3120,24 @@ if (location.search.indexOf("goto=users") > -1) {
     switchPanel("users");
     history.replaceState(null, "", location.pathname);
 }
-document.getElementById("messageInput").addEventListener("keydown", function(e) {
-    if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        sendAnnouncement();
-    }
-});
-document.getElementById("dmMessageInput").addEventListener("keydown", function(e) {
-    if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        if (G) sendGroupMessage(); else sendDmMessage();
-    }
-});
+var _annInput = document.getElementById("messageInput");
+if (_annInput) {
+    _annInput.addEventListener("keydown", function(e) {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            sendAnnouncement();
+        }
+    });
+}
+var _dmInput = document.getElementById("dmMessageInput");
+if (_dmInput) {
+    _dmInput.addEventListener("keydown", function(e) {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            if (G) sendGroupMessage(); else sendDmMessage();
+        }
+    });
+}
 var _dmSendBtn = document.getElementById("dmSendBtn");
 if (_dmSendBtn) {
     _dmSendBtn.onclick = function() {
@@ -5235,7 +5292,7 @@ window.addEventListener('resize', function() { sidebarInit(); });
 sidebarInit();
 
 // ================================================================
-// QQ-style Profile Drawer (right-side overlay, iframe renders test.html)
+// Profile Drawer (right-side overlay, iframe renders test.html)
 // ================================================================
 function openMyProfile(username) {
     var src = '/modern/profile.php';
@@ -5245,6 +5302,16 @@ function openMyProfile(username) {
     var ov = document.getElementById('profileOverlay');
     if (!fr || !sb || !ov) return;   // 页面无 profile 抽屉时安全返回
     fr.src = src;
+    sb.classList.add('active');
+    ov.classList.add('active');
+}
+
+function openSettings() {
+    var fr = document.getElementById('profileFrame');
+    var sb = document.getElementById('userSidebar');
+    var ov = document.getElementById('profileOverlay');
+    if (!fr || !sb || !ov) return;
+    fr.src = '/modern/settings.php';
     sb.classList.add('active');
     ov.classList.add('active');
 }

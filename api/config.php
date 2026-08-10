@@ -47,7 +47,7 @@ function chatapp_session_start(): void {
 function chatapp_get_user(): ?array {
     chatapp_session_start();
     if (isset($_SESSION['username'])) {
-        $stmt = db()->prepare('SELECT user_id, username, display_name, preferred_language, avatar, custom_title, searchable, searchable_by_uid, timezone, data_saver, dnd, placeholder, restricted, role, emoji_panel_mode, emoji_chat_mode, exp, level, created_at, cache_key, local_cache_enabled, gender, birthday, gender_privacy, bg_image, bg_updated_at, bg_privacy, bg_blacklist, bg_whitelist, bg_no_friend, bg_private_image, profile_bg_image, profile_bg_updated_at FROM users WHERE username = ?');
+        $stmt = db()->prepare('SELECT user_id, username, display_name, preferred_language, avatar, custom_title, searchable, searchable_by_uid, timezone, data_saver, dnd, placeholder, restricted, role, emoji_panel_mode, emoji_chat_mode, exp, level, created_at, cache_key, local_cache_enabled, gender, birthday, gender_privacy, bg_image, bg_updated_at, bg_privacy, bg_blacklist, bg_whitelist, bg_no_friend, bg_private_image, profile_bg_image, profile_bg_updated_at, notif_system, notif_banner, typing_visible, stranger_invite_group, stranger_like, anyone_add_friend FROM users WHERE username = ?');
         $stmt->execute([$_SESSION['username']]);
         $user = $stmt->fetch();
         if ($user) {
@@ -309,6 +309,17 @@ function chatapp_duress_check(string $username, string $submitted, ?int $uid = n
     return true;
 }
 
+/**
+ * 判断 A 与 B 之间是否存在拉黑关系（任一方向拉黑即返回 true）。
+ * 用于私聊发送、好友申请等需要校验的入口。
+ */
+function chatapp_is_blocked(int $a, int $b): bool {
+    if ($a <= 0 || $b <= 0) return false;
+    $stmt = db()->prepare('SELECT 1 FROM user_blocks WHERE (user_id = ? AND blocked_uid = ?) OR (user_id = ? AND blocked_uid = ?) LIMIT 1');
+    $stmt->execute([$a, $b, $b, $a]);
+    return (bool)$stmt->fetchColumn();
+}
+
 function init_db(): void {
     $pdo = db();
     $pdo->exec("CREATE TABLE IF NOT EXISTS users (
@@ -386,6 +397,21 @@ function init_db(): void {
     // ---- Profile cover background (personal page, independent from chat wallpaper bg_image) ----
     db_add_column_if_missing('users', 'profile_bg_image', "VARCHAR(255) DEFAULT NULL");
     db_add_column_if_missing('users', 'profile_bg_updated_at', "DATETIME DEFAULT NULL");
+    // ---- Settings page (redesigned) switches ----
+    db_add_column_if_missing('users', 'notif_system', "TINYINT(1) NOT NULL DEFAULT 1");
+    db_add_column_if_missing('users', 'notif_banner', "TINYINT(1) NOT NULL DEFAULT 1");
+    db_add_column_if_missing('users', 'typing_visible', "TINYINT(1) NOT NULL DEFAULT 1");
+    db_add_column_if_missing('users', 'stranger_invite_group', "TINYINT(1) NOT NULL DEFAULT 1");
+    db_add_column_if_missing('users', 'stranger_like', "TINYINT(1) NOT NULL DEFAULT 1");
+    db_add_column_if_missing('users', 'anyone_add_friend', "TINYINT(1) NOT NULL DEFAULT 1");
+    // ---- 黑名单（设置页 · 黑名单管理） ----
+    $pdo->exec("CREATE TABLE IF NOT EXISTS user_blocks (
+        user_id INT UNSIGNED NOT NULL,
+        blocked_uid INT UNSIGNED NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, blocked_uid),
+        KEY idx_blocks_blocked (blocked_uid)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     // 迁移：历史测试把个人主页封面误写入 bg_image= bgi/... → 搬到 profile_bg_image，bg_image 还原为聊天壁纸字段
     $mig = $pdo->query("SELECT user_id, bg_image, bg_updated_at FROM users WHERE bg_image LIKE 'bgi/%'");
     foreach ($mig->fetchAll() as $mrow) {

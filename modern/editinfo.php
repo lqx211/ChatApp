@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../api/config.php';
 chatapp_require_login();
 $currentUser = chatapp_get_user();
+$from = $_GET['from'] ?? '';   // 'settings' => 返回设置页
 $displayName = htmlspecialchars($currentUser['display_name'] ?? $currentUser['username'] ?? '');
 $avatar = $currentUser['avatar'] ?? '';
 $statusText = htmlspecialchars($currentUser['custom_title'] ?? '');
@@ -120,13 +121,14 @@ function ph($v) { return $v === '' || $v === null ? ' placeholder' : ''; }
 </div>
 
 <script>
+var FROM_SETTINGS = <?php echo json_encode($from === 'settings');?>;
 function goBack() {
     var card = document.querySelector('.card');
     if (!card) { parent.closeMyProfile(); return; }
     card.classList.add('slide-out-right');
     setTimeout(function() {
         if (window.parent && window.parent.document.getElementById('profileFrame')) {
-            window.parent.document.getElementById('profileFrame').src = 'profile.php';
+            window.parent.document.getElementById('profileFrame').src = FROM_SETTINGS ? 'settings.php' : 'profile.php';
         }
     }, 260);
 }

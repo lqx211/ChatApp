@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../api/config.php';
 chatapp_require_login();
 $currentUser = chatapp_get_user();
+$from = $_GET['from'] ?? '';   // 'settings' => 返回设置页
 $bgPrivacy = (int)($currentUser['bg_privacy'] ?? 0);
 $bgNoFriend = (int)($currentUser['bg_no_friend'] ?? 0);
 $bgPrivateImage = $currentUser['bg_private_image'] ?? '';
@@ -127,6 +128,7 @@ $whiteCount = count($bgWhiteList);
 <div class="save-toast" id="saveToast">✓ 已保存</div>
 
 <script>
+var FROM_SETTINGS = <?php echo json_encode($from === 'settings');?>;
 var _curMode = <?php echo (int)$bgPrivacy;?>;
 var _noFriend = <?php echo (int)$bgNoFriend;?>;
 var _privateImg = <?php echo json_encode($bgPrivateImage);?>;
@@ -241,7 +243,7 @@ function goBack() {
     card.classList.add('slide-out-right');
     setTimeout(function() {
         if (window.parent && window.parent.document.getElementById('profileFrame')) {
-            window.parent.document.getElementById('profileFrame').src = 'profile.php';
+            window.parent.document.getElementById('profileFrame').src = FROM_SETTINGS ? 'settings.php' : 'profile.php';
         }
     }, 260);
 }

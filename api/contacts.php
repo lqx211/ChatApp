@@ -68,6 +68,19 @@ switch ($action) {
             exit;
         }
 
+        // 黑名单：对方拉黑则拒绝好友申请
+        if (chatapp_is_blocked($myUid, $toUid)) {
+            echo json_encode(['success' => false, 'error' => 'blocked']);
+            exit;
+        }
+        // 对方关闭「允许任何人添加我为好友」
+        $allowStmt = $pdo->prepare('SELECT anyone_add_friend FROM users WHERE user_id = ?');
+        $allowStmt->execute([$toUid]);
+        if ((int)$allowStmt->fetchColumn() === 0) {
+            echo json_encode(['success' => false, 'error' => 'not_accepting']);
+            exit;
+        }
+
         $st = $pdo->prepare("SELECT id, status FROM contacts WHERE (user_from = ? AND user_to = ?) OR (user_from = ? AND user_to = ?)");
         $st->execute([$myUid, $toUid, $toUid, $myUid]);
         $ex = $st->fetch();

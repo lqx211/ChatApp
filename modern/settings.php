@@ -1,12 +1,152 @@
 <?php
 /**
- * ChatApp - Settings redirect (settings now integrated into chat)
+ * ChatApp · 设置主页面
+ * 在个人主页抽屉 iframe 中打开：chat.js openSettings()
+ * 结构按 plan/s.md pseudocode：搜索栏 + 账号与安全 + 功能(消息通知/通用) + 隐私 + 其余
  */
 require_once __DIR__ . '/../api/config.php';
-if (session_status() === PHP_SESSION_NONE) session_start();
-if (!isset($_SESSION['username'])) {
-    header('Location: login.php');
-} else {
-    header('Location: chat.php#more');
+chatapp_require_login();
+$u = chatapp_get_user();
+
+$displayName = htmlspecialchars($u['display_name'] ?? $u['username'] ?? '');
+$avatar      = $u['avatar'] ?? '';
+?>
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
+<title>设置</title>
+<link rel="stylesheet" href="../plan/editinfo.css?v=20260809">
+<link rel="stylesheet" href="settings.css?v=20260810">
+</head>
+<body>
+
+<div class="card">
+
+  <div class="nav-bar">
+    <button class="nav-btn" onclick="goBack()">‹</button>
+    <span class="nav-title">设置</span>
+    <span style="width:28px"></span>
+  </div>
+
+  <!-- ============ 搜索栏（过滤设置项） ============ -->
+  <div class="set-searchbar">
+    <div class="set-search-inner">
+      <svg class="set-search-ico" viewBox="0 0 24 24" width="15" height="15"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
+      <input type="text" id="setSearch" placeholder="搜索" autocomplete="off" oninput="filterSettings(this.value)">
+    </div>
+  </div>
+
+  <!-- ============ 账号与安全 ============ -->
+  <div class="set-group" data-search="账号与安全">账号与安全</div>
+  <div class="set-row" data-search="账号与安全" onclick="navTo('settings-account.php')">
+    <span class="row-label">账号与安全</span>
+    <span class="row-arrow">›</span>
+  </div>
+
+  <!-- ============ 功能 ============ -->
+  <div class="set-group" data-search="功能 消息通知 通用">功能</div>
+  <div class="set-row" data-search="消息通知" onclick="navTo('settings-notif.php')">
+    <span class="row-label">消息通知</span>
+    <span class="row-arrow">›</span>
+  </div>
+  <div class="set-row" data-search="通用" onclick="navTo('settings-general.php')">
+    <span class="row-label">通用</span>
+    <span class="row-arrow">›</span>
+  </div>
+
+  <!-- ============ 隐私 ============ -->
+  <div class="set-group" data-search="隐私">隐私</div>
+  <div class="set-row" data-search="隐私" onclick="navTo('settings-privacy.php')">
+    <span class="row-label">隐私设置</span>
+    <span class="row-arrow">›</span>
+  </div>
+
+  <!-- ============ 个人资料 ============ -->
+  <div class="set-group" data-search="个人资料">个人资料</div>
+  <div class="set-row" data-search="个人资料" onclick="navTo('editinfo.php?from=settings')">
+    <span class="row-label">编辑个人资料</span>
+    <span class="row-value" style="display:flex;align-items:center;justify-content:flex-end;gap:6px">
+      <span><?php echo $displayName;?></span>
+      <?php if ($avatar):?>
+      <img class="set-avatar" src="<?php echo htmlspecialchars($avatar);?>" alt="">
+      <?php endif;?>
+    </span>
+    <span class="row-arrow">›</span>
+  </div>
+
+  <!-- ============ 个性装扮 ============ -->
+  <div class="set-group" data-search="个性装扮">个性装扮</div>
+  <div class="set-row" data-search="聊天壁纸 壁纸" onclick="navTo('settings-wallpaper.php')">
+    <span class="row-label">聊天壁纸</span>
+    <span class="row-arrow">›</span>
+  </div>
+  <div class="set-row" data-search="个人主页封面 封面" onclick="navTo('settings-wallpaper.php?tab=profile')">
+    <span class="row-label">个人主页封面</span>
+    <span class="row-arrow">›</span>
+  </div>
+
+  <!-- ============ 关于 ============ -->
+  <div class="set-group" data-search="关于">关于</div>
+  <div class="set-row" data-search="关于" onclick="navTo('settings-about.php')">
+    <span class="row-label">关于 ChatApp</span>
+    <span class="row-arrow">›</span>
+  </div>
+
+  <!-- 退出当前账号（红色） -->
+  <button class="set-logout" data-search="退出 注销 登出" onclick="doLogout()">退出当前账号</button>
+
+</div>
+
+<div class="save-toast" id="saveToast">✓ 已保存</div>
+
+<script>
+function goBack() {
+    if (window.parent && window.parent.closeMyProfile) window.parent.closeMyProfile();
+    else history.back();
 }
-exit;
+
+/* 子页跳转：卡片左滑后切换 iframe src */
+function navTo(src) {
+    var card = document.querySelector('.card');
+    if (!card) { if (window.parent) window.parent.document.getElementById('profileFrame').src = src; return; }
+    card.classList.add('slide-out-left');
+    setTimeout(function() {
+        if (window.parent && window.parent.document.getElementById('profileFrame')) {
+            window.parent.document.getElementById('profileFrame').src = src;
+        } else {
+            location.href = src;
+        }
+    }, 250);
+}
+
+/* ---------------- 搜索过滤 ---------------- */
+function filterSettings(q) {
+    q = (q || '').trim().toLowerCase();
+    var groups = document.querySelectorAll('.card .set-group');
+    groups.forEach(function(g) {
+        var kw = (g.getAttribute('data-search') || g.textContent || '').toLowerCase();
+        g.style.display = (!q || kw.indexOf(q) >= 0) ? '' : 'none';
+    });
+    var rows = document.querySelectorAll('.card .set-row, .card .set-logout');
+    rows.forEach(function(r) {
+        var kw = (r.getAttribute('data-search') || r.textContent || '').toLowerCase();
+        r.style.display = (!q || kw.indexOf(q) >= 0) ? '' : 'none';
+    });
+    // 隐藏没有可见行/紧跟的分组：简单起见，分组的可见性由分组自身关键字决定
+}
+
+/* ---------------- 退出登录 ---------------- */
+function doLogout() {
+    if (!confirm('确定要退出当前账号吗？')) return;
+    if (window.parent && window.parent.logout) { window.parent.logout(); return; }
+    var f = new URLSearchParams();
+    f.append('action', 'logout');
+    fetch('../api/auth.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+        .then(function() { window.location.href = 'login.php'; });
+}
+</script>
+
+</body>
+</html>

@@ -1,7 +1,8 @@
 # ChatApp Ticket CLI Tool
 # Usage: ./ticket.zsh <command> [args]
+# BASE_URL 可用环境变量 CHATAPP_TICKET_URL 覆盖（生产服务器可能不同）
 
-BASE_URL="http://localhost"
+BASE_URL="${CHATAPP_TICKET_URL:-http://localhost:8080}"
 COOKIE_FILE="/tmp/chatapp_ticket_cookie.txt"
 USERNAME="assistant"
 PASSWORD="ot-^j=V19fCfvjbXRswkdj512_j1=B6=.xsCY%dKRQa^NKBruDFd"
