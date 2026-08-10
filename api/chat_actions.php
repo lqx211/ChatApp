@@ -319,6 +319,15 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
             // 公告（recipient_id 为 NULL）无需校验；
             // 自己给自己发送（如转发给自己）无需好友关系。
             if ($recipientId !== $senderUid) {
+                // 黑名单：任一方向拉黑则禁止私聊
+                $blStmt = $pdo->prepare(
+                    "SELECT 1 FROM user_blocks
+                     WHERE (user_id = ? AND blocked_uid = ?) OR (user_id = ? AND blocked_uid = ?) LIMIT 1"
+                );
+                $blStmt->execute([$senderUid, $recipientId, $recipientId, $senderUid]);
+                if ($blStmt->fetch()) {
+                    return ['success' => false, 'error' => 'blocked'];
+                }
                 $frStmt = $pdo->prepare(
                     "SELECT 1 FROM contacts
                      WHERE status = 'accepted' AND (

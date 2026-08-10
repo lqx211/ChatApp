@@ -44,6 +44,11 @@ require_once __DIR__ . '/maintenance.php';
             margin-bottom: 40px;
             font-size: 1.05em;
         }
+        p.even_smaller_subtitle {
+            color: #888;
+            margin-bottom: 40px;
+            font-size: 0.8em;
+        }
         .entries {
             display: flex;
             gap: 30px;
@@ -93,6 +98,7 @@ require_once __DIR__ . '/maintenance.php';
     <div class="container">
         <h1>ChatApp</h1>
         <p class="subtitle">其实就是一个自己暑假期间写的聊天网站</p>
+        
         <div class="entries">
             <a href="modern/index.php" class="entry-card">
                 <div class="label">最新版本</div>
@@ -107,8 +113,8 @@ require_once __DIR__ . '/maintenance.php';
         </div>
         <div>
         <br><br> <!-- 加点没用的美观br -->
-        <a href="tablet/index.html" class="label label-gray">点击此不起眼文字可以去看已经废弃的「尝试兼容IE9」版本</a>
-        <a href=""
+        <a href="tablet/index.html" class="label label-gray">点击此不起眼文字可以去看已经废弃的「尝试兼容IE9」版本</a><br><br>
+        <p class="even_smaller_subtitle">(14岁加Deepseek V4 Flash写的)</p>
         </div>
     </div>
 </body>
