@@ -11,7 +11,7 @@ $dnd         = (int)($u['dnd'] ?? 0);
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>消息通知</title>
+<title><?php echo t('set_notifications');?></title>
 <link rel="stylesheet" href="../plan/editinfo.css?v=20260809">
 <link rel="stylesheet" href="settings.css?v=20260810">
 </head>
@@ -21,40 +21,40 @@ $dnd         = (int)($u['dnd'] ?? 0);
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title">消息通知</span>
+    <span class="nav-title"><?php echo t('set_notifications', 'Notifications');?></span>
     <span style="width:28px"></span>
   </div>
 
-  <p class="set-hint">选择你希望接收消息通知的方式。</p>
+  <p class="set-hint"><?php echo t('set_notif_hint', 'Choose how you want to receive message notifications.');?></p>
 
-  <div class="set-group">未打开 App 时</div>
+  <div class="set-group"><?php echo t('set_notif_closed', 'When the app is closed');?></div>
   <div class="set-row" style="cursor:default">
-    <span class="row-label">系统消息通知</span>
+    <span class="row-label"><?php echo t('set_notif_system', 'System notifications');?></span>
     <label class="set-switch">
       <input type="checkbox" id="notifSysSw" <?php echo $notifSystem ? 'checked' : '';?> onchange="toggleCol('notif_system', 'notifSysSw', 'NOTIF_SYS', this)">
       <span class="track"></span>
     </label>
   </div>
   <div class="set-row" style="cursor:default">
-    <span class="row-label">通知显示消息预览</span>
-    <span class="row-value" style="color:#5a6270;font-size:12px">跟随系统通知开关</span>
+    <span class="row-label"><?php echo t('set_notif_preview', 'Show message preview in notifications');?></span>
+    <span class="row-value" style="color:#5a6270;font-size:12px"><?php echo t('set_notif_follow_system', 'Follows the system notification setting');?></span>
     <span class="row-arrow" style="visibility:hidden">›</span>
   </div>
 
-  <div class="set-group">打开 App 时</div>
+  <div class="set-group"><?php echo t('set_notif_open', 'When the app is open');?></div>
   <div class="set-row" style="cursor:default">
-    <span class="row-label">App 内消息横幅</span>
+    <span class="row-label"><?php echo t('set_notif_banner', 'In-app message banner');?></span>
     <label class="set-switch">
       <input type="checkbox" id="notifBannerSw" <?php echo $notifBanner ? 'checked' : '';?> onchange="toggleCol('notif_banner', 'notifBannerSw', 'NOTIF_BANNER', this)">
       <span class="track"></span>
     </label>
   </div>
 
-  <div class="set-group">提醒方式</div>
+  <div class="set-group"><?php echo t('set_notif_remind', 'Reminder method');?></div>
   <div class="set-row set-row-2line" style="cursor:default">
     <div class="row-2line">
-      <span class="row-label">勿扰模式</span>
-      <span class="row-desc">打开后在指定时间内不接收消息推送</span>
+      <span class="row-label"><?php echo t('set_dnd', 'Do Not Disturb');?></span>
+      <span class="row-desc"><?php echo t('set_dnd_desc', 'When on, no message pushes will be received for a set time');?></span>
     </div>
     <label class="set-switch">
       <input type="checkbox" id="dndSw" <?php echo $dnd ? 'checked' : '';?> onchange="toggleDnd(this)">

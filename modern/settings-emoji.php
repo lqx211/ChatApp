@@ -10,7 +10,7 @@ $chatMode  = $u['emoji_chat_mode'] ?? 'dynamic';
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>Emoji 设置</title>
+<title><?php echo t('set_emoji_settings');?></title>
 <link rel="stylesheet" href="../plan/editinfo.css?v=20260809">
 <link rel="stylesheet" href="settings.css?v=20260810">
 </head>
@@ -20,23 +20,23 @@ $chatMode  = $u['emoji_chat_mode'] ?? 'dynamic';
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title">Emoji 设置</span>
+    <span class="nav-title"><?php echo t('set_emoji_settings', 'Emoji Settings');?></span>
     <span style="width:28px"></span>
   </div>
 
-  <p class="set-hint">选择表情面板和聊天中表情的展示方式。动态表情更生动，但会消耗更多流量。</p>
+  <p class="set-hint"><?php echo t('set_emoji_hint', 'Choose how emoji are displayed in the panel and in chat. Animated emoji are more lively but use more traffic.');?></p>
 
-  <div class="set-group">表情面板</div>
+  <div class="set-group"><?php echo t('set_emoji_panel', 'Emoji panel');?></div>
   <div class="set-opt-group">
-    <div class="set-opt" data-panel="dynamic" onclick="setPanel(this)"><span>始终动态</span><span class="checked" id="panel-dynamic"></span></div>
-    <div class="set-opt" data-panel="hover" onclick="setPanel(this)"><span>悬停时动态</span><span class="checked" id="panel-hover"></span></div>
-    <div class="set-opt" data-panel="static" onclick="setPanel(this)"><span>仅静态</span><span class="checked" id="panel-static"></span></div>
+    <div class="set-opt" data-panel="dynamic" onclick="setPanel(this)"><span><?php echo t('set_emoji_panel_dynamic', 'Always animated');?></span><span class="checked" id="panel-dynamic"></span></div>
+    <div class="set-opt" data-panel="hover" onclick="setPanel(this)"><span><?php echo t('set_emoji_panel_hover', 'Animated on hover');?></span><span class="checked" id="panel-hover"></span></div>
+    <div class="set-opt" data-panel="static" onclick="setPanel(this)"><span><?php echo t('set_emoji_panel_static', 'Static only');?></span><span class="checked" id="panel-static"></span></div>
   </div>
 
-  <div class="set-group">聊天中的表情</div>
+  <div class="set-group"><?php echo t('set_emoji_chat', 'Emoji in chat');?></div>
   <div class="set-opt-group">
-    <div class="set-opt" data-chat="dynamic" onclick="setChat(this)"><span>动态</span><span class="checked" id="chat-dynamic"></span></div>
-    <div class="set-opt" data-chat="static" onclick="setChat(this)"><span>仅静态</span><span class="checked" id="chat-static"></span></div>
+    <div class="set-opt" data-chat="dynamic" onclick="setChat(this)"><span><?php echo t('set_emoji_chat_dynamic', 'Animated');?></span><span class="checked" id="chat-dynamic"></span></div>
+    <div class="set-opt" data-chat="static" onclick="setChat(this)"><span><?php echo t('set_emoji_chat_static', 'Static only');?></span><span class="checked" id="chat-static"></span></div>
   </div>
 
 </div>

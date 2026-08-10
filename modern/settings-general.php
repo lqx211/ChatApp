@@ -39,7 +39,7 @@ $tzPresetNames = [
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>通用</title>
+<title><?php echo t('set_general');?></title>
 <link rel="stylesheet" href="../plan/editinfo.css?v=20260809">
 <link rel="stylesheet" href="settings.css?v=20260810">
 </head>
@@ -49,50 +49,50 @@ $tzPresetNames = [
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title">通用</span>
+    <span class="nav-title"><?php echo t('set_general', 'General');?></span>
     <span style="width:28px"></span>
   </div>
 
-  <div class="set-group">语言</div>
+  <div class="set-group"><?php echo t('set_language', 'Language');?></div>
   <div class="set-row" onclick="openLangPicker()">
-    <span class="row-label">语言</span>
+    <span class="row-label"><?php echo t('set_language', 'Language');?></span>
     <span class="row-value" id="langVal"><?php echo htmlspecialchars($langMap[$curLang] ?? $curLang);?></span>
     <span class="row-arrow">›</span>
   </div>
   <div class="set-row" onclick="openTitleDialog()">
-    <span class="row-label">自定义头衔</span>
-    <span class="row-value" id="titleVal"><?php echo $customTitle ?: '未开启';?></span>
+    <span class="row-label"><?php echo t('set_custom_title', 'Custom Title');?></span>
+    <span class="row-value" id="titleVal"><?php echo $customTitle ?: t('msg_custom_title_off', 'Custom title is OFF');?></span>
     <span class="row-arrow">›</span>
   </div>
   <div class="set-row" onclick="openTzPicker()">
-    <span class="row-label">时区</span>
+    <span class="row-label"><?php echo t('title_timezone', 'Timezone');?></span>
     <span class="row-value" id="tzVal"><?php echo $tz;?></span>
     <span class="row-arrow">›</span>
   </div>
 
-  <div class="set-group">表情</div>
+  <div class="set-group"><?php echo t('set_emoji', 'Emoji');?></div>
   <div class="set-row" onclick="navTo('settings-emoji.php')">
-    <span class="row-label">Emoji 设置</span>
+    <span class="row-label"><?php echo t('set_emoji_settings', 'Emoji Settings');?></span>
     <span class="row-arrow">›</span>
   </div>
 
-  <div class="set-group">网络</div>
+  <div class="set-group"><?php echo t('set_network', 'Network');?></div>
   <div class="set-row" style="cursor:default">
-    <span class="row-label">省流量模式</span>
+    <span class="row-label"><?php echo t('set_data_saver', 'Data Saver');?></span>
     <label class="set-switch">
       <input type="checkbox" id="dataSaverSw" <?php echo $dataSaver ? 'checked' : '';?> <?php echo $restricted ? 'disabled' : '';?> onchange="toggleDataSaver(this)">
       <span class="track"></span>
     </label>
   </div>
   <div class="set-row" style="cursor:default">
-    <span class="row-label">本地缓存</span>
+    <span class="row-label"><?php echo t('set_local_cache', 'Local Cache');?></span>
     <label class="set-switch">
       <input type="checkbox" id="localCacheSw" <?php echo $localCache ? 'checked' : '';?> onchange="toggleLocalCache(this)">
       <span class="track"></span>
     </label>
   </div>
   <div class="set-row" onclick="clearLocalCache()">
-    <span class="row-label">清除本地缓存</span>
+    <span class="row-label"><?php echo t('set_clear_local_cache', 'Clear Local Cache');?></span>
     <span class="row-arrow">›</span>
   </div>
 
@@ -102,8 +102,8 @@ $tzPresetNames = [
 <div class="picker-overlay" id="langOverlay" onclick="closeLangPicker()"></div>
 <div class="picker-panel" id="langPanel">
   <div class="picker-header">
-    <button class="picker-cancel" onclick="closeLangPicker()">取消</button>
-    <span class="picker-title">选择语言</span>
+    <button class="picker-cancel" onclick="closeLangPicker()"><?php echo t('btn_cancel', 'Cancel');?></button>
+    <span class="picker-title"><?php echo t('set_language', 'Language');?></span>
     <span style="width:28px"></span>
   </div>
   <div class="picker-option" data-lang="en">English（英语）</div>
@@ -117,8 +117,8 @@ $tzPresetNames = [
 <div class="picker-overlay" id="tzOverlay" onclick="closeTzPicker()"></div>
 <div class="picker-panel" id="tzPanel">
   <div class="picker-header">
-    <button class="picker-cancel" onclick="closeTzPicker()">取消</button>
-    <span class="picker-title">选择时区</span>
+    <button class="picker-cancel" onclick="closeTzPicker()"><?php echo t('btn_cancel', 'Cancel');?></button>
+    <span class="picker-title"><?php echo t('title_timezone', 'Timezone');?></span>
     <span style="width:28px"></span>
   </div>
   <?php foreach ($tzPresets as $tp): $tpName = $tzPresetNames[$tp] ?? '';?>
@@ -129,12 +129,12 @@ $tzPresetNames = [
 <!-- ================= 自定义头衔弹窗 ================= -->
 <div class="set-dialog-overlay" id="titleOverlay" onclick="closeTitleDialog()"></div>
 <div class="set-dialog" id="titleDialog">
-  <h3>自定义头衔</h3>
-  <p>显示在聊天页顶部的个人标题，最多 100 个字符。</p>
-  <input type="text" id="titleInput" maxlength="100" placeholder="输入你的头衔…" value="<?php echo $customTitle;?>">
+  <h3><?php echo t('set_custom_title', 'Custom Title');?></h3>
+  <p><?php echo t('msg_custom_title_hint', 'Shown at the top of the chat page, up to 100 characters.');?></p>
+  <input type="text" id="titleInput" maxlength="100" placeholder="<?php echo t('label_custom_title_placeholder', 'Enter custom title name');?>" value="<?php echo $customTitle;?>">
   <div class="set-dialog-actions">
-    <button class="cancel" onclick="closeTitleDialog()">取消</button>
-    <button class="ok" onclick="saveTitle()">保存</button>
+    <button class="cancel" onclick="closeTitleDialog()"><?php echo t('btn_cancel', 'Cancel');?></button>
+    <button class="ok" onclick="saveTitle()"><?php echo t('btn_save', 'Save');?></button>
   </div>
 </div>
 
@@ -260,7 +260,7 @@ function toggleLocalCache(el) {
     });
 }
 function clearLocalCache() {
-    if (!confirm('确定要清除本地缓存吗？')) return;
+    if (!confirm('<?php echo t('set_clear_cache_confirm', 'Are you sure you want to clear the local cache?');?>')) return;
     if (window.parent && window.parent.lcClearAll) {
         window.parent.lcClearAll().then(function() { showToast(); });
     } else {

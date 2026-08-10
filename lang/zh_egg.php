@@ -372,4 +372,154 @@ return [
     'msg_duress_same'         => '胁迫密码必须与你的正常密码不同。',
     'msg_duress_new_same'     => '新密码不能与你的胁迫密码相同。',
     'duress_warning'          => '永远不要在任何地方储存你的胁迫密码！你必须记住它。一旦被输入，它不能被恢复！！！',
+
+    // ==================== 设置页 i18n（微软式中文） ====================
+    // 主设置页
+    'set_search_placeholder'    => '通缉',
+    'set_account_safety'        => '户口与安全',
+    'set_features'              => '功能',
+    'set_notifications'         => '讯息通知',
+    'set_general'               => '普通',
+    'set_privacy'               => '私隐',
+    'set_profile'               => '轮廓',
+    'set_edit_profile'          => '编辑轮廓',
+    'set_appearance'            => '外观',
+    'set_chat_wallpaper'        => '聊天墙纸',
+    'set_profile_cover'         => '轮廓封面',
+    'set_about'                 => '有关',
+    'set_about_chatapp'         => '有关 ChatApp',
+    'set_logout_confirm'        => '你确定要滚出去吗？',
+    'set_change_password'       => '改变通关口令',
+    'set_duress_password'       => '胁迫密码',
+    'set_deactivate'            => '注销户口',
+
+    // 改变通关口令
+    'set_cpasswd_hint'          => '经常改变通关口令有助于保持你的户口安全。',
+    'set_pw_fill_all'           => '请填满所有的领域。',
+    'set_pw_mismatch'           => '两个新鲜的通关口令不相同。',
+    'set_pw_fail'               => '改变失败了。',
+
+    // 胁迫密码页
+    'set_duress_hint'           => '当你在需要通关口令的地方输入胁迫密码，你的户口将进入「自我摧毁」流程，例如删除户口。不要与别人分享，且不能与你的正常密码相同。',
+    'set_duress_current'        => '当时的通关口令（验证身份）',
+    'set_duress_clear'           => '留空则清除胁迫密码',
+    'set_duress_need_current'   => '请输入你当时的通关口令以验证身份。',
+    'set_duress_clear_confirm'  => '你确定要清除胁迫密码吗？',
+    'set_save_fail'             => '保存失败了。',
+    'set_clear_fail'            => '清除失败了（请输入当时的通关口令以验证）。',
+
+    // 注销户口页
+    'set_bye_hint'              => '注销后户口不能被恢复。你也可以选择只清除聊天记录并保留户口。',
+    'set_del_mode_delete'       => '直接删除户口',
+    'set_del_mode_revoke'       => '清除全部聊天记录（保留户口）',
+    'set_del_password'          => '输入通关口令以确认',
+    'set_del_confirm_label'     => '我明白这个动作不能被撤销',
+    'set_del_submit'            => '注销户口',
+    'set_del_need_check'        => '请勾选确认框。',
+    'set_del_need_password'     => '请输入通关口令以确认。',
+    'set_del_confirm'           => '你确定要做这件事吗？这件事不能被撤销！',
+    'set_del_fail'              => '通关口令错误或操作失败。',
+
+    // 讯息通知
+    'set_notif_hint'            => '选择你想要如何接收讯息通知。',
+    'set_notif_closed'          => '当应用程式被关闭时',
+    'set_notif_system'          => '系统讯息通知',
+    'set_notif_preview'         => '在通知中显示讯息预览',
+    'set_notif_follow_system'   => '跟随系统通知开关',
+    'set_notif_open'            => '当应用程式被打开时',
+    'set_notif_banner'          => '应用程式内讯息横幅',
+    'set_notif_remind'          => '提醒方法',
+    'set_dnd'                   => '请勿打扰',
+    'set_dnd_desc'              => '打开后在设定的时间内不接收讯息推送',
+
+    // 私隐
+    'set_strangers'             => '陌生人',
+    'set_findme'                => '发现我的方法',
+    'set_addme'                 => '添加我为朋友的方式',
+    'set_stranger_invite_group' => '允许陌生人邀请我加入组别',
+    'set_stranger_like'         => '允许陌生人赞我',
+    'set_friends'               => '朋友',
+    'set_blacklist'             => '黑名单经营',
+    'set_oneway'                => '单向朋友经营',
+    'set_friend_perms'          => '朋友许可权',
+    'set_bg_view_perm'          => '背景图查看许可权',
+    'set_typing_visible'        => '我的输入状态可见',
+
+    // 发现我的方法
+    'set_findme_hint'           => '选择其他人可以在 ChatApp 里发现你的方法。',
+    'set_search_methods'        => '搜寻方法',
+    'set_searchable_name'       => '可被户口名搜寻到',
+    'set_searchable_uid'        => '可被用户识别码搜寻到',
+    'set_findme_note'           => '关闭后，其他用户将不能通过「发现用户 / 通缉」找到你，你也不会出现在推荐中。',
+
+    // 添加我为朋友的方式
+    'set_addme_hint'            => '控制其他人是否可以主动添加你为朋友。',
+    'set_friend_req'            => '交友请求',
+    'set_anyone_add'            => '允许任何人添加我为朋友',
+    'set_addme_note'            => '关闭后，其他用户将不能向你派遣交友请求。',
+
+    // 单向朋友
+    'set_oneway_hint'           => '单向朋友是主动添加了你、但你还没有接纳的交友请求。接纳后他们变成双向朋友。',
+    'set_oneway_count'          => '单向朋友（%s）',
+    'set_oneway_empty'          => '没有单向朋友',
+
+    // 黑名单经营
+    'set_blacklist_hint'        => '被加入黑名单的用户不能给你派遣私聊讯息或交友请求。',
+    'set_blacklist_add'         => '添加黑名单',
+    'set_blacklist_uid'         => '输入用户识别码',
+    'set_blacklist_add_btn'     => '添加',
+    'set_blacklist_list'        => '黑名单列表',
+    'set_blacklist_empty'       => '黑名单是空的',
+    'set_blacklist_need_uid'    => '请输入用户识别码。',
+    'set_blacklist_remove_confirm' => '你确定要从黑名单移除这个用户吗？',
+    'set_blacklist_remove'      => '移除',
+
+    // 普通
+    'set_language'              => '语言',
+    'set_custom_title'          => '习惯的标题',
+    'msg_custom_title_hint'     => '显示在聊天页顶部的个人标题，向上到100个字符。',
+    'set_emoji'                 => '表情',
+    'set_emoji_settings'        => '表情安置',
+    'set_network'               => '网络',
+    'set_data_saver'            => '节省流量模式',
+    'set_local_cache'           => '本地快取',
+    'set_clear_local_cache'     => '清除本地快取',
+    'set_clear_cache_confirm'   => '你确定要清除本地快取吗？',
+
+    // 表情
+    'set_emoji_hint'            => '选择表情在面板和聊天中的展示方法。动态表情更生动但使用更多流量。',
+    'set_emoji_panel'           => '表情面板',
+    'set_emoji_panel_dynamic'   => '始终动态',
+    'set_emoji_panel_hover'     => '悬停时动态',
+    'set_emoji_panel_static'    => '只静态',
+    'set_emoji_chat'            => '聊天中的表情',
+    'set_emoji_chat_dynamic'    => '动态',
+    'set_emoji_chat_static'     => '只静态',
+
+    // 墙纸 / 封面
+    'set_tab_chat_wallpaper'    => '聊天墙纸',
+    'set_tab_profile_cover'     => '轮廓封面',
+    'set_upload_bg'             => '上传背景',
+    'set_remove_bg'             => '移除背景',
+    'set_bg_presets'            => '系统预设',
+    'set_no_bg'                 => '没有背景',
+    'set_loading'               => '加载中...',
+    'set_blur'                  => '模糊',
+    'set_opacity'               => '不透明度',
+    'set_upload_cover'          => '上传封面',
+    'set_remove_cover'          => '移除封面',
+    'set_cover_hint'            => '上传的封面将显示在你的轮廓页顶部，支持图片或视频（mp4 / webm）。',
+    'set_bg_too_large'          => '文件太大（最大 32MB）',
+    'set_bg_upload_fail'        => '上传失败了。',
+    'set_remove_bg_confirm'     => '你确定要移除聊天墙纸吗？',
+    'set_cover_too_large'       => '文件太大（最大 64MB）',
+    'set_remove_cover_confirm'  => '你确定要移除轮廓封面吗？',
+
+    // 有关
+    'set_about_intro'           => '有关',
+    'set_official_site'         => '官方网站',
+    'set_source_repo'           => '开源仓库',
+    'set_version'               => '版本 %s',
+    'set_build_date'            => '构建于 %s',
+    'set_copyright'             => '© ChatApp · 保留所有权利',
 ];

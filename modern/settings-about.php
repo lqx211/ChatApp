@@ -15,7 +15,7 @@ $repoUrl   = 'https://github.com/lqx211/ChatApp';
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>关于 ChatApp</title>
+<title><?php echo t('set_about_chatapp');?></title>
 <link rel="stylesheet" href="../plan/editinfo.css?v=20260809">
 <link rel="stylesheet" href="settings.css?v=20260810">
 </head>
@@ -25,7 +25,7 @@ $repoUrl   = 'https://github.com/lqx211/ChatApp';
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title">关于</span>
+    <span class="nav-title"><?php echo t('set_about', 'About');?></span>
     <span style="width:28px"></span>
   </div>
 
@@ -33,31 +33,31 @@ $repoUrl   = 'https://github.com/lqx211/ChatApp';
     <div class="logo">C</div>
     <div class="name">ChatApp</div>
     <?php if ($version !== ''):?>
-    <div class="ver">版本 <?php echo htmlspecialchars($version);?></div>
+    <div class="ver"><?php echo sprintf(t('set_version', 'Version %s'), htmlspecialchars($version));?></div>
     <?php endif;?>
     <?php if ($buildDate !== ''):?>
-    <div class="ver">构建于 <?php echo htmlspecialchars($buildDate);?></div>
+    <div class="ver"><?php echo sprintf(t('set_build_date', 'Built on %s'), htmlspecialchars($buildDate));?></div>
     <?php endif;?>
   </div>
 
   <?php if ($intro !== ''):?>
-  <div class="set-group">关于</div>
+  <div class="set-group"><?php echo t('set_about_intro', 'About');?></div>
   <div class="set-about-article"><?php echo nl2br(htmlspecialchars($intro));?></div>
   <?php endif;?>
 
-  <div class="set-group">链接</div>
+  <div class="set-group"><?php echo t('set_privacy', 'Privacy');?></div>
   <div class="set-about-links">
     <a class="set-row" href="<?php echo $siteUrl;?>" target="_blank" rel="noopener">
-      <span class="row-label">官方网站</span>
+      <span class="row-label"><?php echo t('set_official_site', 'Official Website');?></span>
       <span class="row-arrow">›</span>
     </a>
     <a class="set-row" href="<?php echo $repoUrl;?>" target="_blank" rel="noopener">
-      <span class="row-label">开源仓库</span>
+      <span class="row-label"><?php echo t('set_source_repo', 'Source Code');?></span>
       <span class="row-arrow">›</span>
     </a>
   </div>
 
-  <p style="text-align:center;color:#4a5260;font-size:12px;padding:28px 16px 40px">© ChatApp · 保留所有权利</p>
+  <p style="text-align:center;color:#4a5260;font-size:12px;padding:28px 16px 40px"><?php echo t('set_copyright', '© ChatApp · All rights reserved');?></p>
 
 </div>
 

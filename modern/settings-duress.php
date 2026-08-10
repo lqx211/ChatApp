@@ -7,7 +7,7 @@ chatapp_require_login();
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>胁迫密码</title>
+<title><?php echo t('title_duress');?></title>
 <link rel="stylesheet" href="../plan/editinfo.css?v=20260809">
 <link rel="stylesheet" href="settings.css?v=20260810">
 </head>
@@ -17,28 +17,28 @@ chatapp_require_login();
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title">胁迫密码</span>
+    <span class="nav-title"><?php echo t('title_duress', 'Duress Password');?></span>
     <span style="width:28px"></span>
   </div>
 
-  <p class="set-hint">当你在输入密码的地方输入胁迫密码时，账号会进入「自毁」流程，例如删除账号。请勿与他人共用，且不能与普通密码相同。</p>
+  <p class="set-hint"><?php echo t('set_duress_hint', 'When you type the duress password where a password is required, your account will enter a "self-destruct" flow, such as deleting the account. Do not share it with others, and it cannot be the same as your normal password.');?></p>
 
-  <div class="set-group">设置胁迫密码</div>
+  <div class="set-group"><?php echo t('set_duress_password', 'Duress Password');?></div>
   <div class="set-block">
     <div class="set-field">
-      <label>当前密码（验证身份）</label>
+      <label><?php echo t('set_duress_current', 'Current Password (verify identity)');?></label>
       <input type="password" id="duCurrent" autocomplete="current-password">
     </div>
     <div class="set-field">
-      <label>新胁迫密码</label>
-      <input type="password" id="duNew" placeholder="留空则清除胁迫密码">
+      <label><?php echo t('label_duress_new', 'New Duress Password');?></label>
+      <input type="password" id="duNew" placeholder="<?php echo t('set_duress_clear', 'Clear Duress Password');?>">
     </div>
     <div class="set-field">
-      <label>确认胁迫密码</label>
+      <label><?php echo t('label_duress_confirm', 'Confirm Duress Password');?></label>
       <input type="password" id="duNew2">
     </div>
-    <button class="set-btn" onclick="saveDuress()">保存胁迫密码</button>
-    <button class="set-btn ghost" onclick="clearDuress()" style="margin-top:10px">清除胁迫密码</button>
+    <button class="set-btn" onclick="saveDuress()"><?php echo t('btn_save_duress', 'Save Duress Password');?></button>
+    <button class="set-btn ghost" onclick="clearDuress()" style="margin-top:10px"><?php echo t('btn_clear_duress', 'Clear Duress Password');?></button>
   </div>
 
 </div>
@@ -86,26 +86,26 @@ function saveDuress() {
     var cur = document.getElementById('duCurrent').value;
     var np = document.getElementById('duNew').value;
     var np2 = document.getElementById('duNew2').value;
-    if (!cur) { showErr('请输入当前密码验证身份'); return; }
-    if (np && np !== np2) { showErr('两次输入的胁迫密码不一致'); return; }
+    if (!cur) { showErr('<?php echo t('set_duress_need_current', 'Please enter your current password to verify identity.');?>'); return; }
+    if (np && np !== np2) { showErr('<?php echo t('msg_duress_mismatch', 'Duress passwords do not match.');?>'); return; }
     api('setup_duress', { current_password: cur, duress_password: np }).then(function(d) {
         if (d.success) {
             document.getElementById('duCurrent').value = '';
             document.getElementById('duNew').value = '';
             document.getElementById('duNew2').value = '';
             showToast();
-        } else showErr(d.error || '保存失败');
+        } else showErr(d.error || '<?php echo t('set_save_fail', 'Save failed.');?>');
     });
 }
 function clearDuress() {
     var cur = document.getElementById('duCurrent').value;
-    if (!cur) { showErr('请输入当前密码验证身份'); return; }
-    if (!confirm('确定要清除胁迫密码吗？')) return;
+    if (!cur) { showErr('<?php echo t('set_duress_need_current', 'Please enter your current password to verify identity.');?>'); return; }
+    if (!confirm('<?php echo t('set_duress_clear_confirm', 'Are you sure you want to clear the duress password?');?>')) return;
     api('setup_duress', { current_password: cur, duress_password: '' }).then(function(d) {
         if (d.success) {
             document.getElementById('duCurrent').value = '';
             showToast();
-        } else showErr(d.error || '清除失败（请输入当前密码验证）');
+        } else showErr(d.error || '<?php echo t('set_clear_fail', 'Clear failed (please enter current password to verify).');?>');
     });
 }
 </script>

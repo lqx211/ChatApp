@@ -7,7 +7,7 @@ chatapp_require_login();
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>修改密码</title>
+<title><?php echo t('btn_change_password');?></title>
 <link rel="stylesheet" href="../plan/editinfo.css?v=20260809">
 <link rel="stylesheet" href="settings.css?v=20260810">
 </head>
@@ -17,27 +17,27 @@ chatapp_require_login();
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title">修改密码</span>
+    <span class="nav-title"><?php echo t('btn_change_password', 'Change Password');?></span>
     <span style="width:28px"></span>
   </div>
 
-  <p class="set-hint">定期修改密码可以更好地保护你的账号安全。</p>
+  <p class="set-hint"><?php echo t('set_cpasswd_hint', 'Changing your password regularly helps keep your account secure.');?></p>
 
-  <div class="set-group">修改密码</div>
+  <div class="set-group"><?php echo t('btn_change_password', 'Change Password');?></div>
   <div class="set-block">
     <div class="set-field">
-      <label>当前密码</label>
+      <label><?php echo t('label_current_password', 'Current Password');?></label>
       <input type="password" id="pwCurrent" autocomplete="current-password">
     </div>
     <div class="set-field">
-      <label>新密码</label>
-      <input type="password" id="pwNew" autocomplete="new-password" placeholder="至少 8 位，含字母和数字">
+      <label><?php echo t('label_new_password', 'New Password');?></label>
+      <input type="password" id="pwNew" autocomplete="new-password" placeholder="<?php echo t('admin_min_password', '8+ characters, letters & numbers');?>">
     </div>
     <div class="set-field">
-      <label>确认新密码</label>
+      <label><?php echo t('label_confirm_password', 'Confirm Password');?></label>
       <input type="password" id="pwNew2" autocomplete="new-password">
     </div>
-    <button class="set-btn" onclick="changePw()">修改密码</button>
+    <button class="set-btn" onclick="changePw()"><?php echo t('btn_change_password', 'Change Password');?></button>
   </div>
 
 </div>
@@ -85,15 +85,15 @@ function changePw() {
     var cur = document.getElementById('pwCurrent').value;
     var np = document.getElementById('pwNew').value;
     var np2 = document.getElementById('pwNew2').value;
-    if (!cur || !np) { showErr('请填写完整'); return; }
-    if (np !== np2) { showErr('两次输入的新密码不一致'); return; }
+    if (!cur || !np) { showErr('<?php echo t('set_pw_fill_all', 'Please fill in all fields.');?>'); return; }
+    if (np !== np2) { showErr('<?php echo t('set_pw_mismatch', 'The two new passwords do not match.');?>'); return; }
     api('change_password', { current_password: cur, new_password: np }).then(function(d) {
         if (d.success) {
             document.getElementById('pwCurrent').value = '';
             document.getElementById('pwNew').value = '';
             document.getElementById('pwNew2').value = '';
             showToast();
-        } else showErr(d.error || '修改失败');
+        } else showErr(d.error || '<?php echo t('set_pw_fail', 'Change failed.');?>');
     });
 }
 </script>

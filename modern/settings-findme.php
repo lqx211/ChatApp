@@ -10,7 +10,7 @@ $searchableByUid = (int)($u['searchable_by_uid'] ?? 1);
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>找到我的方式</title>
+<title><?php echo t('set_findme');?></title>
 <link rel="stylesheet" href="../plan/editinfo.css?v=20260809">
 <link rel="stylesheet" href="settings.css?v=20260810">
 </head>
@@ -20,28 +20,28 @@ $searchableByUid = (int)($u['searchable_by_uid'] ?? 1);
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title">找到我的方式</span>
+    <span class="nav-title"><?php echo t('set_findme', 'Ways to find me');?></span>
     <span style="width:28px"></span>
   </div>
 
-  <p class="set-hint">选择其他人可以通过哪些方式在 ChatApp 里找到你。</p>
+  <p class="set-hint"><?php echo t('set_findme_hint', 'Choose how others can find you in ChatApp.');?></p>
 
-  <div class="set-group">查找方式</div>
+  <div class="set-group"><?php echo t('set_search_methods', 'Search methods');?></div>
   <div class="set-row" style="cursor:default">
-    <span class="row-label">允许通过用户名搜索到</span>
+    <span class="row-label"><?php echo t('set_searchable_name', 'Searchable by username');?></span>
     <label class="set-switch">
       <input type="checkbox" id="searchableSw" <?php echo $searchable ? 'checked' : '';?> onchange="save()">
       <span class="track"></span>
     </label>
   </div>
   <div class="set-row" style="cursor:default">
-    <span class="row-label">允许通过 UID 搜索到</span>
+    <span class="row-label"><?php echo t('set_searchable_uid', 'Searchable by UID');?></span>
     <label class="set-switch">
       <input type="checkbox" id="searchableUidSw" <?php echo $searchableByUid ? 'checked' : '';?> onchange="save()">
       <span class="track"></span>
     </label>
   </div>
-  <p class="set-note">关闭后，其他用户将无法通过「发现用户 / 搜索」找到你，也不会出现在推荐中。</p>
+  <p class="set-note"><?php echo t('set_findme_note', 'When off, other users cannot find you via "Discover Users / Search", and you will not appear in recommendations.');?></p>
 
 </div>
 

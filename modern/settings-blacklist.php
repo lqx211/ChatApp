@@ -7,7 +7,7 @@ chatapp_require_login();
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>黑名单管理</title>
+<title><?php echo t('set_blacklist');?></title>
 <link rel="stylesheet" href="../plan/editinfo.css?v=20260809">
 <link rel="stylesheet" href="settings.css?v=20260810">
 </head>
@@ -17,20 +17,20 @@ chatapp_require_login();
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title">黑名单管理</span>
+    <span class="nav-title"><?php echo t('set_blacklist', 'Block list');?></span>
     <span style="width:28px"></span>
   </div>
 
-  <p class="set-hint">加入黑名单的用户无法给你发送私聊消息或好友申请。</p>
+  <p class="set-hint"><?php echo t('set_blacklist_hint', 'Users added to the block list cannot send you private messages or friend requests.');?></p>
 
-  <div class="set-group">添加黑名单</div>
+  <div class="set-group"><?php echo t('set_blacklist_add', 'Add to block list');?></div>
   <div class="set-block" style="display:flex;gap:8px;padding:12px 16px">
-    <input type="number" id="blockUid" placeholder="输入用户 UID" style="flex:1;padding:10px 12px;background:#14161d;border:1px solid #2c3240;border-radius:10px;color:#e0e3ea;font-size:14px;font-family:inherit;outline:none">
-    <button class="set-btn" style="width:auto;margin:0;padding:10px 16px" onclick="addBlock()">添加</button>
+    <input type="number" id="blockUid" placeholder="<?php echo t('set_blacklist_uid', 'Enter user UID');?>" style="flex:1;padding:10px 12px;background:#14161d;border:1px solid #2c3240;border-radius:10px;color:#e0e3ea;font-size:14px;font-family:inherit;outline:none">
+    <button class="set-btn" style="width:auto;margin:0;padding:10px 16px" onclick="addBlock()"><?php echo t('set_blacklist_add_btn', 'Add');?></button>
   </div>
 
-  <div class="set-group">黑名单列表</div>
-  <div id="blockList"><div style="padding:20px;color:#5a6270;font-size:13px;text-align:center">加载中…</div></div>
+  <div class="set-group"><?php echo t('set_blacklist_list', 'Block list');?></div>
+  <div id="blockList"><div style="padding:20px;color:#5a6270;font-size:13px;text-align:center"><?php echo t('set_loading', 'Loading...');?></div></div>
 
 </div>
 
@@ -75,32 +75,33 @@ function api(action, data, method) {
 function load() {
     api('get_blocks', {}, 'GET').then(function(d) {
         var host = document.getElementById('blockList');
-        if (!d.success) { host.innerHTML = '<div style="padding:20px;color:#5a6270;text-align:center">加载失败</div>'; return; }
+        if (!d.success) { host.innerHTML = '<div style="padding:20px;color:#5a6270;text-align:center"><?php echo t('msg_login_something_wrong', 'Something went wrong.');?></div>'; return; }
         if (!d.blocks || !d.blocks.length) {
-            host.innerHTML = '<div style="padding:20px;color:#5a6270;text-align:center">黑名单为空</div>';
+            host.innerHTML = '<div style="padding:20px;color:#5a6270;text-align:center"><?php echo t('set_blacklist_empty', 'Block list is empty');?></div>';
             return;
         }
         var h = '';
+        var removeLbl = '<?php echo t('set_blacklist_remove', 'Remove');?>';
         for (var i = 0; i < d.blocks.length; i++) {
             var b = d.blocks[i];
             h += '<div class="set-row"><span class="row-label" style="display:flex;align-items:center;gap:8px;min-width:0">'
                + (b.avatar ? '<img class="set-avatar" src="' + b.avatar + '" alt="">' : '')
                + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + b.display_name + ' <span style="color:#5a6270;font-size:12px">(' + b.uid + ')</span></span></span>'
-               + '<button class="set-btn ghost" style="width:auto;margin:0;padding:6px 14px;font-size:13px" onclick="removeBlock(' + b.uid + ')">移除</button></div>';
+               + '<button class="set-btn ghost" style="width:auto;margin:0;padding:6px 14px;font-size:13px" onclick="removeBlock(' + b.uid + ')">' + removeLbl + '</button></div>';
         }
         host.innerHTML = h;
     });
 }
 function addBlock() {
     var v = document.getElementById('blockUid').value.trim();
-    if (!v) { showErr('请输入 UID'); return; }
+    if (!v) { showErr('<?php echo t('set_blacklist_need_uid', 'Please enter a UID.');?>'); return; }
     api('add_block', { uid: v }).then(function(d) {
         if (d.success) { document.getElementById('blockUid').value = ''; showToast(); load(); }
-        else showErr(d.error || '添加失败');
+        else showErr(d.error || '<?php echo t('set_save_fail', 'Save failed.');?>');
     });
 }
 function removeBlock(uid) {
-    if (!confirm('确定要从黑名单移除该用户吗？')) return;
+    if (!confirm('<?php echo t('set_blacklist_remove_confirm', 'Are you sure you want to remove this user from the block list?');?>')) return;
     api('remove_block', { uid: uid }).then(function(d) {
         if (d.success) { showToast(); load(); }
     });

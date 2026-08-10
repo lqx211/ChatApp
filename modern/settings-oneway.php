@@ -19,7 +19,7 @@ if ($uid > 0) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>单向好友管理</title>
+<title><?php echo t('set_oneway');?></title>
 <link rel="stylesheet" href="../plan/editinfo.css?v=20260809">
 <link rel="stylesheet" href="settings.css?v=20260810">
 </head>
@@ -29,16 +29,16 @@ if ($uid > 0) {
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title">单向好友管理</span>
+    <span class="nav-title"><?php echo t('set_oneway', 'One-way friends');?></span>
     <span style="width:28px"></span>
   </div>
 
-  <p class="set-hint">单向好友是主动添加了你、但你尚未接受的好友申请。接受后即为双向好友。</p>
+  <p class="set-hint"><?php echo t('set_oneway_hint', 'One-way friends are friend requests that added you but you have not yet accepted. After accepting they become two-way friends.');?></p>
 
-  <div class="set-group">单向好友（<?php echo count($oneway);?>）</div>
+  <div class="set-group"><?php echo sprintf(t('set_oneway_count', 'One-way friends (%s)'), count($oneway));?></div>
   <?php if (empty($oneway)):?>
   <div class="set-row" style="cursor:default">
-    <span class="row-value" style="text-align:left;color:#5a6270">暂无单向好友</span>
+    <span class="row-value" style="text-align:left;color:#5a6270"><?php echo t('set_oneway_empty', 'No one-way friends');?></span>
   </div>
   <?php else:?>
   <?php foreach ($oneway as $ow): $owName = $ow['display_name'] ?: $ow['username'];?>

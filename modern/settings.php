@@ -16,7 +16,7 @@ $avatar      = $u['avatar'] ?? '';
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>设置</title>
+<title><?php echo t('title_settings');?></title>
 <link rel="stylesheet" href="../plan/editinfo.css?v=20260809">
 <link rel="stylesheet" href="settings.css?v=20260810">
 </head>
@@ -26,7 +26,7 @@ $avatar      = $u['avatar'] ?? '';
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title">设置</span>
+    <span class="nav-title"><?php echo t('title_settings', 'Settings');?></span>
     <span style="width:28px"></span>
   </div>
 
@@ -34,39 +34,39 @@ $avatar      = $u['avatar'] ?? '';
   <div class="set-searchbar">
     <div class="set-search-inner">
       <svg class="set-search-ico" viewBox="0 0 24 24" width="15" height="15"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
-      <input type="text" id="setSearch" placeholder="搜索" autocomplete="off" oninput="filterSettings(this.value)">
+      <input type="text" id="setSearch" placeholder="<?php echo t('set_search_placeholder', 'Search');?>" autocomplete="off" oninput="filterSettings(this.value)">
     </div>
   </div>
 
   <!-- ============ 账号与安全 ============ -->
-  <div class="set-group" data-search="账号与安全">账号与安全</div>
+  <div class="set-group" data-search="账号与安全"><?php echo t('set_account_safety', 'Account & Safety');?></div>
   <div class="set-row" data-search="账号与安全" onclick="navTo('settings-account.php')">
-    <span class="row-label">账号与安全</span>
+    <span class="row-label"><?php echo t('set_account_safety', 'Account & Safety');?></span>
     <span class="row-arrow">›</span>
   </div>
 
   <!-- ============ 功能 ============ -->
-  <div class="set-group" data-search="功能 消息通知 通用">功能</div>
+  <div class="set-group" data-search="功能 消息通知 通用"><?php echo t('set_features', 'Features');?></div>
   <div class="set-row" data-search="消息通知" onclick="navTo('settings-notif.php')">
-    <span class="row-label">消息通知</span>
+    <span class="row-label"><?php echo t('set_notifications', 'Notifications');?></span>
     <span class="row-arrow">›</span>
   </div>
   <div class="set-row" data-search="通用" onclick="navTo('settings-general.php')">
-    <span class="row-label">通用</span>
+    <span class="row-label"><?php echo t('set_general', 'General');?></span>
     <span class="row-arrow">›</span>
   </div>
 
   <!-- ============ 隐私 ============ -->
-  <div class="set-group" data-search="隐私">隐私</div>
+  <div class="set-group" data-search="隐私"><?php echo t('set_privacy', 'Privacy');?></div>
   <div class="set-row" data-search="隐私" onclick="navTo('settings-privacy.php')">
-    <span class="row-label">隐私设置</span>
+    <span class="row-label"><?php echo t('title_privacy_settings', 'Privacy Settings');?></span>
     <span class="row-arrow">›</span>
   </div>
 
   <!-- ============ 个人资料 ============ -->
-  <div class="set-group" data-search="个人资料">个人资料</div>
+  <div class="set-group" data-search="个人资料"><?php echo t('set_profile', 'Profile');?></div>
   <div class="set-row" data-search="个人资料" onclick="navTo('editinfo.php?from=settings')">
-    <span class="row-label">编辑个人资料</span>
+    <span class="row-label"><?php echo t('set_edit_profile', 'Edit Profile');?></span>
     <span class="row-value" style="display:flex;align-items:center;justify-content:flex-end;gap:6px">
       <span><?php echo $displayName;?></span>
       <?php if ($avatar):?>
@@ -77,25 +77,25 @@ $avatar      = $u['avatar'] ?? '';
   </div>
 
   <!-- ============ 个性装扮 ============ -->
-  <div class="set-group" data-search="个性装扮">个性装扮</div>
+  <div class="set-group" data-search="个性装扮"><?php echo t('set_appearance', 'Appearance');?></div>
   <div class="set-row" data-search="聊天壁纸 壁纸" onclick="navTo('settings-wallpaper.php')">
-    <span class="row-label">聊天壁纸</span>
+    <span class="row-label"><?php echo t('set_chat_wallpaper', 'Chat Wallpaper');?></span>
     <span class="row-arrow">›</span>
   </div>
   <div class="set-row" data-search="个人主页封面 封面" onclick="navTo('settings-wallpaper.php?tab=profile')">
-    <span class="row-label">个人主页封面</span>
+    <span class="row-label"><?php echo t('set_profile_cover', 'Profile Cover');?></span>
     <span class="row-arrow">›</span>
   </div>
 
   <!-- ============ 关于 ============ -->
-  <div class="set-group" data-search="关于">关于</div>
+  <div class="set-group" data-search="关于"><?php echo t('set_about', 'About');?></div>
   <div class="set-row" data-search="关于" onclick="navTo('settings-about.php')">
-    <span class="row-label">关于 ChatApp</span>
+    <span class="row-label"><?php echo t('set_about_chatapp', 'About ChatApp');?></span>
     <span class="row-arrow">›</span>
   </div>
 
   <!-- 退出当前账号（红色） -->
-  <button class="set-logout" data-search="退出 注销 登出" onclick="doLogout()">退出当前账号</button>
+  <button class="set-logout" data-search="退出 注销 登出" onclick="doLogout()"><?php echo t('btn_log_out', 'Log out');?></button>
 
 </div>
 
@@ -139,7 +139,7 @@ function filterSettings(q) {
 
 /* ---------------- 退出登录 ---------------- */
 function doLogout() {
-    if (!confirm('确定要退出当前账号吗？')) return;
+    if (!confirm('<?php echo t('set_logout_confirm', 'Are you sure you want to log out?');?>')) return;
     if (window.parent && window.parent.logout) { window.parent.logout(); return; }
     var f = new URLSearchParams();
     f.append('action', 'logout');

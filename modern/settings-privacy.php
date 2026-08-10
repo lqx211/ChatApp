@@ -11,7 +11,7 @@ $typingVisible  = (int)($u['typing_visible'] ?? 1);
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>隐私设置</title>
+<title><?php echo t('title_privacy_settings');?></title>
 <link rel="stylesheet" href="../plan/editinfo.css?v=20260809">
 <link rel="stylesheet" href="settings.css?v=20260810">
 </head>
@@ -21,29 +21,29 @@ $typingVisible  = (int)($u['typing_visible'] ?? 1);
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title">隐私设置</span>
+    <span class="nav-title"><?php echo t('title_privacy_settings', 'Privacy Settings');?></span>
     <span style="width:28px"></span>
   </div>
 
   <!-- ============ 陌生人 ============ -->
-  <div class="set-group">陌生人</div>
+  <div class="set-group"><?php echo t('set_strangers', 'Strangers');?></div>
   <div class="set-row" onclick="navTo('settings-findme.php')">
-    <span class="row-label">找到我的方式</span>
+    <span class="row-label"><?php echo t('set_findme', 'Ways to find me');?></span>
     <span class="row-arrow">›</span>
   </div>
   <div class="set-row" onclick="navTo('settings-addme.php')">
-    <span class="row-label">加我为好友的方式</span>
+    <span class="row-label"><?php echo t('set_addme', 'Ways to add me as a friend');?></span>
     <span class="row-arrow">›</span>
   </div>
   <div class="set-row" style="cursor:default">
-    <span class="row-label">允许陌生人邀请我加入群聊</span>
+    <span class="row-label"><?php echo t('set_stranger_invite_group', 'Allow strangers to invite me to group chats');?></span>
     <label class="set-switch">
       <input type="checkbox" id="inviteSw" <?php echo $strangerInvite ? 'checked' : '';?> onchange="toggleCol('stranger_invite_group','inviteSw',this)">
       <span class="track"></span>
     </label>
   </div>
   <div class="set-row" style="cursor:default">
-    <span class="row-label">允许陌生人赞我</span>
+    <span class="row-label"><?php echo t('set_stranger_like', 'Allow strangers to like me');?></span>
     <label class="set-switch">
       <input type="checkbox" id="likeSw" <?php echo $strangerLike ? 'checked' : '';?> onchange="toggleCol('stranger_like','likeSw',this)">
       <span class="track"></span>
@@ -51,24 +51,24 @@ $typingVisible  = (int)($u['typing_visible'] ?? 1);
   </div>
 
   <!-- ============ 好友 ============ -->
-  <div class="set-group">好友</div>
+  <div class="set-group"><?php echo t('set_friends', 'Friends');?></div>
   <div class="set-row" onclick="navTo('settings-blacklist.php')">
-    <span class="row-label">黑名单管理</span>
+    <span class="row-label"><?php echo t('set_blacklist', 'Block list');?></span>
     <span class="row-arrow">›</span>
   </div>
   <div class="set-row" onclick="navTo('settings-oneway.php')">
-    <span class="row-label">单向好友管理</span>
+    <span class="row-label"><?php echo t('set_oneway', 'One-way friends');?></span>
     <span class="row-arrow">›</span>
   </div>
 
   <!-- ============ 好友权限 ============ -->
-  <div class="set-group">好友权限</div>
+  <div class="set-group"><?php echo t('set_friend_perms', 'Friend permissions');?></div>
   <div class="set-row" onclick="navTo('editbgprivacy.php?from=settings')">
-    <span class="row-label">背景图查看权</span>
+    <span class="row-label"><?php echo t('set_bg_view_perm', 'Background viewing permission');?></span>
     <span class="row-arrow">›</span>
   </div>
   <div class="set-row" style="cursor:default">
-    <span class="row-label">我的输入状态可见</span>
+    <span class="row-label"><?php echo t('set_typing_visible', 'Show my typing status');?></span>
     <label class="set-switch">
       <input type="checkbox" id="typingSw" <?php echo $typingVisible ? 'checked' : '';?> onchange="toggleCol('typing_visible','typingSw',this)">
       <span class="track"></span>

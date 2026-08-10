@@ -9,7 +9,7 @@ if ($tab !== 'profile') $tab = 'chat';
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>个性装扮</title>
+<title><?php echo t('set_appearance');?></title>
 <link rel="stylesheet" href="../plan/editinfo.css?v=20260809">
 <link rel="stylesheet" href="settings.css?v=20260810">
 </head>
@@ -19,51 +19,51 @@ if ($tab !== 'profile') $tab = 'chat';
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title">个性装扮</span>
+    <span class="nav-title"><?php echo t('set_appearance', 'Appearance');?></span>
     <span style="width:28px"></span>
   </div>
 
   <div class="set-tabs">
-    <button id="tabChat" onclick="switchTab('chat')">聊天壁纸</button>
-    <button id="tabProfile" onclick="switchTab('profile')">个人主页封面</button>
+    <button id="tabChat" onclick="switchTab('chat')"><?php echo t('set_tab_chat_wallpaper', 'Chat Wallpaper');?></button>
+    <button id="tabProfile" onclick="switchTab('profile')"><?php echo t('set_tab_profile_cover', 'Profile Cover');?></button>
   </div>
 
   <!-- ============ 聊天壁纸 ============ -->
   <div id="panelChat" <?php echo $tab === 'chat' ? '' : 'style="display:none"';?>>
-    <div class="set-group">聊天壁纸</div>
+    <div class="set-group"><?php echo t('set_chat_wallpaper', 'Chat Wallpaper');?></div>
     <div class="set-wall-preview" id="chatPreview">
-      <div class="ph">无背景</div>
+      <div class="ph"><?php echo t('set_no_bg', 'No background');?></div>
     </div>
     <div class="set-btn-row">
       <input type="file" id="chatBgFile" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="onChatUpload(this)">
-      <button class="set-btn" onclick="document.getElementById('chatBgFile').click()">上传背景</button>
-      <button class="set-btn ghost" onclick="removeChatBg()">移除背景</button>
+      <button class="set-btn" onclick="document.getElementById('chatBgFile').click()"><?php echo t('set_upload_bg', 'Upload Background');?></button>
+      <button class="set-btn ghost" onclick="removeChatBg()"><?php echo t('set_remove_bg', 'Remove Background');?></button>
     </div>
-    <div class="set-group">系统预设</div>
-    <div class="set-wall-presets" id="chatPresets"><div class="ph" style="padding:16px;color:#5a6270;font-size:13px">加载中…</div></div>
-    <div class="set-group">模糊度</div>
+    <div class="set-group"><?php echo t('set_bg_presets', 'Presets');?></div>
+    <div class="set-wall-presets" id="chatPresets"><div class="ph" style="padding:16px;color:#5a6270;font-size:13px"><?php echo t('set_loading', 'Loading...');?></div></div>
+    <div class="set-group"><?php echo t('set_blur', 'Blur');?></div>
     <div class="set-slider-row">
-      <div class="lab"><span>模糊</span><span class="val" id="blurVal">0px</span></div>
+      <div class="lab"><span><?php echo t('set_blur', 'Blur');?></span><span class="val" id="blurVal">0px</span></div>
       <input type="range" class="set-slider" id="blurRange" min="0" max="40" value="0" oninput="onBlur(this.value)">
     </div>
-    <div class="set-group">透明度</div>
+    <div class="set-group"><?php echo t('set_opacity', 'Opacity');?></div>
     <div class="set-slider-row">
-      <div class="lab"><span>透明度</span><span class="val" id="opacityVal">100%</span></div>
+      <div class="lab"><span><?php echo t('set_opacity', 'Opacity');?></span><span class="val" id="opacityVal">100%</span></div>
       <input type="range" class="set-slider" id="opacityRange" min="20" max="100" value="100" oninput="onOpacity(this.value)">
     </div>
   </div>
 
   <!-- ============ 个人主页封面 ============ -->
   <div id="panelProfile" <?php echo $tab === 'profile' ? '' : 'style="display:none"';?>>
-    <div class="set-group">个人主页封面</div>
-    <p class="set-hint">上传的封面会显示在你的个人主页顶部，支持图片或视频（mp4 / webm）。</p>
+    <div class="set-group"><?php echo t('set_profile_cover', 'Profile Cover');?></div>
+    <p class="set-hint"><?php echo t('set_cover_hint', 'The uploaded cover is shown at the top of your profile page. Images or videos (mp4 / webm) are supported.');?></p>
     <div class="set-wall-preview" id="profilePreview">
-      <div class="ph">无封面</div>
+      <div class="ph"><?php echo t('set_no_bg', 'No background');?></div>
     </div>
     <div class="set-btn-row">
       <input type="file" id="profileBgFile" accept="image/*,video/mp4,video/webm" style="display:none" onchange="onProfileUpload(this)">
-      <button class="set-btn" onclick="document.getElementById('profileBgFile').click()">上传封面</button>
-      <button class="set-btn ghost" onclick="removeProfileBg()">移除封面</button>
+      <button class="set-btn" onclick="document.getElementById('profileBgFile').click()"><?php echo t('set_upload_cover', 'Upload Cover');?></button>
+      <button class="set-btn ghost" onclick="removeProfileBg()"><?php echo t('set_remove_cover', 'Remove Cover');?></button>
     </div>
   </div>
 
@@ -111,7 +111,7 @@ function loadChatBg() {
                 h += '<div class="preset' + (isCur ? ' active' : '') + '" style="background-image:url(\'' + p.url + '\')" onclick="setPreset(\'' + p.name + '\', this)"><span class="nm">' + p.name + '</span></div>';
             }
             ph.innerHTML = h;
-        } else ph.innerHTML = '<div style="padding:16px;color:#5a6270;font-size:13px;grid-column:1/-1">无预设</div>';
+        } else ph.innerHTML = '<div style="padding:16px;color:#5a6270;font-size:13px;grid-column:1/-1"><?php echo t('set_bg_presets', 'Presets');?> -</div>';
         // 模糊/透明度
         var c = {};
         try { c = JSON.parse(localStorage.getItem(BG_CACHE_KEY) || '{}'); } catch(e) {}
@@ -124,7 +124,7 @@ function loadChatBg() {
 function onChatUpload(input) {
     var f = input.files[0];
     if (!f) return;
-    if (f.size > 32 * 1024 * 1024) { alert('文件过大（最大 32MB）'); return; }
+    if (f.size > 32 * 1024 * 1024) { alert('<?php echo t('set_bg_too_large', 'File too large (max 32MB)');?>'); return; }
     var reader = new FileReader();
     reader.onload = function(ev) {
         var frm = new URLSearchParams();
@@ -141,13 +141,13 @@ function onChatUpload(input) {
                 input.value = '';
                 loadChatBg();
                 showToast();
-            } else alert(d.error || '上传失败');
+            } else alert(d.error || '<?php echo t('set_bg_upload_fail', 'Upload failed.');?>');
         });
     };
     reader.readAsDataURL(f);
 }
 function removeChatBg() {
-    if (!confirm('确定要移除聊天壁纸吗？')) return;
+    if (!confirm('<?php echo t('set_remove_bg_confirm', 'Are you sure you want to remove the chat wallpaper?');?>')) return;
     var frm = new URLSearchParams();
     frm.append('action', 'remove_background');
     fetch('../api/settings.php', {
@@ -175,7 +175,7 @@ function setPreset(name, el) {
             setPreview(document.getElementById('chatPreview'), d.url);
             if (window.parent && window.parent.bgEnable) window.parent.bgEnable(d.url, 'preset-' + Date.now());
             showToast();
-        } else alert(d.error || '设置失败');
+        } else alert(d.error || '<?php echo t('set_save_fail', 'Save failed.');?>');
     });
 }
 function saveBgPrefs() {
@@ -205,11 +205,12 @@ function loadProfileBg() {
 function onProfileUpload(input) {
     var f = input.files[0];
     if (!f) return;
-    if (f.size > 64 * 1024 * 1024) { alert('文件过大（最大 64MB）'); return; }
+    if (f.size > 64 * 1024 * 1024) { alert('<?php echo t('set_cover_too_large', 'File too large (max 64MB)');?>'); return; }
     var xhr = new XMLHttpRequest();
     var form = new FormData();
     form.append('action', 'upload_profile_bg');
     form.append('file', f);
+    var uploadFail = '<?php echo t('set_bg_upload_fail', 'Upload failed.');?>';
     xhr.open('POST', '../api/settings.php');
     xhr.onload = function() {
         try {
@@ -219,14 +220,14 @@ function onProfileUpload(input) {
                 input.value = '';
                 loadProfileBg();
                 showToast();
-            } else alert(d.error || '上传失败');
-        } catch(e) { alert('上传失败'); }
+            } else alert(d.error || uploadFail);
+        } catch(e) { alert(uploadFail); }
     };
-    xhr.onerror = function() { alert('上传失败'); };
+    xhr.onerror = function() { alert(uploadFail); };
     xhr.send(form);
 }
 function removeProfileBg() {
-    if (!confirm('确定要移除个人主页封面吗？')) return;
+    if (!confirm('<?php echo t('set_remove_cover_confirm', 'Are you sure you want to remove the profile cover?');?>')) return;
     var frm = new URLSearchParams();
     frm.append('action', 'remove_profile_bg');
     fetch('../api/settings.php', {

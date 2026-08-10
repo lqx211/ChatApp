@@ -9,7 +9,7 @@ $anyone = (int)($u['anyone_add_friend'] ?? 1);
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>加我为好友的方式</title>
+<title><?php echo t('set_addme');?></title>
 <link rel="stylesheet" href="../plan/editinfo.css?v=20260809">
 <link rel="stylesheet" href="settings.css?v=20260810">
 </head>
@@ -19,21 +19,21 @@ $anyone = (int)($u['anyone_add_friend'] ?? 1);
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title">加我为好友的方式</span>
+    <span class="nav-title"><?php echo t('set_addme', 'Ways to add me as a friend');?></span>
     <span style="width:28px"></span>
   </div>
 
-  <p class="set-hint">控制其他人是否可以主动添加你为好友。</p>
+  <p class="set-hint"><?php echo t('set_addme_hint', 'Control whether others can actively add you as a friend.');?></p>
 
-  <div class="set-group">好友请求</div>
+  <div class="set-group"><?php echo t('set_friend_req', 'Friend requests');?></div>
   <div class="set-row" style="cursor:default">
-    <span class="row-label">允许任何人添加我为好友</span>
+    <span class="row-label"><?php echo t('set_anyone_add', 'Allow anyone to add me as a friend');?></span>
     <label class="set-switch">
       <input type="checkbox" id="anyoneSw" <?php echo $anyone ? 'checked' : '';?> onchange="save()">
       <span class="track"></span>
     </label>
   </div>
-  <p class="set-note">关闭后，其他用户将无法向你发送好友申请。</p>
+  <p class="set-note"><?php echo t('set_addme_note', 'When off, other users cannot send you friend requests.');?></p>
 
 </div>
 

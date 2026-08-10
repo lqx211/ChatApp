@@ -367,4 +367,154 @@ return [
     'msg_duress_same'         => 'Duress password must differ from your normal password.',
     'msg_duress_new_same'     => 'New password cannot be the same as your duress password.',
     'duress_warning'          => 'NEVER store your duress password anywhere! You must memorize it. Once it is entered, it CANNOT be recovered!!!',
+
+    // ==================== Settings pages i18n ====================
+    // Main settings
+    'set_search_placeholder'    => 'Search',
+    'set_account_safety'        => 'Account & Safety',
+    'set_features'              => 'Features',
+    'set_notifications'         => 'Notifications',
+    'set_general'               => 'General',
+    'set_privacy'               => 'Privacy',
+    'set_profile'               => 'Profile',
+    'set_edit_profile'          => 'Edit Profile',
+    'set_appearance'            => 'Appearance',
+    'set_chat_wallpaper'        => 'Chat Wallpaper',
+    'set_profile_cover'         => 'Profile Cover',
+    'set_about'                 => 'About',
+    'set_about_chatapp'         => 'About ChatApp',
+    'set_logout_confirm'        => 'Are you sure you want to log out?',
+    'set_change_password'       => 'Change Password',
+    'set_duress_password'       => 'Duress Password',
+    'set_deactivate'            => 'Deactivate Account',
+
+    // Change password
+    'set_cpasswd_hint'          => 'Changing your password regularly helps keep your account secure.',
+    'set_pw_fill_all'           => 'Please fill in all fields.',
+    'set_pw_mismatch'           => 'The two new passwords do not match.',
+    'set_pw_fail'               => 'Change failed.',
+
+    // Duress password page
+    'set_duress_hint'           => 'When you type the duress password where a password is required, your account will enter a "self-destruct" flow, such as deleting the account. Do not share it with others, and it cannot be the same as your normal password.',
+    'set_duress_current'        => 'Current Password (verify identity)',
+    'set_duress_clear'           => 'Leave empty to clear duress password',
+    'set_duress_need_current'   => 'Please enter your current password to verify identity.',
+    'set_duress_clear_confirm'  => 'Are you sure you want to clear the duress password?',
+    'set_save_fail'             => 'Save failed.',
+    'set_clear_fail'            => 'Clear failed (please enter current password to verify).',
+
+    // Deactivate account page
+    'set_bye_hint'              => 'After deactivation the account cannot be recovered. You can also choose to only clear chat records and keep the account.',
+    'set_del_mode_delete'       => 'Delete account directly',
+    'set_del_mode_revoke'       => 'Clear all chat records (keep account)',
+    'set_del_password'          => 'Enter password to confirm',
+    'set_del_confirm_label'     => 'I understand this action cannot be undone',
+    'set_del_submit'            => 'Deactivate Account',
+    'set_del_need_check'        => 'Please check the confirmation box.',
+    'set_del_need_password'     => 'Please enter your password to confirm.',
+    'set_del_confirm'           => 'Are you sure you want to do this? This cannot be undone!',
+    'set_del_fail'              => 'Wrong password or operation failed.',
+
+    // Notifications
+    'set_notif_hint'            => 'Choose how you want to receive message notifications.',
+    'set_notif_closed'          => 'When the app is closed',
+    'set_notif_system'          => 'System notifications',
+    'set_notif_preview'         => 'Show message preview in notifications',
+    'set_notif_follow_system'   => 'Follows the system notification setting',
+    'set_notif_open'            => 'When the app is open',
+    'set_notif_banner'          => 'In-app message banner',
+    'set_notif_remind'          => 'Reminder method',
+    'set_dnd'                   => 'Do Not Disturb',
+    'set_dnd_desc'              => 'When on, no message pushes will be received for a set time',
+
+    // Privacy
+    'set_strangers'             => 'Strangers',
+    'set_findme'                => 'Ways to find me',
+    'set_addme'                 => 'Ways to add me as a friend',
+    'set_stranger_invite_group' => 'Allow strangers to invite me to group chats',
+    'set_stranger_like'         => 'Allow strangers to like me',
+    'set_friends'               => 'Friends',
+    'set_blacklist'             => 'Block list',
+    'set_oneway'                => 'One-way friends',
+    'set_friend_perms'          => 'Friend permissions',
+    'set_bg_view_perm'          => 'Background viewing permission',
+    'set_typing_visible'        => 'Show my typing status',
+
+    // Find me
+    'set_findme_hint'           => 'Choose how others can find you in ChatApp.',
+    'set_search_methods'        => 'Search methods',
+    'set_searchable_name'       => 'Searchable by username',
+    'set_searchable_uid'        => 'Searchable by UID',
+    'set_findme_note'           => 'When off, other users cannot find you via "Discover Users / Search", and you will not appear in recommendations.',
+
+    // Add me
+    'set_addme_hint'            => 'Control whether others can actively add you as a friend.',
+    'set_friend_req'            => 'Friend requests',
+    'set_anyone_add'            => 'Allow anyone to add me as a friend',
+    'set_addme_note'            => 'When off, other users cannot send you friend requests.',
+
+    // One-way friends
+    'set_oneway_hint'           => 'One-way friends are friend requests that added you but you have not yet accepted. After accepting they become two-way friends.',
+    'set_oneway_count'          => 'One-way friends (%s)',
+    'set_oneway_empty'          => 'No one-way friends',
+
+    // Block list
+    'set_blacklist_hint'        => 'Users added to the block list cannot send you private messages or friend requests.',
+    'set_blacklist_add'         => 'Add to block list',
+    'set_blacklist_uid'         => 'Enter user UID',
+    'set_blacklist_add_btn'     => 'Add',
+    'set_blacklist_list'        => 'Block list',
+    'set_blacklist_empty'       => 'Block list is empty',
+    'set_blacklist_need_uid'    => 'Please enter a UID.',
+    'set_blacklist_remove_confirm' => 'Are you sure you want to remove this user from the block list?',
+    'set_blacklist_remove'      => 'Remove',
+
+    // General
+    'set_language'              => 'Language',
+    'set_custom_title'          => 'Custom Title',
+    'msg_custom_title_hint'     => 'Shown at the top of the chat page, up to 100 characters.',
+    'set_emoji'                 => 'Emoji',
+    'set_emoji_settings'        => 'Emoji Settings',
+    'set_network'               => 'Network',
+    'set_data_saver'            => 'Data Saver',
+    'set_local_cache'           => 'Local Cache',
+    'set_clear_local_cache'     => 'Clear Local Cache',
+    'set_clear_cache_confirm'   => 'Are you sure you want to clear the local cache?',
+
+    // Emoji
+    'set_emoji_hint'            => 'Choose how emoji are displayed in the panel and in chat. Animated emoji are more lively but use more traffic.',
+    'set_emoji_panel'           => 'Emoji panel',
+    'set_emoji_panel_dynamic'   => 'Always animated',
+    'set_emoji_panel_hover'     => 'Animated on hover',
+    'set_emoji_panel_static'    => 'Static only',
+    'set_emoji_chat'            => 'Emoji in chat',
+    'set_emoji_chat_dynamic'    => 'Animated',
+    'set_emoji_chat_static'     => 'Static only',
+
+    // Wallpaper / Cover
+    'set_tab_chat_wallpaper'    => 'Chat Wallpaper',
+    'set_tab_profile_cover'     => 'Profile Cover',
+    'set_upload_bg'             => 'Upload Background',
+    'set_remove_bg'             => 'Remove Background',
+    'set_bg_presets'            => 'Presets',
+    'set_no_bg'                 => 'No background',
+    'set_loading'               => 'Loading...',
+    'set_blur'                  => 'Blur',
+    'set_opacity'               => 'Opacity',
+    'set_upload_cover'          => 'Upload Cover',
+    'set_remove_cover'          => 'Remove Cover',
+    'set_cover_hint'            => 'The uploaded cover is shown at the top of your profile page. Images or videos (mp4 / webm) are supported.',
+    'set_bg_too_large'          => 'File too large (max 32MB)',
+    'set_bg_upload_fail'        => 'Upload failed.',
+    'set_remove_bg_confirm'     => 'Are you sure you want to remove the chat wallpaper?',
+    'set_cover_too_large'       => 'File too large (max 64MB)',
+    'set_remove_cover_confirm'  => 'Are you sure you want to remove the profile cover?',
+
+    // About
+    'set_about_intro'           => 'About',
+    'set_official_site'         => 'Official Website',
+    'set_source_repo'           => 'Source Code',
+    'set_version'               => 'Version %s',
+    'set_build_date'            => 'Built on %s',
+    'set_copyright'             => '© ChatApp · All rights reserved',
 ];

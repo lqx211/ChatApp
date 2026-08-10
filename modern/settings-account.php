@@ -11,7 +11,7 @@ chatapp_require_login();
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>账号与安全</title>
+<title><?php echo t('set_account_safety');?></title>
 <link rel="stylesheet" href="../plan/editinfo.css?v=20260809">
 <link rel="stylesheet" href="settings.css?v=20260810">
 </head>
@@ -21,21 +21,21 @@ chatapp_require_login();
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title">账号与安全</span>
+    <span class="nav-title"><?php echo t('set_account_safety', 'Account & Safety');?></span>
     <span style="width:28px"></span>
   </div>
 
-  <div class="set-group">账号与安全</div>
+  <div class="set-group"><?php echo t('set_account_safety', 'Account & Safety');?></div>
   <div class="set-row" onclick="navTo('cpasswd.php')">
-    <span class="row-label">修改密码</span>
+    <span class="row-label"><?php echo t('btn_change_password', 'Change Password');?></span>
     <span class="row-arrow">›</span>
   </div>
   <div class="set-row" onclick="navTo('settings-duress.php')">
-    <span class="row-label">胁迫密码</span>
+    <span class="row-label"><?php echo t('title_duress', 'Duress Password');?></span>
     <span class="row-arrow">›</span>
   </div>
   <div class="set-row" onclick="navTo('byeaccount.php')">
-    <span class="row-label set-danger-text">注销账号</span>
+    <span class="row-label set-danger-text"><?php echo t('set_deactivate', 'Deactivate Account');?></span>
     <span class="row-arrow">›</span>
   </div>
 

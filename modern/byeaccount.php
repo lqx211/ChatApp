@@ -7,7 +7,7 @@ chatapp_require_login();
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>注销账号</title>
+<title><?php echo t('set_deactivate');?></title>
 <link rel="stylesheet" href="../plan/editinfo.css?v=20260809">
 <link rel="stylesheet" href="settings.css?v=20260810">
 </head>
@@ -17,22 +17,22 @@ chatapp_require_login();
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title">注销账号</span>
+    <span class="nav-title"><?php echo t('set_deactivate', 'Deactivate Account');?></span>
     <span style="width:28px"></span>
   </div>
 
-  <p class="set-hint">注销后账号将无法恢复。也可以选择只清除聊天记录、保留账号。</p>
+  <p class="set-hint"><?php echo t('set_bye_hint', 'After deactivation the account cannot be recovered. You can also choose to only clear chat records and keep the account.');?></p>
 
-  <div class="set-group" style="color:#ff8a8a">注销账号</div>
+  <div class="set-group" style="color:#ff8a8a"><?php echo t('set_deactivate', 'Deactivate Account');?></div>
   <div class="set-block">
-    <label class="set-check-row"><input type="radio" name="delMode" value="delete" checked> 直接删除账号</label>
-    <label class="set-check-row"><input type="radio" name="delMode" value="revoke"> 清除全部聊天记录（账号保留）</label>
+    <label class="set-check-row"><input type="radio" name="delMode" value="delete" checked> <?php echo t('set_del_mode_delete', 'Delete account directly');?></label>
+    <label class="set-check-row"><input type="radio" name="delMode" value="revoke"> <?php echo t('set_del_mode_revoke', 'Clear all chat records (keep account)');?></label>
     <div class="set-field">
-      <label>输入密码确认</label>
+      <label><?php echo t('set_del_password', 'Enter password to confirm');?></label>
       <input type="password" id="delPwd" autocomplete="current-password">
     </div>
-    <label class="set-check-row"><input type="checkbox" id="delConfirm"> 我已知晓此操作不可恢复</label>
-    <button class="set-btn danger" onclick="deleteAccount()">注销账号</button>
+    <label class="set-check-row"><input type="checkbox" id="delConfirm"> <?php echo t('set_del_confirm_label', 'I understand this action cannot be undone');?></label>
+    <button class="set-btn danger" onclick="deleteAccount()"><?php echo t('set_del_submit', 'Deactivate Account');?></button>
   </div>
 
 </div>
@@ -77,10 +77,10 @@ function api(action, data) {
 }
 
 function deleteAccount() {
-    if (!document.getElementById('delConfirm').checked) { showErr('请勾选确认框'); return; }
+    if (!document.getElementById('delConfirm').checked) { showErr('<?php echo t('set_del_need_check', 'Please check the confirmation box.');?>'); return; }
     var pwd = document.getElementById('delPwd').value;
-    if (!pwd) { showErr('请输入密码确认'); return; }
-    if (!confirm('确定要执行此操作吗？此操作不可恢复！')) return;
+    if (!pwd) { showErr('<?php echo t('set_del_need_password', 'Please enter your password to confirm.');?>'); return; }
+    if (!confirm('<?php echo t('set_del_confirm', 'Are you sure you want to do this? This cannot be undone!');?>')) return;
     var mode = document.querySelector('input[name="delMode"]:checked').value;
     api('delete_account', { password: pwd, mode: mode }).then(function(d) {
         if (d.success) {
@@ -92,7 +92,7 @@ function deleteAccount() {
                 if (window.parent && window.parent.location) window.parent.location.href = 'login.php';
                 else window.location.href = 'login.php';
             }
-        } else showErr('密码错误或操作失败');
+        } else showErr('<?php echo t('set_del_fail', 'Wrong password or operation failed.');?>');
     });
 }
 </script>

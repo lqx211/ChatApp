@@ -356,4 +356,154 @@ return [
     'msg_duress_same'         => '胁迫密码不能与你的正常密码相同。',
     'msg_duress_new_same'     => '新密码不能与你的胁迫密码相同。',
     'duress_warning'          => '<b>千万不要储存你的胁迫密码！必须要在脑袋记住，一旦输入将不可恢复！！！</b>',
+
+    // ==================== 设置页 i18n ====================
+    // 主设置页
+    'set_search_placeholder'    => '搜索',
+    'set_account_safety'        => '账号与安全',
+    'set_features'              => '功能',
+    'set_notifications'         => '消息通知',
+    'set_general'               => '通用',
+    'set_privacy'               => '隐私',
+    'set_profile'               => '个人资料',
+    'set_edit_profile'          => '编辑个人资料',
+    'set_appearance'            => '个性装扮',
+    'set_chat_wallpaper'        => '聊天壁纸',
+    'set_profile_cover'         => '个人主页封面',
+    'set_about'                 => '关于',
+    'set_about_chatapp'         => '关于 ChatApp',
+    'set_logout_confirm'        => '确定要退出当前账号吗？',
+    'set_change_password'       => '修改密码',
+    'set_duress_password'       => '胁迫密码',
+    'set_deactivate'            => '注销账号',
+
+    // 修改密码
+    'set_cpasswd_hint'          => '定期修改密码可以更好地保护你的账号安全。',
+    'set_pw_fill_all'           => '请填写完整',
+    'set_pw_mismatch'           => '两次输入的新密码不一致',
+    'set_pw_fail'               => '修改失败',
+
+    // 胁迫密码页
+    'set_duress_hint'           => '当你在输入密码的地方输入胁迫密码时，账号会进入「自毁」流程，例如删除账号。请勿与他人共用，且不能与普通密码相同。',
+    'set_duress_current'        => '当前密码（验证身份）',
+    'set_duress_clear'           => '留空则清除胁迫密码',
+    'set_duress_need_current'   => '请输入当前密码验证身份',
+    'set_duress_clear_confirm'  => '确定要清除胁迫密码吗？',
+    'set_save_fail'             => '保存失败',
+    'set_clear_fail'            => '清除失败（请输入当前密码验证）',
+
+    // 注销账号页
+    'set_bye_hint'              => '注销后账号将无法恢复。也可以选择只清除聊天记录、保留账号。',
+    'set_del_mode_delete'       => '直接删除账号',
+    'set_del_mode_revoke'       => '清除全部聊天记录（账号保留）',
+    'set_del_password'          => '输入密码确认',
+    'set_del_confirm_label'     => '我已知晓此操作不可恢复',
+    'set_del_submit'            => '注销账号',
+    'set_del_need_check'        => '请勾选确认框',
+    'set_del_need_password'     => '请输入密码确认',
+    'set_del_confirm'           => '确定要执行此操作吗？此操作不可恢复！',
+    'set_del_fail'              => '密码错误或操作失败',
+
+    // 消息通知
+    'set_notif_hint'            => '选择你希望接收消息通知的方式。',
+    'set_notif_closed'          => '未打开 App 时',
+    'set_notif_system'          => '系统消息通知',
+    'set_notif_preview'         => '通知显示消息预览',
+    'set_notif_follow_system'   => '跟随系统通知开关',
+    'set_notif_open'            => '打开 App 时',
+    'set_notif_banner'          => 'App 内消息横幅',
+    'set_notif_remind'          => '提醒方式',
+    'set_dnd'                   => '勿扰模式',
+    'set_dnd_desc'              => '打开后在指定时间内不接收消息推送',
+
+    // 隐私
+    'set_strangers'             => '陌生人',
+    'set_findme'                => '找到我的方式',
+    'set_addme'                 => '加我为好友的方式',
+    'set_stranger_invite_group' => '允许陌生人邀请我加入群聊',
+    'set_stranger_like'         => '允许陌生人赞我',
+    'set_friends'               => '好友',
+    'set_blacklist'             => '黑名单管理',
+    'set_oneway'                => '单向好友管理',
+    'set_friend_perms'          => '好友权限',
+    'set_bg_view_perm'          => '背景图查看权',
+    'set_typing_visible'        => '我的输入状态可见',
+
+    // 找到我的方式
+    'set_findme_hint'           => '选择其他人可以通过哪些方式在 ChatApp 里找到你。',
+    'set_search_methods'        => '查找方式',
+    'set_searchable_name'       => '允许通过用户名搜索到',
+    'set_searchable_uid'        => '允许通过 UID 搜索到',
+    'set_findme_note'           => '关闭后，其他用户将无法通过「发现用户 / 搜索」找到你，也不会出现在推荐中。',
+
+    // 加我为好友的方式
+    'set_addme_hint'            => '控制其他人是否可以主动添加你为好友。',
+    'set_friend_req'            => '好友请求',
+    'set_anyone_add'            => '允许任何人添加我为好友',
+    'set_addme_note'            => '关闭后，其他用户将无法向你发送好友申请。',
+
+    // 单向好友
+    'set_oneway_hint'           => '单向好友是主动添加了你、但你尚未接受的好友申请。接受后即为双向好友。',
+    'set_oneway_count'          => '单向好友（%s）',
+    'set_oneway_empty'          => '暂无单向好友',
+
+    // 黑名单
+    'set_blacklist_hint'        => '加入黑名单的用户无法给你发送私聊消息或好友申请。',
+    'set_blacklist_add'         => '添加黑名单',
+    'set_blacklist_uid'         => '输入用户 UID',
+    'set_blacklist_add_btn'     => '添加',
+    'set_blacklist_list'        => '黑名单列表',
+    'set_blacklist_empty'       => '黑名单为空',
+    'set_blacklist_need_uid'    => '请输入 UID',
+    'set_blacklist_remove_confirm' => '确定要从黑名单移除该用户吗？',
+    'set_blacklist_remove'      => '移除',
+
+    // 通用
+    'set_language'              => '语言',
+    'set_custom_title'          => '自定义头衔',
+    'msg_custom_title_hint'     => '显示在聊天页顶部的个人标题，最多 100 个字符。',
+    'set_emoji'                 => '表情',
+    'set_emoji_settings'        => 'Emoji 设置',
+    'set_network'               => '网络',
+    'set_data_saver'            => '省流量模式',
+    'set_local_cache'           => '本地缓存',
+    'set_clear_local_cache'     => '清除本地缓存',
+    'set_clear_cache_confirm'   => '确定要清除本地缓存吗？',
+
+    // Emoji
+    'set_emoji_hint'            => '选择表情面板和聊天中表情的展示方式。动态表情更生动，但会消耗更多流量。',
+    'set_emoji_panel'           => '表情面板',
+    'set_emoji_panel_dynamic'   => '始终动态',
+    'set_emoji_panel_hover'     => '悬停时动态',
+    'set_emoji_panel_static'    => '仅静态',
+    'set_emoji_chat'            => '聊天中的表情',
+    'set_emoji_chat_dynamic'    => '动态',
+    'set_emoji_chat_static'     => '仅静态',
+
+    // 壁纸 / 封面
+    'set_tab_chat_wallpaper'    => '聊天壁纸',
+    'set_tab_profile_cover'     => '个人主页封面',
+    'set_upload_bg'             => '上传背景',
+    'set_remove_bg'             => '移除背景',
+    'set_bg_presets'            => '系统预设',
+    'set_no_bg'                 => '无背景',
+    'set_loading'               => '加载中…',
+    'set_blur'                  => '模糊',
+    'set_opacity'               => '透明度',
+    'set_upload_cover'          => '上传封面',
+    'set_remove_cover'          => '移除封面',
+    'set_cover_hint'            => '上传的封面会显示在你的个人主页顶部，支持图片或视频（mp4 / webm）。',
+    'set_bg_too_large'          => '文件过大（最大 32MB）',
+    'set_bg_upload_fail'        => '上传失败',
+    'set_remove_bg_confirm'     => '确定要移除聊天壁纸吗？',
+    'set_cover_too_large'       => '文件过大（最大 64MB）',
+    'set_remove_cover_confirm'  => '确定要移除个人主页封面吗？',
+
+    // 关于
+    'set_about_intro'           => '关于',
+    'set_official_site'         => '官方网站',
+    'set_source_repo'           => '开源仓库',
+    'set_version'               => '版本 %s',
+    'set_build_date'            => '构建于 %s',
+    'set_copyright'             => '© ChatApp · 保留所有权利',
 ];
