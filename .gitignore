@@ -31,6 +31,11 @@ jsvm-obfuscator
 a
 plan/
 
+# =================== AVD / uiautomator dumps (dev reference only) ===================
+# adb 抓取的 UI 参考文件（每次跑 update() 会重新生成），不进仓库
+a.txt
+u.xml
+
 # =================== User-generated / runtime data ===================
 # Custom emoji (user-uploaded)
 data/ce/*
