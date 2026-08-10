@@ -54,6 +54,8 @@ CREATE TABLE IF NOT EXISTS users (
     bg_whitelist TEXT DEFAULT NULL,
     bg_no_friend TINYINT(1) NOT NULL DEFAULT 0,
     bg_private_image VARCHAR(255) DEFAULT NULL,
+    profile_bg_image VARCHAR(255) DEFAULT NULL,
+    profile_bg_updated_at DATETIME DEFAULT NULL,
     birthday DATE DEFAULT NULL,
     duress_password VARCHAR(255) DEFAULT NULL,
     cache_key VARCHAR(88) DEFAULT NULL,

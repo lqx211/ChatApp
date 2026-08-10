@@ -8,10 +8,14 @@ $viewUsername = $_GET['user'] ?? null;
 $isSelf = !$viewUsername || $viewUsername === ($currentUser['username'] ?? '');
 $profileUser = $currentUser;
 
-if (!$isSelf) {
+if ($isSelf) {
+    // 看自己：chatapp_get_user() 的 bg_image 是聊天壁纸字段；个人主页封面在 profile_bg_image
+    $profileUser['bg_image'] = $profileUser['profile_bg_image'] ?? '';
+    $profileUser['bg_updated_at'] = $profileUser['profile_bg_updated_at'] ?? '';
+} elseif (!$isSelf) {
     // Fetch target user info directly from DB
     $pdo = db();
-    $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, enabled, restricted, restricted_reason, placeholder, dnd, role, created_at, last_login, exp, level, bg_image, bg_updated_at, bg_privacy, bg_blacklist, bg_whitelist, bg_no_friend, bg_private_image, custom_title, gender, gender_privacy, birthday FROM users WHERE username = ?");
+    $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, enabled, restricted, restricted_reason, placeholder, dnd, role, created_at, last_login, exp, level, bg_image, bg_updated_at, profile_bg_image, profile_bg_updated_at, bg_privacy, bg_blacklist, bg_whitelist, bg_no_friend, bg_private_image, custom_title, gender, gender_privacy, birthday FROM users WHERE username = ?");
     $stmt->execute([$viewUsername]);
     $row = $stmt->fetch();
     if ($row) {
@@ -22,8 +26,9 @@ if (!$isSelf) {
         $profileUser['level'] = (int)$row['level'];
         $profileUser['exp'] = (int)$row['exp'];
         $profileUser['user_id'] = (int)$row['user_id'];
-        $profileUser['bg_image'] = $row['bg_image'] ?? '';
-        $profileUser['bg_updated_at'] = $row['bg_updated_at'] ?? '';
+        // 个人主页封面走独立字段 profile_bg_image（聊天壁纸 bg_image 与之独立）
+        $profileUser['bg_image'] = $row['profile_bg_image'] ?? '';
+        $profileUser['bg_updated_at'] = $row['profile_bg_updated_at'] ?? '';
         $profileUser['bg_privacy'] = $row['bg_privacy'] ?? 0;
         $profileUser['bg_blacklist'] = $row['bg_blacklist'] ?? '';
         $profileUser['bg_whitelist'] = $row['bg_whitelist'] ?? '';
@@ -230,13 +235,17 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
   </div>
 
   <!-- 4. 个人信息行（仅自己可点击跳转编辑） -->
-  <div class="info-line"<?php if($isSelf):?> onclick="parent.document.getElementById('profileFrame').src='editinfo.php'"<?php endif;?>><?php echo $genderDisplay ? $genderDisplay . ' | ' : '';?><?php echo $ageDisplay ? $ageDisplay . ' | ' : '';?><?php echo $monthDayDisplay ? $monthDayDisplay . ' ' . $zodiacDisplay . ' | ' : '';?>现居中国 | example@example.com</div>
+  <div class="info-line"<?php if($isSelf):?> onclick="openEditInfo()"<?php endif;?>><?php echo $genderDisplay ? $genderDisplay . ' | ' : '';?><?php echo $ageDisplay ? $ageDisplay . ' | ' : '';?><?php echo $monthDayDisplay ? $monthDayDisplay . ' ' . $zodiacDisplay . ' | ' : '';?>现居中国 | example@example.com</div>
 
-  <!-- 5. 个性签名 -->
-  <div class="sig-row">
+  <!-- 5. 个性签名（签名为空则不显示；有签名点击进入签名编辑页） -->
+  <?php
+  $rawSig = trim((string)($profileUser['custom_title'] ?? ''));
+  if ($rawSig !== ''):?>
+  <div class="sig-row" onclick="openEditSig()">
     <span class="sig-text"><?php echo $statusText;?></span>
     <span class="arrow">›</span>
   </div>
+  <?php endif;?>
 
   <!-- 6. 粗分隔线 -->
   <div class="section-divider"></div>
@@ -275,7 +284,7 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
 <!-- 10. 底部按钮栏 - 固定在屏幕最下方 -->
 <div class="bottom-bar">
 <?php if($isSelf):?>
-  <button class="btn-edit">编辑资料</button>
+  <button class="btn-edit" onclick="openEditInfo()">编辑资料</button>
   <button class="btn-chat">发消息</button>
 <?php else:?>
   <button class="btn-edit" onclick="parent.closeMyProfile()">返回</button>
@@ -465,7 +474,7 @@ function clearBg() {
   closeBgMenu();
   if (!confirm('确定清空背景图？')) return;
   var form = new URLSearchParams();
-  form.append('action', 'remove_background');
+  form.append('action', 'remove_profile_bg');
   fetch('../api/settings.php', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -477,6 +486,30 @@ function clearBg() {
 function openBgPrivacy() {
   closeBgMenu();
   parent.document.getElementById('profileFrame').src = 'editbgprivacy.php';
+}
+
+// 编辑资料：与文字行一致，点击后向左滑出再切换到编辑页（过渡动画）
+function openEditInfo() {
+  var card = document.querySelector('.card');
+  if (!card) { parent.document.getElementById('profileFrame').src = 'editinfo.php'; return; }
+  card.classList.add('slide-out-left');
+  setTimeout(function() {
+    if (window.parent && window.parent.document.getElementById('profileFrame')) {
+      window.parent.document.getElementById('profileFrame').src = 'editinfo.php';
+    }
+  }, 250);
+}
+
+// 编辑签名：同样带过渡动画切换到签名编辑页
+function openEditSig() {
+  var card = document.querySelector('.card');
+  if (!card) { parent.document.getElementById('profileFrame').src = 'editsig.php'; return; }
+  card.classList.add('slide-out-left');
+  setTimeout(function() {
+    if (window.parent && window.parent.document.getElementById('profileFrame')) {
+      window.parent.document.getElementById('profileFrame').src = 'editsig.php';
+    }
+  }, 250);
 }
 
 function onBgFileChange(input) {
@@ -506,7 +539,7 @@ function startBgUpload(media) {
 
   var xhr = new XMLHttpRequest();
   var form = new FormData();
-  form.append('action', 'upload_background');
+  form.append('action', 'upload_profile_bg');
   form.append('file', media);
 
   var _loaded = 0, _total = (media.size) || 1;

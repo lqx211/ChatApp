@@ -27,7 +27,7 @@ function ph($v) { return $v === '' || $v === null ? ' placeholder' : ''; }
 </head>
 <body>
 
-<div class="card">
+<div class="card slide-in">
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
     <span class="nav-title">编辑资料</span>
@@ -44,8 +44,8 @@ function ph($v) { return $v === '' || $v === null ? ' placeholder' : ''; }
   </div>
   <input type="file" id="avatarInput" accept="image/*" style="display:none" onchange="onAvatarChange(this)">
 
-  <!-- 签名 -->
-  <div class="form-row" onclick="promptEdit('sigVal','签名','<?php echo addslashes($currentUser['custom_title'] ?? '');?>')">
+  <!-- 签名（点击进入专用签名编辑页 editsig.php） -->
+  <div class="form-row" onclick="openEditSig()">
     <span class="row-label">签名</span>
     <span class="row-value<?php echo ph($statusText);?>" id="sigVal"><?php echo val($statusText, '……');?></span>
     <span class="row-arrow">›</span>
@@ -129,6 +129,18 @@ function goBack() {
             window.parent.document.getElementById('profileFrame').src = 'profile.php';
         }
     }, 260);
+}
+
+// 进入签名编辑页（带过渡，返回时回编辑资料）—— 签名功能入口
+function openEditSig() {
+    var card = document.querySelector('.card');
+    if (!card) { parent.document.getElementById('profileFrame').src = 'editsig.php'; return; }
+    card.classList.add('slide-out-left');
+    setTimeout(function() {
+        if (window.parent && window.parent.document.getElementById('profileFrame')) {
+            window.parent.document.getElementById('profileFrame').src = 'editsig.php';
+        }
+    }, 250);
 }
 
 function showToast() {

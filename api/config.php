@@ -47,7 +47,7 @@ function chatapp_session_start(): void {
 function chatapp_get_user(): ?array {
     chatapp_session_start();
     if (isset($_SESSION['username'])) {
-        $stmt = db()->prepare('SELECT user_id, username, display_name, preferred_language, avatar, custom_title, searchable, searchable_by_uid, timezone, data_saver, dnd, placeholder, restricted, role, emoji_panel_mode, emoji_chat_mode, exp, level, created_at, cache_key, local_cache_enabled, gender, birthday, gender_privacy, bg_image, bg_updated_at, bg_privacy, bg_blacklist, bg_whitelist, bg_no_friend, bg_private_image FROM users WHERE username = ?');
+        $stmt = db()->prepare('SELECT user_id, username, display_name, preferred_language, avatar, custom_title, searchable, searchable_by_uid, timezone, data_saver, dnd, placeholder, restricted, role, emoji_panel_mode, emoji_chat_mode, exp, level, created_at, cache_key, local_cache_enabled, gender, birthday, gender_privacy, bg_image, bg_updated_at, bg_privacy, bg_blacklist, bg_whitelist, bg_no_friend, bg_private_image, profile_bg_image, profile_bg_updated_at FROM users WHERE username = ?');
         $stmt->execute([$_SESSION['username']]);
         $user = $stmt->fetch();
         if ($user) {
@@ -383,6 +383,24 @@ function init_db(): void {
     db_add_column_if_missing('users', 'bg_whitelist', "TEXT DEFAULT NULL");
     db_add_column_if_missing('users', 'bg_no_friend', "TINYINT(1) NOT NULL DEFAULT 0");
     db_add_column_if_missing('users', 'bg_private_image', "VARCHAR(255) DEFAULT NULL");
+    // ---- Profile cover background (personal page, independent from chat wallpaper bg_image) ----
+    db_add_column_if_missing('users', 'profile_bg_image', "VARCHAR(255) DEFAULT NULL");
+    db_add_column_if_missing('users', 'profile_bg_updated_at', "DATETIME DEFAULT NULL");
+    // 迁移：历史测试把个人主页封面误写入 bg_image= bgi/... → 搬到 profile_bg_image，bg_image 还原为聊天壁纸字段
+    $mig = $pdo->query("SELECT user_id, bg_image, bg_updated_at FROM users WHERE bg_image LIKE 'bgi/%'");
+    foreach ($mig->fetchAll() as $mrow) {
+        $mid = (int)$mrow['user_id'];
+        $mNew = $pdo->prepare("SELECT profile_bg_image, profile_bg_updated_at FROM users WHERE user_id = ?");
+        $mNew->execute([$mid]);
+        $mRow = $mNew->fetch();
+        if ($mRow && empty($mRow['profile_bg_image'])) {
+            $pdo->prepare("UPDATE users SET profile_bg_image = ?, profile_bg_updated_at = ?, bg_image = NULL, bg_updated_at = NULL WHERE user_id = ?")
+                ->execute([$mrow['bg_image'], $mrow['bg_updated_at'], $mid]);
+        } elseif ($mRow) {
+            // 已有个人主页背景则只把聊天的清掉
+            $pdo->prepare("UPDATE users SET bg_image = NULL, bg_updated_at = NULL WHERE user_id = ?")->execute([$mid]);
+        }
+    }
     db_add_column_if_missing('incidents', 'exp_awarded', "TINYINT(1) NOT NULL DEFAULT 0");
     db_add_column_if_missing('messages', 'temp_upload_id', "INT DEFAULT NULL");
     $pdo->exec("CREATE TABLE IF NOT EXISTS temp_uploads (

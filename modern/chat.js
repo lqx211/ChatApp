@@ -533,7 +533,8 @@ function loadContacts() {
                 var c = d.contacts[i],
                     a = c.avatar ? '<img src="' + c.avatar + '">' : '';
                 _contactNotes[c.username] = c.note || '';
-                h += '<div class="csi" data-cuser="' + c.username + '" onclick="openDm(\'' + c.username + '\')"><div class="ca">' + a + '<span class="online-dot"></span></div><div class="cn" data-original="' + eh(c.note || c.display_name || c.username) + '">' + eh(c.note || c.display_name || c.username) + '</div></div>';
+                // ca 直接内联 onclick（Edge 兼容）：点头像打开个人资料，stopPropagation 避免触发 openDm
+                h += '<div class="csi" data-cuser="' + c.username + '" onclick="openDm(\'' + c.username + '\')"><div class="ca" onclick="event.stopPropagation();event.preventDefault();openMyProfile(\'' + c.username + '\')">' + a + '<span class="online-dot"></span></div><div class="cn" data-original="' + eh(c.note || c.display_name || c.username) + '">' + eh(c.note || c.display_name || c.username) + '</div></div>';
             }
             e.innerHTML = h;
             updateUnreads();
@@ -1832,7 +1833,7 @@ function addDmMessage(m, prepend) {
         dc = dl ? ' dl' : '',
         rh = '';
     var av = '';
-    if (m.avatar) av = '<div class="msg-avatar"><img src="' + m.avatar + '" alt=""></div>';
+    if (m.avatar) av = '<div class="msg-avatar" onclick="event.stopPropagation();openMyProfile(\'' + m.username + '\')"><img src="' + m.avatar + '" alt=""></div>';
     var md = (m.msg_type === 'temp' && m.temp_upload_id)
         ? tempCardHtml(m)
         : attachmentHtml.call({ attName: m.attachment_name || '', attSize: m.attachment_size || null }, m.attachment_url, m.msg_type);
@@ -2111,7 +2112,7 @@ function addAnnouncement(m, prepend) {
         dc = dl ? ' dl' : '',
         rh = '';
     var av = '';
-    if (m.avatar) av = '<div class="msg-avatar"><img src="' + m.avatar + '" alt=""></div>';
+    if (m.avatar) av = '<div class="msg-avatar" onclick="event.stopPropagation();openMyProfile(\'' + m.username + '\')"><img src="' + m.avatar + '" alt=""></div>';
     var md = (m.msg_type === 'temp' && m.temp_upload_id)
         ? tempCardHtml(m)
         : attachmentHtml.call({ attName: m.attachment_name || '', attSize: m.attachment_size || null }, m.attachment_url, m.msg_type);
@@ -5239,9 +5240,13 @@ sidebarInit();
 function openMyProfile(username) {
     var src = '/modern/profile.php';
     if (username) src += '?user=' + encodeURIComponent(username);
-    document.getElementById('profileFrame').src = src;
-    document.getElementById('userSidebar').classList.add('active');
-    document.getElementById('profileOverlay').classList.add('active');
+    var fr = document.getElementById('profileFrame');
+    var sb = document.getElementById('userSidebar');
+    var ov = document.getElementById('profileOverlay');
+    if (!fr || !sb || !ov) return;   // 页面无 profile 抽屉时安全返回
+    fr.src = src;
+    sb.classList.add('active');
+    ov.classList.add('active');
 }
 
 function closeMyProfile() {

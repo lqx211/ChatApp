@@ -6,6 +6,9 @@ cep
 # Background image
 bgi
 
+# User profile image
+pp
+
 # User file uploads
 user
 
@@ -19,4 +22,4 @@ donation
 sc
 
 # macOS
-.DS_Store
+.DS_Store--
