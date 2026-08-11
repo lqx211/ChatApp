@@ -423,6 +423,7 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
 <script>
 var LANG=<?php echo json_encode(lang_load());?>;
 var U=<?php echo json_encode($currentUser['username']);?>;
+var CSRF=<?php echo json_encode(chatapp_csrf_token());?>;
 var TZ='<?php echo $currentUser['timezone'] ?? '+08:00';?>';
 var DND=<?php echo (int)($currentUser['dnd'] ?? 0);?>;
 var RSTR=<?php echo (int)($currentUser['restricted'] ?? 0);?>;

@@ -14,7 +14,10 @@ header('Content-Type: application/json');
 
 $me = $_SESSION['username'];
 $pdo = db();
-$myUid = (int)($pdo->query("SELECT user_id FROM users WHERE username='$me'")->fetchColumn() ?: 0);
+$myUid = 0;
+$myUidStmt = $pdo->prepare("SELECT user_id FROM users WHERE username = ?");
+$myUidStmt->execute([$me]);
+$myUid = (int)($myUidStmt->fetchColumn() ?: 0);
 if (!$myUid) {
     echo json_encode(['success' => false, 'error' => 'Invalid user']);
     exit;
@@ -22,9 +25,8 @@ if (!$myUid) {
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
-/**
- * temp file dir: data/sc/
- */
+// upload/revoke are state-changing → POST only.
+chatapp_read_actions(['download', 'status', 'my'], $action);
 function temp_dir(): string {
     $dir = __DIR__ . '/../data/sc';
     if (!is_dir($dir)) mkdir($dir, 0755, true);
@@ -61,12 +63,36 @@ function temp_get(PDO $pdo, int $id): ?array {
     return $stmt->fetch() ?: null;
 }
 
+/**
+ * Access control for a flash-transfer file: owner, the message recipient, group
+ * members, or an admin. Prevents enumerating/downloading other users' files.
+ */
+function temp_can_access(PDO $pdo, array $rec, int $myUid): bool {
+    if ((int)$rec['owner_uid'] === $myUid) return true;
+    $mid = (int)($rec['message_id'] ?? 0);
+    if ($mid > 0) {
+        $ms = $pdo->prepare("SELECT recipient_id, group_id FROM messages WHERE id = ?");
+        $ms->execute([$mid]);
+        $m = $ms->fetch();
+        if ($m && (int)$m['recipient_id'] === $myUid) return true;
+        if ($m && (int)$m['group_id'] > 0) {
+            $gm = $pdo->prepare("SELECT COUNT(*) FROM group_members WHERE group_id = ? AND user_id = ?");
+            $gm->execute([(int)$m['group_id'], $myUid]);
+            if ((int)$gm->fetchColumn() > 0) return true;
+        }
+    }
+    $role = chatapp_get_role($myUid);
+    return ($role === 'root' || $role === 'admin');
+}
+
 switch ($action) {
 
     case 'upload':
         // File arrives as base64 data URL + original filename
         $b64 = trim($_POST['file'] ?? '');
-        $filename = trim(mb_substr($_POST['filename'] ?? '', 0, 255));
+        // Sanitize the stored filename: strip control chars / quotes / backslashes
+        // (prevents HTTP header injection at download time).
+        $filename = preg_replace('/[\x00-\x1F\x7F"\\\\]/', '', trim(mb_substr($_POST['filename'] ?? '', 0, 255)));
         if (empty($b64)) {
             echo json_encode(['success' => false, 'error' => 'No file']);
             exit;
@@ -132,6 +158,8 @@ switch ($action) {
         $id = (int)($_GET['id'] ?? 0);
         $rec = temp_get($pdo, $id);
         if (!$rec) { http_response_code(404); exit; }
+        // Authorization: owner, message recipient/group member, or admin.
+        if (!temp_can_access($pdo, $rec, $myUid)) { http_response_code(403); exit; }
 
         // Lazy cleanup + expiry check
         temp_cleanup($pdo);
@@ -155,7 +183,9 @@ switch ($action) {
 
         header('Content-Type: application/octet-stream');
         header('Content-Length: ' . $rec['size']);
-        header('Content-Disposition: attachment; filename="' . str_replace('"', '', $rec['filename']) . '"');
+        // Strip control chars from the download filename (HTTP header injection).
+        $dlName = preg_replace('/[\x00-\x1F\x7F"\\\\]/', '', (string)$rec['filename']);
+        header('Content-Disposition: attachment; filename="' . $dlName . '"');
 
         $fh = fopen($filePath, 'rb');
         if (!$fh) { exit; }
@@ -185,6 +215,11 @@ switch ($action) {
         $rec = temp_get($pdo, $id);
         if (!$rec) {
             echo json_encode(['success' => false, 'status' => 'expired']);
+            exit;
+        }
+        // Authorization: owner, message recipient/group member, or admin.
+        if (!temp_can_access($pdo, $rec, $myUid)) {
+            echo json_encode(['success' => false, 'status' => 'forbidden']);
             exit;
         }
         // Lazy expiry check

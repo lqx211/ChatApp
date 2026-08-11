@@ -1,0 +1,13 @@
+# ChatApp — data/ directory hardening.
+# All user-generated content under data/ is served ONLY through PHP endpoints
+# (file.php, avatar.php, emoji.php, temp.php, incident.php, settings.php).
+# PHP filesystem access is not affected by .htaccess, so these rules only block
+# direct HTTP access / script execution, which is exactly what we want.
+
+# Never allow directory listing of any data/ subfolder.
+Options -Indexes
+
+# Never execute or serve script / HTML files as-is.
+<FilesMatch "\.(php|phtml|pht|phar|php[0-9]|shtml|html|htm)$">
+    Require all denied
+</FilesMatch>

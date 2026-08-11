@@ -218,28 +218,25 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
         }
 
         $hash = hash('sha256', $binary);
-        $ext = 'bin';
-        if (preg_match('/^image\/(\w+)$/', $mediaMainType, $em)) {
-            $ext = strtolower($em[1]);
-            if ($ext === 'jpeg') $ext = 'jpg';
-        } elseif (preg_match('/^video\/(\w+)$/', $mediaMainType, $em)) {
-            $ext = strtolower($em[1]);
-            if ($ext === 'quicktime') $ext = 'mov';
-        } elseif (preg_match('/^audio\/(\w+)$/', $mediaMainType, $em)) {
-            $ext = strtolower($em[1]);
-            if ($ext === 'mpeg') $ext = 'mp3';
-            elseif ($ext === 'x-m4a') $ext = 'm4a';
-            elseif ($ext === 'x-wav' || $ext === 'wav') $ext = 'wav';
-            elseif ($ext === 'x-flac') $ext = 'flac';
-            elseif ($ext === 'ogg') $ext = 'ogg';
-        } elseif (preg_match('/^text\/(\w+)$/', $mediaMainType, $em)) {
-            $ext = strtolower($em[1]);
-        } elseif (preg_match('/^application\/([\w.+-]+)$/', $mediaMainType, $em)) {
-            $ext = strtolower($em[1]);
-            if ($ext === 'msword') $ext = 'doc';
-            elseif ($ext === 'vnd.ms-excel') $ext = 'xls';
-            elseif ($ext === 'pdf') $ext = 'pdf';
-            elseif ($ext === 'zip') $ext = 'zip';
+        // Strict MIME → extension allowlist. Never derive an extension from the
+        // client-supplied MIME subtype directly (previously data:text/php could
+        // produce a .php file inside the docroot → RCE). Unknown types → safe 'bin'.
+        $mimeExtMap = [
+            'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif',
+            'image/webp' => 'webp',
+            'video/mp4' => 'mp4', 'video/webm' => 'webm', 'video/quicktime' => 'mov',
+            'video/ogg' => 'ogg', 'video/mov' => 'mov',
+            'audio/mpeg' => 'mp3', 'audio/mp4' => 'm4a', 'audio/x-m4a' => 'm4a',
+            'audio/wav' => 'wav', 'audio/x-wav' => 'wav', 'audio/flac' => 'flac',
+            'audio/ogg' => 'ogg',
+            'application/pdf' => 'pdf', 'application/zip' => 'zip',
+            'application/msword' => 'doc', 'application/vnd.ms-excel' => 'xls',
+        ];
+        $ext = $mimeExtMap[$mediaMainType] ?? 'bin';
+        // Content sanity check for image types: bytes must actually decode as an
+        // image so HTML/script cannot be stored under an image extension.
+        if (in_array($ext, ['jpg', 'png', 'gif', 'webp'], true) && @getimagesizefromstring($binary) === false) {
+            return ['success' => false, 'error' => 'Invalid image'];
         }
 
         $filename = $hash . '.' . $ext;
@@ -271,6 +268,14 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
     $replyTo = (int)($p['reply_to'] ?? 0);
     $isMd = (($p['md'] ?? '') === '1' || ($p['md'] ?? '') === 1 || ($p['md'] ?? '') === true);
     if ($isMd) {
+        // Defense-in-depth: strip_tags is not a safe HTML sanitizer. Reject
+        // messages carrying script/active-content tokens; the client renderer
+        // is also hardened (URL allowlist + attribute escaping).
+        if (preg_match('/(?:<script|<iframe|<object|<embed|<form|<svg|<math|<style|<link|<meta|<base)\b/i', $message)
+            || preg_match('/\b(?:onerror|onload|onclick|ondblclick|oncontextmenu|onmouseover|onmouseout|onmousedown|onmouseup|onfocus|onblur|onchange|oninput|onkeydown|onkeyup|onsubmit|ondragstart|ondrop|onanimationstart|ontransitionend)\s*=/i', $message)
+            || preg_match('/\b(?:javascript|vbscript)\s*:/i', $message)) {
+            return ['success' => false, 'error' => 'Unsupported content'];
+        }
         $msg = strip_tags($message);
         $msgType = 'md';
     } else {
@@ -308,7 +313,8 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
     }
 
     try {
-        $isAdmin = ($username === 'admin');
+        // Announcement broadcast is reserved for the root account (uid 10000).
+        $isAdmin = ($senderUid === 10000);
         if (!$isAdmin || !empty($recipientName)) {
             $uidStmt = $pdo->prepare('SELECT user_id FROM users WHERE username = ?');
             $uidStmt->execute([$recipientName]);

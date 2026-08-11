@@ -2,8 +2,19 @@
 
 # 精灵下载 1.3.2
 
-	// ChatApp global maintenance gate
-	require_once __DIR__ . '/../maintenance.php';
+	// ChatApp global maintenance gate + admin-only access for this legacy module
+	require_once __DIR__ . '/../api/config.php'; // config.php includes maintenance.php
+
+	chatapp_session_start();
+	$fdUid = 0;
+	$fdStmt = db()->prepare('SELECT user_id FROM users WHERE username = ?');
+	$fdStmt->execute([$_SESSION['username'] ?? '']);
+	$fdUid = (int)($fdStmt->fetchColumn() ?: 0);
+	$fdRole = chatapp_get_role($fdUid);
+	if ($fdRole !== 'root' && $fdRole !== 'admin') {
+		http_response_code(403);
+		exit;
+	}
 
 	@include("./indexfiles/config.php");
 	@include($langdir.$lang_file);

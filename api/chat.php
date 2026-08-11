@@ -7,6 +7,9 @@ chatapp_session_start();
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 header('Content-Type: application/json');
 
+// send/revoke/mark_read are state-changing → POST only.
+chatapp_read_actions(['unread_counts', 'fetch', 'all', 'search_messages'], $action);
+
 function get_my_uid(PDO $pdo): int {
     $stmt = $pdo->prepare('SELECT user_id FROM users WHERE username = ?');
     $stmt->execute([$_SESSION['username']]);

@@ -11,7 +11,10 @@ header('Content-Type: application/json');
 
 $pdo = db();
 $me = $_SESSION['username'];
-$myUid = (int)($pdo->query("SELECT user_id FROM users WHERE username='$me'")->fetchColumn() ?: 0);
+$myUid = 0;
+$myUidStmt = $pdo->prepare("SELECT user_id FROM users WHERE username = ?");
+$myUidStmt->execute([$me]);
+$myUid = (int)($myUidStmt->fetchColumn() ?: 0);
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
 function _emoji_public_dir(): string {
@@ -123,6 +126,14 @@ switch ($action) {
         if (!preg_match('/^[a-f0-9]{32}$/', $hash)) { http_response_code(404); exit; }
         $file = _emoji_file_for_hash($hash);
         if (!$file) { http_response_code(404); exit; }
+        // Realpath containment: only serve files under data/ (neutralizes symlinks).
+        $emojiBase = realpath(__DIR__ . '/../data');
+        $emojiReal = realpath($file);
+        if ($emojiBase === false || $emojiReal === false || strpos($emojiReal . '/', $emojiBase . '/') !== 0) {
+            http_response_code(404);
+            exit;
+        }
+        $file = $emojiReal;
         $pathInfo = pathinfo($file);
         $mime = ['png' => 'image/png', 'gif' => 'image/gif', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'webp' => 'image/webp'];
         header('Content-Type: ' . ($mime[$pathInfo['extension']] ?? 'image/png'));

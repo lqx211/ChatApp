@@ -25,6 +25,9 @@ if (!$myUid) {
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
+// Friend request mutations → POST only.
+chatapp_read_actions(['search', 'list', 'pending'], $action);
+
 switch ($action) {
 
     case 'search':
@@ -33,12 +36,12 @@ switch ($action) {
             echo json_encode(['success' => true, 'users' => []]);
             exit;
         }
-        // Exact match only: UID or username
+        // Exact match only: UID or username (respect the searchable privacy flags)
         if (is_numeric($q)) {
-            $stmt = $pdo->prepare("SELECT username, user_id FROM users WHERE user_id = ? AND username != ? LIMIT 1");
+            $stmt = $pdo->prepare("SELECT username, user_id FROM users WHERE user_id = ? AND username != ? AND searchable = 1 AND searchable_by_uid = 1 LIMIT 1");
             $stmt->execute([(int)$q, $myUsername]);
         } else {
-            $stmt = $pdo->prepare("SELECT username, user_id FROM users WHERE username = ? AND username != ? LIMIT 1");
+            $stmt = $pdo->prepare("SELECT username, user_id FROM users WHERE username = ? AND username != ? AND searchable = 1 LIMIT 1");
             $stmt->execute([$q, $myUsername]);
         }
         $users = $stmt->fetchAll();

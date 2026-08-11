@@ -1,0 +1,3 @@
+# ChatApp — this directory (and all uid subdirectories) is served only through
+# api/file.php / api/avatar.php. Block direct HTTP access entirely.
+Require all denied

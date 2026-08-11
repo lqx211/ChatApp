@@ -20,7 +20,7 @@ if ($has_token) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $u = trim($_POST['login'] ?? '');
     $p = (string)($_POST['password'] ?? '');
-    if ($u === $MAINT_USER && $p === $MAINT_PASS) {
+    if (hash_equals((string)$MAINT_USER, $u) && hash_equals((string)$MAINT_PASS, $p)) {
         $hour_window = floor(time() / 3600);
         $token = hash_hmac('sha256', 'mt:' . $hour_window, $MAINT_SECRET);
         setcookie('MT_TOKEN', $token, 0, '/', '', false, true); // session cookie, httponly

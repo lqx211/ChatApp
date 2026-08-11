@@ -31,21 +31,24 @@ if ($row && !empty($row['avatar'])) {
     $uid = (int)$row['user_id'];
     $fallbackName = $isUid ? 'uid:' . $uid : $user;
 
-    // Check new format first: data/pp/{uid}.{ext}
+    // Check new format first: data/pp/{uid}.{ext} (with realpath containment)
+    $ppBase = realpath(__DIR__ . '/../data/pp');
     $ppFile = __DIR__ . '/../data/pp/' . $row['avatar'];
-    if (is_file($ppFile)) {
-        $avFile = $ppFile;
+    $ppReal = realpath($ppFile);
+    if ($ppBase !== false && $ppReal !== false && strpos($ppReal . '/', $ppBase . '/') === 0 && is_file($ppReal)) {
+        $avFile = $ppReal;
         $hasAvatar = true;
     }
-    // Fallback: legacy data/user/{uid}/{filename}
+    // Fallback: legacy data/user/{uid}/{filename} (with realpath containment)
     if (!$hasAvatar) {
+        $legacyBase = realpath(__DIR__ . '/../data/user/' . $uid);
         $legacyFile = __DIR__ . '/../data/user/' . $uid . '/' . $row['avatar'];
-        if (is_file($legacyFile)) {
-            $avFile = $legacyFile;
+        $legacyReal = realpath($legacyFile);
+        if ($legacyBase !== false && $legacyReal !== false && strpos($legacyReal . '/', $legacyBase . '/') === 0 && is_file($legacyReal)) {
+            $avFile = $legacyReal;
             $hasAvatar = true;
         }
     }
-    // Fallback: old base64 stored directly in avatar column (skip, use placeholder)
 }
 
 if (!$hasAvatar) {

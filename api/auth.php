@@ -10,6 +10,9 @@ chatapp_session_start();
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 header('Content-Type: application/json');
 
+// login/register/logout must be POST (check is the only GET read action).
+chatapp_read_actions(['check'], $action);
+
 switch ($action) {
 
     case 'register':
@@ -18,12 +21,36 @@ switch ($action) {
         if (strlen($username) < 3 || strlen($username) > 20 || !preg_match('/^[a-zA-Z0-9_]+$/', $username)) {
             echo json_encode(['success' => false, 'error' => 'Username too short or long']); exit;
         }
+        // Reserved usernames: never let self-registration collide with the root /
+        // system accounts.
+        $reservedUsernames = ['admin', 'root', 'administrator', 'system', 'support', 'moderator', 'test', 'guest'];
+        if (in_array(strtolower($username), $reservedUsernames, true)
+            || strpos(strtolower($username), 'chatapp_') === 0
+            || strpos(strtolower($username), 'mt_') === 0) {
+            echo json_encode(['success' => false, 'error' => 'Username not allowed']); exit;
+        }
+        // Registration rate limit: max 5 attempts per hour per IP.
+        $regIp = chatapp_client_ip();
+        $regStmt = db()->prepare("SELECT COUNT(*) FROM security_logs WHERE event_type = 'register' AND ip_address = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)");
+        $regStmt->execute([$regIp]);
+        if ((int)$regStmt->fetchColumn() >= 5) {
+            echo json_encode(['success' => false, 'error' => 'Too many registrations. Please try again later.']); exit;
+        }
+        chatapp_log('security_logs', ['event_type' => 'register', 'details' => 'attempt_username=' . mb_substr($username, 0, 100)]);
         $pwError = chatapp_validate_password($password);
         if ($pwError !== null) { echo json_encode(['success' => false, 'error' => t($pwError)]); exit; }
         $pdo = db();
         $stmt = $pdo->prepare('SELECT user_id FROM users WHERE username = ?');
         $stmt->execute([$username]);
         if ($stmt->fetch()) { echo json_encode(['success' => false, 'error' => 'Username exists']); exit; }
+        // Guard the uid-10000 root account: on a fresh database users.AUTO_INCREMENT
+        // starts at 10000, so the first self-registered user would otherwise become
+        // root. Bump the counter so self-registration never lands on uid 10000
+        // (reserved for the admin seeded at install time).
+        $nextUid = (int)$pdo->query("SELECT AUTO_INCREMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'")->fetchColumn();
+        if ($nextUid > 0 && $nextUid <= 10000) {
+            $pdo->exec('ALTER TABLE users AUTO_INCREMENT = 10001');
+        }
         $lang = trim($_POST['language'] ?? 'en');
         if (!in_array($lang, ['en', 'zh', 'zh_egg', 'wyw', 'raw'])) $lang = 'en';
         $hash = password_hash($password, PASSWORD_BCRYPT);
@@ -59,14 +86,20 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => t('msg_too_many_attempts') ?? 'Too many attempts. Please try again later.']);
             exit;
         }
+        // Account-level rate limit: max 10 failed attempts per 15 minutes per username.
+        $acctStmt = $pdo->prepare("SELECT COUNT(*) FROM login_logs WHERE username = ? AND created_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE) AND success = 0");
+        $acctStmt->execute([$username]);
+        if ((int)$acctStmt->fetchColumn() >= 10) {
+            echo json_encode(['success' => false, 'error' => t('msg_too_many_attempts') ?? 'Too many attempts. Please try again later.']);
+            exit;
+        }
         $stmt = $pdo->prepare('SELECT username, password, duress_password, enabled, preferred_language, placeholder, token_reset, restricted, restricted_reason, display_name, user_id, cache_key, local_cache_enabled FROM users WHERE username = ?');
         $stmt->execute([$username]);
         $user = $stmt->fetch();
         if (!$user || $user['placeholder'] || !$user['enabled']) {
+            // Generic error for every failure branch — never reveal whether an
+            // account exists / is disabled (prevents user enumeration).
             chatapp_log_login((int)($user['user_id'] ?? 0), $username, false);
-            if ($user && !$user['enabled'] && !$user['placeholder']) {
-                echo json_encode(['success' => false, 'error' => t('msg_account_disabled')]); exit;
-            }
             echo json_encode(['success' => false, 'error' => t('msg_invalid_login')]); exit;
         }
         if (!empty($user['token_reset']) && isset($_SESSION['login_time']) && strtotime($user['token_reset']) > $_SESSION['login_time']) {
@@ -118,7 +151,18 @@ switch ($action) {
             unset($_SESSION['admin_username']);
             echo json_encode(['success' => true, 'admin_restored' => true]);
         } else {
-            session_destroy();
+            // Rotate the local-cache key and revoke WS tokens on logout.
+            if (!empty($_SESSION['username'])) {
+                $loStmt = db()->prepare('UPDATE users SET cache_key = ? WHERE username = ?');
+                $loStmt->execute([bin2hex(random_bytes(32)), $_SESSION['username']]);
+                db()->prepare('DELETE FROM ws_tokens WHERE username = ?')->execute([$_SESSION['username']]);
+            }
+            // Session hygiene: clear data, destroy, and expire the cookie.
+            $_SESSION = [];
+            if (session_status() === PHP_SESSION_ACTIVE) session_destroy();
+            if (ini_get('session.use_cookies')) {
+                setcookie(session_name(), '', time() - 42000, '/');
+            }
             echo json_encode(['success' => true]);
         }
         break;

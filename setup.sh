@@ -192,6 +192,37 @@ sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_passwo
 sudo mysql -e "FLUSH PRIVILEGES;"
 sudo apt install php-mysql php8.3-mysql -y
 
+# --- Security hardening: honor .htaccess (so data/*.htaccess rules apply)
+# --- and disable directory listing. (On mac/brew adjust the conf path.)
+if [ -d /etc/apache2/conf-available ]; then
+    sudo tee /etc/apache2/conf-available/chatapp-security.conf > /dev/null <<'EOF'
+<Directory /var/www/html>
+    AllowOverride All
+    Options -Indexes
+</Directory>
+EOF
+    sudo a2enconf chatapp-security || true
+fi
+
+# --- Seed the root admin (uid 10000) BEFORE registration is opened ---
+# Registration is public; on a fresh DB the first registered user would otherwise
+# become uid 10000 = root. Create a random-password admin here.
+if [ -n "${ADMIN_USER:-}" ] && [ -n "${ADMIN_PASS:-}" ]; then
+    ADMIN_USER_S="${ADMIN_USER}"
+    ADMIN_PASS_S="${ADMIN_PASS}"
+else
+    ADMIN_USER_S="${ADMIN_USER:-admin}"
+    ADMIN_PASS_S="$(openssl rand -base64 18 | tr -dc 'A-Za-z0-9' | cut -c1-24)"
+fi
+ADMIN_HASH="$(php -r 'echo password_hash($argv[1], PASSWORD_BCRYPT), "\n";' "$ADMIN_PASS_S" 2>/dev/null || true)"
+if [ -n "$ADMIN_HASH" ]; then
+    ${MYSQL_CMD} "${DB_NAME}" -e "INSERT INTO users (user_id, username, password, role, enabled, cache_key, created_at) VALUES (10000, '${ADMIN_USER_S}', '${ADMIN_HASH}', 'admin', 1, '$(openssl rand -hex 32)', NOW()) ON DUPLICATE KEY UPDATE username = username;" 2>/dev/null || echo "  ⚠  Could not seed admin (table may not exist yet)."
+    echo "  → Seeded root admin: username='${ADMIN_USER_S}'"
+    echo "    ⚠ Password: '${ADMIN_PASS_S}' — SAVE THIS NOW, change after first login."
+else
+    echo "  ⚠  php-cli unavailable; cannot hash admin password. Seed admin manually."
+fi
+
 # ----------------------------------------------------------------------
 # Done
 # ----------------------------------------------------------------------

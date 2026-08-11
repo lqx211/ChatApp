@@ -17,6 +17,9 @@ $pdo = db();
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 $myUsername = $_SESSION['username'];
 
+// report submit/resolve are state-changing → POST only.
+chatapp_read_actions(['list', 'count'], $action);
+
 // Resolve my UID for permission checks
 $myUid = 0;
 $stmtU = $pdo->prepare("SELECT user_id FROM users WHERE username = ?");
@@ -96,9 +99,19 @@ switch ($action) {
             $stmt->execute([$id]);
             $inc = $stmt->fetch();
             if ($inc && $inc['target_id']) {
+                $targetId = (int)$inc['target_id'];
+                // Never let report resolution disable the root account.
+                if ($targetId === 10000) {
+                    echo json_encode(['success' => false, 'error' => 'Protected account']); exit;
+                }
+                // Banning an admin requires root.
+                $targetRole = chatapp_get_role($targetId);
+                if (($targetRole === 'admin' || $targetRole === 'root') && chatapp_get_role($myUid) !== 'root') {
+                    echo json_encode(['success' => false]); exit;
+                }
                 $reason = trim(mb_substr($_POST['reason'] ?? '', 0, 1000));
                 $pdo->prepare("UPDATE users SET restricted = 1, enabled = 0, restricted_reason = ? WHERE user_id = ?")
-                    ->execute([$reason ?: null, $inc['target_id']]);
+                    ->execute([$reason ?: null, $targetId]);
             }
         }
         $pdo->prepare("UPDATE incidents SET status = 'resolved' WHERE id = ? AND type = 'report'")->execute([$id]);

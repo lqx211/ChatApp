@@ -13,8 +13,14 @@ $pdo = db();
 $me = $_SESSION['username'];
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
+// Group mutations (create/join/kick/send/etc.) → POST only.
+chatapp_read_actions(['search', 'list_my', 'members', 'pending', 'history', 'info', 'fetch'], $action);
+
 // Get my UID
-$myUid = (int)($pdo->query("SELECT user_id FROM users WHERE username='$me'")->fetchColumn() ?: 0);
+$myUid = 0;
+$myUidStmt = $pdo->prepare("SELECT user_id FROM users WHERE username = ?");
+$myUidStmt->execute([$me]);
+$myUid = (int)($myUidStmt->fetchColumn() ?: 0);
 if ($myUid <= 0) { echo json_encode(['success' => false]); exit; }
 
 function gen_group_id(PDO $pdo): int {
@@ -121,7 +127,9 @@ switch ($action) {
             $params[] = "%$q%";
             $params[] = "%$q%";
         }
-        $total = (int)$pdo->query("SELECT COUNT(*) FROM `groups` g $where")->fetchColumn();
+        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM `groups` g $where");
+        $countStmt->execute($params);
+        $total = (int)$countStmt->fetchColumn();
         $stmt = $pdo->prepare("SELECT g.*, COALESCE(u.display_name, u.username) AS owner_name, u.avatar AS owner_avatar, (SELECT COUNT(*) FROM group_members WHERE group_id=g.group_id) AS member_count FROM `groups` g JOIN users u ON u.user_id=g.owner_id $where ORDER BY g.created_at DESC LIMIT $perPage OFFSET $offset");
         $stmt->execute($params);
         echo json_encode(['success' => true, 'groups' => $stmt->fetchAll(), 'total' => $total, 'page' => $page, 'per_page' => $perPage]);
@@ -236,7 +244,9 @@ switch ($action) {
 
     case 'send':
         $gid = (int)($_POST['group_id'] ?? 0);
-        $msg = trim(mb_substr($_POST['message'] ?? '', 0, 1000));
+        // Sanitize group text: strip HTML tags server-side as defense-in-depth
+        // (clients escape on render; this also protects non-escaping clients/WSS).
+        $msg = strip_tags(trim(mb_substr($_POST['message'] ?? '', 0, 1000)));
         if (!$gid || empty($msg)) { echo json_encode(['success' => false]); exit; }
         // Must be a member
         $info = $pdo->query("SELECT role, muted FROM group_members WHERE group_id=$gid AND user_id=$myUid")->fetch();

@@ -93,8 +93,18 @@ function fmtSize(b) {
     return (b / 1048576).toFixed(2) + ' MB';
 }
 
+function safeMdUrl(url) {
+    var u = String(url || '').trim();
+    if (/^https?:\/\//i.test(u)) return u;
+    if (/^data:image\/(png|jpe?g|gif|webp);/i.test(u)) return u;
+    return '#';
+}
+
 function renderMd(text) {
-    var h = text.replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>');
+    // HTML-escape BEFORE markdown processing so every captured fragment
+    // (alt text, link text, URL) is safe to emit inside tags/attributes.
+    // The img/a replacements below additionally whitelist URL schemes.
+    var h = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     var lines = h.split('\n');
     var out = [];
     var inUl = false,
@@ -168,8 +178,12 @@ function renderMd(text) {
         l = l.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
         l = l.replace(/\*(.+?)\*/g, '<em>$1</em>');
         l = l.replace(/`([^`]+)`/g, '<code>$1</code>');
-        l = l.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;max-height:200px">');
-        l = l.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+        l = l.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(m0, alt, url) {
+            return '<img src="' + safeMdUrl(url) + '" alt="' + alt + '" style="max-width:100%;max-height:200px">';
+        });
+        l = l.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(m0, text, url) {
+            return '<a href="' + safeMdUrl(url) + '" target="_blank" rel="noopener noreferrer">' + text + '</a>';
+        });
         out.push(l);
     }
     if (inUl) out.push('</ul>');
@@ -1171,14 +1185,14 @@ async function openUserDetail(username) {
     h += '<div class="ng"><div class="ngh" onclick="usAction(\'us_change_uid\')" style="cursor:pointer;color:#e06060"><span>Change UID</span></div></div>';
     h += '<div class="ng"><div class="ngh" onclick="usAction(\'us_delete_user\')" style="cursor:pointer;color:#e06060"><span>Delete user</span></div></div>';
     h += '<div style="padding:10px 14px;font-size:.73em;color:#777;line-height:1.8;border-top:1px solid #3a3a3a;margin-top:4px">' +
-        'Display name: ' + (u.display_name || '-') + '<br>' +
-        'Username: ' + u.username + '<br>' +
-        'UID: ' + u.user_id + '<br>' +
-        'Role: ' + u.role + '<br>' +
-        'Status: ' + stLabel + '<br>' +
-        'Restrict reason: ' + (u.restricted_reason || '-') + '<br>' +
-        'Level: ' + (u.level || 1) + '<br>' +
-        'Total Exp: ' + (u.exp || 0) + '<br>' +
+        'Display name: ' + eh(u.display_name || '-') + '<br>' +
+        'Username: ' + eh(u.username) + '<br>' +
+        'UID: ' + eh(String(u.user_id)) + '<br>' +
+        'Role: ' + eh(u.role) + '<br>' +
+        'Status: ' + eh(stLabel) + '<br>' +
+        'Restrict reason: ' + eh(u.restricted_reason || '-') + '<br>' +
+        'Level: ' + eh(u.level || 1) + '<br>' +
+        'Total Exp: ' + eh(u.exp || 0) + '<br>' +
         'DND: ' + (u.dnd ? 'Yes' : 'No') + '</div>';
     nav.innerHTML = h;
     document.getElementById('sidebarNavDefault').style.display = 'none';
@@ -5165,7 +5179,7 @@ function dbExport() {
     var table = document.getElementById('dbTableSelect').value;
     if (!table) { xalert('请先选择表'); return; }
     // Navigate to download URL directly
-    window.open('../api/admin.php?action=db_export&table=' + encodeURIComponent(table), '_blank');
+    window.open('../api/admin.php?action=db_export&table=' + encodeURIComponent(table) + '&csrf=' + encodeURIComponent(window.CSRF || ''), '_blank');
 }
 
 function dbRunQuery() {
@@ -5180,6 +5194,7 @@ function dbRunQuery() {
     var form = new URLSearchParams();
     form.append('action', 'db_query');
     form.append('sql', sql);
+    form.append('csrf', window.CSRF || '');
     fetch('../api/admin.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

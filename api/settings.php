@@ -13,6 +13,9 @@ if (!isset($_SESSION['username'])) {
 header('Content-Type: application/json');
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
+// Every settings action except the read-only lookups is state-changing → POST only.
+chatapp_read_actions(['discover', 'get_blocks', 'get_background', 'get_bg_privacy', 'get_profile_bg'], $action);
+
 /**
  * 设置页通用 0/1 开关：读取并翻转 users 表中指定列。
  * 必须在 switch 外定义（条件结构内的函数不会提升）。
@@ -59,7 +62,12 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit;
         }
         $hash = password_hash($np, PASSWORD_BCRYPT);
-        $pdo->prepare('UPDATE users SET password = ? WHERE username = ?')->execute([$hash, $_SESSION['username']]);
+        // Rotate the local-cache key on password change, then regenerate the session
+        // id and revoke WS tokens so other devices are logged out (this session stays).
+        $pdo->prepare('UPDATE users SET password = ?, cache_key = ? WHERE username = ?')
+            ->execute([$hash, bin2hex(random_bytes(32)), $_SESSION['username']]);
+        session_regenerate_id(true);
+        $pdo->prepare('DELETE FROM ws_tokens WHERE username = ?')->execute([$_SESSION['username']]);
         echo json_encode(['success' => true]);
         break;
 
@@ -139,7 +147,10 @@ switch ($action) {
 
         // ---- Level system: first-time use of easter-egg languages ----
         try {
-            $uid = (int)(db()->query("SELECT user_id FROM users WHERE username='" . $_SESSION['username'] . "'")->fetchColumn() ?: 0);
+            $uid = 0;
+            $uStmt = db()->prepare('SELECT user_id FROM users WHERE username = ?');
+            $uStmt->execute([$_SESSION['username']]);
+            $uid = (int)($uStmt->fetchColumn() ?: 0);
             if ($uid > 0) {
                 if ($lang === 'zh_egg') exp_bonus_claim($uid, 'zh_egg', 50, 'bonus_zh_egg', 'used zh_egg');
                 elseif ($lang === 'wyw') exp_bonus_claim($uid, 'wyw', 25, 'bonus_wyw', 'used wyw');
@@ -796,7 +807,11 @@ switch ($action) {
         $url = null; $version = null;
         if ($u && $u['profile_bg_image']) {
             $ver = strtotime($u['profile_bg_updated_at'] ?: date('Y-m-d H:i:s'));
-            $url = '../api/file.php?type=bgi&u=' . (int)($pdo->query("SELECT user_id FROM users WHERE username='".$_SESSION['username']."'")->fetchColumn() ?: 0) . '&v=' . $ver;
+            $uid = 0;
+            $uStmt = $pdo->prepare("SELECT user_id FROM users WHERE username = ?");
+            $uStmt->execute([$_SESSION['username']]);
+            $uid = (int)($uStmt->fetchColumn() ?: 0);
+            $url = '../api/file.php?type=bgi&u=' . $uid . '&v=' . $ver;
             $version = $ver;
         }
         echo json_encode(['success' => true, 'url' => $url, 'version' => $version]);

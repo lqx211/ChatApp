@@ -12,6 +12,11 @@ date_default_timezone_set('Asia/Hong_Kong');
 // Global maintenance gate
 require_once __DIR__ . '/../maintenance.php';
 
+// ---- Global security headers (every page/API that loads config.php) ----
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: SAMEORIGIN');
+header('Referrer-Policy: same-origin');
+
 define('DB_HOST', '127.0.0.1');
 define('DB_NAME', 'chatapp');
 define('DB_USER', 'root');
@@ -42,6 +47,72 @@ function chatapp_session_start(): void {
         ]);
         session_start();
     }
+    // Re-validate an existing session's user on every request: if the account was
+    // disabled / made a placeholder / deleted, or its tokens were reset after this
+    // session was issued, destroy the session. This makes "disable account" and
+    // "expire tokens" truly revoke active sessions across every endpoint.
+    // (Validated at most once per request.)
+    static $sessionValidated = false;
+    if (!$sessionValidated) {
+        $sessionValidated = true;
+        if (isset($_SESSION['username']) && !chatapp_session_valid()) {
+            $_SESSION = [];
+            if (session_status() === PHP_SESSION_ACTIVE) {
+                session_destroy();
+            }
+        }
+    }
+}
+
+// Returns false when the session's user is no longer allowed (account disabled,
+// placeholder, deleted, or token_reset newer than the session's login_time).
+function chatapp_session_valid(): bool {
+    if (empty($_SESSION['username'])) return true;
+    $stmt = db()->prepare('SELECT enabled, placeholder, deleted_at, token_reset FROM users WHERE username = ?');
+    $stmt->execute([$_SESSION['username']]);
+    $row = $stmt->fetch();
+    if (!$row) return false;
+    if ((int)$row['enabled'] !== 1 || (int)$row['placeholder'] === 1 || $row['deleted_at'] !== null) return false;
+    if (!empty($row['token_reset']) && isset($_SESSION['login_time']) && strtotime((string)$row['token_reset']) > (int)$_SESSION['login_time']) return false;
+    return true;
+}
+
+// CSRF token: generated per session and used to protect high-value actions that
+// cannot rely on POST-only (e.g. db_export opened via window.open GET).
+function chatapp_csrf_token(): string {
+    chatapp_session_start();
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function chatapp_csrf_verify(): bool {
+    $sent = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($_POST['csrf'] ?? ($_GET['csrf'] ?? ''));
+    return is_string($sent) && $sent !== '' && !empty($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $sent);
+}
+
+// Enforce POST for state-changing actions. The session cookie is SameSite=Lax
+// (blocks cross-site POST cookies), so requiring POST closes the remaining
+// GET-based CSRF vector (top-level GET navigations carry the Lax cookie).
+function chatapp_post_only(array $mutating, string $action): void {
+    if (in_array($action, $mutating, true) && ($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+        http_response_code(405);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => 'Method not allowed']);
+        exit;
+    }
+}
+
+// Inverse of chatapp_post_only: allow the listed read-only actions via GET, but
+// require POST for every other (mutating) action.
+function chatapp_read_actions(array $readOnly, string $action): void {
+    if (!in_array($action, $readOnly, true) && ($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+        http_response_code(405);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => 'Method not allowed']);
+        exit;
+    }
 }
 
 function chatapp_get_user(): ?array {
@@ -64,7 +135,14 @@ function chatapp_require_login(): void {
 }
 
 function chatapp_get_role(int $uid): string {
-    if ($uid === 10000) return 'root';
+    if ($uid === 10000) {
+        // uid 10000 is the seeded root account. Also require the reserved username
+        // so a fresh DB where 10000 is not the seeded admin can never be root.
+        $stmt = db()->prepare('SELECT username FROM users WHERE user_id = 10000');
+        $stmt->execute();
+        if (strtolower((string)$stmt->fetchColumn()) === 'admin') return 'root';
+        return 'user';
+    }
     $stmt = db()->prepare("SELECT role FROM users WHERE user_id = ? AND deleted_at IS NULL");
     $stmt->execute([$uid]);
     return $stmt->fetchColumn() ?: 'user';
@@ -88,6 +166,9 @@ function chatapp_has_permission(int $uid, string $perm): bool {
 function chatapp_validate_password(string $password): ?string {
     $len = strlen($password);
     if ($len < 8) return 'msg_password_too_weak';
+    // bcrypt truncates at 72 bytes; reject longer passwords to avoid silent
+    // collisions between two different long passwords.
+    if ($len > 72) return 'msg_password_too_weak';
     $hasLetter = false; $hasDigit = false; $hasSpecial = false;
     for ($i = 0; $i < $len; $i++) {
         $char = $password[$i];
@@ -153,12 +234,26 @@ function db_add_column_if_missing(string $table, string $column, string $definit
 
 function chatapp_client_ip(): string {
     $remote = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
-    $cf = $_SERVER['HTTP_CF_CONNECTING_IP'] ?? '';
-    $cfPrefixes = ['172.64.', '104.16.', '104.17.', '104.18.', '104.19.', '162.158.', '103.21.', '103.22.', '103.23.', '103.24.', '103.25.', '103.26.', '103.27.', '141.101.', '188.114.', '190.93.', '197.234.', '198.41.'];
-    foreach ($cfPrefixes as $prefix) {
-        if (strpos($remote, $prefix) === 0) {
-            if (filter_var($cf, FILTER_VALIDATE_IP)) return $cf;
-            break;
+    $cf = trim($_SERVER['HTTP_CF_CONNECTING_IP'] ?? '');
+    // Only trust the client-supplied CF-Connecting-IP header when REMOTE_ADDR is
+    // genuinely inside Cloudflare's published IPv4 ranges. Otherwise anyone can
+    // spoof an arbitrary IP to bypass per-IP rate limits / poison audit logs.
+    $cfCidrs = [
+        '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22',
+        '141.101.64.0/18', '108.162.192.0/18', '190.93.240.0/20', '188.114.96.0/20',
+        '197.234.240.0/22', '198.41.128.0/17', '162.158.0.0/15', '104.16.0.0/13',
+        '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22',
+    ];
+    if (filter_var($remote, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) && filter_var($cf, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+        $remoteLong = ip2long($remote);
+        foreach ($cfCidrs as $cidr) {
+            $parts = explode('/', $cidr, 2);
+            $net = (string)$parts[0];
+            $bits = (int)($parts[1] ?? 32);
+            $mask = $bits === 0 ? 0 : (~0 << (32 - $bits)) & 0xFFFFFFFF;
+            if (($remoteLong & $mask) === (ip2long($net) & $mask)) {
+                return $cf;
+            }
         }
     }
     return $remote;

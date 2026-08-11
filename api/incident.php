@@ -11,6 +11,9 @@ $pdo = db();
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 $myUsername = $_SESSION['username'];
 
+// create/respond/update_status are state-changing → POST only.
+chatapp_read_actions(['list', 'detail', 'count'], $action);
+
 if (!function_exists('get_uid_inc')) {
     function get_uid_inc(PDO $pdo, string $u): int {
         $stmt = $pdo->prepare('SELECT user_id FROM users WHERE username = ?');
@@ -44,11 +47,17 @@ switch ($action) {
                 $savedPaths = [];
                 foreach ($decoded as $b64) {
                     if (!preg_match('/^data:image\/(\w+);base64,(.+)$/s', $b64, $m)) continue;
-                    $ext = strtolower($m[1]) === 'jpeg' ? 'jpg' : strtolower($m[1]);
+                    // Strict image extension allowlist — never trust the client MIME
+                    // subtype (data:image/php previously produced a .php file).
+                    $imgExt = strtolower($m[1]);
+                    if ($imgExt === 'jpeg') $imgExt = 'jpg';
+                    if (!in_array($imgExt, ['jpg', 'png', 'gif', 'webp'], true)) continue;
                     $bin = base64_decode($m[2]);
                     if ($bin === false || strlen($bin) > 8 * 1024 * 1024) continue;
+                    // Bytes must actually decode as an image.
+                    if (@getimagesizefromstring($bin) === false) continue;
                     $hash = substr(hash('sha256', $bin), 0, 16);
-                    $filename = $hash . '.' . $ext;
+                    $filename = $hash . '.' . $imgExt;
                     file_put_contents($ticketDir . '/' . $filename, $bin);
                     $savedPaths[] = 'ticket/' . $filename;
                 }
@@ -233,6 +242,8 @@ switch ($action) {
         break;
 
     case 'count':
+        // Only admins may see the global open-incident count.
+        if (!$isAdmin) { echo json_encode(['success' => false]); exit; }
         $countOpen = (int)$pdo->query("SELECT COUNT(*) FROM incidents WHERE status = 'open'")->fetchColumn();
         echo json_encode(['success' => true, 'count' => $countOpen]);
         break;

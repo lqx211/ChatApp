@@ -15,8 +15,10 @@ $me = $_SESSION['username'];
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
 // Admin only
-$myUid = (int)($pdo->prepare("SELECT user_id FROM users WHERE username=?")->execute([$me]) ?? $pdo->query("SELECT user_id FROM users WHERE username='$me'")->fetchColumn());
-$myUid = (int)($pdo->query("SELECT user_id FROM users WHERE username='$me'")->fetchColumn() ?: 0);
+$myUid = 0;
+$myUidStmt = $pdo->prepare("SELECT user_id FROM users WHERE username = ?");
+$myUidStmt->execute([$me]);
+$myUid = (int)($myUidStmt->fetchColumn() ?: 0);
 $role = chatapp_get_role($myUid);
 if ($role !== 'root' && $role !== 'admin') {
     echo json_encode(['success' => false]);

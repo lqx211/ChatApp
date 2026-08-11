@@ -6,6 +6,11 @@ chatapp_session_start();
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 header('Content-Type: application/json');
 
+// Admin mutations → POST only (the listed read actions may use GET). db_export
+// is a GET download opened via window.open, so it additionally requires a CSRF
+// token, verified inside its case.
+chatapp_read_actions(['list', 'user_detail', 'role_list', 'admin_logs', 'login_logs', 'exp_logs', 'security_logs', 'db_tables', 'db_structure', 'db_export'], $action);
+
 if (!isset($_SESSION['username'])) {
     echo json_encode(['success' => false]); exit;
 }
@@ -16,7 +21,10 @@ $stmt = $pdo->prepare("SELECT user_id FROM users WHERE username = ?");
 $stmt->execute([$_SESSION['username']]);
 $myUid = (int)($stmt->fetchColumn() ?: 0);
 
-$publicActions = ['list', 'user_detail', 'role_list', 'role_save', 'role_delete', 'set_role', 'admin_logs', 'login_logs', 'exp_logs'];
+// NOTE: only actions that perform their own authorization internally may be listed
+// here (role_* / set_role do). list / user_detail / admin_logs / login_logs /
+// exp_logs are intentionally NOT public — they expose user IPs, logs and account data.
+$publicActions = ['role_list', 'role_save', 'role_delete', 'set_role'];
 if (!in_array($action, $publicActions)) {
     $role = chatapp_get_role($myUid);
     if ($role !== 'root' && $role !== 'admin') {
@@ -97,7 +105,10 @@ switch ($action) {
         $stmt->execute([$username]); $user = $stmt->fetch();
         if (!$user) { echo json_encode(['success'=>false]); exit; }
         $newState = $user['enabled'] ? 0 : 1;
-        $pdo->prepare("UPDATE users SET enabled = ? WHERE username = ?")->execute([$newState, $username]);
+        // When disabling, also bump token_reset so any session issued before this
+        // moment is invalidated on its next request (see chatapp_session_valid).
+        $pdo->prepare("UPDATE users SET enabled = ?, token_reset = IF(? = 0, NOW(), token_reset) WHERE username = ?")
+            ->execute([$newState, $newState, $username]);
         echo json_encode(['success'=>true,'enabled'=>$newState]);
         chatapp_log_admin('toggle', $uid, $username, ['enabled' => (bool)$newState]);
         break;
@@ -117,6 +128,9 @@ switch ($action) {
         $username = trim($_POST['username'] ?? '');
         $uid = _uid($pdo, $username);
         if ($uid === 10000 || empty($username)) { echo json_encode(['success'=>false]); exit; }
+        // Changing another admin's password requires root.
+        $targetRole = chatapp_get_role($uid);
+        if (($targetRole === 'admin' || $targetRole === 'root') && chatapp_get_role($myUid) !== 'root') { echo json_encode(['success'=>false]); exit; }
         $pw = $_POST['new_password'] ?? '';
         $err = chatapp_validate_password($pw);
         if ($err) { echo json_encode(['success'=>false,'error'=>t($err)]); exit; }
@@ -125,8 +139,8 @@ switch ($action) {
         break;
 
     case 'login_as':
-        // Only the actual admin account (username=admin) can use login_as
-        if ($_SESSION['username'] !== 'admin') { echo json_encode(['success'=>false]); exit; }
+        // Only the root account (uid 10000 / username admin) can impersonate.
+        if (chatapp_get_role($myUid) !== 'root') { echo json_encode(['success'=>false]); exit; }
         $username = trim($_POST['username'] ?? '');
         $uid = _uid($pdo, $username);
         if ($uid === 10000 || empty($username) || $uid === $myUid) { echo json_encode(['success'=>false]); exit; }
@@ -190,6 +204,9 @@ switch ($action) {
         $newName = trim($_POST['new_username'] ?? '');
         $uid = _uid($pdo, $username);
         if ($uid === 10000 || empty($username) || empty($newName)) { echo json_encode(['success'=>false]); exit; }
+        // Renaming another admin requires root.
+        $targetRole = chatapp_get_role($uid);
+        if (($targetRole === 'admin' || $targetRole === 'root') && chatapp_get_role($myUid) !== 'root') { echo json_encode(['success'=>false]); exit; }
         if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $newName)) { echo json_encode(['success'=>false]); exit; }
         $st = $pdo->prepare("SELECT user_id FROM users WHERE username = ?"); $st->execute([$newName]);
         if ($st->fetch()) { echo json_encode(['success'=>false,'error'=>'Username taken.']); exit; }
@@ -285,6 +302,9 @@ switch ($action) {
         $username = trim($_POST['username'] ?? '');
         $uid = _uid($pdo, $username);
         if ($uid === 10000 || empty($username) || $uid === $myUid) { echo json_encode(['success'=>false]); exit; }
+        // Permanently deleting another admin requires root.
+        $targetRole = chatapp_get_role($uid);
+        if (($targetRole === 'admin' || $targetRole === 'root') && chatapp_get_role($myUid) !== 'root') { echo json_encode(['success'=>false]); exit; }
         try {
             chatapp_destroy_user($uid, $username, false);
             echo json_encode(['success'=>true]);
@@ -309,6 +329,8 @@ switch ($action) {
         $uid = _uid($pdo, $username);
         if ($uid === 10000 || empty($username)) { echo json_encode(['success'=>false]); exit; }
         $pdo->prepare("UPDATE users SET token_reset = NOW() WHERE username = ?")->execute([$username]);
+        // Also revoke active WebSocket tokens for the user.
+        $pdo->prepare("DELETE FROM ws_tokens WHERE username = ?")->execute([$username]);
         echo json_encode(['success'=>true]);
         chatapp_log_admin('expire_tokens', $uid, $username);
         break;
@@ -471,6 +493,9 @@ switch ($action) {
         if (chatapp_get_role($myUid) !== 'root') {
             echo json_encode(['success' => false, 'error' => 'Access denied']); exit;
         }
+        if (!chatapp_csrf_verify()) {
+            echo json_encode(['success' => false, 'error' => 'Invalid CSRF token']); exit;
+        }
         $sql = trim($_POST['sql'] ?? '');
         if ($sql === '') { echo json_encode(['success' => false, 'error' => 'Empty SQL']); exit; }
         // Strict read-only enforcement: only SELECT, SHOW, DESC, DESCRIBE, EXPLAIN allowed
@@ -505,6 +530,10 @@ switch ($action) {
     case 'db_export':
         if (chatapp_get_role($myUid) !== 'root') {
             echo json_encode(['success' => false, 'error' => 'Access denied']); exit;
+        }
+        if (!chatapp_csrf_verify()) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Invalid CSRF token']); exit;
         }
         $table = trim($_GET['table'] ?? '');
         if ($table === '') { echo json_encode(['success' => false, 'error' => 'No table']); exit; }

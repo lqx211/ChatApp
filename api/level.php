@@ -17,7 +17,10 @@ header('Content-Type: application/json');
 
 $me = $_SESSION['username'];
 $pdo = db();
-$myUid = (int)($pdo->query("SELECT user_id FROM users WHERE username='$me'")->fetchColumn() ?: 0);
+$myUid = 0;
+$myUidStmt = $pdo->prepare("SELECT user_id FROM users WHERE username = ?");
+$myUidStmt->execute([$me]);
+$myUid = (int)($myUidStmt->fetchColumn() ?: 0);
 if (!$myUid) {
     echo json_encode(['success' => false, 'error' => 'Invalid user']);
     exit;
