@@ -21,6 +21,11 @@ if (isset($_SESSION['username'])) {
 <html lang="<?php echo $currentLang === 'zh' ? 'zh-Hans' : 'en'; ?>">
 <head>
     <meta charset="UTF-8">
+    <!--[if lte IE 8]>
+    <script type="text/javascript">
+        window.location.replace('/errors/unsupported_browser.html');
+    </script>
+    <![endif]-->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo t('title_login'); ?></title><link rel="stylesheet" href="../css/global.css">
     <style>
@@ -107,10 +112,27 @@ if (isset($_SESSION['username'])) {
             color: #aaa;
         }
         .form-panel {
-            display: none;
-        }
-        .form-panel.active {
             display: block;
+            opacity: 0;
+            transform: translateY(8px);
+            transition: opacity 0.28s ease 0.05s, transform 0.28s ease 0.05s;
+        }
+        /* 高度过渡：grid-template-rows 0fr ↔ 1fr，窗口平滑延伸/收缩 */
+        .panel-wrap {
+            display: grid;
+            grid-template-rows: 0fr;
+            transition: grid-template-rows 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .panel-wrap.open {
+            grid-template-rows: 1fr;
+        }
+        .panel-wrap > .form-panel {
+            overflow: hidden;
+            min-height: 0;
+        }
+        .panel-wrap.open > .form-panel {
+            opacity: 1;
+            transform: translateY(0);
         }
         .form-group {
             margin-bottom: 16px;
@@ -263,7 +285,8 @@ if (isset($_SESSION['username'])) {
             <div class="error-msg" id="errorMsg"></div>
 
             <!-- Login Form -->
-            <form class="form-panel active" id="loginPanel" onsubmit="handleLogin(event)">
+            <div class="panel-wrap open" id="loginWrap">
+            <form class="form-panel" id="loginPanel" onsubmit="handleLogin(event)">
                 <div class="form-group">
                     <label for="loginUsername"><?php echo t('label_username'); ?></label>
                     <input type="text" id="loginUsername" maxlength="20" required autocomplete="username">
@@ -274,8 +297,10 @@ if (isset($_SESSION['username'])) {
                 </div>
                 <button type="submit" class="btn-primary"><?php echo t('btn_login'); ?></button>
             </form>
+            </div>
 
             <!-- Register Form -->
+            <div class="panel-wrap" id="registerWrap">
             <form class="form-panel" id="registerPanel" onsubmit="handleRegister(event)">
                 <div class="form-group">
                     <label for="regUsername"><?php echo t('label_username'); ?></label>
@@ -301,6 +326,7 @@ if (isset($_SESSION['username'])) {
                 </div>
                 <button type="submit" class="btn-primary"><?php echo t('btn_register'); ?></button>
             </form>
+            </div>
         </div>
 
         <!-- Restricted notice screen -->
@@ -341,14 +367,10 @@ if (isset($_SESSION['username'])) {
 
         function switchTab(tab) {
             document.querySelectorAll('.tab-btn').forEach(function(btn) { btn.classList.remove('active'); });
-            document.querySelectorAll('.form-panel').forEach(function(panel) { panel.classList.remove('active'); });
-            if (tab === 'login') {
-                document.querySelectorAll('.tab-btn')[0].classList.add('active');
-                document.getElementById('loginPanel').classList.add('active');
-            } else {
-                document.querySelectorAll('.tab-btn')[1].classList.add('active');
-                document.getElementById('registerPanel').classList.add('active');
-            }
+            var loginOpen = (tab === 'login');
+            document.querySelectorAll('.tab-btn')[loginOpen ? 0 : 1].classList.add('active');
+            document.getElementById('loginWrap').classList.toggle('open', loginOpen);
+            document.getElementById('registerWrap').classList.toggle('open', !loginOpen);
             hideError();
         }
 
