@@ -572,7 +572,7 @@ function loadPending() {
             var h = '';
             for (var i = 0; i < d.pending.length; i++) {
                 var p = d.pending[i];
-                h += '<div class="pi"><span style="flex:1">' + eh(p.username) + '</span><button class="bt ac" onclick="showNoteModal(\'' + p.username + '\')">Accept</button><button class="bt rj" onclick="respondRequest(\'' + p.username + '\',\'reject\')">Reject</button></div>';
+                h += '<div class="pi"><span style="flex:1">' + eh(p.display_name || p.username) + '</span><button class="bt ac" onclick="showNoteModal(\'' + p.username + '\')">Accept</button><button class="bt rj" onclick="respondRequest(\'' + p.username + '\',\'reject\')">Reject</button></div>';
             }
             document.getElementById('pendingList').innerHTML = h;
         } else {
@@ -760,7 +760,7 @@ function loadRequestsPanel() {
         for (var i = 0; i < d.pending.length; i++) {
             var p = d.pending[i],
                 av = p.avatar ? '<span class="req-av"><img src="' + p.avatar + '" alt=""></span>' : '<span class="req-av"></span>';
-            h += '<div class="req-item">' + av + '<div class="req-info"><div class="req-name">' + eh(p.username) + '</div><div class="req-time">' + eh(p.created_at || '') + '</div><div class="req-msg">' + (p.msg ? eh(p.msg) : '') + '</div></div><div class="req-actions"><button class="ac" onclick="showNoteModal(\'' + p.username + '\')">Accept</button><button class="rj" onclick="respondRequest(\'' + p.username + '\',\'reject\')">Reject</button></div></div>';
+            h += '<div class="req-item">' + av + '<div class="req-info"><div class="req-name">' + eh(p.display_name || p.username) + '</div><div class="req-time">' + eh(p.created_at || '') + '</div><div class="req-msg">' + (p.msg ? eh(p.msg) : '') + '</div></div><div class="req-actions"><button class="ac" onclick="showNoteModal(\'' + p.username + '\')">Accept</button><button class="rj" onclick="respondRequest(\'' + p.username + '\',\'reject\')">Reject</button></div></div>';
         }
         a.innerHTML = h;
     });

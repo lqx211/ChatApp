@@ -59,6 +59,8 @@ switch ($action) {
     case 'send_request':
         $toUser = trim($_POST['username'] ?? '');
         $msg = trim(mb_substr($_POST['msg'] ?? '', 0, 200));
+        // note = 我预留给对方的备注（行 (me→them) 的 note 列），发请求时即可设置
+        $note = trim(mb_substr($_POST['note'] ?? '', 0, 500));
         if (empty($toUser) || $toUser === $myUsername) {
             echo json_encode(['success' => false, 'error' => 'Something went wrong.']);
             exit;
@@ -97,12 +99,12 @@ switch ($action) {
                 echo json_encode(['success' => false, 'error' => 'Request already pending.']);
                 exit;
             }
-            $pdo->prepare("UPDATE contacts SET status = 'pending', msg = ?, created_at = NOW() WHERE id = ?")->execute([$msg ?: null, $ex['id']]);
+            $pdo->prepare("UPDATE contacts SET status = 'pending', msg = ?, note = ?, created_at = NOW() WHERE id = ?")->execute([$msg ?: null, $note ?: null, $ex['id']]);
             echo json_encode(['success' => true]);
             exit;
         }
 
-        $pdo->prepare("INSERT INTO contacts (user_from, user_to, status, msg) VALUES (?, ?, 'pending', ?)")->execute([$myUid, $toUid, $msg ?: null]);
+        $pdo->prepare("INSERT INTO contacts (user_from, user_to, status, msg, note) VALUES (?, ?, 'pending', ?, ?)")->execute([$myUid, $toUid, $msg ?: null, $note ?: null]);
         echo json_encode(['success' => true]);
         break;
 
@@ -121,9 +123,13 @@ switch ($action) {
             exit;
         }
         $ns = $resp === 'accept' ? 'accepted' : 'rejected';
+        // 行方向语义：(A → B).note = A 对 B 的备注（见 list/change_nickname）。
+        // 待处理行是对方(them→me)发来的申请 —— 只能改状态；我的备注绝不能写进
+        // 对方的行，否则对方那边会把我给 ta 的备注当成 ta 对我的备注来显示
+        // （历史 bug：别人加我后，他那边显示我的名字 = 我接受的默认备注）。
         $note = trim(mb_substr($_POST['note'] ?? '', 0, 500));
-        $stmt = $pdo->prepare("UPDATE contacts SET status = ?, note = ? WHERE user_from = ? AND user_to = ? AND status = 'pending'");
-        $stmt->execute([$ns, $note ?: null, $fromUid, $myUid]);
+        $stmt = $pdo->prepare("UPDATE contacts SET status = ? WHERE user_from = ? AND user_to = ? AND status = 'pending'");
+        $stmt->execute([$ns, $fromUid, $myUid]);
         $ok = $stmt->rowCount() > 0;
         if ($ok && $ns === 'accepted') {
             // Level-gated contacts limit (jh.md Lv Limits: max_contacts).
@@ -138,7 +144,8 @@ switch ($action) {
             )->fetchColumn();
             if ($friendCount >= $maxContacts) {
                 // Roll back the accept: revert to pending so the requester can retry later.
-                $pdo->prepare("UPDATE contacts SET status = 'pending', note = NULL WHERE user_from = ? AND user_to = ?")
+                // 不要动对方的 note（那是 ta 对我的备注）
+                $pdo->prepare("UPDATE contacts SET status = 'pending' WHERE user_from = ? AND user_to = ?")
                     ->execute([$fromUid, $myUid]);
                 echo json_encode([
                     'success' => false,
@@ -147,9 +154,16 @@ switch ($action) {
                 ]);
                 exit;
             }
-            // Create reverse row so each person has their own note column
-            $pdo->prepare("INSERT IGNORE INTO contacts (user_from, user_to, status, note) VALUES (?, ?, 'accepted', ?)")
-                ->execute([$myUid, $fromUid, $note ?: null]);
+            // 我的备注写到我自己的行 (me→them)；已有则更新，避免重复行
+            $rev = $pdo->prepare("SELECT id FROM contacts WHERE user_from = ? AND user_to = ?");
+            $rev->execute([$myUid, $fromUid]);
+            if ($rev->fetch()) {
+                $pdo->prepare("UPDATE contacts SET status = 'accepted', note = ? WHERE user_from = ? AND user_to = ?")
+                    ->execute([$note ?: null, $myUid, $fromUid]);
+            } else {
+                $pdo->prepare("INSERT INTO contacts (user_from, user_to, status, note) VALUES (?, ?, 'accepted', ?)")
+                    ->execute([$myUid, $fromUid, $note ?: null]);
+            }
         }
         echo json_encode(['success' => $ok]);
         break;
