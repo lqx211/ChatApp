@@ -37,7 +37,7 @@ chatapp_require_login();
       <label><?php echo t('label_duress_confirm', 'Confirm Duress Password');?></label>
       <input type="password" id="duNew2">
     </div>
-    <button class="set-btn" onclick="saveDuress()"><?php echo t('btn_save_duress', 'Save Duress Password');?></button>
+    <button class="set-btn" onclick="saveDuress()" style="background:#e8b730;color:#14161d"><?php echo t('btn_save_duress', 'Save Duress Password');?></button>
     <button class="set-btn ghost" onclick="clearDuress()" style="margin-top:10px"><?php echo t('btn_clear_duress', 'Clear Duress Password');?></button>
   </div>
 
@@ -58,7 +58,7 @@ function showToast() {
 }
 function showErr(msg) {
     var t = document.getElementById('saveToast');
-    t.textContent = '✗ ' + msg;
+    t.textContent = ' ' + msg;
     t.style.background = '#4a2020';
     t.style.borderColor = '#5c2a2a';
     t.style.color = '#ffb3b3';

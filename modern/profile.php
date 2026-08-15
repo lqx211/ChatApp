@@ -43,7 +43,8 @@ if ($isSelf) {
 
 $displayName = htmlspecialchars($profileUser['display_name'] ?? $profileUser['username'] ?? '');
 $userId = (int)($profileUser['user_id'] ?? 0);
-$avatar = $profileUser['avatar'] ?? '';
+// 新格式 avatar 存的是文件名（如 10116.png），转成 ../api/avatar.php 可访问 URL；data URI 保留原样
+$avatar = chatapp_avatar_url($profileUser['avatar'] ?? '', $profileUser['username'] ?? '');
 $bg = $profileUser['bg_image'] ?? '';
 $dnd = (int)($profileUser['dnd'] ?? 0);
 $restricted = (int)($profileUser['restricted'] ?? 0);
@@ -68,7 +69,7 @@ if ($isSelf) {
 }
 $genderDisplay = '';
 if ($canSeeGender) {
-    $genderDisplay = ($genderVal === '0' || $genderVal === 0) ? '女' : (($genderVal === '1' || $genderVal === 1) ? '男' : '');
+    $genderDisplay = ($genderVal === '0' || $genderVal === 0) ? t('p_gender_female') : (($genderVal === '1' || $genderVal === 1) ? t('p_gender_male') : '');
 }
 
 // ---- 生日 -> 年龄 + 月日 + 星座 ----
@@ -85,12 +86,12 @@ if ($birthTs > 0) {
     $age = $cy - $by;
     // 未到今年生日则减一岁
     if ((int)date('n') < $bm || ((int)date('n') === $bm && (int)date('j') < $bd)) $age--;
-    $ageDisplay = $age . '岁';
-    $monthDayDisplay = date('n月j日', $birthTs);
+    $ageDisplay = sprintf(t('p_age'), $age);
+    $monthDayDisplay = sprintf(t('p_month_day'), date('n', $birthTs), date('j', $birthTs));
     $zodiacMap = [
-        [20, '水瓶座'],[19, '双鱼座'],[21, '白羊座'],[20, '金牛座'],
-        [21, '双子座'],[22, '巨蟹座'],[23, '狮子座'],[23, '处女座'],
-        [23, '天秤座'],[24, '天蝎座'],[23, '射手座'],[22, '摩羯座']
+        [20, t('p_zodiac_aquarius')],[19, t('p_zodiac_pisces')],[21, t('p_zodiac_aries')],[20, t('p_zodiac_taurus')],
+        [21, t('p_zodiac_gemini')],[22, t('p_zodiac_cancer')],[23, t('p_zodiac_leo')],[23, t('p_zodiac_virgo')],
+        [23, t('p_zodiac_libra')],[24, t('p_zodiac_scorpio')],[23, t('p_zodiac_sagittarius')],[22, t('p_zodiac_capricorn')]
     ];
     $z = $zodiacMap[$bm - 1];
     $zodiacDisplay = ($bd >= $z[0]) ? $z[1] : $zodiacMap[($bm - 2 + 12) % 12][1];
@@ -167,7 +168,7 @@ if (preg_match('/\.(mp4|webm)$/', $bgSrcKey, $em)) {
 // 不暴露内联路径：封面元素通过 data-src 交给 JS 流式 fetch（顺便驱动进度条）
 $bgFetchSrc = ($bgImg !== 'gx.jpg') ? $bgImg : '';
 
-$statusLabel = $restricted ? 'Restricted' : ($dnd ? '请勿打扰' : '在线');
+$statusLabel = $restricted ? t('admin_restricted_status') : ($dnd ? t('msg_dnd_status') : t('msg_online_status'));
 $statusClass = $restricted ? 'rstr' : ($dnd ? 'dnd' : 'on');
 $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? '');
 ?>
@@ -176,7 +177,7 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title><?php echo htmlspecialchars($displayName);?> · 个人主页</title>
+<title><?php echo htmlspecialchars($displayName);?> · <?php echo t('p_profile_title');?></title>
 <link rel="stylesheet" href="profile.css">
 </head>
 <body>
@@ -199,10 +200,10 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
         <?php if ($isBgVideo):?>
         <video id="coverMedia" data-src="<?php echo htmlspecialchars($bgFetchSrc);?>" data-mime="<?php echo htmlspecialchars($bgMimeType);?>" autoplay muted loop playsinline></video>
         <?php else:?>
-        <img id="coverMedia" data-src="<?php echo htmlspecialchars($bgFetchSrc);?>" alt="背景图">
+        <img id="coverMedia" data-src="<?php echo htmlspecialchars($bgFetchSrc);?>" alt="<?php echo t('p_bg');?>">
         <?php endif;?>
       <?php else:?>
-        <img src="gx.jpg" alt="背景图" id="coverMedia">
+        <img src="gx.jpg" alt="<?php echo t('p_bg');?>" id="coverMedia">
       <?php endif;?>
       <!-- 加载进度条（n% + 速率 B/kB/s） -->
       <div class="bg-progress" id="bgProgress">
@@ -221,11 +222,11 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
         <span class="status-tag <?php echo $statusClass;?>"><?php echo htmlspecialchars($statusLabel);?></span>
       </div>
       <?php if(!$isSelf):?>
-      <div class="uid-row"><span class="uid">Username: <?php echo $targetUsername;?></span></div>
+      <div class="uid-row"><span class="uid"><?php echo t('label_username');?>: <?php echo $targetUsername;?></span></div>
       <?php endif;?>
       
       <div class="uid-row">
-        <span class="uid">UID：<?php echo $userId;?></span>
+        <span class="uid"><?php echo t('p_uid');?>：<?php echo $userId;?></span>
       </div>
     </div>
     <button class="like-btn">
@@ -235,7 +236,7 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
   </div>
 
   <!-- 4. 个人信息行（仅自己可点击跳转编辑） -->
-  <div class="info-line"<?php if($isSelf):?> onclick="openEditInfo()"<?php endif;?>><?php echo $genderDisplay ? $genderDisplay . ' | ' : '';?><?php echo $ageDisplay ? $ageDisplay . ' | ' : '';?><?php echo $monthDayDisplay ? $monthDayDisplay . ' ' . $zodiacDisplay . ' | ' : '';?>现居中国 | example@example.com</div>
+  <div class="info-line"<?php if($isSelf):?> onclick="openEditInfo()"<?php endif;?>><?php echo $genderDisplay ? $genderDisplay . ' | ' : '';?><?php echo $ageDisplay ? $ageDisplay . ' | ' : '';?><?php echo $monthDayDisplay ? $monthDayDisplay . ' ' . $zodiacDisplay . ' | ' : '';?><?php echo t('p_location_demo');?></div>
 
   <!-- 5. 个性签名（签名为空则不显示；有签名点击进入签名编辑页） -->
   <?php
@@ -252,14 +253,14 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
 
   <!-- 7. 添加标签 -->
   <div class="tag-row">
-    <span>添加标签</span>
-    <span class="tag-hint">添加更多标签让更多人认识你</span>
+    <span><?php echo t('p_add_tags');?></span>
+    <span class="tag-hint"><?php echo t('p_add_tags_hint');?></span>
     <span class="arrow">›</span>
   </div>
 
   <!-- 8. 精选照片 - 横滑滚动 -->
   <div class="photo-section">
-    <div class="photo-title">精选照片</div>
+    <div class="photo-title"><?php echo t('p_photos');?></div>
     <div class="photo-scroll">
       <!--
       <img src="../data/user/..." alt="photo">
@@ -274,8 +275,8 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
   <div class="completion-row">
     <span>📋</span>
     <!-- <span class="comp-text">资料完成度NaN%</span> -->
-     <span class="comp-text">还在努力研发🙃</span>
-    <span class="comp-action">去完善</span>
+     <span class="comp-text"><?php echo t('p_complete_hint');?></span>
+    <span class="comp-action"><?php echo t('p_complete_action');?></span>
     <span class="arrow">›</span>
   </div>
 
@@ -284,11 +285,11 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
 <!-- 10. 底部按钮栏 - 固定在屏幕最下方 -->
 <div class="bottom-bar">
 <?php if($isSelf):?>
-  <button class="btn-edit" onclick="openEditInfo()">编辑资料</button>
-  <button class="btn-chat">发消息</button>
+  <button class="btn-edit" onclick="openEditInfo()"><?php echo t('set_edit_profile');?></button>
+  <button class="btn-chat"><?php echo t('p_send_message');?></button>
 <?php else:?>
-  <button class="btn-edit" onclick="parent.closeMyProfile()">返回</button>
-  <button class="btn-chat">发消息</button>
+  <button class="btn-edit" onclick="parent.closeMyProfile()"><?php echo t('p_back');?></button>
+  <button class="btn-chat"><?php echo t('p_send_message');?></button>
 <?php endif;?>
 </div>
 
@@ -296,12 +297,12 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
 <div class="picker-overlay" id="bgMenuOverlay" onclick="closeBgMenu()"></div>
 <div class="picker-panel" id="bgMenuPanel">
   <div class="picker-header">
-    <span class="picker-title">背景图</span>
-    <button class="picker-cancel" onclick="closeBgMenu()">取消</button>
+    <span class="picker-title"><?php echo t('p_bg');?></span>
+    <button class="picker-cancel" onclick="closeBgMenu()"><?php echo t('btn_cancel');?></button>
   </div>
-  <div class="picker-option" onclick="changeBg()">更换背景图</div>
-  <div class="picker-option" onclick="clearBg()">清空背景图</div>
-  <div class="picker-option" onclick="openBgPrivacy()">隐私设置</div>
+  <div class="picker-option" onclick="changeBg()"><?php echo t('p_change_bg');?></div>
+  <div class="picker-option" onclick="clearBg()"><?php echo t('p_clear_bg');?></div>
+  <div class="picker-option" onclick="openBgPrivacy()"><?php echo t('p_bg_privacy');?></div>
 </div>
 <input type="file" id="bgFileInput" accept="image/*,video/mp4,video/webm" style="display:none" onchange="onBgFileChange(this)">
 
@@ -309,13 +310,13 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
      id/class 用 bgi- 前缀，避免与 chat.php 里已有的 cropOverlay（头像 canvas 裁剪）冲突 -->
 <div class="bgi-crop-overlay" id="bgiCropOverlay">
   <div class="bgi-crop-stage" id="bgiCropStage">
-    <div class="bgi-crop-stage-title">移动或缩放图片，调整背景图</div>
+    <div class="bgi-crop-stage-title"><?php echo t('p_crop_hint');?></div>
     <div class="bgi-crop-frame" id="bgiCropFrame"></div>
     <div class="bgi-crop-toolbar">
-      <button class="bgi-crop-btn" onclick="cancelCrop()">取消</button>
+      <button class="bgi-crop-btn" onclick="cancelCrop()"><?php echo t('btn_cancel');?></button>
       <button class="bgi-crop-btn bgi-crop-zoom" onclick="cropZoom(-1)">−</button>
       <button class="bgi-crop-btn bgi-crop-zoom" onclick="cropZoom(1)">＋</button>
-      <button class="bgi-crop-btn bgi-crop-ok" onclick="confirmCrop()">完成</button>
+      <button class="bgi-crop-btn bgi-crop-ok" onclick="confirmCrop()"><?php echo t('p_done');?></button>
     </div>
   </div>
 </div>
@@ -448,7 +449,7 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
     .catch(function (err) {
       // 加载失败：回退到默认 gx.jpg
       media.src = 'gx.jpg';
-      txt.textContent = '加载失败';
+      txt.textContent = '<?php echo t('p_load_fail');?>';
       setTimeout(hideProgress, 1500);
     });
 })();
@@ -472,7 +473,7 @@ function changeBg() {
 }
 function clearBg() {
   closeBgMenu();
-  if (!confirm('确定清空背景图？')) return;
+  if (!confirm('<?php echo t('p_clear_bg_confirm');?>')) return;
   var form = new URLSearchParams();
   form.append('action', 'remove_profile_bg');
   fetch('../api/settings.php', {
@@ -480,7 +481,7 @@ function clearBg() {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: form.toString()
   }).then(function(r) { return r.json(); }).then(function(d) {
-    if (d.success) { alert('已清空背景图'); location.reload(); }
+    if (d.success) { alert('<?php echo t('p_cleared');?>'); location.reload(); }
   });
 }
 function openBgPrivacy() {
@@ -529,7 +530,7 @@ function startBgUpload(media) {
   var prog = document.getElementById('bgProgress');
   var fill = document.getElementById('bgProgressFill');
   var txt = document.getElementById('bgProgressText');
-  if (!prog) { alert('浏览器不支持'); return; }
+  if (!prog) { alert('<?php echo t('p_browser_unsupported');?>'); return; }
 
   function fmtB(n) {
     if (n < 1024) return n + ' B';
@@ -576,19 +577,19 @@ function startBgUpload(media) {
     if (rateTimer) clearInterval(rateTimer);
     prog.style.opacity = '0';
     try { var d = JSON.parse(xhr.responseText); }
-    catch (e) { alert('上传失败'); return; }
+    catch (e) { alert('<?php echo t('p_upload_fail');?>'); return; }
     if (d && d.success) {
       // 上传完成 → 立即刷新封面（新时间戳，走流式加载进度条）
       location.reload();
     } else {
-      alert((d && d.error) || '上传失败');
+      alert((d && d.error) || '<?php echo t('p_upload_fail');?>');
     }
   };
   xhr.onerror = function () {
     if (pctTimer) clearInterval(pctTimer);
     if (rateTimer) clearInterval(rateTimer);
     prog.style.opacity = '0';
-    alert('网络错误，上传失败');
+    alert('<?php echo t('p_network_upload_fail');?>');
   };
   xhr.send(form);
 }
@@ -675,9 +676,9 @@ function confirmCrop() {
   if (c.toBlob) {
     c.toBlob(function (b) {
       if (b) startBgUpload(b);
-      else alert('裁切失败');
+      else alert('<?php echo t('p_crop_fail');?>');
     }, 'image/png');
-  } else { alert('浏览器不支持'); }
+  } else { alert('<?php echo t('p_browser_unsupported');?>'); }
   if (_crop.url) URL.revokeObjectURL(_crop.url);
   _crop = { img: null, url: '', sx: 1, ox: 0, oy: 0, frameW: 0, frameH: 0 };
   _cropPts = {}; _pinch0 = null;

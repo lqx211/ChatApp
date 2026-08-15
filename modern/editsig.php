@@ -40,15 +40,15 @@ $sig = $currentUser['custom_title'] ?? '';
     <button class="nav-save" onclick="saveSig()">保存</button>
   </div>
 
-  <div class="hint-text">编辑你的个性签名，会展示在个人主页上。</div>
+  <div class="hint-text">编辑你的个性签名，保存后会展示在你的个人主页里</div>
 
   <div class="sig-area">
-    <textarea id="sigInput" maxlength="100" placeholder="写点什么，让朋友更了解你……"><?php echo htmlspecialchars($sig);?></textarea>
+    <textarea id="sigInput" maxlength="100" placeholder="写点东西吧，爱你爱你！"><?php echo htmlspecialchars($sig);?></textarea>
   </div>
   <div class="sig-count"><span id="countVal"><?php echo mb_strlen($sig);?></span>/100</div>
 </div>
 
-<div class="save-toast" id="saveToast">✓ 已保存</div>
+<div class="save-toast" id="saveToast">已保存</div>
 
 <script>
 var txt = document.getElementById('sigInput');

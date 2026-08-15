@@ -38,7 +38,7 @@ chatapp_require_login();
 
 </div>
 
-<div class="save-toast" id="saveToast">✓ 已保存</div>
+<div class="save-toast" id="saveToast">已保存</div>
 
 <script>
 function goBack() {
@@ -53,7 +53,7 @@ function showToast() {
 }
 function showErr(msg) {
     var t = document.getElementById('saveToast');
-    t.textContent = '✗ ' + msg;
+    t.textContent = ' ' + msg;
     t.style.background = '#4a2020';
     t.style.borderColor = '#5c2a2a';
     t.style.color = '#ffb3b3';
