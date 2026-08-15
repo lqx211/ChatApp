@@ -2336,6 +2336,19 @@ async function sendAnnouncement() {
             updateReplyIndicator();
             document.getElementById('mdPreviewAnn').classList.remove('active');
             pm();
+            // 自己发的公告：WSS 不会回声自己的消息（ws_refresh_client 过滤 username===自己），
+            // 且 pm() 在 WSS 在线时会跳过 HTTP 轮询 → 这里显式拉取并本地渲染，否则自己看不到自己发的公告。
+            try {
+                var rf = await fetch('../api/chat.php?action=fetch&after=' + L);
+                var rd = await rf.json();
+                if (rd.success && rd.messages.length > 0) {
+                    for (var j = 0; j < rd.messages.length; j++) {
+                        var nm = rd.messages[j];
+                        if (!nm.recipient) { addAnnouncement(nm); lcPersistMsg('announcement', nm); }
+                    }
+                    if (rd.latest_id > L) L = rd.latest_id;
+                }
+            } catch (e) {}
             requestAnimationFrame(function() {
                 var ma = document.getElementById('messagesArea');
                 if (ma) scrollChatToBottom(ma);

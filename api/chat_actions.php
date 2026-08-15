@@ -436,3 +436,52 @@ function chat_action_unread_counts(PDO $pdo, int $uid, string $username): array 
     }
     return ['success' => true, 'counts' => $counts];
 }
+
+/**
+ * 会话列表（手机端）：与我有过私聊的对象 + 最后一条消息 + 未读数。
+ * 只含私聊（group_id IS NULL 且 recipient 非空），按最后消息时间倒序。
+ */
+function chat_action_conversations(PDO $pdo, int $uid): array {
+    $uid = (int)$uid;
+    if ($uid <= 0) return ['success' => true, 'conversations' => []];
+    $sql = "SELECT conv.partner_id,
+                   u.username, COALESCE(u.display_name, u.username) AS display_name, u.avatar,
+                   lm.message AS last_message, lm.msg_type AS last_type,
+                   lm.time AS last_time, lm.datetime AS last_datetime, lm.deleted_at AS last_deleted,
+                   (SELECT COUNT(*) FROM messages uq
+                     WHERE uq.sender_id = conv.partner_id AND uq.recipient_id = {$uid}
+                       AND uq.read_at IS NULL AND uq.deleted_at IS NULL) AS unread
+            FROM (
+                SELECT CASE WHEN sender_id = {$uid} THEN recipient_id ELSE sender_id END AS partner_id,
+                       MAX(id) AS last_id
+                FROM messages
+                WHERE group_id IS NULL AND recipient_id IS NOT NULL
+                  AND (sender_id = {$uid} OR recipient_id = {$uid})
+                GROUP BY partner_id
+            ) conv
+            JOIN users u ON u.user_id = conv.partner_id
+            JOIN messages lm ON lm.id = conv.last_id
+            WHERE u.deleted_at IS NULL
+            ORDER BY lm.datetime DESC";
+    $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    $list = [];
+    foreach ($rows as $r) {
+        $isDeleted = ($r['last_deleted'] !== null);
+        $avatar = $r['avatar'];
+        if (!empty($avatar) && strpos($avatar, 'data:') !== 0 && preg_match('/^[0-9a-zA-Z_]+\\.(png|jpg|jpeg|gif|webp)$/i', $avatar)) {
+            $avatar = '../api/avatar.php?u=' . urlencode($r['username']);
+        }
+        $list[] = [
+            'uid' => (int)$r['partner_id'],
+            'username' => $r['username'],
+            'display_name' => $r['display_name'],
+            'avatar' => $avatar,
+            'last_message' => $isDeleted ? '[revoked]' : $r['last_message'],
+            'last_type' => $r['last_type'],
+            'last_time' => $r['last_time'],
+            'last_datetime' => $r['last_datetime'],
+            'unread' => (int)$r['unread'],
+        ];
+    }
+    return ['success' => true, 'conversations' => $list];
+}

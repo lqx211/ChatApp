@@ -82,7 +82,7 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
    </div>
   </div>
   <div class="sidebar-nav" id="sidebarNavUser" style="display:none"></div>
-  <div class="sidebar-footer"><div class="ngh" id="logoutLink" onclick="logout()" style="cursor:pointer"><span><?php echo isset($_SESSION['admin_username']) ? 'Back to all users' : t('title_logout');?></span></div></div>
+  <div class="sidebar-footer"><a class="ngh" href="m.php" style="cursor:pointer;display:block;color:#8fb6d9"><span><?php echo t('m_switch_mobile', '手机版');?></span></a><div class="ngh" id="logoutLink" onclick="logout()" style="cursor:pointer"><span><?php echo isset($_SESSION['admin_username']) ? 'Back to all users' : t('title_logout');?></span></div></div>
  </div>
 
 <div class="main-content">

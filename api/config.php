@@ -150,6 +150,14 @@ function chatapp_avatar_url(?string $avatar, ?string $username): string {
     return $avatar;
 }
 
+/**
+ * Detect phone/tablet user agents (used to serve the QQ-style mobile UI).
+ */
+function chatapp_is_mobile_ua(): bool {
+    $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+    return (bool)preg_match('/iPhone|iPod|iPad|Android|Mobile|Mobi|Opera Mini|IEMobile|Windows Phone/i', $ua);
+}
+
 function chatapp_get_role(int $uid): string {
     if ($uid === 10000) {
         // uid 10000 is the seeded root account. Also require the reserved username

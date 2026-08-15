@@ -8,7 +8,7 @@ $action = $_POST['action'] ?? $_GET['action'] ?? '';
 header('Content-Type: application/json');
 
 // send/revoke/mark_read are state-changing → POST only.
-chatapp_read_actions(['unread_counts', 'fetch', 'all', 'search_messages'], $action);
+chatapp_read_actions(['unread_counts', 'fetch', 'all', 'search_messages', 'conversations'], $action);
 
 function get_my_uid(PDO $pdo): int {
     $stmt = $pdo->prepare('SELECT user_id FROM users WHERE username = ?');
@@ -59,6 +59,15 @@ switch ($action) {
         $pdo = db();
         $myUid = get_my_uid($pdo);
         echo json_encode(chat_action_unread_counts($pdo, $myUid, $_SESSION['username']));
+        break;
+
+    case 'conversations':
+        if (!isset($_SESSION['username'])) {
+            echo json_encode(['success'=>true,'conversations'=>[]]); exit;
+        }
+        $pdo = db();
+        $myId = get_my_uid($pdo);
+        echo json_encode(chat_action_conversations($pdo, $myId));
         break;
 
     case 'mark_read':
