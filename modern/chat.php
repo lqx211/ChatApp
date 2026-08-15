@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../api/config.php';
 chatapp_require_login();
+
 $currentUser = chatapp_get_user();
 $isAdmin = chatapp_has_permission($currentUser['user_id'] ?? 0, 'users.view');
 $isRoot = chatapp_get_role((int)($currentUser['user_id'] ?? 0)) === 'root';
@@ -26,7 +27,7 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
 <body>
  <div class="sidebar">
    <div class="sidebar-profile" id="sidebarProfile">
-    <div class="sa" id="sidebarAvatar" onclick="openMyProfile()" title="<?php echo t('btn_view_profile','View Profile');?>" style="cursor:pointer"><?php if($currentUser['avatar']):?><img src="<?php echo htmlspecialchars($currentUser['avatar']);?>"><?php endif;?></div>
+    <div class="sa" id="sidebarAvatar" onclick="openMyProfile()" title="<?php echo t('btn_view_profile','View Profile');?>" style="cursor:pointer"><?php if($currentUser['avatar']):?><img src="<?php echo htmlspecialchars(chatapp_avatar_url($currentUser['avatar'] ?? '', $currentUser['username'] ?? ''));?>"><?php endif;?></div>
    <div class="sun" id="sidebarName"><?php echo chatapp_display_name($currentUser);?></div>
    <a class="sdnd <?php echo ($currentUser['restricted'] ?? 0) ? 'rstr' : (($currentUser['dnd'] ?? 0) ? 'dnd' : 'on'); ?>" id="dndToggle" onclick="<?php echo ($currentUser['restricted'] ?? 0) ? '' : 'toggleDnd()'; ?>" style="<?php echo ($currentUser['restricted'] ?? 0) ? 'cursor:default' : ''; ?>"><?php echo ($currentUser['restricted'] ?? 0) ? t('admin_restricted_status') : (($currentUser['dnd'] ?? 0) ? t('msg_dnd_status') : t('msg_online_status')); ?></a>
   </div>
@@ -34,7 +35,7 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
    <div class="ng">
     <div class="ngh" onclick="toggleGroup('contactsGroup')"><span><?php echo t('title_contacts');?></span><span class="ar op" id="arrow-contactsGroup">&#9654;</span></div>
     <div class="ngb op" id="body-contactsGroup">
-     <div class="csi" onclick="openDm('<?php echo htmlspecialchars($currentUser['username']);?>')"><div class="ca" id="contactSelfAvatar"><?php if($currentUser['avatar']):?><img src="<?php echo htmlspecialchars($currentUser['avatar']);?>"><?php endif;?><span class="online-dot on"></span></div><div class="cn"><?php echo chatapp_display_name($currentUser);?> <?php echo t('msg_online');?></div></div>
+     <div class="csi" onclick="openDm('<?php echo htmlspecialchars($currentUser['username']);?>')"><div class="ca" id="contactSelfAvatar"><?php if($currentUser['avatar']):?><img src="<?php echo htmlspecialchars(chatapp_avatar_url($currentUser['avatar'] ?? '', $currentUser['username'] ?? ''));?>"><?php endif;?><span class="online-dot on"></span></div><div class="cn"><?php echo chatapp_display_name($currentUser);?> <?php echo t('msg_online');?></div></div>
      <div id="friendContacts"></div>
      <div id="pendingBadge" style="display:none"><div class="na" onclick="togglePendingSidebar()" style="color:#e0a040"><?php echo t('msg_friend_requests');?> (<span id="pendingCount">0</span>)</div></div>
      <div id="pendingList" style="display:none"></div>
@@ -344,7 +345,7 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
     <div class="fg"><label>Emoji panel display:</label><select id="emojiPanelMode" style="width:100%;max-width:300px;padding:8px 12px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-size:.85em;font-family:inherit;outline:none"><option value="dynamic">Dynamic (always animated)</option><option value="hover">Dynamic on hover (static preview)</option><option value="static">Static only</option></select></div>
     <div class="fg"><label>Chat emoji display:</label><select id="emojiChatMode" style="width:100%;max-width:300px;padding:8px 12px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-size:.85em;font-family:inherit;outline:none"><option value="dynamic">Dynamic (animated)</option><option value="static">Static only</option></select></div>
     <button class="bsm" onclick="saveEmojiSettings()"><?php echo t('btn_save');?></button></div>
-   <div class="ss"><h3><?php echo t('title_profile_photo');?></h3><div style="text-align:center;margin-bottom:10px"><div class="sa" id="moreAvatar" style="margin:0 auto;width:80px;height:80px"><?php if($currentUser['avatar']):?><img src="<?php echo htmlspecialchars($currentUser['avatar']);?>"><?php endif;?></div></div><input type="file" id="avatarFile" accept="image/*" style="color:#aaa;font-size:.8em;margin-bottom:8px"><button class="bsm" onclick="uploadAvatar()"><?php echo t('btn_upload_photo');?></button></div>
+   <div class="ss"><h3><?php echo t('title_profile_photo');?></h3><div style="text-align:center;margin-bottom:10px"><div class="sa" id="moreAvatar" style="margin:0 auto;width:80px;height:80px"><?php if($currentUser['avatar']):?><img src="<?php echo htmlspecialchars(chatapp_avatar_url($currentUser['avatar'] ?? '', $currentUser['username'] ?? ''));?>"><?php endif;?></div></div><input type="file" id="avatarFile" accept="image/*" style="color:#aaa;font-size:.8em;margin-bottom:8px"><button class="bsm" onclick="uploadAvatar()"><?php echo t('btn_upload_photo');?></button></div>
    <div class="ss"><h3><?php echo t('title_change_password');?></h3><form onsubmit="changePassword(event)"><div class="fg"><label><?php echo t('label_current_password');?></label><input type="password" id="currentPassword" required></div><div class="fg"><label><?php echo t('label_new_password');?></label><input type="password" id="newPassword" required placeholder="<?php echo t('msg_login_password_hint');?>"></div><button type="submit" class="bsm"><?php echo t('btn_change_password');?></button></form></div>
    <div class="ss"><h3><?php echo t('title_duress');?></h3><button class="bsm" onclick="showDuressModal()" style="background:#4a2020;border-color:#5c2a2a;color:#e06060"><?php echo t('btn_set_duress');?></button></div>
    <div class="ss"><h3><?php echo t('title_timezone');?></h3><div class="fg"><label><?php echo t('msg_timezone_hint');?></label><input type="text" id="timezoneInput" maxlength="6" placeholder="+08:00" value="<?php echo htmlspecialchars($currentUser['timezone'] ?? '+08:00');?>"></div><button class="bsm" onclick="changeTimezone()"><?php echo t('btn_save');?></button></div>

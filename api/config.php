@@ -134,6 +134,22 @@ function chatapp_require_login(): void {
     if (!isset($_SESSION['username'])) { header('Location: login.php'); exit; }
 }
 
+/**
+ * Convert a stored avatar value into a renderable URL.
+ * New format stores a bare filename (e.g. "10116.png", served from
+ * data/pp/{uid}.{ext}); legacy stores a hash filename under data/user/{uid}/.
+ * Bare filenames must be routed through api/avatar.php; data URIs are kept
+ * as-is. Returns '' for empty avatars so `if ($avatar):` guards still work.
+ */
+function chatapp_avatar_url(?string $avatar, ?string $username): string {
+    if (empty($avatar) || empty($username)) return '';
+    if (strpos($avatar, 'data:') === 0) return $avatar;
+    if (preg_match('/^[0-9a-zA-Z_]+\.(png|jpg|jpeg|gif|webp)$/i', $avatar)) {
+        return '../api/avatar.php?u=' . urlencode($username);
+    }
+    return $avatar;
+}
+
 function chatapp_get_role(int $uid): string {
     if ($uid === 10000) {
         // uid 10000 is the seeded root account. Also require the reserved username

@@ -37,6 +37,7 @@ if ($curList) {
     foreach ($stmt->fetchAll() as $row) {
         $uidInfo[(int)$row['user_id']] = [
             'uid' => (int)$row['user_id'],
+            'username' => $row['username'] ?? '',
             'name' => ($row['display_name'] ?: $row['username']),
             'avatar' => $row['avatar'] ?? '',
         ];
@@ -61,6 +62,7 @@ if ($friendList) {
     foreach ($stmt->fetchAll() as $row) {
         $friendInfo[(int)$row['user_id']] = [
             'uid' => (int)$row['user_id'],
+            'username' => $row['username'] ?? '',
             'name' => ($row['display_name'] ?: $row['username']),
             'avatar' => $row['avatar'] ?? '',
         ];
@@ -136,7 +138,7 @@ if ($friendList) {
       $isFriend = isset($friendList[$uid]);
     ?>
     <div class="uid-item" data-uid="<?php echo $uid;?>">
-      <?php if (!empty($info['avatar'])):?><div class="u-avatar"><img src="<?php echo htmlspecialchars($info['avatar']);?>" alt=""></div><?php endif;?>
+      <?php if (!empty($info['avatar'])):?><div class="u-avatar"><img src="<?php echo htmlspecialchars(chatapp_avatar_url($info['avatar'], $info['username'] ?? ''));?>" alt=""></div><?php endif;?>
       <div class="u-name"><?php echo htmlspecialchars($info['name']);?><?php if ($isFriend):?><span style="color:#6ab87a;font-size:11px;margin-left:6px">好友</span><?php endif;?></div>
       <div class="u-uid">UID <?php echo $uid;?></div>
       <span class="u-del" onclick="removeUid(<?php echo $uid;?>)">删除</span>
@@ -162,7 +164,7 @@ if ($friendList) {
     <?php $inList = in_array($f['uid'], $curList, true);?>
     <div class="friend-item<?php echo $inList ? ' in':'';?>" data-fuid="<?php echo $f['uid'];?>" onclick="toggleFriend(this, <?php echo $f['uid'];?>)">
       <div class="f-check"></div>
-      <?php if (!empty($f['avatar'])):?><div class="u-avatar"><img src="<?php echo htmlspecialchars($f['avatar']);?>" alt=""></div><?php endif;?>
+      <?php if (!empty($f['avatar'])):?><div class="u-avatar"><img src="<?php echo htmlspecialchars(chatapp_avatar_url($f['avatar'], $f['username'] ?? ''));?>" alt=""></div><?php endif;?>
       <div class="u-name"><?php echo htmlspecialchars($f['name']);?></div>
       <div class="u-uid">UID <?php echo $f['uid'];?></div>
     </div>

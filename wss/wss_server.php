@@ -242,6 +242,10 @@ function ws_proc_messages(PDO $pdo, array $msgs, array $replyMap = []): array {
         $m['username'] = $m['username'] ?? 'Unknown';
         $m['display_name'] = $m['display_name'] ?? $m['username'];
         $m['recipient'] = $m['recipient_name'] ?? null;
+        // 文件名 avatar → ../api/avatar.php URL（与 api/chat.php proc() 一致）
+        if (!empty($m['avatar']) && strpos($m['avatar'], 'data:') !== 0 && preg_match('/^[0-9a-zA-Z_]+\.(png|jpg|jpeg|gif|webp)$/i', $m['avatar'])) {
+            $m['avatar'] = '../api/avatar.php?u=' . urlencode($m['username'] ?? 'Unknown');
+        }
         $m['avatar'] = $m['avatar'] ?? null;
         $m['msg_type'] = $m['msg_type'] ?? null;
         $m['is_markdown'] = ($m['msg_type'] === 'md');

@@ -82,7 +82,7 @@ td.enabled .badge{padding:2px 8px;font-size:.7em;color:#fff}
 <!-- IDENTICAL SIDEBAR as chat.php -->
 <div class="sidebar">
  <div class="sidebar-profile">
-  <div class="sa" id="sidebarAvatar"><?php if($currentUser['avatar']):?><img src="<?php echo htmlspecialchars($currentUser['avatar']);?>"><?php endif;?></div>
+  <div class="sa" id="sidebarAvatar"><?php if($currentUser['avatar']):?><img src="<?php echo htmlspecialchars(chatapp_avatar_url($currentUser['avatar'] ?? '', $currentUser['username'] ?? ''));?>"><?php endif;?></div>
   <div class="sun"><?php echo htmlspecialchars($currentUser['username']);?></div>
  </div>
  <div class="sidebar-nav">
@@ -92,7 +92,7 @@ td.enabled .badge{padding:2px 8px;font-size:.7em;color:#fff}
   <div class="ng">
    <div class="ngh" onclick="toggleGroup('contactsGroup')"><span>Contacts</span><span class="ar op" id="arrow-contactsGroup">&#9654;</span></div>
    <div class="ngb op" id="body-contactsGroup">
-    <div class="csi" onclick="openDm('<?php echo htmlspecialchars($currentUser['username']);?>')"><div class="ca" id="contactSelfAvatar"><?php if($currentUser['avatar']):?><img src="<?php echo htmlspecialchars($currentUser['avatar']);?>"><?php endif;?></div><div class="cn"><?php echo htmlspecialchars($currentUser['username']);?> (me)</div></div>
+    <div class="csi" onclick="openDm('<?php echo htmlspecialchars($currentUser['username']);?>')"><div class="ca" id="contactSelfAvatar"><?php if($currentUser['avatar']):?><img src="<?php echo htmlspecialchars(chatapp_avatar_url($currentUser['avatar'] ?? '', $currentUser['username'] ?? ''));?>"><?php endif;?></div><div class="cn"><?php echo htmlspecialchars($currentUser['username']);?> (me)</div></div>
     <div id="friendContacts"></div>
     <div id="pendingBadge" style="display:none"><div class="na" onclick="togglePending()" style="color:#e0a040">Friend Requests (<span id="pendingCount">0</span>)</div></div>
     <div id="pendingList" style="display:none"></div>

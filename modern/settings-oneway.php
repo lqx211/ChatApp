@@ -44,7 +44,7 @@ if ($uid > 0) {
   <?php foreach ($oneway as $ow): $owName = $ow['display_name'] ?: $ow['username'];?>
   <div class="set-row">
     <span class="row-label" style="display:flex;align-items:center;gap:8px;min-width:0">
-      <?php if (!empty($ow['avatar'])):?><img class="set-avatar" src="<?php echo htmlspecialchars($ow['avatar']);?>" alt=""><?php endif;?>
+      <?php if (!empty($ow['avatar'])):?><img class="set-avatar" src="<?php echo htmlspecialchars(chatapp_avatar_url($ow['avatar'], $ow['username']));?>" alt=""><?php endif;?>
       <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><?php echo htmlspecialchars($owName);?></span>
     </span>
     <span class="row-value" style="font-size:12px"><?php echo htmlspecialchars(mb_substr($ow['created_at'] ?? '', 0, 10));?></span>

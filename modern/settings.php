@@ -9,7 +9,7 @@ chatapp_require_login();
 $u = chatapp_get_user();
 
 $displayName = htmlspecialchars($u['display_name'] ?? $u['username'] ?? '');
-$avatar      = $u['avatar'] ?? '';
+$avatar      = chatapp_avatar_url($u['avatar'] ?? '', $u['username'] ?? '');
 ?>
 <!DOCTYPE html>
 <html lang="zh">
