@@ -189,13 +189,14 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
     $attachmentB64 = trim((string)($p['attachment'] ?? ''));
     $tempUploadId = (int)($p['temp_upload_id'] ?? 0);
     $recipientName = trim((string)($p['recipient'] ?? ''));
+    $doodle      = trim((string)($p['doodle'] ?? ''));
 
     // WSS 通道禁止附件/闪传（避免阻塞单线程事件循环，强制走 HTTP）
     if (!$allowAttachment && (!empty($attachmentB64) || $tempUploadId > 0)) {
         return ['success' => false, 'error' => 'FORCE_HTTP'];
     }
 
-    if (empty($message) && empty($attachmentB64) && $tempUploadId <= 0) {
+    if (empty($message) && empty($attachmentB64) && $tempUploadId <= 0 && empty($doodle)) {
         return ['success' => false, 'error' => 'Empty'];
     }
     if (mb_strlen($message) > 1000) {
@@ -282,6 +283,23 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
         $msg = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
         $msgType = $msgType ?? null;
     }
+
+    // ---- Doodle 涂鸦消息（矢量笔迹，存 JSON 点数据，不是文件） ----
+    if (!empty($doodle)) {
+        $doodleArr = json_decode($doodle, true);
+        if (!is_array($doodleArr) || count($doodleArr) > 200 || strlen($doodle) > 300000) {
+            return ['success' => false, 'error' => 'Invalid doodle'];
+        }
+        foreach ($doodleArr as $stroke) {
+            if (!is_array($stroke) || empty($stroke['points']) || !is_array($stroke['points'])) {
+                return ['success' => false, 'error' => 'Invalid doodle'];
+            }
+        }
+        $msgType = 'doodle';
+        $attachmentFilename = $doodle;
+        $message = '';
+        $msg = '';
+    }
     $time = gmdate('Y/m/d H:i:s');
     $recipientId = null;
 
@@ -359,7 +377,8 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
         try {
             $origLen = isset($p['message_raw']) ? strlen((string)$p['message_raw']) : strlen($message);
             chat_actions_msg_exp($pdo, $senderUid, $origLen);
-            if (!empty($attachmentFilename)) {
+            // doodle 的 attachment 是笔迹 JSON，不是文件，不给附件 EXP
+            if (!empty($attachmentFilename) && $msgType !== 'doodle') {
                 chat_actions_attach_exp($pdo, $senderUid, $attachmentFilename);
             }
         } catch (\Throwable $e) {
@@ -384,6 +403,81 @@ function chat_action_revoke(PDO $pdo, int $uid, array $p): array {
     $row = $stmt->fetch();
     if (!$row || (int)$row['sender_id'] !== $uid) return ['success' => false];
     if ((time() - strtotime($row['datetime'])) > 120) return ['success' => false];
+    $pdo->prepare("UPDATE messages SET deleted_at = NOW() WHERE id = ?")->execute([$messageId]);
+    return ['success' => true];
+}
+
+/**
+ * 个人资料管理：列出自己发送的附件消息（相片/影片/文件/音频），按类型过滤
+ * 注意：视频在 send 里也是 msg_type='photo'，靠扩展名区分相片/影片
+ */
+function chat_action_my_content(PDO $pdo, int $uid, array $p): array {
+    if ($uid <= 0) return ['success' => false];
+    $type = trim((string)($p['type'] ?? 'all'));
+    if (!in_array($type, ['all', 'photo', 'video', 'file', 'audio'], true)) $type = 'all';
+    $limit = min(200, max(1, (int)($p['limit'] ?? 100)));
+    $offset = max(0, (int)($p['offset'] ?? 0));
+
+    $stmt = $pdo->prepare(
+        "SELECT id, msg_type, attachment, datetime FROM messages
+         WHERE sender_id = ? AND deleted_at IS NULL
+           AND msg_type IN ('photo','file','audio')
+           AND attachment IS NOT NULL AND attachment <> ''
+         ORDER BY id DESC LIMIT $limit OFFSET $offset"
+    );
+    $stmt->execute([$uid]);
+    $rows = $stmt->fetchAll();
+
+    $items = [];
+    foreach ($rows as $r) {
+        $att = (string)$r['attachment'];
+        $kind = 'file';
+        $meta = null;
+        if ($r['msg_type'] === 'file') {
+            $meta = json_decode($att, true);
+            if (!is_array($meta) || empty($meta['file'])) continue;
+            $kind = 'file';
+        } else {
+            $ext = strtolower(pathinfo($att, PATHINFO_EXTENSION));
+            if (in_array($ext, ['mp4', 'webm', 'mov', 'ogg'], true)) $kind = 'video';
+            elseif (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)) $kind = 'photo';
+            elseif (in_array($ext, ['mp3', 'm4a', 'wav', 'flac', 'aac', 'opus'], true)) $kind = 'audio';
+            else $kind = 'file';
+        }
+        if ($type !== 'all' && $kind !== $type) continue;
+
+        if ($r['msg_type'] === 'file' && $meta) {
+            $url = '../api/file.php?u=' . $uid . '&f=' . rawurlencode($meta['file']) . '&name=' . rawurlencode($meta['name'] ?? 'file');
+            $name = $meta['name'] ?? 'file';
+            $size = isset($meta['size']) ? (int)$meta['size'] : null;
+        } else {
+            $url = '../api/file.php?u=' . $uid . '&f=' . rawurlencode($att);
+            $name = $att;
+            $size = null;
+        }
+        $items[] = [
+            'id'      => (int)$r['id'],
+            'kind'    => $kind,
+            'url'     => $url,
+            'name'    => $name,
+            'size'    => $size,
+            'time'    => $r['datetime'],
+        ];
+    }
+    return ['success' => true, 'items' => $items];
+}
+
+/**
+ * 个人资料管理：撤回自己发送的任意一条消息（不受 120 秒限制；仅本人）
+ */
+function chat_action_revoke_own(PDO $pdo, int $uid, array $p): array {
+    if ($uid <= 0) return ['success' => false];
+    $messageId = (int)($p['message_id'] ?? 0);
+    if ($messageId <= 0) return ['success' => false];
+    $stmt = $pdo->prepare("SELECT sender_id FROM messages WHERE id = ? AND deleted_at IS NULL");
+    $stmt->execute([$messageId]);
+    $row = $stmt->fetch();
+    if (!$row || (int)$row['sender_id'] !== $uid) return ['success' => false];
     $pdo->prepare("UPDATE messages SET deleted_at = NOW() WHERE id = ?")->execute([$messageId]);
     return ['success' => true];
 }

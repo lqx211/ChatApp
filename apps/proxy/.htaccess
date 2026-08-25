@@ -1,0 +1,12 @@
+# ChatApp apps/proxy — 前端控制器
+# 把路径式代理 URL（index.php/q/<base64url目标>/<相对>）路由进 index.php。
+# Apache 默认会对 index.php/xxx 提供 PATH_INFO；此规则作为兜底，确保
+# 子路径请求都交给 index.php 处理。
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    # 仅当请求文件不存在时重写（避免拦截真实静态文件）
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [L,QSA]
+</IfModule>

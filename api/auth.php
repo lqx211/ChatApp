@@ -5,13 +5,87 @@
 
 require_once __DIR__ . '/config.php';
 
+// ---- Proof-of-Work challenge (anti-bot register/login gate) ----
+// Custom byte-level hash, implemented identically in modern/pow.js (no public
+// algorithm code). The client must find a nonce with
+//   powhash(challenge ':' nonce) < target   (target = 2^(256 - POW_TARGET_BITS))
+define('POW_TARGET_BITS', 15);      // sub-second difficulty (~2^15 tries)
+define('POW_MAX_NONCE_LEN', 10);    // nonce is decimal, <= 9999999999
+define('POW_CHALLENGE_TTL', 300);   // seconds before a challenge expires
+
+/** Custom PoW hash → 64 lowercase hex chars. Only 0-255 arithmetic (add/xor/
+ *  shift), so the PHP and JS implementations are bit-for-bit identical with no
+ *  32-bit signed-overflow or encoding pitfalls. Input is ASCII. */
+function chatapp_pow_hash(string $input): string {
+    $seed = [0x24, 0x5a, 0x10, 0x9f, 0x3d, 0x77, 0x81, 0xc2, 0x4b, 0x0e, 0x96, 0x55,
+             0x1a, 0x68, 0xdc, 0x03, 0x7e, 0x92, 0x40, 0xcf, 0x11, 0x5d, 0xaa, 0x38,
+             0x66, 0xf1, 0x0b, 0x9c, 0x27, 0x74, 0xdb, 0x32];
+    $state = $seed;
+    $bytes = array_values(unpack('C*', $input));
+    $n = count($bytes);
+    for ($round = 0; $round < 32; $round++) {
+        $state[0] = ($state[0] ^ ($round + 1)) & 0xff;
+        for ($i = 0; $i < 32; $i++) {
+            $ib = $n > 0 ? $bytes[($i + $round) % $n] : 0;
+            $a = $state[$i];
+            $b = $state[($i + 7) % 32];
+            $c = $state[($i + 13) % 32];
+            $x = ((($a << 3) | ($a >> 5)) & 0xff);
+            $x = ($x + $b) & 0xff;
+            $x = ($x ^ $c) & 0xff;
+            $x = ($x ^ $ib) & 0xff;
+            $k = (($round * 31 + $i * 7 + 11) & 0xff);
+            $state[$i] = ($x + $k) & 0xff;
+        }
+        $t = $state[0]; $state[0] = $state[31]; $state[31] = $t;
+        $t = $state[5]; $state[5] = $state[21]; $state[21] = $t;
+    }
+    $out = '';
+    foreach ($state as $b) { $out .= sprintf('%02x', $b); }
+    return $out;
+}
+
+/** Target = 2^(256 - bits), a 64-char lowercase hex string (no gmp needed). */
+function chatapp_pow_target(int $bits): string {
+    $shift = 256 - $bits;
+    $idx = intdiv($shift, 4);
+    $digit = 1 << ($shift % 4);
+    return str_pad(dechex($digit) . str_repeat('0', $idx), 64, '0', STR_PAD_LEFT);
+}
+
+/** Issue a fresh challenge bound to this session. */
+function chatapp_pow_issue(): array {
+    $pow = [
+        'challenge' => bin2hex(random_bytes(16)),
+        'target_bits' => POW_TARGET_BITS,
+        'expires' => time() + POW_CHALLENGE_TTL,
+    ];
+    $_SESSION['pow'] = $pow;
+    return $pow;
+}
+
+/** Verify a client PoW solution. Single-use (unset on success). Difficulty is
+ *  always taken from the server-side session — never trusted from the client. */
+function chatapp_verify_pow(string $challenge, string $nonce): bool {
+    $pow = $_SESSION['pow'] ?? null;
+    if (!$pow || !isset($pow['challenge'], $pow['target_bits'], $pow['expires'])) return false;
+    if (time() > (int)$pow['expires']) return false;
+    if (!hash_equals($pow['challenge'], $challenge)) return false;
+    if ($nonce === '' || strlen($nonce) > POW_MAX_NONCE_LEN || !ctype_digit($nonce)) return false;
+    if ((float)$nonce > 9999999999.0) return false;
+    $target = chatapp_pow_target((int)$pow['target_bits']);
+    if (strcmp(chatapp_pow_hash($pow['challenge'] . ':' . $nonce), $target) >= 0) return false;
+    unset($_SESSION['pow']);
+    return true;
+}
+
 chatapp_session_start();
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 header('Content-Type: application/json');
 
-// login/register/logout must be POST (check is the only GET read action).
-chatapp_read_actions(['check'], $action);
+// login/register/logout must be POST (check/challenge are the only GET read actions).
+chatapp_read_actions(['check', 'challenge'], $action);
 
 switch ($action) {
 
@@ -28,6 +102,13 @@ switch ($action) {
             || strpos(strtolower($username), 'chatapp_') === 0
             || strpos(strtolower($username), 'mt_') === 0) {
             echo json_encode(['success' => false, 'error' => 'Username not allowed']); exit;
+        }
+        // Proof-of-Work: the client must have solved this session's hash challenge
+        // (see case 'challenge'). Bots that skip the work are denied here, before
+        // any rate-limit slot is consumed or any insert happens.
+        if (!chatapp_verify_pow($_POST['pow_challenge'] ?? '', $_POST['pow_nonce'] ?? '')) {
+            chatapp_log('security_logs', ['event_type' => 'pow_fail', 'details' => 'register username=' . mb_substr($username, 0, 100)]);
+            echo json_encode(['success' => false, 'error' => 'pow_challenge_failed']); exit;
         }
         // Registration rate limit: max 5 attempts per hour per IP.
         $regIp = chatapp_client_ip();
@@ -64,8 +145,27 @@ switch ($action) {
         echo json_encode(['success' => true, 'cache_key' => $newUser->fetchColumn() ?: bin2hex(random_bytes(32)), 'local_cache_enabled' => 0]);
         break;
 
+    case 'challenge':
+        // Issue a fresh PoW challenge bound to this session (GET read action).
+        $pow = chatapp_pow_issue();
+        echo json_encode([
+            'success' => true,
+            'challenge' => $pow['challenge'],
+            'target_bits' => $pow['target_bits'],
+            'target' => chatapp_pow_target($pow['target_bits']),
+            'expires_in' => $pow['expires'] - time(),
+        ]);
+        break;
+
     case 'login':
-        sleep(1);
+        // PoW challenge replaces the old fixed sleep(1) throttle. The restricted
+        // "continue login" flow (confirm=1) already passed PoW on its first
+        // attempt, so it is exempt here.
+        if (($_POST['confirm'] ?? '') !== '1'
+            && !chatapp_verify_pow($_POST['pow_challenge'] ?? '', $_POST['pow_nonce'] ?? '')) {
+            chatapp_log('security_logs', ['event_type' => 'pow_fail', 'details' => 'login username=' . mb_substr(trim($_POST['username'] ?? ''), 0, 100)]);
+            echo json_encode(['success' => false, 'error' => 'pow_challenge_failed']); exit;
+        }
         $username = trim($_POST['username'] ?? '');
         $password = $_POST['password'] ?? '';
         #if (empty($username) || empty($password)) {

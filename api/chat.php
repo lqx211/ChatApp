@@ -8,7 +8,7 @@ $action = $_POST['action'] ?? $_GET['action'] ?? '';
 header('Content-Type: application/json');
 
 // send/revoke/mark_read are state-changing → POST only.
-chatapp_read_actions(['unread_counts', 'fetch', 'all', 'search_messages', 'conversations'], $action);
+chatapp_read_actions(['unread_counts', 'fetch', 'all', 'search_messages', 'conversations', 'my_content'], $action);
 
 function get_my_uid(PDO $pdo): int {
     $stmt = $pdo->prepare('SELECT user_id FROM users WHERE username = ?');
@@ -50,6 +50,20 @@ switch ($action) {
         $pdo = db(); $myId = get_my_uid($pdo);
         if (!$myId) { echo json_encode(['success'=>false]); exit; }
         echo json_encode(chat_action_revoke($pdo, $myId, $_POST));
+        break;
+
+    case 'my_content':
+        if (!isset($_SESSION['username'])) { echo json_encode(['success'=>false]); exit; }
+        $pdo = db(); $myId = get_my_uid($pdo);
+        if (!$myId) { echo json_encode(['success'=>false]); exit; }
+        echo json_encode(chat_action_my_content($pdo, $myId, $_POST));
+        break;
+
+    case 'revoke_own':
+        if (!isset($_SESSION['username'])) { echo json_encode(['success'=>false]); exit; }
+        $pdo = db(); $myId = get_my_uid($pdo);
+        if (!$myId) { echo json_encode(['success'=>false]); exit; }
+        echo json_encode(chat_action_revoke_own($pdo, $myId, $_POST));
         break;
 
     case 'unread_counts':
@@ -144,12 +158,15 @@ switch ($action) {
                     $stmt->execute([$myId, $dmId, $dmId, $myId, $limit]);
                 }
             } else {
+                // Announcements panel (no dm partner): page over announcements
+                // ONLY. Mixing DMs into this feed buries old announcements once
+                // enough private messages accumulate, so users can't see them.
                 if ($before > 0) {
-                    $stmt = $pdo->prepare("$sel WHERE m.id < ? AND m.group_id IS NULL AND (m.recipient_id IS NULL OR m.recipient_id=? OR m.sender_id=?) ORDER BY m.id DESC LIMIT ?");
-                    $stmt->execute([$before, $myId, $myId, $limit]);
+                    $stmt = $pdo->prepare("$sel WHERE m.id < ? AND m.recipient_id IS NULL ORDER BY m.id DESC LIMIT ?");
+                    $stmt->execute([$before, $limit]);
                 } else {
-                    $stmt = $pdo->prepare("$sel WHERE m.group_id IS NULL AND (m.recipient_id IS NULL OR m.recipient_id=? OR m.sender_id=?) ORDER BY m.id DESC LIMIT ?");
-                    $stmt->execute([$myId, $myId, $limit]);
+                    $stmt = $pdo->prepare("$sel WHERE m.recipient_id IS NULL ORDER BY m.id DESC LIMIT ?");
+                    $stmt->execute([$limit]);
                 }
             }
             $messages = array_reverse($stmt->fetchAll());
@@ -161,8 +178,8 @@ switch ($action) {
                     $cntStmt = $pdo->prepare("SELECT COUNT(*) FROM messages WHERE id < ? AND ((sender_id=? AND recipient_id=?) OR (sender_id=? AND recipient_id=?))");
                     $cntStmt->execute([$oldestId, $myId, $dmId, $dmId, $myId]);
                 } else {
-                    $cntStmt = $pdo->prepare("SELECT COUNT(*) FROM messages WHERE id < ? AND group_id IS NULL AND (recipient_id IS NULL OR recipient_id=? OR sender_id=?)");
-                    $cntStmt->execute([$oldestId, $myId, $myId]);
+                    $cntStmt = $pdo->prepare("SELECT COUNT(*) FROM messages WHERE id < ? AND recipient_id IS NULL");
+                    $cntStmt->execute([$oldestId]);
                 }
                 $hasMore = ((int)$cntStmt->fetchColumn()) > 0;
             }
@@ -310,6 +327,12 @@ function proc(array $msgs): array {
                     $m['temp_revoked'] = 0;
                     $m['temp_expires'] = null;
                 }
+            } elseif ($m['msg_type'] === 'like') {
+                // 点赞系统消息：attachment 存的是 JSON 次数，不是文件
+                $m['attachment_url'] = null;
+            } elseif ($m['msg_type'] === 'doodle') {
+                // 涂鸦消息：attachment 存的是笔迹 JSON（矢量点），不是文件
+                $m['attachment_url'] = null;
             } else {
                 $m['attachment_url'] = '../api/file.php?u=' . ((int)$m['user_id']) . '&f=' . $m['attachment'];
             }

@@ -13,20 +13,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .ng{margin-bottom:0}
 .ngh{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;cursor:pointer;color:#999;font-size:.78em;font-weight:600;text-decoration:none}
 .ngh .ngh-badge{background:#c44;color:#fff;font-size:.6em;padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:700}
+.ngh .ngh-badge.sup-badge{background:#e06060;min-width:16px;height:16px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:.62em;padding:0 4px;line-height:1;vertical-align:middle}
 .ngh:hover{color:#ccc}
 .ngh .ar{font-size:.7em;display:inline-block;transition:transform .2s}
 .ngh .ar.op{transform:rotate(90deg)}
 .ngb{display:none}
 .ngb.op{display:block}
 .csi{display:flex;align-items:center;gap:8px;padding:6px 14px 6px 24px;cursor:pointer;color:#888;font-size:.78em}
+.like-sysline{text-align:center;font-size:.72em;color:#7f8288;padding:6px 0;margin:2px 0}
+.like-sysline a{color:#8fb6d9;text-decoration:none;cursor:pointer}
+.like-sysline a:hover{text-decoration:underline}
 .csi:hover{background:#2a2a2a;color:#ccc}
+.csi.pinned{background:#22313c}
+.csi.pinned:hover,.csi.pinned.active{background:#2b3b46}
 .csi .ca{width:22px;height:22px;border:1px solid #444;background:#1e1e1e;overflow:hidden;flex-shrink:0;position:relative}
 .csi .ca img{width:100%;height:100%;object-fit:cover}
 .csi .cn{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .csi .cn.unread-cnt{color:#e06060}
-.online-dot{position:absolute;bottom:1px;right:1px;width:7px;height:7px;border:1px solid #1e1e1e;background:#4a4a4a}
-.online-dot.on{background:#4a8}
-.online-dot.dnd{background:#e06060}
 .na{padding:6px 14px 6px 24px;cursor:pointer;color:#777;font-size:.75em}
 .na:hover{color:#aaa}
 .sbox{padding:4px 14px 8px 24px}
@@ -66,7 +69,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .img-fullscreen.active{display:flex}
 .img-fullscreen img,.img-fullscreen video{max-width:95vw;max-height:95vh;object-fit:contain}
 .mu{font-size:.7em;color:#999;margin-bottom:3px;font-weight:600}
-.mt{font-size:.87em;color:#ddd;line-height:1.4}
+.mt{font-size:.87em;color:#ddd;line-height:1.4;white-space:pre-wrap;word-break:break-word}
 .mt.dl{color:#666;font-style:italic}
 .mti{font-size:.65em;color:#666;margin-top:3px;text-align:right}
 .mrv{font-size:.65em;color:#888;cursor:pointer;text-decoration:underline;margin-top:2px;text-align:right}
@@ -96,6 +99,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .dm-options-menu button:hover{background:#3a3a3a}
 .dm-options-menu button.danger{color:#e06060}
 .dm-options-menu button.danger:hover{background:#4a2020}
+
+/* ---- 右键菜单（sidebar 联系人，尺寸与聊天消息右键菜单 .msg-menu 一致） ---- */
+#userCtxMenu{display:none;position:fixed;z-index:1000;background:#2a2a2a;border:1px solid #555;min-width:80px;box-shadow:0 2px 8px rgba(0,0,0,0.5)}
+#userCtxMenu.active{display:block}
+#userCtxMenu button{display:block;width:100%;text-align:left;padding:6px 14px;background:none;border:none;color:#ccc;font-size:.72em;font-family:inherit;cursor:pointer;white-space:nowrap}
+#userCtxMenu button:hover{background:#3a3a3a}
+#userCtxMenu button.danger{color:#e06060}
+#userCtxMenu button.danger:hover{background:#4a2020}
 .er,.su{padding:8px 12px;font-size:.78em;display:none;margin-bottom:10px}
 .er{background:#3d2020;border:1px solid #5c2a2a;color:#e06060}
 .su{background:#1e3d1e;border:1px solid #2a5c2a;color:#60e060}
@@ -110,6 +121,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .modal-box h3{color:#c0c0c0;margin-bottom:12px;font-size:1.1em}
 .modal-box p{color:#999;font-size:.82em;margin-bottom:16px}
 .modal-actions{display:flex;gap:12px;justify-content:center;margin-top:8px}
+/* Windows 8.1-style window for the generic confirm/alert/prompt dialog */
+.cd-win{width:420px;padding:0;text-align:left;border-radius:0;overflow:hidden;box-shadow:0 0 0 1px #111,0 10px 30px rgba(0,0,0,.55)}
+.cd-titlebar{display:flex;align-items:center;justify-content:space-between;background:#2b4a63;height:32px;padding:0 6px 0 14px;flex-shrink:0}
+.cd-title{color:#e8e8e8;font-size:.82em;font-weight:600;letter-spacing:.3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cd-close{background:none;border:none;color:#c8c8c8;font-size:.8em;line-height:1;width:26px;height:26px;cursor:pointer;font-family:inherit;border-radius:0}
+.cd-close:hover{background:#c0392b;color:#fff}
+.cd-body{padding:20px 22px 22px;overflow-y:auto}
+.cd-win .cd-msg{color:#c8c8c8;font-size:.85em;line-height:1.6;margin-bottom:16px;white-space:pre-line;word-break:break-word}
+.cd-input{width:100%;padding:8px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:inherit;margin-bottom:14px;outline:none;border-radius:0}
+.cd-input:focus{border-color:#2b4a63}
+.cd-actions{justify-content:flex-end;gap:10px;margin-top:6px}
+.cd-actions .bsm{border-radius:0;padding:6px 18px;font-size:.8em}
+.cd-actions #cdOk{background:#2a4a2a;border-color:#3a6a3a}
+.cd-actions #cdOk:hover{background:#356035}
 .msg-cb{display:flex;align-items:center;gap:6px;color:#888;font-size:.78em;margin:4px 0;text-align:left}
 .msg-cb input{accent-color:#888}
 .att-preview{max-width:320px;max-height:200px;object-fit:contain;margin:12px auto;display:block;border:1px solid #444}
@@ -354,6 +379,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .mt pre, .md-preview pre { background: #1a1a1a; border: 1px solid #444; padding: 8px 12px; margin: 4px 0; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
 .mt pre code, .md-preview pre code { background: none; padding: 0; border: none; font-family: monospace; font-size: 0.85em; color: #ccc; }
 .mt code, .md-preview code { background: #2a2a2a; padding: 1px 5px; border: 1px solid #444; font-family: monospace; font-size: 0.9em; color: #e0a040; }
+/* Markdown tables */
+.mt table, .md-preview table { border-collapse: collapse; margin: 6px 0; max-width: 100%; font-size: 0.82em; }
+.mt th, .md-preview th { border: 1px solid #444; background: #242424; color: #bbb; padding: 4px 10px; text-align: left; font-weight: 600; }
+.mt td, .md-preview td { border: 1px solid #3a3a3a; color: #ccc; padding: 4px 10px; }
+.mt tr:nth-child(even) td, .md-preview tr:nth-child(even) td { background: #222; }
+/* Markdown code-block token colors (generic highlighter) */
+.mt pre .tok-c, .md-preview pre .tok-c { color: #6a9955; }
+.mt pre .tok-s, .md-preview pre .tok-s { color: #ce9178; }
+.mt pre .tok-n, .md-preview pre .tok-n { color: #b5cea8; }
+.mt pre .tok-k, .md-preview pre .tok-k { color: #569cd6; }
+.mt pre .tok-f, .md-preview pre .tok-f { color: #dcdcaa; }
 
 .public-emoji-block{margin:16px 20px 20px;padding:14px;background:#262626;border:1px solid #3a3a3a;border-radius:6px}
 .public-emoji-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
@@ -413,6 +449,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .file-dl-btn{flex-shrink:0;background:#2a4a2a;border:1px solid #3a6a3a;color:#e0e0e0;text-decoration:none;padding:5px 12px;border-radius:5px;font-size:.72em;cursor:pointer;transition:background .15s}
 .file-dl-btn:hover{background:#2f5a2f}
 .file-hash{color:#5a5a5a;font-size:.62em;font-family:'SF Mono',Menlo,monospace;margin-top:2px;word-break:break-all;white-space:normal;overflow-wrap:anywhere}
+.file-actions{display:flex;gap:6px;flex-shrink:0;align-items:center}
+.file-pv-btn{flex-shrink:0;background:#2a3a5a;border:1px solid #3a5a8a;color:#cfe0ff;padding:5px 10px;border-radius:5px;font-size:.72em;cursor:pointer;transition:background .15s;font-family:inherit}
+.file-pv-btn:hover{background:#314a6e}
+/* ---- 代码预览弹窗（Monaco / 降级纯文本） ---- */
+.cp-box{background:#1e1e1e;border:1px solid #444;border-radius:8px;width:min(92vw,900px);height:min(82vh,660px);display:flex;flex-direction:column;overflow:hidden}
+.cp-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 14px;background:#2a2a2a;border-bottom:1px solid #3a3a3a;flex-shrink:0}
+.cp-head-l{display:flex;align-items:center;gap:8px;min-width:0}
+.cp-file-icon{font-size:16px;flex-shrink:0}
+.cp-name{color:#ddd;font-size:.82em;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cp-lang{color:#8fb6d9;font-size:.7em;background:#1e3a5a;padding:1px 8px;border-radius:10px;flex-shrink:0}
+.cp-size{color:#888;font-size:.68em;flex-shrink:0}
+.cp-actions{display:flex;gap:8px;flex-shrink:0}
+.cp-body{flex:1;min-height:0;position:relative;background:#1e1e1e}
+.cp-editor{width:100%;height:100%}
+.cp-loading{color:#888;font-size:.8em;padding:24px;text-align:center}
+.cp-fallback{white-space:pre;overflow:auto;width:100%;height:100%;margin:0;padding:12px 16px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:12px;color:#d4d4d4;box-sizing:border-box;line-height:1.5}
 
 .music-frame{flex:1;min-height:0;display:flex}
 .music-frame iframe{width:100%;height:100%;border:0;flex:1}
@@ -516,3 +568,287 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   #sidebarToggleBtn.hidden{display:none}
   .main-content{width:100%;max-width:100%}
 }
+
+/* ================================================================
+   自訂滑鼠效果（移植自 apps/selfpage/exampl cursor.js）
+   ================================================================ */
+#cursor {
+  position: fixed;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border-radius: 25px;
+  opacity: 0.25;
+  z-index: 10086;
+  pointer-events: none;
+  transition: 0.2s ease-in-out;
+  transition-property: background, opacity, transform;
+}
+#cursor.hidden { opacity: 0; }
+#cursor.active { opacity: 0.5; transform: scale(0.5); }
+@media (hover: none) { #cursor { display: none; } }
+
+/* ================================================================
+   加载动画（由 plan/animation_enter.html 原样移植）
+   ================================================================ */
+#loader-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 999;
+  overflow: hidden;
+}
+
+/* 中间的转圈 + 文字 */
+.loader {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.loader .loader-circle {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  border-top-color: #fff;
+  animation: spin 1.8s linear infinite;
+  z-index: 2;
+}
+
+.loader .loader-circle:before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  right: 5px;
+  bottom: 5px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  border-top-color: #a4a4a4;
+  animation: spin-reverse 0.6s linear infinite;
+}
+
+.loader .loader-circle:after {
+  content: "";
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  right: 15px;
+  bottom: 15px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  border-top-color: #d3d3d3;
+  animation: spin 1s linear infinite;
+}
+
+.loader .loader-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #fff;
+  z-index: 2;
+  margin-top: 40px;
+  font-size: 24px;
+}
+
+.loader .loader-text .tip {
+  margin-top: 6px;
+  font-size: 18px;
+  opacity: 0.6;
+}
+
+/* 左右两块遮罩 */
+.loader-section {
+  position: fixed;
+  top: 0;
+  width: 51%;
+  height: 100%;
+  background: #333;
+  z-index: 1;
+}
+
+.loader-section.section-left {
+  left: 0;
+}
+
+.loader-section.section-right {
+  right: 0;
+}
+
+/* 加载完成：开启动画 */
+#loader-wrapper.loaded {
+  visibility: hidden;
+  transform: translateY(-100%);
+  transition:
+    transform 0.3s 1s ease-out,
+    visibility 0.3s 1s ease-out;
+}
+
+#loader-wrapper.loaded .loader .loader-circle,
+#loader-wrapper.loaded .loader .loader-text {
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+}
+
+#loader-wrapper.loaded .loader-section.section-left {
+  transform: translateX(-100%);
+  transition: transform 0.5s 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
+}
+
+#loader-wrapper.loaded .loader-section.section-right {
+  transform: translateX(100%);
+  transition: transform 0.5s 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spin-reverse {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(-360deg);
+  }
+}
+
+/* ================================================================
+   Doodle 涂鸦（画在聊天画面上，激光光效）
+   ================================================================ */
+.doodle-overlay {
+  position: fixed; inset: 0; z-index: 950;
+  background: rgba(0, 0, 0, 0.25);
+  touch-action: none;
+  cursor: crosshair;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.doodle-overlay canvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  touch-action: none;
+  display: block;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.doodle-toolbar {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
+  padding: 8px 14px; border-radius: 12px;
+  background: rgba(20, 22, 30, 0.88); border: 1px solid rgba(255, 255, 255, 0.12);
+  z-index: 5; max-width: calc(100vw - 24px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+.doodle-title { color: #fff; font-size: 13px; font-weight: 700; }
+.doodle-colors { display: flex; gap: 6px; align-items: center; }
+.dc {
+  width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.35);
+  cursor: pointer; padding: 0;
+}
+.dc.active { border-color: #fff; box-shadow: 0 0 8px rgba(255, 255, 255, 0.8); transform: scale(1.15); }
+.doodle-size { color: #ccc; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+.doodle-size input { accent-color: #4ea1ff; }
+#doodleEraserBtn.active { background: #8a4a2a; border-color: #c07030; color: #fff; }
+
+/* Apple Pen 模式开关（Switch） */
+.doodle-switch {
+  display: inline-flex; align-items: center; gap: 6px;
+  cursor: pointer; color: #ccc; font-size: 12px; user-select: none;
+  -webkit-user-select: none;
+}
+.doodle-switch input { display: none; }
+.doodle-switch .ds-track {
+  width: 34px; height: 18px; border-radius: 999px;
+  background: #333; border: 1px solid #555; position: relative;
+  transition: background .2s; flex: 0 0 auto;
+}
+.doodle-switch .ds-thumb {
+  position: absolute; top: 1px; left: 1px; width: 14px; height: 14px;
+  border-radius: 50%; background: #fff; transition: left .2s;
+}
+.doodle-switch input:checked + .ds-track { background: #4ea1ff; }
+.doodle-switch input:checked + .ds-track .ds-thumb { left: 17px; }
+
+/* 画图模式锁定滚动 + 禁止选中文本（iPad 画图时不会误触发“全选”） */
+body.doodle-lock,
+body.doodle-lock .main-content,
+body.doodle-lock #dmMessagesArea,
+body.doodle-lock .ma,
+body.doodle-lock .panel {
+  overflow: hidden !important;
+  touch-action: none !important;
+}
+body.doodle-lock,
+body.doodle-lock * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+
+/* 聊天里的 doodle 消息徽章 */
+.doodle-msg { padding: 0; }
+.doodle-replay {
+  background: rgba(78, 161, 255, 0.12); border: 1px solid #3a5a80; color: #a8d0ff;
+  border-radius: 999px; padding: 6px 14px; font-size: 13px; cursor: pointer;
+  font-family: inherit;
+}
+.doodle-replay:hover { background: rgba(78, 161, 255, 0.25); }
+
+/* 收到涂鸦时的整屏回放（隐藏工具栏，点击或 4 秒后关闭） */
+.doodle-overlay.playing { background: rgba(0, 0, 0, 0.5); cursor: pointer; }
+.doodle-overlay.playing .doodle-toolbar { display: none; }
+.doodle-overlay.playing::after {
+  content: '✎ Doodle（点击关闭）';
+  position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.7); font-size: 13px; z-index: 6;
+  pointer-events: none;
+}
+
+/* ===== 个人资料管理面板（填充主区域） ===== */
+.pmg-tabs { display: flex; gap: 6px; padding: 10px 20px 4px; flex-wrap: wrap; }
+.pmg-tab {
+  background: #2a2a2a; border: 1px solid #444; color: #aaa; padding: 5px 14px;
+  font-size: .78em; cursor: pointer; font-family: inherit; border-radius: 999px;
+}
+.pmg-tab:hover { background: #3a3a3a; color: #e0e0e0; }
+.pmg-tab.active { background: #3a5a80; border-color: #4a6a90; color: #fff; }
+.pmg-list { flex: 1; overflow-y: auto; padding: 8px 20px 20px; }
+.pmg-item {
+  display: flex; align-items: center; gap: 12px; padding: 10px;
+  background: #242424; border: 1px solid #333; border-radius: 8px; margin-bottom: 8px;
+}
+.pmg-item:hover { border-color: #4a4a4a; }
+.pmg-thumb {
+  flex: 0 0 56px; height: 56px; width: 56px; border-radius: 6px; overflow: hidden;
+  background: #1b1b1b; display: flex; align-items: center; justify-content: center;
+  color: #666; font-size: 1.4em; position: relative;
+}
+.pmg-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pmg-thumb.pmg-broken img { display: none; }
+.pmg-play {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: #fff; font-style: normal; font-size: 1.1em; text-shadow: 0 0 6px rgba(0,0,0,0.8);
+  pointer-events: none;
+}
+.pmg-file { font-size: 1.8em; }
+.pmg-info { flex: 1; min-width: 0; }
+.pmg-name { color: #e0e0e0; font-size: .85em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pmg-meta { color: #888; font-size: .72em; margin-top: 3px; }
+.pmg-revoke { flex: 0 0 auto; }

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=8">
+    <title>ChatApp - Settings (IE8)</title>
+    <style type="text/css">
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 14px;
+        }
+        #wrapper { text-align: center; padding-top: 40px; }
+        #settings-box {
+            width: 440px;
+            margin: 0 auto;
+            background-color: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            padding: 30px 28px;
+            text-align: left;
+        }
+        #settings-box h1 { text-align: center; color: #c0c0c0; font-size: 20px; margin: 0 0 4px 0; }
+        #settings-box p.subtitle { text-align: center; color: #777; font-size: 12px; margin: 0 0 24px 0; }
+        .section { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid #3a3a3a; }
+        .section:last-of-type { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        .section h2 { font-size: 14px; color: #bbb; margin: 0 0 12px 0; }
+        .form-row { margin-bottom: 12px; }
+        .form-row label { display: block; color: #aaa; font-size: 12px; margin-bottom: 4px; }
+        .form-row input[type="password"], .form-row input[type="file"] {
+            width: 100%;
+            padding: 8px 6px;
+            background-color: #1e1e1e;
+            border: 1px solid #444;
+            color: #e0e0e0;
+            font-size: 13px;
+            font-family: Arial, sans-serif;
+            box-sizing: border-box;
+        }
+        .btn-primary {
+            width: 100%;
+            padding: 10px;
+            background-color: #4a4a4a;
+            border: 1px solid #555;
+            color: #e0e0e0;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: Arial, sans-serif;
+        }
+        .btn-primary:hover { background-color: #5a5a5a; }
+        .btn-danger {
+            width: 100%;
+            padding: 10px;
+            background-color: #4a2020;
+            border: 1px solid #5c2a2a;
+            color: #e06060;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: Arial, sans-serif;
+        }
+        .btn-danger:hover { background-color: #5a2a2a; }
+        .error-msg { background-color: #3d2020; border: 1px solid #5c2a2a; color: #e06060; padding: 8px 12px; margin-bottom: 12px; font-size: 12px; display: none; }
+        .success-msg { background-color: #1e3d1e; border: 1px solid #2a5c2a; color: #60e060; padding: 8px 12px; margin-bottom: 12px; font-size: 12px; display: none; }
+        .avatar-preview { width: 80px; height: 80px; margin: 8px auto 12px; border: 1px solid #444; background: #1e1e1e; }
+        .nav-links { margin-top: 18px; text-align: center; }
+        .nav-links a { color: #777; font-size: 12px; margin: 0 12px; text-decoration: none; }
+        .nav-links a:hover { color: #aaa; }
+        .delete-warn { color: #888; font-size: 11px; margin-bottom: 8px; }
+        .confirm-row { display: none; }
+    </style>
+    <script type="text/javascript">
+        function getXHR() {
+            if (window.XMLHttpRequest) return new XMLHttpRequest();
+            try { return new ActiveXObject("Msxml2.XMLHTTP"); } catch (e) {
+                try { return new ActiveXObject("Microsoft.XMLHTTP"); } catch (e2) { return null; }
+            }
+        }
+
+        function showError(msg) {
+            var el = document.getElementById('error-msg');
+            el.innerHTML = msg;
+            el.style.display = 'block';
+            document.getElementById('success-msg').style.display = 'none';
+        }
+
+        function showSuccess(msg) {
+            var el = document.getElementById('success-msg');
+            el.innerHTML = msg;
+            el.style.display = 'block';
+            document.getElementById('error-msg').style.display = 'none';
+        }
+
+        function changePassword() {
+            var current = document.getElementById('currentPassword').value;
+            var newPass = document.getElementById('newPassword').value;
+            if (!current || !newPass) { showError('Something went wrong.'); return false; }
+
+            var xhr = getXHR();
+            if (!xhr) { alert('Something went wrong.'); return false; }
+
+            xhr.open('POST', '../api/settings.php', true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        var data = eval('(' + xhr.responseText + ')');
+                        if (data.success) {
+                            showSuccess('Password changed successfully.');
+                            document.getElementById('currentPassword').value = '';
+                            document.getElementById('newPassword').value = '';
+                        } else { showError(data.error || 'Something went wrong.'); }
+                    } else { showError('Something went wrong.'); }
+                }
+            };
+            xhr.send('action=change_password&current_password=' + encodeURIComponent(current) + '&new_password=' + encodeURIComponent(newPass));
+            return false;
+        }
+
+        function uploadAvatar() {
+            var fileInput = document.getElementById('avatarFile');
+            var file = fileInput.files ? fileInput.files[0] : null;
+            if (!file || !file.type.match(/^image\//)) { showError('Something went wrong.'); return; }
+
+            var reader = new FileReader();
+            reader.onload = function(ev) {
+                var base64 = ev.target.result;
+                var xhr = getXHR();
+                if (!xhr) { alert('Something went wrong.'); return; }
+                xhr.open('POST', '../api/settings.php', true);
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState === 4) {
+                        if (xhr.status === 200) {
+                            var data = eval('(' + xhr.responseText + ')');
+                            if (data.success) {
+                                showSuccess('Profile photo updated.');
+                                document.getElementById('avatarPreview').src = base64;
+                            } else { showError(data.error || 'Something went wrong.'); }
+                        } else { showError('Something went wrong.'); }
+                    }
+                };
+                xhr.send('action=upload_avatar&avatar=' + encodeURIComponent(base64));
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function showDeleteConfirm() {
+            document.getElementById('delete-confirm').style.display = 'block';
+            document.getElementById('delete-btn').style.display = 'none';
+        }
+
+        function cancelDelete() {
+            document.getElementById('delete-confirm').style.display = 'none';
+            document.getElementById('delete-btn').style.display = 'block';
+            document.getElementById('deletePassword').value = '';
+        }
+
+        function confirmDeleteAccount() {
+            var pass = document.getElementById('deletePassword').value;
+            if (!pass) { showError('Something went wrong.'); return; }
+
+            if (!confirm('This will PERMANENTLY delete your account and all messages. Continue?')) return;
+
+            var xhr = getXHR();
+            if (!xhr) { alert('Something went wrong.'); return; }
+
+            xhr.open('POST', '../api/settings.php', true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        var data = eval('(' + xhr.responseText + ')');
+                        if (data.success) {
+                            window.location.href = 'index.html';
+                        } else { showError(data.error || 'Something went wrong.'); }
+                    } else { showError('Something went wrong.'); }
+                }
+            };
+            xhr.send('action=delete_account&password=' + encodeURIComponent(pass));
+        }
+
+        function logout() {
+            var xhr = getXHR();
+            if (xhr) {
+                xhr.open('POST', '../api/auth.php', true);
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                xhr.send('action=logout');
+            }
+            window.location.href = 'index.html';
+        }
+
+        function checkAuth() {
+            var xhr = getXHR();
+            if (!xhr) { window.location.href = 'login.php'; return; }
+            xhr.open('GET', '../api/auth.php?action=check', true);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    var data = eval('(' + xhr.responseText + ')');
+                    if (data.success && data.username) {
+                        document.getElementById('currentUsername').innerHTML = data.username;
+                        loadAvatar();
+                    } else { window.location.href = 'index.html'; }
+                }
+            };
+            xhr.send();
+        }
+
+        function loadAvatar() {
+            var xhr = getXHR();
+            xhr.open('GET', '../api/settings.php?action=get_avatar', true);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    var data = eval('(' + xhr.responseText + ')');
+                    if (data.success && data.avatar) {
+                        document.getElementById('avatarPreview').src = data.avatar;
+                    }
+                }
+            };
+            xhr.send();
+        }
+
+        window.onload = function() { checkAuth(); };
+    </script>
+</head>
+<body>
+    <div id="wrapper">
+        <div id="settings-box">
+            <h1>Settings</h1>
+            <p class="subtitle" id="currentUsername">...</p>
+
+            <div class="error-msg" id="error-msg"></div>
+            <div class="success-msg" id="success-msg"></div>
+
+            <!-- Avatar -->
+            <div class="section">
+                <h2>Profile Photo</h2>
+                <div style="text-align:center;">
+                    <img id="avatarPreview" class="avatar-preview" src="" alt="No photo" style="display:block;">
+                </div>
+                <div class="form-row">
+                    <input type="file" id="avatarFile" accept="image/*">
+                </div>
+                <button class="btn-primary" onclick="uploadAvatar();">Upload Photo</button>
+            </div>
+
+            <!-- Password -->
+            <div class="section">
+                <h2>Change Password</h2>
+                <form onsubmit="return changePassword();">
+                    <div class="form-row">
+                        <label for="currentPassword">Current Password</label>
+                        <input type="password" id="currentPassword" autocomplete="current-password">
+                    </div>
+                    <div class="form-row">
+                        <label for="newPassword">New Password</label>
+                        <input type="password" id="newPassword" autocomplete="new-password" placeholder="At least 4 characters">
+                    </div>
+                    <button type="submit" class="btn-primary">Change Password</button>
+                </form>
+            </div>
+
+            <!-- Delete Account -->
+            <div class="section">
+                <h2>Delete Account</h2>
+                <p class="delete-warn">This permanently deletes your account and all messages.</p>
+                <button id="delete-btn" class="btn-danger" onclick="showDeleteConfirm();">Delete Account</button>
+                <div id="delete-confirm" class="confirm-row">
+                    <div class="form-row">
+                        <label for="deletePassword">Enter password to confirm:</label>
+                        <input type="password" id="deletePassword" autocomplete="current-password">
+                    </div>
+                    <button class="btn-danger" onclick="confirmDeleteAccount();">Confirm Delete</button>
+                    <button class="btn-primary" style="margin-top:6px;" onclick="cancelDelete();">Cancel</button>
+                </div>
+            </div>
+
+            <div class="nav-links">
+                <a href="chat.html">Back to Chat</a>
+                <a href="#" onclick="logout(); return false;">Logout</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

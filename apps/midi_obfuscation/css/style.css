@@ -1,0 +1,207 @@
+/* MIDI Obfuscator - ChatApp 深色风格 */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    background: #1a1a1a;
+    color: #e0e0e0;
+    min-height: 100vh;
+}
+
+.wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px 20px 24px;
+}
+
+/* 头部 */
+.hd {
+    text-align: center;
+    padding: 24px 0 28px;
+    border-bottom: 1px solid #3a3a3a;
+    margin-bottom: 24px;
+}
+.hd h1 {
+    font-size: 1.7em;
+    color: #c0c0c0;
+    font-weight: 600;
+    letter-spacing: .5px;
+}
+.hd .sub {
+    color: #888;
+    font-size: .82em;
+    margin-top: 8px;
+}
+
+/* 卡片 */
+.card {
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+.sec-title {
+    font-size: .98em;
+    color: #bbb;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+/* 上传区 */
+.drop {
+    border: 2px dashed #4a4a4a;
+    padding: 48px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    user-select: none;
+}
+.drop:hover, .drop.drag {
+    border-color: #6a9fd8;
+    background: #242e3a;
+}
+.drop-icon {
+    font-size: 2.4em;
+    color: #6a9fd8;
+    margin-bottom: 10px;
+}
+.drop-txt {
+    color: #ccc;
+    font-size: .92em;
+}
+.drop-sub {
+    color: #777;
+    font-size: .75em;
+    margin-top: 6px;
+}
+
+.file-info {
+    margin-top: 16px;
+    padding: 12px 14px;
+    background: #1e1e1e;
+    border: 1px solid #3a3a3a;
+}
+.fname {
+    font-size: .88em;
+    color: #ddd;
+    font-weight: 600;
+    word-break: break-all;
+}
+.fmeta {
+    font-size: .74em;
+    color: #888;
+    margin-top: 5px;
+}
+
+/* 选项 */
+.opts {
+    margin-bottom: 18px;
+}
+.opt-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    color: #aaa;
+    font-size: .82em;
+    padding: 8px 0;
+    cursor: pointer;
+}
+.opt-row input {
+    accent-color: #6a9fd8;
+    margin-top: 1px;
+    flex-shrink: 0;
+}
+
+/* 按钮（沿用 ChatApp .bsm / .bs 风格） */
+.bsm {
+    background: #3a3a3a;
+    border: 1px solid #555;
+    color: #ccc;
+    padding: 5px 12px;
+    cursor: pointer;
+    font-size: .78em;
+    font-family: inherit;
+    text-decoration: none;
+}
+.bsm:hover { background: #4a4a4a; }
+.bs {
+    background: #4a4a4a;
+    border: 1px solid #555;
+    color: #e0e0e0;
+    font-size: .9em;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 11px 22px;
+    font-family: inherit;
+}
+.bs:hover { background: #5a5a5a; }
+.bsm.go, .bs.m {
+    background: #2a4a2a;
+    border-color: #3a6a3a;
+    color: #ddd;
+}
+.bsm.go:hover, .bs.m:hover { background: #356035; }
+
+/* 统计 / 校验 */
+.stats {
+    background: #1e1e1e;
+    border: 1px solid #3a3a3a;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+}
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    font-size: .8em;
+    border-bottom: 1px solid #2a2a2a;
+}
+.stat-row:last-child { border-bottom: none; }
+.stat-row .k { color: #999; }
+.stat-row .v { color: #ddd; font-weight: 600; }
+.stat-row .v.ok { color: #60e060; }
+.stat-row .v.bad { color: #e06060; }
+
+.verify {
+    padding: 12px 14px;
+    margin-bottom: 16px;
+    font-size: .8em;
+    border: 1px solid;
+}
+.verify.ok {
+    background: #1e3d1e;
+    border-color: #2a5c2a;
+    color: #60e060;
+}
+.verify.bad {
+    background: #3d2020;
+    border-color: #5c2a2a;
+    color: #e06060;
+}
+
+.actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.hint {
+    color: #777;
+    font-size: .72em;
+    margin-top: 14px;
+}
+
+/* 页脚 */
+.ft {
+    text-align: center;
+    color: #666;
+    font-size: .72em;
+    padding: 16px 0 8px;
+    border-top: 1px solid #3a3a3a;
+    margin-top: 8px;
+}
+
+@media (max-width: 520px) {
+    .wrap { padding: 16px 12px; }
+    .card { padding: 18px; }
+}

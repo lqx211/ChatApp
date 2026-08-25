@@ -136,6 +136,8 @@
                         } else if (D && (m.username === D || m.recipient === D)) {
                             // 当前打开的私聊
                             if (typeof addDmMessage === 'function') addDmMessage(m);
+                        } else if (m.msg_type === 'like' && !(m.id > L)) {
+                            // 点赞行合并更新（非新行且聊天未打开）：静默忽略，不重复加未读/提醒
                         } else {
                             // 其他私聊：未读数 + 提醒
                             if (!unreadCounts[m.username]) unreadCounts[m.username] = 0;

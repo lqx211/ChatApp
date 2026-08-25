@@ -242,10 +242,26 @@ switch ($action) {
         break;
 
     case 'count':
-        // Only admins may see the global open-incident count.
-        if (!$isAdmin) { echo json_encode(['success' => false]); exit; }
-        $countOpen = (int)$pdo->query("SELECT COUNT(*) FROM incidents WHERE status = 'open'")->fetchColumn();
-        echo json_encode(['success' => true, 'count' => $countOpen]);
+        // 管理员：全局开启工单按类型分类计数；反馈者：自己发出的工单被他人回复数
+        if ($isAdmin) {
+            $t = function (string $type) use ($pdo): int {
+                $st = $pdo->prepare("SELECT COUNT(*) FROM incidents WHERE status = 'open' AND type = ?");
+                $st->execute([$type]);
+                return (int)$st->fetchColumn();
+            };
+            echo json_encode([
+                'success' => true,
+                'is_admin' => true,
+                'bugs' => $t('bug'),
+                'recommendation' => $t('recommendation'),
+                'account_issue' => $t('account_issue'),
+                'report' => $t('report'),
+            ]);
+        } else {
+            $st = $pdo->prepare("SELECT COUNT(DISTINCT i.id) FROM incidents i JOIN incident_responses r ON r.incident_id = i.id AND r.user_id != i.reporter_id WHERE i.reporter_id = ?");
+            $st->execute([$myUid]);
+            echo json_encode(['success' => true, 'is_admin' => false, 'reply_count' => (int)$st->fetchColumn()]);
+        }
         break;
 
     default:

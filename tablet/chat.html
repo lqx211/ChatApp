@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=8">
+    <title>ChatApp - Chat (IE8)</title>
+    <style type="text/css">
+        body { margin:0; padding:0; background-color:#1a1a1a; color:#e0e0e0; font-family:Arial,Helvetica,sans-serif; font-size:14px; height:100%; }
+        html { height:100%; }
+        #chat-wrap { width:100%; max-width:700px; margin:0 auto; height:100%; background-color:#222; border-left:1px solid #3a3a3a; border-right:1px solid #3a3a3a; position:relative; }
+        #chat-header { background-color:#2a2a2a; padding:12px 16px; border-bottom:1px solid #3a3a3a; height:24px; line-height:24px; }
+        #chat-header h2 { display:inline; font-size:14px; color:#c0c0c0; margin:0; padding:0; font-weight:bold; }
+        #user-info { float:right; color:#888; font-size:12px; }
+        #user-info strong { color:#ccc; }
+        #user-info a, #user-info button { color:#ccc; text-decoration:none; font-size:12px; margin-left:8px; }
+        .btn-settings, .btn-logout { background-color:#3a3a3a; border:1px solid #555; color:#ccc; padding:3px 10px; cursor:pointer; font-size:11px; font-family:Arial,sans-serif; text-decoration:none; }
+        .btn-settings:hover, .btn-logout:hover { background-color:#4a4a4a; }
+
+        /* Tabs - no flexbox for IE8 */
+        #tab-bar { position:absolute; top:49px; left:0; right:0; height:30px; background-color:#262626; border-bottom:1px solid #3a3a3a; overflow:hidden; }
+        #tab-bar div { float:left; width:50%; height:30px; line-height:30px; text-align:center; cursor:pointer; color:#888; font-size:12px; border-bottom:2px solid transparent; box-sizing:border-box; }
+        #tab-bar div.active { color:#ccc; border-bottom-color:#888; }
+        #tab-bar div:hover { color:#aaa; }
+
+        #messages-area { position:absolute; top:80px; bottom:55px; left:0; right:0; overflow-y:auto; padding:12px 16px; }
+        #contacts-area { position:absolute; top:80px; bottom:55px; left:0; right:0; overflow-y:auto; padding:8px 12px; display:none; }
+
+        .message-row { margin-bottom:4px; }
+        .message-row.own { text-align:right; }
+        .message-bubble { display:inline-block; background-color:#2e2e2e; border:1px solid #3a3a3a; padding:7px 12px; max-width:65%; text-align:left; word-wrap:break-word; }
+        .message-row.own .message-bubble { background-color:#383838; border-color:#4a4a4a; }
+        .msg-username { font-size:10px; color:#999; margin-bottom:2px; font-weight:bold; }
+        .msg-text { font-size:12px; color:#ddd; line-height:1.4; }
+        .msg-text.deleted { color:#666; font-style:italic; }
+        .msg-time { font-size:9px; color:#666; margin-top:2px; text-align:right; }
+        .msg-revoke { font-size:9px; color:#888; }
+        .msg-revoke a { color:#888; }
+        .msg-revoke a:hover { color:#e06060; }
+        .empty-state { text-align:center; color:#555; margin-top:30px; font-size:13px; }
+        #chat-input-area { position:absolute; bottom:0; left:0; right:0; background-color:#2a2a2a; border-top:1px solid #3a3a3a; padding:10px 16px; height:34px; }
+        #chat-input-area input { width:78%; padding:8px 10px; background-color:#1e1e1e; border:1px solid #444; color:#e0e0e0; font-size:13px; font-family:Arial,sans-serif; box-sizing:border-box; float:left; }
+        #sendBtn { width:18%; padding:8px 0; background-color:#4a4a4a; border:1px solid #555; color:#e0e0e0; font-size:13px; font-weight:bold; cursor:pointer; font-family:Arial,sans-serif; float:right; box-sizing:border-box; }
+        #sendBtn:hover { background-color:#5a5a5a; }
+        .clear { clear:both; }
+        .loading-overlay { position:absolute; top:0; left:0; right:0; bottom:0; background-color:#222; z-index:10; text-align:center; padding-top:200px; color:#888; font-size:14px; }
+        .readonly-msg { color:#666; font-size:12px; padding:8px 0; text-align:center; }
+
+        /* Contacts */
+        .contact-item { padding:6px 8px; color:#888; font-size:12px; border-bottom:1px solid #2e2e2e; display:block; text-decoration:none; }
+        .contact-item.clickable { cursor:pointer; }
+        .contact-item:hover { background-color:#2a2a2a; color:#ccc; }
+        .online-dot { display:inline-block; width:6px; height:6px; margin-right:4px; background:#4a4a4a; }
+        .online-dot.on { background:#4a8; }
+
+        .add-contact-box { padding:6px 8px; }
+        .add-contact-box input { width:60%; padding:4px 6px; background-color:#1e1e1e; border:1px solid #444; color:#e0e0e0; font-size:11px; font-family:Arial,sans-serif; }
+        .search-result { padding:4px 8px; font-size:11px; color:#999; border-bottom:1px solid #2e2e2e; overflow:hidden; }
+        .search-result span { float:left; line-height:22px; }
+        .search-result button, .search-result .status { float:right; padding:2px 8px; background-color:#3a3a3a; border:1px solid #555; color:#ccc; cursor:pointer; font-size:10px; font-family:Arial,sans-serif; }
+        .search-result button:hover { background-color:#4a4a4a; }
+        .pending-item { padding:4px 8px; font-size:11px; color:#999; border-bottom:1px solid #2e2e2e; overflow:hidden; }
+        .pending-item span { float:left; line-height:22px; }
+        .pending-item button { float:right; padding:2px 6px; margin-left:4px; cursor:pointer; font-size:10px; font-family:Arial,sans-serif; }
+        .pending-item button.accept { background-color:#2a4a2a; border:1px solid #3a6a3a; color:#ccc; }
+        .pending-item button.reject { background-color:#4a2a2a; border:1px solid #6a3a3a; color:#ccc; }
+    </style>
+    <script type="text/javascript">
+        var currentUsername = '';
+        var currentDisplayName = '';
+        var latestId = 0;
+        var pollTimer = null;
+        var isSending = false;
+        var activeTab = 'announce';
+        var dmContact = null;
+        var seenMsgIds = {};
+
+        function getXHR() {
+            if (window.XMLHttpRequest) return new XMLHttpRequest();
+            try { return new ActiveXObject("Msxml2.XMLHTTP"); } catch (e) {
+                try { return new ActiveXObject("Microsoft.XMLHTTP"); } catch (e2) { return null; }
+            }
+        }
+
+        function esc(t) {
+            return t.replace(/&/g,'&').replace(/</g,'<').replace(/>/g,'>');
+        }
+
+        // Scroll to bottom
+        function s2b() {
+            var a = document.getElementById('messages-area');
+            if (a) a.scrollTop = a.scrollHeight;
+        }
+
+        // === Tab switching ===
+        function switchTab(tab) {
+            activeTab = tab;
+            var btns = document.getElementById('tab-bar').getElementsByTagName('div');
+            for (var i=0; i<btns.length; i++) btns[i].className = 'tab-btn';
+            if (tab === 'announce') {
+                btns[0].className = 'tab-btn active';
+                document.getElementById('messages-area').style.display = 'block';
+                document.getElementById('contacts-area').style.display = 'none';
+                document.getElementById('chat-header').getElementsByTagName('h2')[0].innerHTML = 'Global Announcements';
+                showAnnounceInput();
+            } else {
+                btns[1].className = 'tab-btn active';
+                document.getElementById('messages-area').style.display = 'none';
+                document.getElementById('contacts-area').style.display = 'block';
+                loadContactsAndPending();
+            }
+        }
+
+        function showAnnounceInput() {
+            dmContact = null;
+            if (currentUsername === 'admin') {
+                document.getElementById('inputRow').style.display = 'block';
+                document.getElementById('readonlyMsg').style.display = 'none';
+            } else {
+                document.getElementById('inputRow').style.display = 'none';
+                document.getElementById('readonlyMsg').style.display = 'block';
+            }
+        }
+
+        // === Contacts ===
+        function loadContactsAndPending() {
+            loadContactsList();
+            loadPendingRequests();
+        }
+
+        function loadContactsList() {
+            var xhr = getXHR(); if (!xhr) return;
+            xhr.open('GET', '../api/contacts.php?action=list', true);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    var data = eval('(' + xhr.responseText + ')');
+                    var el = document.getElementById('contacts-list-inner');
+                    var h = '<div class="contact-item clickable" onclick="openDm(\'' + currentUsername + '\')"><span class="online-dot on"></span>' + esc(currentDisplayName || currentUsername) + ' (me)</div>';
+                    if (data.success) {
+                        for (var i=0; i<data.contacts.length; i++) {
+                            var c = data.contacts[i];
+                            h += '<div class="contact-item clickable" onclick="openDm(\'' + c.username + '\')"><span class="online-dot"></span>' + esc(c.display_name || c.username) + '</div>';
+                        }
+                    }
+                    el.innerHTML = h;
+                }
+            };
+            xhr.send();
+        }
+
+        function loadPendingRequests() {
+            var xhr = getXHR(); if (!xhr) return;
+            xhr.open('GET', '../api/contacts.php?action=pending', true);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    var data = eval('(' + xhr.responseText + ')');
+                    var el = document.getElementById('pending-list');
+                    if (data.success && data.pending.length > 0) {
+                        document.getElementById('pending-badge').style.display = 'block';
+                        document.getElementById('pending-count').innerHTML = '' + data.pending.length;
+                        var h = '';
+                        for (var i=0; i<data.pending.length; i++) {
+                            var p = data.pending[i];
+                            h += '<div class="pending-item"><span>' + esc(p.display_name || p.username) + '</span><button class="accept" onclick="respondRequest(\'' + p.username + '\',\'accept\')">Accept</button><button class="reject" onclick="respondRequest(\'' + p.username + '\',\'reject\')">Reject</button><div style="clear:both;"></div></div>';
+                        }
+                        el.innerHTML = h;
+                    } else {
+                        document.getElementById('pending-badge').style.display = 'none';
+                        el.innerHTML = '';
+                    }
+                }
+            };
+            xhr.send();
+        }
+
+        function respondRequest(username, response) {
+            var xhr = getXHR(); if (!xhr) return;
+            xhr.open('POST', '../api/contacts.php', true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    loadContactsAndPending();
+                }
+            };
+            xhr.send('action=respond&username=' + encodeURIComponent(username) + '&response=' + response);
+        }
+
+        // === Add Contact ===
+        function toggleAddContact() {
+            var box = document.getElementById('add-contact-box');
+            box.style.display = (box.style.display === 'none' || box.style.display === '') ? 'block' : 'none';
+            if (box.style.display !== 'none') document.getElementById('add-search-input').focus();
+            else { document.getElementById('search-results').innerHTML = ''; document.getElementById('add-search-input').value = ''; }
+        }
+
+        var searchTmr = null;
+        function searchUsersIE8() {
+            if (searchTmr) clearTimeout(searchTmr);
+            var q = document.getElementById('add-search-input').value.replace(/^\s+|\s+$/g,'');
+            if (q.length < 1) { document.getElementById('search-results').innerHTML = ''; return; }
+            searchTmr = setTimeout(function() {
+                var xhr = getXHR(); if (!xhr) return;
+                xhr.open('GET', '../api/contacts.php?action=search&q=' + encodeURIComponent(q), true);
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState === 4 && xhr.status === 200) {
+                        var data = eval('(' + xhr.responseText + ')');
+                        var el = document.getElementById('search-results');
+                        if (data.success && data.users.length > 0) {
+                            var h = '';
+                            for (var i=0; i<data.users.length; i++) {
+                                var u = data.users[i];
+                                var btn = '';
+                                if (u.relation === 'accepted') btn = '<span class="status" style="color:#666;float:right;">Friends</span>';
+                                else if (u.relation === 'pending') btn = '<span class="status" style="color:#e0a040;float:right;">Pending</span>';
+                                else btn = '<button onclick="sendFriendRequestIE8(\'' + u.username + '\')">Add</button>';
+                                h += '<div class="search-result"><span>' + esc(u.username) + '</span>' + btn + '<div style="clear:both;"></div></div>';
+                            }
+                            el.innerHTML = h;
+                        } else {
+                            el.innerHTML = '<div class="search-result"><span>No users found</span></div>';
+                        }
+                    }
+                };
+                xhr.send();
+            }, 300);
+        }
+
+        function sendFriendRequestIE8(username) {
+            var xhr = getXHR(); if (!xhr) return;
+            xhr.open('POST', '../api/contacts.php', true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    var data = eval('(' + xhr.responseText + ')');
+                    if (data.success) { searchUsersIE8(); }
+                    else { alert(data.error || 'Something went wrong.'); }
+                }
+            };
+            xhr.send('action=send_request&username=' + encodeURIComponent(username));
+        }
+
+        // === DM ===
+        function openDm(u) {
+            dmContact = u;
+            document.getElementById('chat-header').getElementsByTagName('h2')[0].innerHTML = 'Chat with ' + u;
+            document.getElementById('messages-area').style.display = 'block';
+            document.getElementById('contacts-area').style.display = 'none';
+            document.getElementById('inputRow').style.display = 'block';
+            document.getElementById('readonlyMsg').style.display = 'none';
+            document.getElementById('messageInput').placeholder = 'Type a message...';
+            seenMsgIds = {};
+            loadAllDmMessages();
+            document.getElementById('messageInput').focus();
+        }
+
+        function addDmMessage(msg) {
+            if (seenMsgIds['dm_' + msg.id]) return; seenMsgIds['dm_' + msg.id] = 1;
+            var area = document.getElementById('messages-area');
+            // Remove empty state
+            var divs = area.getElementsByTagName('div');
+            for (var j=divs.length-1; j>=0; j--) {
+                if (divs[j].className === 'empty-state') divs[j].parentNode.removeChild(divs[j]);
+            }
+
+            var own = (msg.username === currentUsername);
+            var del = msg.is_deleted === true;
+            var dc = del ? ' deleted' : '';
+            var rh = '';
+            if (own && !del) rh = '<div class="msg-revoke"><a href="javascript:void(0)" onclick="revokeMessage(' + msg.id + ')">Revoke</a></div>';
+
+            var h = '<div class="message-row' + (own ? ' own' : '') + '" data-msgid="' + msg.id + '">' +
+                '<div class="message-bubble">' +
+                '<div class="msg-username">' + esc(msg.display_name || msg.username) + '</div>' +
+                '<div class="msg-text' + dc + '">' + esc(msg.message) + '</div>' +
+                '<div class="msg-time">' + esc(msg.time) + '</div>' + rh + '</div></div>';
+            area.innerHTML = area.innerHTML + h;
+            s2b();
+        }
+
+        function loadAllDmMessages() {
+            if (!dmContact) return;
+            var xhr = getXHR(); if (!xhr) return;
+            xhr.open('GET', '../api/chat.php?action=all&limit=50', true);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    var data = eval('(' + xhr.responseText + ')');
+                    var area = document.getElementById('messages-area');
+                    area.innerHTML = '';
+                    if (data.success) {
+                        var maxId = 0;
+                        for (var i=0; i<data.messages.length; i++) {
+                            var m = data.messages[i];
+                            if (m.id > maxId) maxId = m.id;
+                            if (m.recipient && ((m.username === currentUsername && m.recipient === dmContact) || (m.username === dmContact && m.recipient === currentUsername))) {
+                                seenMsgIds['dm_' + m.id] = 0; // allow re-add
+                                addDmMessage(m);
+                            }
+                        }
+                        if (maxId > latestId) latestId = maxId;
+                    }
+                    if (area.innerHTML === '') area.innerHTML = '<div class="empty-state"><p>Start chatting with ' + esc(dmContact) + '.</p></div>';
+                }
+            };
+            xhr.send();
+        }
+
+        // === Announcements ===
+        function addAnnouncement(msg) {
+            if (msg.recipient) return;
+            if (seenMsgIds['an_' + msg.id]) return; seenMsgIds['an_' + msg.id] = 1;
+            var area = document.getElementById('messages-area');
+            var divs = area.getElementsByTagName('div');
+            for (var j=divs.length-1; j>=0; j--) {
+                if (divs[j].className === 'empty-state') divs[j].parentNode.removeChild(divs[j]);
+            }
+
+            var own = (msg.username === currentUsername);
+            var del = msg.is_deleted === true;
+            var dc = del ? ' deleted' : '';
+            var rh = '';
+            if (own && !del) rh = '<div class="msg-revoke"><a href="javascript:void(0)" onclick="revokeMessage(' + msg.id + ')">Revoke</a></div>';
+
+            var h = '<div class="message-row' + (own ? ' own' : '') + '" data-msgid="' + msg.id + '">' +
+                '<div class="message-bubble">' +
+                '<div class="msg-username">' + esc(msg.display_name || msg.username) + '</div>' +
+                '<div class="msg-text' + dc + '">' + esc(msg.message) + '</div>' +
+                '<div class="msg-time">' + esc(msg.time) + '</div>' + rh + '</div></div>';
+            area.innerHTML = area.innerHTML + h;
+            s2b();
+        }
+
+        function initialLoad() {
+            var xhr = getXHR();
+            if (!xhr) { window.location.href='login.php'; return; }
+            xhr.open('GET', '../api/chat.php?action=all&limit=50', true);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    document.getElementById('loading-overlay').style.display='none';
+                    if (xhr.status === 200) {
+                        var data = eval('(' + xhr.responseText + ')');
+                        if (data.success && data.messages) {
+                            for (var i=0; i<data.messages.length; i++) { addAnnouncement(data.messages[i]); }
+                            latestId = data.latest_id;
+                        }
+                    }
+                }
+            };
+            xhr.send();
+        }
+
+        function pollMessages() {
+            var xhr = getXHR(); if (!xhr) return;
+            xhr.open('GET', '../api/chat.php?action=fetch&after=' + latestId, true);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    var data = eval('(' + xhr.responseText + ')');
+                    if (data.success && data.messages && data.messages.length > 0) {
+                        for (var i=0; i<data.messages.length; i++) {
+                            var m = data.messages[i];
+                            if (!m.recipient && activeTab === 'announce') addAnnouncement(m);
+                            if (dmContact && m.recipient && ((m.username === currentUsername && m.recipient === dmContact) || (m.username === dmContact && m.recipient === currentUsername))) {
+                                seenMsgIds['dm_' + m.id] = 0;
+                                addDmMessage(m);
+                            }
+                        }
+                        latestId = data.latest_id;
+                    }
+                }
+            };
+            xhr.send();
+        }
+
+        function revokeMessage(msgId) {
+            if (!confirm('Revoke this message?')) return;
+            var xhr = getXHR(); if (!xhr) return;
+            xhr.open('POST', '../api/chat.php', true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    var data = eval('(' + xhr.responseText + ')');
+                    if (data.success) {
+                        var area = document.getElementById('messages-area');
+                        var divs = area.getElementsByTagName('div');
+                        for (var i=0; i<divs.length; i++) {
+                            if (divs[i].getAttribute('data-msgid') == msgId) {
+                                var kids = divs[i].getElementsByTagName('div');
+                                for (var j=0; j<kids.length; j++) {
+                                    if (kids[j].className.indexOf('msg-text') >= 0) {
+                                        kids[j].innerHTML = '[This message has been revoked]';
+                                        kids[j].className = kids[j].className + ' deleted';
+                                    }
+                                }
+                                var links = divs[i].getElementsByTagName('a');
+                                for (var k=0; k<links.length; k++) {
+                                    if (links[k].innerHTML === 'Revoke') links[k].parentNode.removeChild(links[k]);
+                                }
+                                break;
+                            }
+                        }
+                    } else { alert(data.error || 'Something went wrong.'); }
+                }
+            };
+            xhr.send('action=revoke&message_id=' + msgId);
+        }
+
+        function sendMessage() {
+            if (isSending) return;
+            var input = document.getElementById('messageInput');
+            var message = input.value.replace(/^\s+|\s+$/g, '');
+            if (!message) return;
+
+            isSending = true;
+            document.getElementById('sendBtn').disabled = true;
+
+            var xhr = getXHR();
+            if (!xhr) { alert('Something went wrong.'); isSending=false; document.getElementById('sendBtn').disabled=false; return; }
+
+            xhr.open('POST', '../api/chat.php', true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    isSending = false;
+                    document.getElementById('sendBtn').disabled = false;
+                    if (xhr.status === 200) {
+                        var data = eval('(' + xhr.responseText + ')');
+                        if (data.success) {
+                            input.value='';
+                            if (dmContact) { seenMsgIds['dm_' + data.message_id] = 0; loadAllDmMessages(); }
+                            else { pollMessages(); }
+                            input.focus();
+                        } else { alert('Something went wrong.'); }
+                    } else { alert('Something went wrong.'); }
+                }
+            };
+
+            var params = 'action=send&message=' + encodeURIComponent(message);
+            if (dmContact) params += '&recipient=' + encodeURIComponent(dmContact);
+            xhr.send(params);
+        }
+
+        function handleKey(e) {
+            e = e || window.event;
+            if (e.keyCode === 13) { sendMessage(); if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false; }
+            return true;
+        }
+
+        function logout() {
+            var xhr = getXHR();
+            if (xhr) { xhr.open('POST','../api/auth.php',true); xhr.setRequestHeader('Content-Type','application/x-www-form-urlencoded'); xhr.send('action=logout'); }
+            window.location.href = 'index.html';
+        }
+
+        function checkAuth() {
+            var xhr = getXHR();
+            if (!xhr) { window.location.href='login.php'; return; }
+            xhr.open('GET', '../api/auth.php?action=check', true);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    var data = eval('(' + xhr.responseText + ')');
+                    if (data.success && data.username) {
+                        currentUsername = data.username;
+                        currentDisplayName = data.display_name || data.username;
+                        document.getElementById('current-user').innerHTML = currentDisplayName;
+                        initialLoad();
+                        pollTimer = setInterval(pollMessages, 2000);
+                        showAnnounceInput();
+                        document.getElementById('messageInput').focus();
+                    } else { window.location.href = 'index.html'; }
+                } else if (xhr.readyState === 4) { window.location.href = 'login.php'; }
+            };
+            xhr.send();
+        }
+
+        window.onload = function() { checkAuth(); };
+    </script>
+</head>
+<body>
+    <div id="chat-wrap">
+        <div class="loading-overlay" id="loading-overlay">Loading...</div>
+        <div id="chat-header">
+            <h2>Global Announcements</h2>
+            <span id="user-info">
+                Logged in as <strong id="current-user">...</strong>
+                <a href="settings.html" class="btn-settings">Settings</a>
+                <button class="btn-logout" onclick="logout();">Logout</button>
+            </span>
+        </div>
+
+        <!-- Tabs - floated divs, no flexbox -->
+        <div id="tab-bar">
+            <div class="tab-btn active" onclick="switchTab('announce')">Announcements</div>
+            <div class="tab-btn" onclick="switchTab('contacts')">Contacts</div>
+        </div>
+
+        <!-- Messages -->
+        <div id="messages-area">
+            <div class="empty-state"><p>No announcements yet.</p></div>
+        </div>
+
+        <!-- Contacts -->
+        <div id="contacts-area">
+            <div id="contacts-list-inner"></div>
+            <div id="pending-badge" style="display:none; padding:4px 8px; font-size:11px; color:#e0a040; cursor:pointer;" onclick="var e=document.getElementById('pending-list');e.style.display=(e.style.display==='none'?'block':'none')">Friend Requests (<span id="pending-count">0</span>)</div>
+            <div id="pending-list" style="display:none;"></div>
+            <div class="contact-item" onclick="toggleAddContact()" style="cursor:pointer;color:#777;">+ Add Contact</div>
+            <div id="add-contact-box" style="display:none;" class="add-contact-box">
+                <input type="text" id="add-search-input" placeholder="Search username..." onkeyup="searchUsersIE8()" autocomplete="off">
+                <div id="search-results"></div>
+            </div>
+        </div>
+
+        <!-- Input -->
+        <div id="chat-input-area">
+            <span id="inputRow" style="display:block;">
+                <input type="text" id="messageInput" placeholder="Type announcement..." maxlength="1000" onkeydown="return handleKey(event);">
+                <button id="sendBtn" onclick="sendMessage();">Send</button>
+                <div class="clear"></div>
+            </span>
+            <span id="readonlyMsg" style="display:none;" class="readonly-msg">Announcements are read-only. Only admin can post.</span>
+        </div>
+    </div>
+</body>
+</html>

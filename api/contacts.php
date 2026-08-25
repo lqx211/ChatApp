@@ -195,10 +195,40 @@ switch ($action) {
         break;
 
 
+    case 'toggle_pin':
+        $targetUser = trim($_POST['username'] ?? '');
+        if (empty($targetUser) || $targetUser === $myUsername) {
+            echo json_encode(['success' => false, 'error' => 'Something went wrong.']);
+            exit;
+        }
+        $stmt = $pdo->prepare("SELECT user_id FROM users WHERE username = ?");
+        $stmt->execute([$targetUser]);
+        $targetUid = (int)($stmt->fetchColumn() ?: 0);
+        if (!$targetUid) {
+            echo json_encode(['success' => false, 'error' => 'Something went wrong.']);
+            exit;
+        }
+        $st = $pdo->prepare("SELECT id FROM contacts WHERE user_from = ? AND user_to = ?");
+        $st->execute([$myUid, $targetUid]);
+        if ($st->fetch()) {
+            $pdo->prepare("UPDATE contacts SET pinned = 1 - pinned WHERE user_from = ? AND user_to = ?")
+                ->execute([$myUid, $targetUid]);
+            echo json_encode(['success' => true]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Contact relationship not found.']);
+        }
+        break;
+
+    case 'toggle_pin_self':
+        $pdo->prepare("UPDATE users SET pin_self = 1 - pin_self WHERE user_id = ?")->execute([$myUid]);
+        echo json_encode(['success' => true]);
+        break;
+
+
     case 'list':
         $stmt = $pdo->prepare("
             SELECT u.username, COALESCE(u.display_name, u.username) AS display_name, u.avatar,
-                   c_my.note AS note,
+                   c_my.note AS note, c_my.pinned AS pinned,
                    MAX(m.datetime) AS last_msg_time
             FROM users u
             INNER JOIN contacts c ON (
@@ -213,8 +243,8 @@ switch ($action) {
                 )
             )
             WHERE u.user_id != ?
-            GROUP BY u.username, COALESCE(u.display_name, u.username), u.avatar, c_my.note, u.user_id
-            ORDER BY last_msg_time IS NULL ASC, last_msg_time DESC
+            GROUP BY u.username, COALESCE(u.display_name, u.username), u.avatar, c_my.note, c_my.pinned, u.user_id
+            ORDER BY c_my.pinned DESC, last_msg_time IS NULL ASC, last_msg_time DESC
         ");
         $stmt->execute([$myUid, $myUid, $myUid, $myUid, $myUid, $myUid]);
         $contacts = $stmt->fetchAll();
@@ -225,7 +255,8 @@ switch ($action) {
             }
         }
         unset($c);
-        echo json_encode(['success' => true, 'contacts' => $contacts]);
+        $myPinSelf = (int)$pdo->query("SELECT pin_self FROM users WHERE user_id=$myUid")->fetchColumn();
+        echo json_encode(['success' => true, 'contacts' => $contacts, 'pin_self' => $myPinSelf]);
         break;
 
     case 'pending':

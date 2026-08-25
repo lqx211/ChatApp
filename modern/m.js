@@ -69,8 +69,23 @@
 
     /* ---------------- 表情渲染 ---------------- */
     var _emojiBuiltin = [];
-    apiGet('../api/emoji.php?action=list').then(function (d) { if (d && d.success) _emojiBuiltin = d.emojis || []; });
+    function loadEmojiList() {
+        apiGet('../api/emoji.php?action=list').then(function (d) {
+            if (d && d.success && d.emojis) {
+                _emojiBuiltin = d.emojis;
+                // 列表到达后重渲染可见内容（首屏可能先于接口渲染）
+                if (allConvs && allConvs.length) renderConvs();
+                if (currentPartner) loadChatHistory();
+                if (emojiPanelOpen && !$('emojiGridBuiltin').children.length) renderBuiltinEmojis();
+            }
+        });
+    }
+    loadEmojiList();
     function renderEmoji(text) {
+        // 自定义表情 [emoji:hash] 不依赖内置列表，始终解析
+        text = text.replace(/\[emoji:([a-f0-9]{32})\]/g, function (m, h) {
+            return '<img src="../api/emoji.php?action=img&hash=' + h + '" class="chat-emoji chat-emoji-custom" alt="">';
+        });
         if (!_emojiBuiltin.length) return text;
         for (var i = 0; i < _emojiBuiltin.length; i++) {
             var e = _emojiBuiltin[i];
@@ -78,9 +93,6 @@
                 text = text.split(e.code).join('<img src="../' + e.img + '" class="chat-emoji chat-emoji-builtin" alt="">');
             }
         }
-        text = text.replace(/\[emoji:([a-f0-9]{32})\]/g, function (m, h) {
-            return '<img src="../api/emoji.php?action=img&hash=' + h + '" class="chat-emoji chat-emoji-custom" alt="">';
-        });
         return text;
     }
 
@@ -96,12 +108,15 @@
     }
     $('frameBackBtn').addEventListener('click', closeFrame);
     window.MOB = { openFrame: openFrame, closeFrame: closeFrame, showTab: showTab };
+    // profile.php 等页面内部调用 parent.closeMyProfile() 返回 → 移动端即关闭全屏框
+    window.closeMyProfile = function () { closeFrame(); };
 
     /* ---------------- 表情选择器 ---------------- */
     var emojiPanelOpen = false;
     function openEmojiPanel() {
         emojiPanelOpen = true;
         $('emojiPanel').style.display = 'flex';
+        if (!_emojiBuiltin.length) loadEmojiList();
         if (!$('emojiGridBuiltin').children.length && _emojiBuiltin.length) renderBuiltinEmojis();
         if (!$('emojiGridCustom').children.length) loadCustomEmojis();
     }
@@ -297,7 +312,12 @@
                     + '<span style="color:var(--m-sub);font-size:14px">›</span></div>';
             }
             box.innerHTML = html;
-            bindListClicks(box);
+            // 联系人点击 → 打开个人主页（而非聊天）
+            [].forEach.call(box.querySelectorAll('.li[data-u]'), function (el) {
+                el.addEventListener('click', function () {
+                    openFrame('profile.php?user=' + encodeURIComponent(el.getAttribute('data-u')), el.getAttribute('data-name') || el.getAttribute('data-u'));
+                });
+            });
         });
     }
 

@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=8">
+    <title>ChatApp - Login (IE8)</title>
+    <style type="text/css">
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 14px;
+        }
+        #wrapper {
+            text-align: center;
+            padding-top: 80px;
+        }
+        #auth-box {
+            width: 380px;
+            margin: 0 auto;
+            background-color: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            padding: 30px 28px;
+            text-align: left;
+        }
+        #auth-box h1 {
+            text-align: center;
+            color: #c0c0c0;
+            font-size: 22px;
+            margin: 0 0 4px 0;
+            padding: 0;
+        }
+        #auth-box p.subtitle {
+            text-align: center;
+            color: #777;
+            font-size: 12px;
+            margin: 0 0 24px 0;
+        }
+        .tabs {
+            margin-bottom: 20px;
+            border-bottom: 2px solid #3a3a3a;
+            padding: 0;
+        }
+        .tabs span {
+            display: inline-block;
+            padding: 8px 20px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 13px;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+        }
+        .tabs span.active {
+            color: #c0c0c0;
+            border-bottom: 2px solid #888;
+        }
+        .tabs span.inactive {
+            color: #777;
+        }
+        .error-msg {
+            background-color: #3d2020;
+            border: 1px solid #5c2a2a;
+            color: #e06060;
+            padding: 8px 12px;
+            margin-bottom: 14px;
+            font-size: 12px;
+            display: none;
+        }
+        .form-row {
+            margin-bottom: 12px;
+        }
+        .form-row label {
+            display: block;
+            color: #aaa;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+        .form-row input {
+            width: 100%;
+            padding: 8px 6px;
+            background-color: #1e1e1e;
+            border: 1px solid #444;
+            color: #e0e0e0;
+            font-size: 13px;
+            font-family: Arial, sans-serif;
+            box-sizing: border-box;
+        }
+        .btn-primary {
+            width: 100%;
+            padding: 10px;
+            background-color: #4a4a4a;
+            border: 1px solid #555;
+            color: #e0e0e0;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: Arial, sans-serif;
+        }
+        .btn-primary:hover {
+            background-color: #5a5a5a;
+        }
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 16px;
+            color: #777;
+            font-size: 12px;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            color: #aaa;
+        }
+    </style>
+    <script type="text/javascript">
+        // IE8-compatible AJAX
+        function getXHR() {
+            if (window.XMLHttpRequest) {
+                return new XMLHttpRequest();
+            }
+            try {
+                return new ActiveXObject("Msxml2.XMLHTTP");
+            } catch (e) {
+                try {
+                    return new ActiveXObject("Microsoft.XMLHTTP");
+                } catch (e2) {
+                    return null;
+                }
+            }
+        }
+
+        function showTab(tab) {
+            var loginTab = document.getElementById('tab-login');
+            var regTab = document.getElementById('tab-register');
+            var loginForm = document.getElementById('login-form');
+            var regForm = document.getElementById('register-form');
+            var err = document.getElementById('error-msg');
+
+            err.style.display = 'none';
+            err.innerHTML = '';
+
+            if (tab === 'register') {
+                loginTab.className = 'inactive';
+                regTab.className = 'active';
+                loginForm.style.display = 'none';
+                regForm.style.display = 'block';
+            } else {
+                loginTab.className = 'active';
+                regTab.className = 'inactive';
+                regForm.style.display = 'none';
+                loginForm.style.display = 'block';
+            }
+        }
+
+        function showError(msg) {
+            var err = document.getElementById('error-msg');
+            err.innerHTML = msg;
+            err.style.display = 'block';
+        }
+
+        function doLogin() {
+            var username = document.getElementById('loginUsername').value.replace(/^\s+|\s+$/g, '');
+            var password = document.getElementById('loginPassword').value;
+
+            if (!username || !password) {
+                showError('Something went wrong.');
+                return false;
+            }
+
+            var xhr = getXHR();
+            if (!xhr) {
+                alert('Your browser does not support AJAX. Please use the modern version.');
+                return false;
+            }
+
+            xhr.open('POST', '../api/auth.php', true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        var data = eval('(' + xhr.responseText + ')');
+                        if (data.success) {
+                            window.location.href = 'chat.html';
+                        } else {
+                            showError(data.error || 'Something went wrong.');
+                        }
+                    } else {
+                        showError('Something went wrong.');
+                    }
+                }
+            };
+
+            xhr.send('action=login&username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password));
+            return false;
+        }
+
+        function doRegister() {
+            var username = document.getElementById('regUsername').value.replace(/^\s+|\s+$/g, '');
+            var password = document.getElementById('regPassword').value;
+            var password2 = document.getElementById('regPassword2').value;
+
+            if (password !== password2) {
+                showError('Something went wrong.');
+                return false;
+            }
+
+            if (username.length < 3) {
+                showError('Something went wrong.');
+                return false;
+            }
+
+            if (password.length < 4) {
+                showError('Something went wrong.');
+                return false;
+            }
+
+            var lang = document.getElementById('regLanguage').value;
+
+            var xhr = getXHR();
+            if (!xhr) {
+                alert('Your browser does not support AJAX. Please use the modern version.');
+                return false;
+            }
+
+            xhr.open('POST', '../api/auth.php', true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        var data = eval('(' + xhr.responseText + ')');
+                        if (data.success) {
+                            window.location.href = 'chat.html';
+                        } else {
+                            showError(data.error || 'Something went wrong.');
+                        }
+                    } else {
+                        showError('Something went wrong.');
+                    }
+                }
+            };
+
+            xhr.send('action=register&username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password) + '&language=' + encodeURIComponent(lang));
+            return false;
+        }
+    </script>
+</head>
+<body>
+    <div id="wrapper">
+        <div id="auth-box">
+            <h1>Login</h1>
+            <p class="subtitle">May support IE8, I guess.</p>
+
+            <div class="tabs">
+                <span id="tab-login" class="active" onclick="showTab('login');">Login</span>
+                <span id="tab-register" class="inactive" onclick="showTab('register');">Register</span>
+            </div>
+
+            <div class="error-msg" id="error-msg"></div>
+
+            <!-- Login Form -->
+            <form id="login-form" onsubmit="return doLogin();">
+                <div class="form-row">
+                    <label for="loginUsername">Username</label>
+                    <input type="text" id="loginUsername" maxlength="20">
+                </div>
+                <div class="form-row">
+                    <label for="loginPassword">Password</label>
+                    <input type="password" id="loginPassword">
+                </div>
+                <div class="form-row">
+                    <input type="submit" class="btn-primary" value="Log In">
+                </div>
+            </form>
+
+            <!-- Register Form -->
+            <form id="register-form" onsubmit="return doRegister();" style="display:none;">
+                <div class="form-row">
+                    <label for="regUsername">Username</label>
+                    <input type="text" id="regUsername" maxlength="20">
+                </div>
+                <div class="form-row">
+                    <label for="regPassword">Password</label>
+                    <input type="password" id="regPassword">
+                </div>
+                <div class="form-row">
+                    <label for="regPassword2">Confirm Password</label>
+                    <input type="password" id="regPassword2">
+                </div>
+                <div class="form-row">
+                    <label for="regLanguage">Preferred Language</label>
+                    <select id="regLanguage" style="width:100%; padding:8px 6px; background-color:#1e1e1e; border:1px solid #444; color:#e0e0e0; font-size:13px; font-family:Arial,sans-serif; box-sizing:border-box">
+                        <option value="en">English (US)</option>
+                        <option value="zh">Chinese Simplified (简体中文)</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <input type="submit" class="btn-primary" value="Register">
+                </div>
+            </form>
+
+            <a href="../index.php" class="back-link">Back to entry page</a>
+        </div>
+    </div>
+</body>
+</html>

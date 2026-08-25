@@ -1,0 +1,249 @@
+/* dscview — 组件样式。所有数值 100% 照抄 DeepSeek Harness（packages/client），
+   token 定义见 theme/design-platform.css（原样复制）。 */
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; height: 100%; }
+
+/* 项目字体：Default（中文）+ Roboto（西文）
+   base-fonts.css 的 :root 会被后加载的 a.css 覆盖，这里在最后重新定义变量 */
+:root,
+page,
+body {
+  --dsw-font-family: 'Default', 'Roboto', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+/* 覆盖 a.css 硬编码的 Inter 栈 */
+body, button, input, textarea, select {
+  font-family: var(--dsw-font-family) !important;
+}
+
+#app { display: flex; height: 100vh; overflow: hidden; }
+
+.muted { color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 20px; }
+
+.hidden { display: none !important; }
+
+/* ================= 侧栏（ui-sidebar/SidebarRoot + ui-workspace/Rows） ================= */
+#sidebar {
+  --dsh-sidebar-inline-padding: 12px;
+  display: flex; flex-direction: column; height: 100%;
+  width: 300px; flex: none;
+  padding: 6px var(--dsh-sidebar-inline-padding);
+  box-sizing: border-box;
+  background: var(--dsw-specific-sidebar-fill);
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  border-right: 1px solid var(--dsw-alias-border-l2);
+  overflow: hidden;
+}
+
+#logoRow {
+  flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  height: 60px; padding: 8px 0 8px 4px; margin-bottom: 8px;
+  box-sizing: border-box; overflow: hidden;
+}
+#brand { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 8px; overflow: hidden; }
+#brandMark { flex: none; display: inline-flex; align-items: center; justify-content: center; font-size: 22px; line-height: 1; }
+#brandName { display: inline-flex; align-items: center; height: 24px; font-size: 18px; font-weight: 600; line-height: 24px; letter-spacing: 0.04em; }
+
+.iconButton {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border: none; border-radius: 50%; padding: 0;
+  background: transparent; cursor: pointer;
+  color: var(--dsw-alias-label-secondary); font-size: 16px;
+}
+.iconButton:hover { background: var(--dsw-alias-interactive-bg-hover); }
+
+#newSession {
+  flex: none; display: flex; align-items: center; justify-content: center; gap: 6px;
+  height: 38px; padding: 8px 16px; margin: 0 2px 8px; box-sizing: border-box;
+  border: 1px solid var(--dsw-alias-border-l2); border-radius: 12px;
+  background: var(--dsw-alias-button-elevated-fill);
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px; font-weight: 500; line-height: 22px; cursor: pointer; overflow: hidden;
+}
+#newSession:hover { background: var(--dsw-alias-button-floating-hover); }
+
+#regionArea {
+  flex: 1; min-height: 0; display: flex; flex-direction: column;
+  margin-left: -4px; margin-right: calc(-1 * var(--dsh-sidebar-inline-padding));
+  padding-left: 4px; overflow: hidden;
+}
+
+#searchbox-wrap { padding: 0 6px 8px; }
+#searchbox {
+  width: 100%; height: 32px; padding: 0 10px;
+  border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px;
+  background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary);
+  font-size: 14px; outline: none;
+}
+#searchbox::placeholder { color: var(--dsw-alias-label-tertiary); }
+#searchbox:focus { border-color: var(--dsw-alias-state-business-primary); }
+
+#chatlist {
+  flex: 1; min-height: 0; overflow-y: auto;
+  margin-left: -4px; margin-right: 2px;
+  padding-left: 4px; padding-right: 2px; padding-bottom: 16px;
+  scrollbar-gutter: stable;
+}
+/* 日期分组（Today / Yesterday / 7 Days 中文版） */
+.sessionGroup { display: flex; flex-direction: column; }
+.sessionGroup + .sessionGroup { margin-top: 12px; }
+.groupLabel {
+  height: 28px; display: flex; align-items: center;
+  padding: 0 8px; margin-bottom: 2px;
+  font-size: 12px; line-height: 16px; font-weight: 500;
+  color: var(--dsw-alias-label-tertiary);
+  user-select: none;
+}
+.sessionRow {
+  display: flex; align-items: center; height: 32px; border-radius: 8px; padding: 0 8px;
+  cursor: pointer; user-select: none; color: var(--dsw-alias-label-primary);
+}
+.sessionRow + .sessionRow { margin-top: 2px; }
+.sessionRow:hover, .sessionRow.selected { background: var(--dsw-alias-interactive-bg-hover); }
+.sessionRow .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; line-height: 20px; }
+.sessionRow .time { flex: none; font-size: 12px; line-height: 20px; color: var(--dsw-alias-label-tertiary); }
+
+#loadmore { padding: 8px 6px 4px; }
+#loadmore-btn {
+  width: 100%; padding: 7px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px;
+  background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-secondary);
+  font-size: 13px; cursor: pointer;
+}
+#loadmore-btn:hover { background: var(--dsw-alias-interactive-bg-hover); }
+
+#chatlist .empty-list { text-align: center; color: var(--dsw-alias-label-tertiary); padding: 40px 16px; font-size: 13px; }
+
+/* ================= 聊天列（ConversationRoot + ChatView + MessageItem + AssistantMarkdown） ================= */
+#main {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; height: 100%;
+  background: var(--dsw-alias-bg-base);
+}
+
+#empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--dsw-alias-label-tertiary); }
+#empty-icon { font-size: 42px; margin-bottom: 10px; }
+
+#chatview {
+  flex: 1; min-height: 0; display: flex; flex-direction: column;
+  --dsh-chat-content-width: 748px;
+  --dsh-composer-side-clearance: 16px;
+}
+
+#conv-header { position: relative; flex: none; padding: 12px 28px 0 20px; border-bottom: 1px solid transparent; }
+#conv-header::after { content: ''; position: absolute; right: 0; bottom: 1px; left: 0; z-index: 0; height: 1px; background: var(--dsw-alias-border-l2); pointer-events: none; }
+#titleRow { display: flex; align-items: center; gap: 0; min-height: 32px; }
+#crumbs { display: flex; flex: 1; align-items: center; gap: 4px; min-width: 0; overflow: hidden; white-space: nowrap; }
+.crumb { max-width: 220px; overflow: hidden; padding: 4px 8px; border: none; border-radius: 12px; background: transparent; font-size: 14px; line-height: 20px; color: var(--dsw-alias-label-tertiary); }
+.crumbCurrent { font-weight: 500; color: var(--dsw-alias-label-primary); }
+#headerMeta { flex: none; padding: 0 8px; }
+
+#tabs { position: relative; z-index: 1; display: flex; gap: 36px; margin-top: 4px; padding-left: 8px; }
+.tab { position: relative; padding: 0 0 11px; border: none; background: transparent; font-size: 13px; line-height: 16px; font-weight: 500; color: var(--dsw-alias-label-tertiary); cursor: pointer; }
+.tab::after { content: ''; position: absolute; right: 0; bottom: 1px; left: 0; height: 2px; border-radius: 2px; background: transparent; }
+.tabActive { color: var(--dsw-alias-state-business-primary); }
+.tabActive::after { background: var(--dsw-alias-state-business-primary); }
+
+#chatScroll { flex: 1; min-height: 0; overflow-y: auto; padding: 16px calc(var(--dsh-composer-side-clearance) + 16px); scrollbar-gutter: stable; }
+#messages { max-width: var(--dsh-chat-content-width); width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+/* 性能优化：屏幕外消息跳过渲染（等价官方虚拟列表收益，纯 CSS） */
+#messages > * { content-visibility: auto; contain-intrinsic-size: auto 24px; }
+
+/* ================= 统计面板 ================= */
+#statsView { flex: 1; min-height: 0; overflow-y: auto; padding: 20px calc(var(--dsh-composer-side-clearance) + 16px); scrollbar-gutter: stable; }
+.statsWrap { max-width: var(--dsh-chat-content-width); width: 100%; margin: 0 auto; }
+.statsTitle { font-size: 18px; font-weight: 600; margin: 0 0 16px; color: var(--dsw-alias-label-primary); }
+
+.statCards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+.statCard {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 16px 12px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 12px;
+  background: var(--dsw-alias-bg-base);
+}
+.statCardNum { font-size: 24px; font-weight: 600; color: var(--dsw-alias-state-business-primary); line-height: 1.2; }
+.statCardLabel { margin-top: 6px; font-size: 12px; color: var(--dsw-alias-label-tertiary); }
+
+.statSection { margin-bottom: 24px; }
+.statSectionTitle { font-size: 14px; font-weight: 500; margin: 0 0 10px; color: var(--dsw-alias-label-secondary); }
+.statRow { display: flex; align-items: center; gap: 12px; padding: 6px 0; font-size: 14px; line-height: 20px; }
+.statLabel { flex: none; min-width: 120px; color: var(--dsw-alias-label-primary); }
+.statBarWrap { flex: 1; height: 8px; border-radius: 4px; background: var(--dsw-alias-border-l2); overflow: hidden; }
+.statBar { display: block; height: 100%; border-radius: 4px; background: var(--dsw-alias-state-business-primary); opacity: 0.85; }
+.statNum { flex: none; min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; color: var(--dsw-alias-label-secondary); }
+.statEmpty { color: var(--dsw-alias-label-tertiary); font-size: 13px; }
+
+.chartBars { display: flex; align-items: flex-end; gap: 6px; height: 80px; padding-top: 8px; }
+.chartCol { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; }
+.chartBar { width: 100%; max-width: 26px; border-radius: 4px 4px 0 0; background: var(--dsw-alias-state-business-primary); opacity: 0.75; min-height: 2px; }
+.chartDay { font-size: 10px; color: var(--dsw-alias-label-tertiary); white-space: nowrap; }
+
+@media (max-width: 640px) {
+  .statCards { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* 用户气泡（MessageItem） */
+.userRow { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.userStack { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-width: 0; max-width: min(525px, 82%); }
+.userRow .bubble { max-width: 100%; background: var(--dsw-specific-bubble); border-radius: 22px; padding: 10px 16px; font-size: 16px; line-height: 24px; color: var(--dsw-alias-label-primary); white-space: pre-wrap; }
+
+/* 思考 / 工具折叠（ReasoningRow） */
+.thinkRow { display: flex; flex-direction: column; }
+.thinkSummary {
+  display: inline-flex; align-items: center; gap: 7px; width: fit-content; padding: 2px 0;
+  cursor: pointer; list-style: none; user-select: none;
+  color: var(--dsw-alias-label-tertiary); font-size: 14px; line-height: 24px;
+}
+.thinkSummary::-webkit-details-marker { display: none; }
+.thinkSummary::after {
+  width: 6px; height: 6px; border-right: 1.5px solid currentcolor; border-bottom: 1.5px solid currentcolor;
+  content: ''; opacity: 0.8; transform: rotate(-45deg);
+  transition: transform 120ms var(--ds-ease-in-out);
+}
+.thinkRow[open] .thinkSummary::after { transform: rotate(45deg); }
+.thinkSummary:hover { color: var(--dsw-alias-label-secondary); }
+.thinkBody { padding: 4px 0 4px 22px; color: var(--dsw-alias-label-tertiary); font-size: 14px; line-height: 24px; white-space: pre-wrap; word-break: break-word; }
+
+/* AI 消息直接使用官方 .ds-markdown；这里只补代码块复制按钮外观 */
+.md-code-block-copy {
+  border: none; background: transparent; padding: 0 4px;
+  color: var(--dsw-alias-label-secondary);
+  font: var(--dsw-font-xs-13, 12px/18px);
+  cursor: pointer;
+}
+.md-code-block-copy:hover { color: var(--dsw-alias-label-primary); }
+
+/* ================= 上传 / 进度 ================= */
+#dropzone { height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--dsw-alias-bg-base); }
+.uploader-inner { text-align: center; max-width: 520px; }
+.uploader-icon { font-size: 52px; }
+.uploader-inner h1 { font-size: 24px; font-weight: 600; margin: 14px 0 10px; color: var(--dsw-alias-label-primary); }
+.uploader-inner p { margin: 8px 0; color: var(--dsw-alias-label-secondary); font-size: 14px; }
+.uploader-inner .small { font-size: 12px; color: var(--dsw-alias-label-tertiary); }
+#dropzone.dragover { outline: 2px dashed var(--dsw-alias-state-business-primary); outline-offset: -10px; border-radius: 16px; }
+.btn-primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  margin-top: 18px; padding: 10px 20px; height: 40px;
+  background: var(--dsw-alias-button-info-fill); color: #fff;
+  border: none; border-radius: 12px; font-size: 14px; font-weight: 500;
+  cursor: pointer; text-decoration: none;
+}
+.btn-primary:hover { background: var(--dsw-alias-button-info-hover); }
+
+#progress { height: 100%; display: flex; align-items: center; justify-content: center; background: var(--dsw-alias-bg-base); }
+.progress-inner { text-align: center; width: min(480px, 86vw); }
+.progress-inner h2 { font-size: 18px; font-weight: 600; margin-bottom: 18px; color: var(--dsw-alias-label-primary); }
+.bar { height: 8px; border-radius: 4px; background: var(--dsw-alias-border-l2); overflow: hidden; }
+#bar-fill { height: 100%; width: 0; background: var(--dsw-alias-button-info-fill); transition: width 0.1s linear; }
+
+/* ================= 响应式 ================= */
+@media (max-width: 760px) {
+  #sidebar { width: 100%; }
+  #main { display: none; }
+  #app.viewing #sidebar { display: none; }
+  #app.viewing #main { display: block; }
+}

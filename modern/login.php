@@ -194,6 +194,12 @@ if (isset($_SESSION['username'])) {
         .btn-primary:hover {
             background: #5a5a5a;
         }
+        /* PoW solving state: dim + disable the submit button */
+        .btn-primary.pow-working {
+            opacity: 0.55;
+            pointer-events: none;
+            cursor: default;
+        }
         .back-link {
             display: block;
             text-align: center;
@@ -295,7 +301,7 @@ if (isset($_SESSION['username'])) {
                     <label for="loginPassword"><?php echo t('label_password'); ?></label>
                     <input type="password" id="loginPassword" required autocomplete="current-password">
                 </div>
-                <button type="submit" class="btn-primary"><?php echo t('btn_login'); ?></button>
+                <button type="submit" class="btn-primary" id="loginBtn"><?php echo t('btn_login'); ?></button>
             </form>
             </div>
 
@@ -324,7 +330,7 @@ if (isset($_SESSION['username'])) {
                         <option value="raw"<?php echo $currentLang === 'raw' ? ' selected' : ''; ?>><?php echo t('lang_raw'); ?></option>
                     </select>
                 </div>
-                <button type="submit" class="btn-primary"><?php echo t('btn_register'); ?></button>
+                <button type="submit" class="btn-primary" id="registerBtn"><?php echo t('btn_register'); ?></button>
             </form>
             </div>
         </div>
@@ -344,12 +350,15 @@ if (isset($_SESSION['username'])) {
         <a href="../index.php" class="back-link" id="backLink"><?php echo t('msg_back_entry'); ?></a>
     </div>
 
+    <script src="pow.js"></script>
     <script>
         var _currentLang = '<?php echo $currentLang; ?>';
         var LANG = <?php
             $langArr = lang_load();
             echo json_encode([
                 'msg_restricted_reason' => $langArr['msg_restricted_reason'] ?? 'Reason: %s',
+                'msg_pow_working' => $langArr['msg_pow_working'] ?? 'Logging in...',
+                'msg_pow_registering' => $langArr['msg_pow_registering'] ?? 'Registering...',
             ], JSON_UNESCAPED_UNICODE);
         ?>;
         var _restrictedUser = null;
@@ -476,33 +485,95 @@ if (isset($_SESSION['username'])) {
             });
         }
 
+        var _powLabel = t('msg_pow_working', 'Logging in...');
+        var _powRegisterLabel = t('msg_pow_registering', 'Registering...');
+
+        function setButtonWorking(btn, label) {
+            btn.classList.add('pow-working');
+            btn.textContent = label;
+        }
+
+        function resetButton(btn, label) {
+            btn.classList.remove('pow-working');
+            btn.textContent = label;
+        }
+
+        async function fetchPowChallenge() {
+            try {
+                var resp = await fetch('../api/auth.php?action=challenge');
+                var data = await resp.json();
+                if (data.success && data.challenge && data.target) return data;
+            } catch (e) {}
+            return null;
+        }
+
+        // Fetch challenge → solve (button shows "Logging in... (n kH/s)") → POST.
+        // Auto-retries once when the server reports an expired/failed challenge.
+        async function submitWithPow(btn, action, appendFields, label) {
+            if (!label) label = _powLabel;
+            var retried = false;
+            while (true) {
+                var pow = await fetchPowChallenge();
+                if (!pow) return { success: false, error: 'Something went wrong.' };
+                var solved = await ChatAppPow.solve(pow.challenge, pow.target, function (kHps) {
+                    btn.textContent = label + ' (' + Math.round(kHps) + ' kH/s)';
+                });
+                if (!solved) return { success: false, error: 'Something went wrong.' };
+                var fd = new URLSearchParams();
+                fd.append('action', action);
+                fd.append('pow_challenge', pow.challenge);
+                fd.append('pow_nonce', solved.nonce);
+                appendFields(fd);
+                var data;
+                try {
+                    var resp = await fetch('../api/auth.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: fd.toString()
+                    });
+                    data = await resp.json();
+                } catch (err) {
+                    return { success: false, error: 'Something went wrong.' };
+                }
+                if (data.error === 'pow_challenge_failed' && !retried) {
+                    retried = true;
+                    continue; // refetch + re-solve once
+                }
+                return data;
+            }
+        }
+
+        function powErrorText(data) {
+            if (data.error === 'pow_challenge_failed') return 'Please try again.';
+            return data.error || 'Something went wrong.';
+        }
+
         async function handleLogin(e) {
             e.preventDefault();
             hideError();
 
             var username = document.getElementById('loginUsername').value.trim();
             var password = document.getElementById('loginPassword').value;
+            var btn = document.getElementById('loginBtn');
+            var origLabel = btn.textContent;
 
-            var formData = new URLSearchParams();
-            formData.append('action', 'login');
-            formData.append('username', username);
-            formData.append('password', password);
-
+            setButtonWorking(btn, _powLabel);
             try {
-                var resp = await fetch('../api/auth.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: formData.toString()
+                var data = await submitWithPow(btn, 'login', function (fd) {
+                    fd.append('username', username);
+                    fd.append('password', password);
                 });
-                var data = await resp.json();
                 if (data.success) {
                     window.location.href = 'chat.php';
                 } else if (data.restricted) {
+                    resetButton(btn, origLabel);
                     showRestricted(data);
                 } else {
-                    showError(data.error || 'Something went wrong.');
+                    resetButton(btn, origLabel);
+                    showError(powErrorText(data));
                 }
             } catch (err) {
+                resetButton(btn, origLabel);
                 showError('Something went wrong.');
             }
         }
@@ -520,25 +591,24 @@ if (isset($_SESSION['username'])) {
                 return;
             }
 
-            var formData = new URLSearchParams();
-            formData.append('action', 'register');
-            formData.append('username', username);
-            formData.append('password', password);
-            formData.append('language', document.getElementById('regLanguage').value);
+            var btn = document.getElementById('registerBtn');
+            var origLabel = btn.textContent;
 
+            setButtonWorking(btn, _powRegisterLabel);
             try {
-                var resp = await fetch('../api/auth.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: formData.toString()
-                });
-                var data = await resp.json();
+                var data = await submitWithPow(btn, 'register', function (fd) {
+                    fd.append('username', username);
+                    fd.append('password', password);
+                    fd.append('language', document.getElementById('regLanguage').value);
+                }, _powRegisterLabel);
                 if (data.success) {
                     window.location.href = 'chat.php';
                 } else {
-                    showError(data.error || 'Something went wrong.');
+                    resetButton(btn, origLabel);
+                    showError(powErrorText(data));
                 }
             } catch (err) {
+                resetButton(btn, origLabel);
                 showError('Something went wrong.');
             }
         }

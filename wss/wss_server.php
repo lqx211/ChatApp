@@ -284,6 +284,9 @@ function ws_proc_messages(PDO $pdo, array $msgs, array $replyMap = []): array {
                     $m['temp_revoked'] = 0;
                     $m['temp_expires'] = null;
                 }
+            } elseif ($m['msg_type'] === 'like') {
+                // 点赞系统消息：attachment 存的是 JSON 次数，不是文件
+                $m['attachment_url'] = null;
             } else {
                 $m['attachment_url'] = '../api/file.php?u=' . $senderId . '&f=' . $m['attachment'];
             }
@@ -556,6 +559,33 @@ function ws_poll_messages(): void {
             $GLOBALS['poll_latest'] = (int)($pdo->query("SELECT MAX(id) FROM messages WHERE group_id IS NULL")->fetchColumn() ?? 0);
         } catch (\Throwable $e) {}
     }
+
+    // ---------- 点赞行合并更新推送（行 id 不变但次数+1，推给被赞方） ----------
+    try {
+        $likeStmt = $pdo->prepare("SELECT m.id, m.sender_id, su.username, su.display_name, su.avatar,
+            m.recipient_id, ru.username AS recipient_name,
+            m.message, m.msg_type, m.attachment, m.time, m.datetime, m.deleted_at, m.reply_to, m.temp_upload_id
+            FROM messages m
+            LEFT JOIN users su ON su.user_id = m.sender_id
+            LEFT JOIN users ru ON ru.user_id = m.recipient_id
+            WHERE m.group_id IS NULL AND m.msg_type = 'like' AND m.datetime >= NOW() - INTERVAL 40 SECOND
+            ORDER BY m.id ASC LIMIT 100");
+        $likeStmt->execute();
+        $likeRows = $likeStmt->fetchAll();
+        if (!empty($likeRows)) {
+            $procLike = ws_proc_messages($pdo, $likeRows, []);
+            foreach ($clients as $cid => $cl) {
+                $pushL = [];
+                foreach ($likeRows as $i => $r) {
+                    // 只推给被赞方；点赞方由 profile 页 parent 刷新自行更新
+                    if ($r['recipient_name'] === $cl['username']) $pushL[] = $procLike[$i];
+                }
+                if (!empty($pushL)) {
+                    ws_send_json($cid, ['type' => 'msg', 'messages' => $pushL, 'latest_id' => $cl['l']]);
+                }
+            }
+        }
+    } catch (\Throwable $e) {}
 
     // ---------- 群消息增量 ----------
     if ($minGlast > 0 && !empty($groupSubs)) {

@@ -15,7 +15,7 @@ if ($isSelf) {
 } elseif (!$isSelf) {
     // Fetch target user info directly from DB
     $pdo = db();
-    $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, enabled, restricted, restricted_reason, placeholder, dnd, role, created_at, last_login, exp, level, bg_image, bg_updated_at, profile_bg_image, profile_bg_updated_at, bg_privacy, bg_blacklist, bg_whitelist, bg_no_friend, bg_private_image, custom_title, gender, gender_privacy, birthday FROM users WHERE username = ?");
+    $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, enabled, restricted, restricted_reason, placeholder, dnd, role, created_at, last_login, exp, level, likes, bg_image, bg_updated_at, profile_bg_image, profile_bg_updated_at, bg_privacy, bg_blacklist, bg_whitelist, bg_no_friend, bg_private_image, custom_title, gender, gender_privacy, birthday FROM users WHERE username = ?");
     $stmt->execute([$viewUsername]);
     $row = $stmt->fetch();
     if ($row) {
@@ -25,6 +25,7 @@ if ($isSelf) {
         $profileUser['dnd'] = (int)$row['dnd'];
         $profileUser['level'] = (int)$row['level'];
         $profileUser['exp'] = (int)$row['exp'];
+        $profileUser['likes'] = (int)($row['likes'] ?? 0);
         $profileUser['user_id'] = (int)$row['user_id'];
         // 个人主页封面走独立字段 profile_bg_image（聊天壁纸 bg_image 与之独立）
         $profileUser['bg_image'] = $row['profile_bg_image'] ?? '';
@@ -229,9 +230,9 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
         <span class="uid"><?php echo t('p_uid');?>：<?php echo $userId;?></span>
       </div>
     </div>
-    <button class="like-btn">
-      <span class="like-icon">♡</span>
-      <span class="like-num">7</span>
+    <button class="like-btn" id="likeBtn" onclick="likeProfile()"<?php if($isSelf):?> disabled style="cursor:default;opacity:.75"<?php endif;?> title="<?php echo htmlspecialchars(t('p_like'));?>">
+      <span class="like-icon" id="likeIcon"><?php echo $isSelf ? '♥' : '♡';?></span>
+      <span class="like-num" id="likeNum"><?php echo (int)($profileUser['likes'] ?? 0);?></span>
     </button>
   </div>
 
@@ -486,16 +487,22 @@ function clearBg() {
 }
 function openBgPrivacy() {
   closeBgMenu();
+  if (window.parent && window.parent.MOB) { window.parent.MOB.openFrame('editbgprivacy.php', ''); return; }
   parent.document.getElementById('profileFrame').src = 'editbgprivacy.php';
 }
 
 // 编辑资料：与文字行一致，点击后向左滑出再切换到编辑页（过渡动画）
 function openEditInfo() {
   var card = document.querySelector('.card');
-  if (!card) { parent.document.getElementById('profileFrame').src = 'editinfo.php'; return; }
+  if (!card) {
+    if (window.parent && window.parent.MOB) { window.parent.MOB.openFrame('editinfo.php', ''); return; }
+    parent.document.getElementById('profileFrame').src = 'editinfo.php'; return;
+  }
   card.classList.add('slide-out-left');
   setTimeout(function() {
-    if (window.parent && window.parent.document.getElementById('profileFrame')) {
+    if (window.parent && window.parent.MOB) {
+      window.parent.MOB.openFrame('editinfo.php', '');
+    } else if (window.parent && window.parent.document.getElementById('profileFrame')) {
       window.parent.document.getElementById('profileFrame').src = 'editinfo.php';
     }
   }, 250);
@@ -504,10 +511,15 @@ function openEditInfo() {
 // 编辑签名：同样带过渡动画切换到签名编辑页
 function openEditSig() {
   var card = document.querySelector('.card');
-  if (!card) { parent.document.getElementById('profileFrame').src = 'editsig.php'; return; }
+  if (!card) {
+    if (window.parent && window.parent.MOB) { window.parent.MOB.openFrame('editsig.php', ''); return; }
+    parent.document.getElementById('profileFrame').src = 'editsig.php'; return;
+  }
   card.classList.add('slide-out-left');
   setTimeout(function() {
-    if (window.parent && window.parent.document.getElementById('profileFrame')) {
+    if (window.parent && window.parent.MOB) {
+      window.parent.MOB.openFrame('editsig.php', '');
+    } else if (window.parent && window.parent.document.getElementById('profileFrame')) {
       window.parent.document.getElementById('profileFrame').src = 'editsig.php';
     }
   }, 250);
@@ -740,6 +752,48 @@ document.getElementById('coverWrap').addEventListener('contextmenu', function(e)
   e.preventDefault();
   if (_isSelf) openBgMenu();
 });
+</script>
+
+<!-- 点赞系统（心心） -->
+<div class="like-toast" id="likeToast"></div>
+<script>
+function likeProfile() {
+    var btn = document.getElementById('likeBtn');
+    if (!btn || btn.disabled) return;
+    var f = new URLSearchParams();
+    f.append('username', <?php echo json_encode($profileUser['username'] ?? '');?>);
+    fetch('../api/like.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: f.toString()
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.success) {
+            var n = document.getElementById('likeNum'); if (n) n.textContent = d.likes;
+            var ic = document.getElementById('likeIcon'); if (ic) ic.textContent = '♥';
+            showLikeToast(<?php echo json_encode(t('p_like_ok'));?>);
+            // 点赞方自己的聊天窗口（若正与对方聊天）：WSS 不回推自己的消息，手动刷新
+            try {
+                if (window.parent && typeof window.parent.loadDmMessages === 'function' && window.parent.D === <?php echo json_encode($profileUser['username'] ?? '');?>) {
+                    window.parent.loadDmMessages(0);
+                }
+            } catch (e) {}
+        } else {
+            showLikeToast(d.error || <?php echo json_encode(t('p_like_fail'));?>, true);
+        }
+    }).catch(function() { showLikeToast(<?php echo json_encode(t('p_like_fail'));?>, true); });
+}
+var _likeToastTimer = null;
+function showLikeToast(msg, isErr) {
+    var t = document.getElementById('likeToast');
+    if (!t) return;
+    t.textContent = msg;
+    t.style.background = isErr ? '#4a2020' : '#2a4a2a';
+    t.style.borderColor = isErr ? '#5c2a2a' : '#3a6a3a';
+    t.style.color = isErr ? '#ffb3b3' : '#e0e0e0';
+    t.classList.add('show');
+    clearTimeout(_likeToastTimer);
+    _likeToastTimer = setTimeout(function() { t.classList.remove('show'); }, 2200);
+}
 </script>
 
 </body>

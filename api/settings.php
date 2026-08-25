@@ -162,13 +162,19 @@ switch ($action) {
 
     case 'change_display_name':
         $dn = trim(mb_substr($_POST['display_name'] ?? '', 0, 256));
-        db()->prepare('UPDATE users SET display_name = ? WHERE username = ?')->execute([$dn ?: null, $_SESSION['username']]);
+        $oldDn = chatapp_profile_old('display_name');
+        $newDn = $dn ?: null;
+        db()->prepare('UPDATE users SET display_name = ? WHERE username = ?')->execute([$newDn, $_SESSION['username']]);
+        if ((string)($oldDn ?? '') !== (string)($newDn ?? '')) chatapp_log_profile_edit('display_name', $oldDn, $newDn);
         echo json_encode(['success' => true]);
         break;
 
     case 'change_custom_title':
         $title = trim(mb_substr($_POST['custom_title'] ?? '', 0, 100));
-        db()->prepare('UPDATE users SET custom_title = ? WHERE username = ?')->execute([$title ?: null, $_SESSION['username']]);
+        $oldT = chatapp_profile_old('custom_title');
+        $newT = $title ?: null;
+        db()->prepare('UPDATE users SET custom_title = ? WHERE username = ?')->execute([$newT, $_SESSION['username']]);
+        if ((string)($oldT ?? '') !== (string)($newT ?? '')) chatapp_log_profile_edit('custom_title', $oldT, $newT);
         echo json_encode(['success' => true]);
         break;
 
@@ -181,7 +187,9 @@ switch ($action) {
         } else {
             echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit;
         }
+        $oldG = chatapp_profile_old('gender');
         db()->prepare('UPDATE users SET gender = ? WHERE username = ?')->execute([$gv, $_SESSION['username']]);
+        if ((string)($oldG ?? '') !== (string)($gv ?? '')) chatapp_log_profile_edit('gender', $oldG, $gv);
         echo json_encode(['success' => true]);
         break;
 
@@ -191,7 +199,10 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit;
         }
         // 0=所有人可见 1=仅好友可见 2=所有人不可见
-        db()->prepare('UPDATE users SET gender_privacy = ? WHERE username = ?')->execute([(int)$p, $_SESSION['username']]);
+        $oldP = chatapp_profile_old('gender_privacy');
+        $newP = (int)$p;
+        db()->prepare('UPDATE users SET gender_privacy = ? WHERE username = ?')->execute([$newP, $_SESSION['username']]);
+        if ((string)($oldP ?? '') !== (string)$newP) chatapp_log_profile_edit('gender_privacy', $oldP, $newP);
         echo json_encode(['success' => true]);
         break;
 
@@ -209,7 +220,9 @@ switch ($action) {
             }
             $bv = sprintf('%04d-%02d-%02d', $by, $bm, $bd);
         }
+        $oldB = chatapp_profile_old('birthday');
         db()->prepare('UPDATE users SET birthday = ? WHERE username = ?')->execute([$bv, $_SESSION['username']]);
+        if ((string)($oldB ?? '') !== (string)($bv ?? '')) chatapp_log_profile_edit('birthday', $oldB, $bv);
         echo json_encode(['success' => true]);
         break;
 
@@ -377,6 +390,16 @@ switch ($action) {
         $newVal = $row && $row['data_saver'] ? 0 : 1;
         $pdo->prepare('UPDATE users SET data_saver = ? WHERE username = ?')->execute([$newVal, $_SESSION['username']]);
         echo json_encode(['success' => true, 'data_saver' => $newVal]);
+        break;
+
+    case 'toggle_auto_focus':
+        $pdo = db();
+        $stmt = $pdo->prepare('SELECT auto_focus_input FROM users WHERE username = ?');
+        $stmt->execute([$_SESSION['username']]);
+        $row = $stmt->fetch();
+        $newVal = $row && $row['auto_focus_input'] ? 0 : 1;
+        $pdo->prepare('UPDATE users SET auto_focus_input = ? WHERE username = ?')->execute([$newVal, $_SESSION['username']]);
+        echo json_encode(['success' => true, 'auto_focus_input' => $newVal]);
         break;
 
     case 'save_emoji_settings':

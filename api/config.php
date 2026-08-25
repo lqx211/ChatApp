@@ -118,7 +118,7 @@ function chatapp_read_actions(array $readOnly, string $action): void {
 function chatapp_get_user(): ?array {
     chatapp_session_start();
     if (isset($_SESSION['username'])) {
-        $stmt = db()->prepare('SELECT user_id, username, display_name, preferred_language, avatar, custom_title, searchable, searchable_by_uid, timezone, data_saver, dnd, placeholder, restricted, role, emoji_panel_mode, emoji_chat_mode, exp, level, created_at, cache_key, local_cache_enabled, gender, birthday, gender_privacy, bg_image, bg_updated_at, bg_privacy, bg_blacklist, bg_whitelist, bg_no_friend, bg_private_image, profile_bg_image, profile_bg_updated_at, notif_system, notif_banner, typing_visible, stranger_invite_group, stranger_like, anyone_add_friend FROM users WHERE username = ?');
+        $stmt = db()->prepare('SELECT user_id, username, display_name, preferred_language, avatar, custom_title, searchable, searchable_by_uid, timezone, data_saver, dnd, placeholder, restricted, role, emoji_panel_mode, emoji_chat_mode, exp, level, likes, pin_self, created_at, cache_key, local_cache_enabled, gender, birthday, gender_privacy, bg_image, bg_updated_at, bg_privacy, bg_blacklist, bg_whitelist, bg_no_friend, bg_private_image, profile_bg_image, profile_bg_updated_at, notif_system, notif_banner, typing_visible, stranger_invite_group, stranger_like, anyone_add_friend FROM users WHERE username = ?');
         $stmt->execute([$_SESSION['username']]);
         $user = $stmt->fetch();
         if ($user) {
@@ -146,6 +146,18 @@ function chatapp_avatar_url(?string $avatar, ?string $username): string {
     if (strpos($avatar, 'data:') === 0) return $avatar;
     if (preg_match('/^[0-9a-zA-Z_]+\.(png|jpg|jpeg|gif|webp)$/i', $avatar)) {
         return '../api/avatar.php?u=' . urlencode($username);
+    }
+    return $avatar;
+}
+
+/**
+ * 群头像 URL：文件名格式 → ../api/avatar.php?g=<group_id>；data URI 原样返回。
+ */
+function chatapp_group_avatar_url(?string $avatar, int $groupId): string {
+    if (empty($avatar)) return '';
+    if (strpos($avatar, 'data:') === 0) return $avatar;
+    if (preg_match('/^[0-9a-zA-Z_]+\.(png|jpg|jpeg|gif|webp)$/i', $avatar)) {
+        return '../api/avatar.php?g=' . $groupId;
     }
     return $avatar;
 }
@@ -319,6 +331,59 @@ function chatapp_log_login(int $uid, string $username, bool $success): void {
         'username' => $username,
         'success' => $success ? 1 : 0,
     ]);
+}
+
+/**
+ * 个人资料编辑审计：把 display_name / custom_title / gender / gender_privacy /
+ * birthday 的旧值→新值写进 profile_logs（不可删除，与 admin_logs/login_logs 一致）。
+ * 表与防删触发器在首次使用时自动创建（CREATE TABLE IF NOT EXISTS / 触发器存在性检查）。
+ */
+function chatapp_log_profile_edit(string $field, $oldValue, $newValue): void {
+    $pdo = db();
+    $pdo->exec("CREATE TABLE IF NOT EXISTS profile_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        username VARCHAR(50) NOT NULL DEFAULT '',
+        field VARCHAR(30) NOT NULL,
+        old_value TEXT NULL,
+        new_value TEXT NULL,
+        ip_address VARCHAR(45) NULL,
+        user_agent VARCHAR(255) NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_profile_user (user_id, created_at),
+        KEY idx_profile_field (field)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $trg = $pdo->query("SELECT 1 FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE() AND TRIGGER_NAME = 'trg_block_profile_logs_delete'");
+    if (!$trg || !$trg->fetchColumn()) {
+        $pdo->exec("CREATE TRIGGER trg_block_profile_logs_delete BEFORE DELETE ON profile_logs FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'profile_logs deletion is forbidden'");
+    }
+    $username = $_SESSION['username'] ?? '';
+    if ($username === '') return;
+    $st = $pdo->prepare('SELECT user_id FROM users WHERE username = ?');
+    $st->execute([$username]);
+    $uid = (int)($st->fetchColumn() ?: 0);
+    $ip = chatapp_client_ip();
+    $ua = mb_substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
+    $pdo->prepare('INSERT INTO profile_logs (user_id, username, field, old_value, new_value, ip_address, user_agent) VALUES (?,?,?,?,?,?,?)')
+        ->execute([
+            $uid,
+            $username,
+            $field,
+            $oldValue === null ? null : (string)$oldValue,
+            $newValue === null ? null : (string)$newValue,
+            $ip,
+            $ua,
+        ]);
+}
+
+/** 读取个人资料某字段当前值（供审计新旧对比；列名白名单防注入）。 */
+function chatapp_profile_old(string $col) {
+    $allowed = ['display_name', 'custom_title', 'gender', 'gender_privacy', 'birthday'];
+    if (!in_array($col, $allowed, true)) return null;
+    $st = db()->prepare("SELECT `$col` FROM users WHERE username = ?");
+    $st->execute([$_SESSION['username']]);
+    $v = $st->fetchColumn();
+    return $v === false ? null : $v;
 }
 
 /**
@@ -523,6 +588,8 @@ function init_db(): void {
     db_add_column_if_missing('users', 'stranger_invite_group', "TINYINT(1) NOT NULL DEFAULT 1");
     db_add_column_if_missing('users', 'stranger_like', "TINYINT(1) NOT NULL DEFAULT 1");
     db_add_column_if_missing('users', 'anyone_add_friend', "TINYINT(1) NOT NULL DEFAULT 1");
+    db_add_column_if_missing('users', 'likes', "INT NOT NULL DEFAULT 0");
+    db_add_column_if_missing('users', 'auto_focus_input', "TINYINT(1) NOT NULL DEFAULT 1");
     // ---- 黑名单（设置页 · 黑名单管理） ----
     $pdo->exec("CREATE TABLE IF NOT EXISTS user_blocks (
         user_id INT UNSIGNED NOT NULL,
@@ -694,6 +761,9 @@ function init_db(): void {
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY uq_req (group_id, user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    db_add_column_if_missing('groups', 'avatar', "VARCHAR(255) DEFAULT NULL");
+    db_add_column_if_missing('groups', 'announcement', "TEXT DEFAULT NULL");
+    db_add_column_if_missing('groups', 'all_muted', "TINYINT(1) NOT NULL DEFAULT 0");
     $pdo->exec("CREATE TABLE IF NOT EXISTS admin_logs (
         id INT AUTO_INCREMENT PRIMARY KEY,
         admin_uid INT NOT NULL,

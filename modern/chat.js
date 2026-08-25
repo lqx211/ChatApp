@@ -17,6 +17,9 @@ var admSelUser = null;
 var _sidebarProfileSaved = null,
     _sidebarNavSaved = null;
 var _contactNotes = {};
+var _pinned = {};        // username -> 1/0（联系人置顶）
+var _pinnedGroup = {};   // group_id -> 1/0（群置顶）
+var _pinnedSelf = (typeof window.MYSELF_PIN !== 'undefined') ? (window.MYSELF_PIN ? 1 : 0) : 1; // 自己聊天置顶（默认置顶）
 var _loaded = false;
 var _msgSearchPage = 1, _msgSearchQ = '', _dmLoading = false, _dmOldest = 0, _annLoading = false, _grpLoading = false, _grpOldest = 0;
 
@@ -107,88 +110,188 @@ function renderMd(text) {
     var h = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     var lines = h.split('\n');
     var out = [];
-    var inUl = false,
-        inOl = false;
+
+    // ---- fenced code blocks (with generic syntax highlighting) ----
+    var inCode = false, codeLang = '', codeBuf = [];
+    function flushCode() {
+        out.push('<pre><code class="language-' + (codeLang || 'text') + '">' + hlCode(codeBuf.join('\n')) + '</code></pre>');
+        inCode = false; codeLang = ''; codeBuf = [];
+    }
+
+    // ---- nested lists (ul/ol via indentation) ----
+    var listStack = []; // {type:'ul'|'ol', indent, liOpen}
+    var listHtml = '', inList = false;
+    function popList() {
+        var top = listStack.pop();
+        if (top.liOpen) listHtml += '</li>';
+        listHtml += '</' + top.type + '>';
+        if (listStack.length && listStack[listStack.length - 1].liOpen) {
+            listHtml += '</li>';
+            listStack[listStack.length - 1].liOpen = false;
+        }
+    }
+    function listItem(type, indent, content) {
+        if (!inList) { inList = true; listHtml = ''; }
+        while (listStack.length && listStack[listStack.length - 1].indent > indent) popList();
+        if (listStack.length && listStack[listStack.length - 1].indent === indent && listStack[listStack.length - 1].type !== type) popList();
+        if (!listStack.length || listStack[listStack.length - 1].indent < indent || listStack[listStack.length - 1].type !== type) {
+            listStack.push({ type: type, indent: indent, liOpen: false });
+            listHtml += '<' + type + '>';
+        }
+        if (listStack[listStack.length - 1].liOpen) { listHtml += '</li>'; listStack[listStack.length - 1].liOpen = false; }
+        listHtml += '<li>' + mdInline(content);
+        listStack[listStack.length - 1].liOpen = true;
+    }
+    function flushList() {
+        while (listStack.length) popList();
+        if (inList) { out.push(listHtml); inList = false; listHtml = ''; }
+    }
+
+    // ---- nested blockquotes ----
+    var qDepth = 0, quoteHtml = '', inQuote = false;
+    function openQ(n) { while (qDepth < n) { quoteHtml += '<blockquote>'; qDepth++; } }
+    function closeQ(n) { while (qDepth > n) { quoteHtml += '</blockquote>'; qDepth--; } }
+    function flushQuote() {
+        if (inQuote) { closeQ(0); out.push(quoteHtml); inQuote = false; quoteHtml = ''; }
+    }
+    function quoteDepthOf(line) {
+        // The message was HTML-escaped before parsing, so a literal ">" marker
+        // is now the entity &gt; (a user-typed "&gt;" becomes &amp;gt;, so no
+        // false positives). Count leading "&gt;" to derive the quote depth and
+        // the byte offset where the quoted content begins.
+        var d = 0, j = 0;
+        while (j < line.length) {
+            if (line.substr(j, 4) === '&gt;') { d++; j += 4; }
+            else if (line.charAt(j) === ' ' && d > 0 && line.substr(j + 1, 4) === '&gt;') { j++; }
+            else break;
+        }
+        return { d: d, j: j };
+    }
+
+    // ---- tables ----
+    function isTableSep(l) { return /^\s*\|?[\s:\-|]+\|?\s*$/.test(l) && l.indexOf('-') !== -1; }
+    function mdRow(line, tag) {
+        var s = line.trim().replace(/^\|/, '').replace(/\|$/, '');
+        var cells = s.split('|');
+        var html = '';
+        for (var k = 0; k < cells.length; k++) html += '<' + tag + '>' + mdInline(cells[k].trim()) + '</' + tag + '>';
+        return html;
+    }
+
     for (var i = 0; i < lines.length; i++) {
         var line = lines[i];
         var m;
+
         if (/^```/.test(line)) {
-            if (out.length > 0 && out[out.length - 1].indexOf('<pre>') === 0) {
-                out.push('</code></pre>');
-                inUl = inOl = false;
-                continue;
+            flushList(); flushQuote();
+            if (inCode) { flushCode(); }
+            else { inCode = true; codeLang = line.replace(/^```\s*/, '').trim().split(/\s+/)[0] || ''; codeBuf = []; }
+            continue;
+        }
+        if (inCode) { codeBuf.push(line); continue; }
+
+        // headings
+        if ((m = line.match(/^### (.+)/))) { flushList(); flushQuote(); out.push('<h4>' + mdInline(m[1]) + '</h4>'); continue; }
+        if ((m = line.match(/^## (.+)/))) { flushList(); flushQuote(); out.push('<h3>' + mdInline(m[1]) + '</h3>'); continue; }
+        if ((m = line.match(/^# (.+)/))) { flushList(); flushQuote(); out.push('<h2>' + mdInline(m[1]) + '</h2>'); continue; }
+        if (/^---+\s*$/.test(line)) { flushList(); flushQuote(); out.push('<hr>'); continue; }
+
+        // table: header line followed by a separator line
+        if (/^\s*\|.*\|\s*$/.test(line) && i + 1 < lines.length && isTableSep(lines[i + 1])) {
+            flushList(); flushQuote();
+            var th = mdRow(line, 'th');
+            i++; // skip the separator row
+            var body = '';
+            while (i + 1 < lines.length && /^\s*\|.*\|\s*$/.test(lines[i + 1]) && !isTableSep(lines[i + 1])) {
+                i++;
+                body += '<tr>' + mdRow(lines[i], 'td') + '</tr>';
             }
-            out.push('<pre><code>');
-            inUl = inOl = false;
+            out.push('<table><thead><tr>' + th + '</tr></thead><tbody>' + body + '</tbody></table>');
             continue;
         }
-        if (out.length > 0 && out[out.length - 1].indexOf('<pre>') === 0) {
-            out.push(line);
+
+        // blockquote (consecutive lines grouped, `>` depth = nesting)
+        var qq = quoteDepthOf(line);
+        var qd = qq.d;
+        if (qd > 0) {
+            flushList();
+            if (!inQuote) { inQuote = true; quoteHtml = ''; }
+            var qc = line.slice(qq.j);
+            if (qc.charAt(0) === ' ') qc = qc.slice(1);
+            openQ(qd);
+            quoteHtml += mdInline(qc) + '<br>';
             continue;
         }
-        if ((m = line.match(/^### (.+)/))) {
-            out.push('<h4>' + m[1] + '</h4>');
+        flushQuote();
+
+        // list item (leading-space indentation → nesting)
+        var liM = line.match(/^(\s*)([\-\*]|\d+\.)\s+(.+)/);
+        if (liM) {
+            flushQuote();
+            var indent = liM[1].replace(/\t/g, '  ').length;
+            var type = /^\d/.test(liM[2]) ? 'ol' : 'ul';
+            listItem(type, indent, liM[3]);
             continue;
         }
-        if ((m = line.match(/^## (.+)/))) {
-            out.push('<h3>' + m[1] + '</h3>');
-            continue;
-        }
-        if ((m = line.match(/^# (.+)/))) {
-            out.push('<h2>' + m[1] + '</h2>');
-            continue;
-        }
-        if (/^---+\s*$/.test(line)) {
-            out.push('<hr>');
-            continue;
-        }
-        if ((m = line.match(/^[\-\*] (.+)/))) {
-            if (!inUl) {
-                out.push('<ul>');
-                inUl = true;
-            }
-            out.push('<li>' + m[1] + '</li>');
-            continue;
-        }
-        if ((m = line.match(/^(\d+)\. (.+)/))) {
-            if (!inOl) {
-                out.push('<ol>');
-                inOl = true;
-            }
-            out.push('<li>' + m[2] + '</li>');
-            continue;
-        }
-        if (inUl) {
-            out.push('</ul>');
-            inUl = false;
-        }
-        if (inOl) {
-            out.push('</ol>');
-            inOl = false;
-        }
-        if ((m = line.match(/^> (.+)/))) {
-            out.push('<blockquote>' + m[1] + '</blockquote>');
-            continue;
-        }
-        if (line === '') {
-            out.push('<br>');
-            continue;
-        }
-        var l = line;
-        l = l.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-        l = l.replace(/\*(.+?)\*/g, '<em>$1</em>');
-        l = l.replace(/`([^`]+)`/g, '<code>$1</code>');
-        l = l.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(m0, alt, url) {
-            return '<img src="' + safeMdUrl(url) + '" alt="' + alt + '" style="max-width:100%;max-height:200px">';
-        });
-        l = l.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(m0, text, url) {
-            return '<a href="' + safeMdUrl(url) + '" target="_blank" rel="noopener noreferrer">' + text + '</a>';
-        });
-        out.push(l);
+        flushList();
+
+        if (line === '') continue; // blank line: separator only
+
+        out.push(mdInline(line));
     }
-    if (inUl) out.push('</ul>');
-    if (inOl) out.push('</ol>');
-    return out.join('\n').replace(/\n/g, '<br>');
+    if (inCode) flushCode();
+    flushList();
+    flushQuote();
+    return brNewlines(out.join('\n'));
+}
+
+// ---- markdown helpers ----
+
+/** Inline tokens (applied to plain lines, headings, list items, blockquotes,
+ *  table cells). Code spans are protected first so nothing formats inside them. */
+function mdInline(text) {
+    var codes = [];
+    text = text.replace(/`([^`]+)`/g, function(m0, c) {
+        codes.push('<code>' + c + '</code>');
+        return '\u0001' + (codes.length - 1) + '\u0001';
+    });
+    text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    // images → links → bare http(s) autolink, in one ordered pass (alternation
+    // consumes [..](..) before a bare URL inside it can match).
+    text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)|\[([^\]]+)\]\(([^)]+)\)|(https?:\/\/[^\s<"']+)/g, function(m0, imgAlt, imgUrl, linkText, linkUrl, bareUrl) {
+        if (imgAlt !== undefined) {
+            return '<img src="' + safeMdUrl(imgUrl) + '" alt="' + imgAlt + '" style="max-width:100%;max-height:200px">';
+        }
+        if (linkUrl !== undefined) {
+            return '<a href="' + safeMdUrl(linkUrl) + '" target="_blank" rel="noopener noreferrer">' + linkText + '</a>';
+        }
+        var u = bareUrl.replace(/[.,;:!?)]+$/, '');
+        return '<a href="' + safeMdUrl(u) + '" target="_blank" rel="noopener noreferrer">' + u + '</a>';
+    });
+    return text.replace(/\u0001(\d+)\u0001/g, function(m0, idx) { return codes[+idx] || ''; });
+}
+
+/** Generic lightweight syntax highlighter for fenced code blocks: comments,
+ *  strings, numbers, keywords, PHP vars, and function calls. Works over the
+ *  already-escaped code text, so the wrapped spans stay safe. */
+function hlCode(code) {
+    var RE = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/|#[^\n]*)|("(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\\n]|\\.)*`)|\b(0x[0-9a-fA-F]+|\d+(?:\.\d+)?)\b|\b(const|let|var|function|return|if|else|for|while|do|switch|case|break|continue|new|delete|typeof|instanceof|class|extends|super|import|export|from|default|async|await|yield|try|catch|finally|throw|def|lambda|True|False|None|and|or|not|in|is|pass|raise|with|as|print|echo|require|require_once|include|include_once|foreach|endforeach|endif|elseif|array|public|private|protected|static|void|int|float|double|bool|boolean|string|char|short|long|unsigned|signed|struct|enum|union|typedef|namespace|using|NULL|true|false|null|this|self|global|local|fn|match|select|insert|update|delete|from|where|join|inner|left|right|outer|group|order|by|limit|offset|create|table|into|values|set|on|between|like|distinct)\b|(\$[a-zA-Z_][a-zA-Z0-9_]*)|([a-zA-Z_][a-zA-Z0-9_]*)(?=\s*\()/g;
+    return code.replace(RE, function(m0, comment, str, num, kw, phpVar, fn) {
+        if (comment) return '<span class="tok-c">' + comment + '</span>';
+        if (str) return '<span class="tok-s">' + str + '</span>';
+        if (num) return '<span class="tok-n">' + num + '</span>';
+        if (kw) return '<span class="tok-k">' + kw + '</span>';
+        if (phpVar) return '<span class="tok-k">' + phpVar + '</span>';
+        if (fn) return '<span class="tok-f">' + fn + '</span>';
+        return m0;
+    });
+}
+
+/** Convert inter-item newlines to <br> but keep real newlines inside <pre>
+ *  (rendered by pre-wrap) so code blocks stay copy/paste friendly. */
+function brNewlines(html) {
+    return html.replace(/<pre>[\s\S]*?<\/pre>|\n/g, function(m0) { return m0 === '\n' ? '<br>' : m0; });
 }
 
 function onMdInput(previewId, inputId, checkId) {
@@ -299,6 +402,7 @@ function switchPanel(n) {
     if (n === 'roles') loadRoleList();
     if (n === 'music') {}
     if (n === 'donations') loadDonations(1);
+    if (n === 'profile-mgmt') loadPm();
     if (n === 'logs') loadAdminLogs(1);
     if (n === 'support') loadSupportTickets('open');
     if (n === 'level') loadLevelPanel();
@@ -482,6 +586,22 @@ async function toggleDataSaver() {
     }
 }
 
+async function toggleAutoFocus() {
+    var f = new URLSearchParams();
+    f.append('action', 'toggle_auto_focus');
+    var r = await fetch('../api/settings.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: f.toString()
+    });
+    var d = await r.json();
+    if (d.success) {
+        AUTO_FOCUS = d.auto_focus_input;
+    }
+}
+
 function updateUnreads() {
     var total = 0;
     for (var k in unreadCounts) {
@@ -544,17 +664,40 @@ function autoResize(ta) {
 // 在线状态/打字指示仍走 HTTP（WS 只推消息，不替代在线轮询）
 setInterval(checkOnline, 3000);
 
+// 支持与Bug反馈徽章：管理员显示开启工单分类计数 (bugs+rec+acc)，反馈者显示自己被回复数
+function loadSupportBadge() {
+    fetch('../api/incident.php?action=count').then(function(r) { return r.json(); }).then(function(d) {
+        if (!d || !d.success) return;
+        if (d.is_admin) {
+            var el = document.getElementById('supAdminCount');
+            if (el) el.textContent = '(' + (d.bugs || 0) + '+' + (d.recommendation || 0) + '+' + (d.account_issue || 0) + ')';
+        } else {
+            var el = document.getElementById('supBadge');
+            if (el) {
+                var n = d.reply_count || 0;
+                el.textContent = n;
+                el.style.display = n > 0 ? 'inline-flex' : 'none';
+            }
+        }
+    }).catch(function() {});
+}
+setInterval(loadSupportBadge, 15000);
+loadSupportBadge();
+
 function loadContacts() {
     fetch('../api/contacts.php?action=list').then(r => r.json()).then(function(d) {
         var e = document.getElementById('friendContacts');
+        if (typeof d.pin_self !== 'undefined') { _pinnedSelf = d.pin_self ? 1 : 0; renderSelfPin(); }
         if (d.success && d.contacts.length > 0) {
             var h = '';
-            for (var i = 0; i < d.contacts.length; i++) {
-                var c = d.contacts[i],
-                    a = c.avatar ? '<img src="' + c.avatar + '">' : '';
+            var sorted = d.contacts.slice().sort(function(a, b) { return ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)); });
+            for (var i = 0; i < sorted.length; i++) {
+                var c = sorted[i],
+                    a = c.avatar ? '<img src="' + c.avatar + '">' : '<img src="../data/profile_empty.png">';
                 _contactNotes[c.username] = c.note || '';
+                _pinned[c.username] = c.pinned ? 1 : 0;
                 // ca 直接内联 onclick（Edge 兼容）：点头像打开个人资料，stopPropagation 避免触发 openDm
-                h += '<div class="csi" data-cuser="' + c.username + '" onclick="openDm(\'' + c.username + '\')"><div class="ca" onclick="event.stopPropagation();event.preventDefault();openMyProfile(\'' + c.username + '\')">' + a + '<span class="online-dot"></span></div><div class="cn" data-original="' + eh(c.note || c.display_name || c.username) + '">' + eh(c.note || c.display_name || c.username) + '</div></div>';
+                h += '<div class="csi' + (_pinned[c.username] ? ' pinned' : '') + '" data-cuser="' + c.username + '" onclick="openDm(\'' + c.username + '\')"><div class="ca" onclick="event.stopPropagation();event.preventDefault();openMyProfile(\'' + c.username + '\')">' + a + '</div><div class="cn" data-original="' + eh(c.note || c.display_name || c.username) + '">' + eh(c.note || c.display_name || c.username) + '</div></div>';
             }
             e.innerHTML = h;
             updateUnreads();
@@ -886,20 +1029,26 @@ function reportMsgFromMenu(el, username) {
     document.getElementById('reportModal').classList.add('active');
 }
 
-function reportDmUser() {
-    if (!D) return;
+function reportDmUser(u) {
+    var t = u || D;
+    if (!t) return;
     document.getElementById('dmOptionsMenu').classList.remove('active');
-    repTarget = D;
-    document.getElementById('reportTitle').textContent = T('title_report_user') + ': ' + D;
+    repTarget = t;
+    document.getElementById('reportTitle').textContent = T('title_report_user') + ': ' + t;
     document.getElementById('reportReason').value = '';
     var checkboxes = document.getElementById('reportMsgCheckboxes');
     var msgs = document.getElementById('dmMessagesArea').querySelectorAll('[data-msgid]');
     var h = '<div style="color:#aaa;font-size:.75em;margin-bottom:6px">Include messages:</div>';
-    for (var i = 0; i < msgs.length; i++) {
-        var mid = msgs[i].getAttribute('data-msgid'),
-            mt = msgs[i].querySelector('.mt'),
-            preview = mt ? mt.textContent.substring(0, 60) : '';
-        h += '<label class="msg-cb"><input type="checkbox" value="' + mid + '"> #' + mid + ' ' + eh(preview) + '</label>';
+    // 右键举报非当前聊天对象时，不附带消息（避免夹带别人的聊天）
+    if (u && u !== D) {
+        h += '<div style="color:#666;font-size:.75em">Chat not open — no messages attached.</div>';
+    } else {
+        for (var i = 0; i < msgs.length; i++) {
+            var mid = msgs[i].getAttribute('data-msgid'),
+                mt = msgs[i].querySelector('.mt'),
+                preview = mt ? mt.textContent.substring(0, 60) : '';
+            h += '<label class="msg-cb"><input type="checkbox" value="' + mid + '"> #' + mid + ' ' + eh(preview) + '</label>';
+        }
     }
     checkboxes.innerHTML = h;
     document.getElementById('reportModal').classList.add('active');
@@ -1605,10 +1754,11 @@ function openDm(u) {
     D = u;
     document.getElementById('dmTitle').textContent = T('title_chat') + ': ' + (_contactNotes[u] || u) + ' (' + u + ')';
     switchPanel('dm');
+    updateDmOptionsMenu();
     document.getElementById('dmMessagesArea').innerHTML = '<div class="es"><p>' + T('msg_loading') + '</p></div>';
     seenMsgIds = {};
     loadDmMessages(0);
-    document.getElementById('dmMessageInput').focus();
+    if (AUTO_FOCUS) document.getElementById('dmMessageInput').focus();
     _replyTarget = null;
     _replyData = null;
     updateReplyIndicator();
@@ -1639,20 +1789,130 @@ function toggleDmOptions(e) {
     document.getElementById('dmOptionsMenu').classList.toggle('active');
 }
 
-function viewDmProfile() {
-    if (!D) return;
+function viewDmProfile(u) {
     document.getElementById('dmOptionsMenu').classList.remove('active');
-    openMyProfile(D);
+    if (G && !u) { openGroupInfo(); return; }
+    var t = u || D;
+    if (!t) return;
+    openMyProfile(t);
 }
 
-function deleteDmContact() {
-    if (!D) return;
+// ---- 群信息页（右侧抽屉） ----
+function openGroupInfo() {
+    var m = document.getElementById('dmOptionsMenu');
+    if (m) m.classList.remove('active');
+    if (!G) return;
+    var fr = document.getElementById('profileFrame');
+    var sb = document.getElementById('userSidebar');
+    var ov = document.getElementById('profileOverlay');
+    if (!fr || !sb || !ov) return;
+    fr.src = '/modern/groupinfo.php?gid=' + G;
+    sb.classList.add('active');
+    ov.classList.add('active');
+}
+
+// 群聊模式下切换 ⋯ 菜单项：显示群相关项，隐藏 DM 相关项
+function updateDmOptionsMenu() {
+    var menu = document.getElementById('dmOptionsMenu');
+    if (!menu) return;
+    var isGrp = !!G;
+    menu.querySelectorAll('.grp-opt').forEach(function(b) { b.style.display = isGrp ? '' : 'none'; });
+    menu.querySelectorAll('.dm-opt').forEach(function(b) { b.style.display = isGrp ? 'none' : ''; });
+    // 置顶按钮文案随当前会话置顶状态切换
+    var dmPin = document.getElementById('dmPinBtn');
+    if (dmPin) {
+        var isSelfDm = !!(D && U && D === U);
+        dmPin.textContent = (isSelfDm ? _pinnedSelf : _pinned[D]) ? T('d_unpin') : T('d_pin');
+    }
+    var grpPin = document.getElementById('grpPinBtn');
+    if (grpPin) grpPin.textContent = _pinnedGroup[G] ? T('d_unpin') : T('d_pin');
+}
+
+function togglePinContact(u) {
+    var t = u || D;
+    if (!t) return;
+    if (t === U) { togglePinSelf(); return; }
+    closeUserCtxMenu();
     document.getElementById('dmOptionsMenu').classList.remove('active');
-    xconfirm('Permanently delete ' + D + '?').then(function(ok) {
+    var f = new URLSearchParams();
+    f.append('action', 'toggle_pin');
+    f.append('username', t);
+    fetch('../api/contacts.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: f.toString()
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.success) {
+            _pinned[t] = _pinned[t] ? 0 : 1;
+            loadContacts();
+            updateDmOptionsMenu();
+            xalert(_pinned[t] ? T('msg_pinned', '已置顶') : T('msg_unpinned', '已取消置顶'));
+        } else xalert('Something went wrong.');
+    });
+}
+
+function togglePinGroup() {
+    if (!G) return;
+    document.getElementById('dmOptionsMenu').classList.remove('active');
+    var f = new URLSearchParams();
+    f.append('action', 'toggle_pin');
+    f.append('group_id', G);
+    fetch('../api/group.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: f.toString()
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.success) {
+            _pinnedGroup[G] = _pinnedGroup[G] ? 0 : 1;
+            loadMyGroups();
+            updateDmOptionsMenu();
+            xalert(_pinnedGroup[G] ? T('msg_pinned', '已置顶') : T('msg_unpinned', '已取消置顶'));
+        } else xalert('Something went wrong.');
+    });
+}
+
+function togglePinSelf() {
+    closeUserCtxMenu();
+    document.getElementById('dmOptionsMenu').classList.remove('active');
+    var f = new URLSearchParams();
+    f.append('action', 'toggle_pin_self');
+    fetch('../api/contacts.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: f.toString()
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.success) {
+            _pinnedSelf = _pinnedSelf ? 0 : 1;
+            renderSelfPin();
+            updateDmOptionsMenu();
+            xalert(_pinnedSelf ? T('msg_pinned', '已置顶') : T('msg_unpinned', '已取消置顶'));
+        } else xalert('Something went wrong.');
+    });
+}
+function renderSelfPin() {
+    var self = document.getElementById('contactSelfAvatar');
+    var csi = self ? self.closest('.csi') : null;
+    if (csi) csi.classList.toggle('pinned', !!_pinnedSelf);
+    var mark = document.getElementById('selfPinMark');
+    if (mark) mark.style.display = _pinnedSelf ? 'inline' : 'none';
+}
+
+// 从群信息页退出/解散后，关闭聊天面板并刷新群列表
+function afterGroupLeave() {
+    closeDm();
+    loadMyGroups();
+    closeMyProfile();
+}
+
+function deleteDmContact(u) {
+    var t = u || D;
+    if (!t) return;
+    document.getElementById('dmOptionsMenu').classList.remove('active');
+    xconfirm('Permanently delete ' + t + '?').then(function(ok) {
         if (!ok) return;
         var f = new URLSearchParams();
         f.append('action', 'delete');
-        f.append('username', D);
+        f.append('username', t);
         fetch('../api/contacts.php', {
             method: 'POST',
             headers: {
@@ -1663,7 +1923,7 @@ function deleteDmContact() {
             return r.json()
         }).then(function(d) {
             if (d.success) {
-                closeDm();
+                if (D === t) closeDm();
                 loadContacts();
                 loadPending()
             } else xalert('Something went wrong.');
@@ -1671,14 +1931,15 @@ function deleteDmContact() {
     });
 }
 
-function changeNickname() {
-    if (!D) return;
+function changeNickname(u) {
+    var t = u || D;
+    if (!t) return;
     document.getElementById('dmOptionsMenu').classList.remove('active');
-    xprompt('Nickname for ' + D + ':', D).then(function(n) {
+    xprompt('Nickname for ' + t + ':', t).then(function(n) {
         if (n === null || n === false) return;
         var f = new URLSearchParams();
         f.append('action', 'change_nickname');
-        f.append('username', D);
+        f.append('username', t);
         f.append('note', n);
         fetch('../api/contacts.php', {
             method: 'POST',
@@ -1690,9 +1951,7 @@ function changeNickname() {
             return r.json()
         }).then(function(d) {
             if (d.success) {
-                if (D) {
-                    _contactNotes[D] = n || '';
-                }
+                _contactNotes[t] = n || '';
                 loadContacts();
                 loadPending();
             } else xalert('Something went wrong.');
@@ -1805,9 +2064,134 @@ function attachmentHtml(attUrl, msgType) {
         var hashTxt = '';
         var _mf = attUrl.match(/[?&]f=([^&]+)/);
         if (_mf && _mf[1]) hashTxt = _mf[1].replace(/\.[a-zA-Z0-9]+$/, '');
-        return '<div class="file-card"><div class="file-card-body"><span class="file-icon">\u{1F4C4}</span><div class="file-info"><div class="file-name">' + nameTxt + '</div><div class="file-meta">' + extTxt + (sizeTxt ? ' \u00b7 ' + sizeTxt : '') + '</div>' + (hashTxt ? '<div class="file-hash">sha256: ' + hashTxt + '</div>' : '') + '</div></div><a class="file-dl-btn" href="' + dlUrl + '" target="_blank" download>\u2B07 ' + T('btn_download', '下载') + '</a></div>';
+        var isCode = !!fname && !!CODE_EXT[(fname.split('.').pop() || '').toLowerCase()];
+        var pvBtn = isCode ? '<button class="file-pv-btn" data-url="' + attUrl + '" data-name="' + eh(fname) + '" data-size="' + (fsize || 0) + '" onclick="previewCodeFile(this)">\u{1F441} ' + T('btn_preview', '预览') + '</button>' : '';
+        return '<div class="file-card"><div class="file-card-body"><span class="file-icon">\u{1F4C4}</span><div class="file-info"><div class="file-name">' + nameTxt + '</div><div class="file-meta">' + extTxt + (sizeTxt ? ' \u00b7 ' + sizeTxt : '') + '</div>' + (hashTxt ? '<div class="file-hash">sha256: ' + hashTxt + '</div>' : '') + '</div></div><div class="file-actions">' + pvBtn + '<a class="file-dl-btn" href="' + dlUrl + '" target="_blank" download>\u2B07 ' + T('btn_download', '下载') + '</a></div></div>';
     }
     return '<div class="msg-media"><a href="' + attUrl + '" target="_blank">Download</a></div>';
+}
+
+// ---- 代码文件预览（Monaco = VS Code 网页版编辑器；加载失败降级为纯文本） ----
+var CODE_EXT = {
+    'py':'python','pyw':'python','cpp':'cpp','cc':'cpp','cxx':'cpp','hpp':'cpp','hh':'cpp',
+    'c':'c','h':'c','js':'javascript','mjs':'javascript','cjs':'javascript','jsx':'javascript',
+    'ts':'typescript','tsx':'typescript','java':'java','go':'go','rs':'rust','php':'php',
+    'html':'html','htm':'html','vue':'html','css':'css','scss':'scss','less':'less',
+    'sh':'shell','bash':'shell','zsh':'shell','rb':'ruby','swift':'swift','kt':'kotlin','kts':'kotlin',
+    'sql':'sql','json':'json','xml':'xml','yml':'yaml','yaml':'yaml','md':'markdown','markdown':'markdown',
+    'ini':'ini','toml':'ini','cfg':'ini','conf':'ini','lua':'lua','pl':'perl','pm':'perl',
+    'r':'r','dart':'dart','cs':'csharp','vb':'vb','ps1':'powershell','bat':'bat','cmd':'bat',
+    'dockerfile':'dockerfile','makefile':'makefile','cmake':'cmake','gradle':'groovy','groovy':'groovy'
+};
+var _monacoBase = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/';
+var _monacoPromise = null;
+var _cpEditor = null;
+
+function ensureMonaco() {
+    if (window.monaco && window.monaco.editor && window.monaco.editor.create) return Promise.resolve(window.monaco);
+    if (_monacoPromise) return _monacoPromise;
+    _monacoPromise = new Promise(function(resolve, reject) {
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = _monacoBase + 'min/vs/editor/editor.main.min.css';
+        document.head.appendChild(link);
+        var prevRequire = window.require;
+        window.require = { paths: { vs: _monacoBase + 'min/vs' } };
+        var l = document.createElement('script');
+        l.src = _monacoBase + 'min/vs/loader.js';
+        l.onload = function() {
+            var m = document.createElement('script');
+            m.src = _monacoBase + 'min/vs/editor/editor.main.js';
+            m.onload = function() {
+                // monaco 命名空间同步出现，但 editor 模块异步加载完才有 .editor —— 轮询等待
+                var tries = 0;
+                (function poll() {
+                    if (window.monaco && window.monaco.editor && window.monaco.editor.create) { resolve(window.monaco); return; }
+                    if (++tries > 120) { window.require = prevRequire; reject(new Error('monaco editor not ready')); return; }
+                    setTimeout(poll, 50);
+                })();
+            };
+            m.onerror = function() { window.require = prevRequire; reject(new Error('monaco main load failed')); };
+            document.head.appendChild(m);
+        };
+        l.onerror = function() { window.require = prevRequire; reject(new Error('monaco loader failed')); };
+        document.head.appendChild(l);
+    });
+    return _monacoPromise;
+}
+
+function previewCodeFile(btn) {
+    if (!btn) return;
+    var url = btn.getAttribute('data-url');
+    var name = btn.getAttribute('data-name') || 'file';
+    var size = btn.getAttribute('data-size') || '';
+    var lang = CODE_EXT[(name.split('.').pop() || '').toLowerCase()] || 'plaintext';
+    document.getElementById('cpName').textContent = name;
+    document.getElementById('cpLang').textContent = lang;
+    document.getElementById('cpSize').textContent = size ? fmtSize(size) : '';
+    document.getElementById('codePreviewModal').classList.add('active');
+    var loading = document.getElementById('cpLoading'),
+        ed = document.getElementById('cpEditor');
+    loading.style.display = 'block';
+    ed.style.display = 'none';
+    if (_cpEditor) { try { _cpEditor.dispose(); } catch (e) {} _cpEditor = null; }
+    fetch(url).then(function(r) { return r.text(); }).then(function(text) {
+        loading.style.display = 'none';
+        ed.style.display = 'block';
+        ensureMonaco().then(function(mon) {
+            try {
+                _cpEditor = mon.editor.create(ed, {
+                    value: text,
+                    language: lang,
+                    theme: 'vs-dark',
+                    readOnly: true,
+                    minimap: { enabled: false },
+                    fontSize: 13,
+                    lineNumbers: 'on',
+                    automaticLayout: true,
+                    scrollBeyondLastLine: false,
+                    renderWhitespace: 'selection'
+                });
+            } catch (e) { fallbackCodePreview(text); }
+        }).catch(function() { fallbackCodePreview(text); });
+    }).catch(function() {
+        loading.style.display = 'none';
+        ed.style.display = 'block';
+        fallbackCodePreview(T('msg_load_failed', '加载失败'));
+    });
+}
+
+function fallbackCodePreview(text) {
+    var ed = document.getElementById('cpEditor');
+    if (_cpEditor) { try { _cpEditor.dispose(); } catch (e) {} _cpEditor = null; }
+    ed.innerHTML = '<pre class="cp-fallback">' + eh(text) + '</pre>';
+}
+
+function closeCodePreview() {
+    document.getElementById('codePreviewModal').classList.remove('active');
+    if (_cpEditor) { try { _cpEditor.dispose(); } catch (e) {} _cpEditor = null; }
+}
+
+function copyCodePreview() {
+    var ed = document.getElementById('cpEditor');
+    var text = '';
+    if (_cpEditor) text = _cpEditor.getValue();
+    else { var pre = ed.querySelector('.cp-fallback'); if (pre) text = pre.textContent; }
+    if (!text) { xalert('Nothing to copy'); return; }
+    function fallbackCopy(t) {
+        var ta = document.createElement('textarea');
+        ta.value = t;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); } catch (e) {}
+        document.body.removeChild(ta);
+    }
+    function done() { xalert(T('msg_copied', '已复制')); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function() { fallbackCopy(text); done(); });
+    } else fallbackCopy(text);
 }
 
 function replyMessage(id, name, preview) {
@@ -1839,11 +2223,44 @@ function cancelReply() {
 }
 
 function addDmMessage(m, prepend) {
-    if (seenMsgIds['dm_' + m.id]) return;
-    seenMsgIds['dm_' + m.id] = 1;
-    var a = document.getElementById('dmMessagesArea'),
-        es = a.querySelector('.es');
+    var a = document.getElementById('dmMessagesArea');
+    // 点赞行允许重复渲染（原地更新次数/删除）；普通消息若已渲染过（seen 或 DOM 存在）则跳过，防止 loadDmMessages 全量重渲染产生重复
+    if (m.msg_type !== 'like') {
+        if (seenMsgIds['dm_' + m.id] || (a && a.querySelector('[data-msgid="' + m.id + '"]'))) return;
+        seenMsgIds['dm_' + m.id] = 1;
+    } else {
+        seenMsgIds['dm_' + m.id] = 1;
+    }
+    var es = a.querySelector('.es');
     if (es) es.remove();
+    // ---- 点赞系统消息：聊天中间灰色字，链接到被赞方个人主页；连续点赞合并为 ×n ----
+    if (m.msg_type === 'like') {
+        // 已撤回/合并废弃的点赞行：从 DOM 移除（历史行合并后服务端标 is_deleted）
+        if (m.is_deleted) {
+            var gone = a.querySelector('.like-sysline[data-msgid="' + m.id + '"]');
+            if (gone) gone.remove();
+            return;
+        }
+        var likedU = m.message || m.username || '';
+        var likerN = eh(_contactNotes[m.username] || m.display_name || m.username);
+        var likedN = eh(_contactNotes[likedU] || likedU);
+        var lkMeta = {};
+        try { lkMeta = JSON.parse(m.attachment || '') || {}; } catch (e) { lkMeta = {}; }
+        var lkN = Math.max(1, parseInt(lkMeta.n || 1, 10) || 1);
+        var lkHtml = '<a href="javascript:void(0)" onclick="openMyProfile(\'' + eh(likedU) + '\')">' + likerN + ' ' + T('p_liked_word', '赞了') + ' ' + likedN + (lkN > 1 ? ' ×' + lkN : '') + '</a>';
+        var existing = a.querySelector('.like-sysline[data-msgid="' + m.id + '"]');
+        if (existing) {
+            if (existing.innerHTML !== lkHtml) existing.innerHTML = lkHtml;
+            return;
+        }
+        var le = document.createElement('div');
+        le.className = 'like-sysline';
+        le.setAttribute('data-msgid', m.id);
+        le.innerHTML = lkHtml;
+        if (prepend) { le.style.order = '-1'; a.insertBefore(le, a.firstChild); }
+        else a.appendChild(le);
+        return;
+    }
     var own = (m.username === U),
         d = document.createElement('div');
     d.className = 'mr' + (own ? ' own' : '');
@@ -1856,14 +2273,15 @@ function addDmMessage(m, prepend) {
         rh = '';
     var av = '';
     if (m.avatar) av = '<div class="msg-avatar" onclick="event.stopPropagation();openMyProfile(\'' + m.username + '\')"><img src="' + m.avatar + '" alt=""></div>';
-    var md = (m.msg_type === 'temp' && m.temp_upload_id)
-        ? tempCardHtml(m)
-        : attachmentHtml.call({ attName: m.attachment_name || '', attSize: m.attachment_size || null }, m.attachment_url, m.msg_type);
+    var md;
+    if (m.msg_type === 'temp' && m.temp_upload_id) md = tempCardHtml(m);
+    else if (m.msg_type === 'doodle') md = doodleCardHtml(m);
+    else md = attachmentHtml.call({ attName: m.attachment_name || '', attSize: m.attachment_size || null }, m.attachment_url, m.msg_type);
     var rq = '';
     if (m.reply_data) {
-        rq = '<div class="msg-reply-quote"><strong>' + eh(m.reply_data.display_name) + '</strong>: ' + eh(m.reply_data.message) + '</div>';
+        rq = '<div class="msg-reply-quote"><strong>' + eh(m.reply_data.display_name) + '</strong>: ' + m.reply_data.message + '</div>';
     }
-    var msgContent = m.is_markdown ? renderMd(m.message) : renderEmoji(eh(m.message));
+    var msgContent = m.is_markdown ? renderMd(m.message) : renderEmoji(m.message);
     var emojiCode = extractFirstEmojiCode(msgContent);
     var emojiMenuItem = emojiCode ? '<div class="msg-emoji-add" data-emoji-code="' + eh(emojiCode) + '">' + T('menu_add_emoji') + '</div>' : '';
     var reportMenuItem = '<div class="msg-report" onclick="reportMsgFromMenu(this,\'' + m.username + '\');closeAllMsgMenus()">' + T('menu_report') + '</div>';
@@ -1893,6 +2311,7 @@ function addDmMessage(m, prepend) {
     if (prepend) a.insertBefore(d, a.firstChild);
     else a.appendChild(d);
     startImagesIn(d);
+    maybeAutoPlayDoodle(m);
 }
 
 function replyDmMessage(id) {
@@ -1911,6 +2330,7 @@ async function loadDmMessages(before) {
             if (msgs && msgs.length > 0) {
                 var area = document.getElementById('dmMessagesArea');
                 if (area && !area.querySelector('[data-msgid]')) {
+                    _doodleBulk = true;
                     for (var i = 0; i < msgs.length; i++) {
                         var m = msgs[i];
                         if (m && m.id && !m.is_deleted) {
@@ -1918,6 +2338,7 @@ async function loadDmMessages(before) {
                             addDmMessage(m);
                         }
                     }
+                    _doodleBulk = false;
                     var a = document.getElementById('dmMessagesArea');
                     if (a) scrollChatToBottom(a);
                 }
@@ -1936,17 +2357,32 @@ async function loadDmMessages(before) {
             var lm = document.getElementById('loadMoreDmBtn');
             if (lm) lm.remove();
             var maxId = 0;
+            _doodleBulk = true;
             for (var i = 0; i < d.messages.length; i++) {
                 var m = d.messages[i];
                 if (m.id > maxId) maxId = m.id;
                 if (m.recipient && ((m.username === U && m.recipient === D) || (m.username === D && m.recipient === U))) {
+                    // 被废弃的点赞行（历史合并后标 is_deleted）：同步清理本地缓存副本
+                    if (m.msg_type === 'like' && m.is_deleted) lcMarkRevoked('dm_' + D, m.id);
                     delete seenMsgIds['dm_' + m.id];
                     addDmMessage(m, !!before)
                 }
             }
+            _doodleBulk = false;
             lcPersistBatch('dm_' + D, d.messages);
             if (maxId > L) L = maxId;
             _dmOldest = d.oldest_id || 0;
+            // 渲染完成后按 msgid 重排 DOM，修正任何乱序（脏缓存等）
+            if (!before) {
+                var area2 = document.getElementById('dmMessagesArea');
+                if (area2) {
+                    var arr = Array.prototype.slice.call(area2.children);
+                    arr.sort(function(x, y) {
+                        return (+(x.getAttribute('data-msgid') || 0)) - (+(y.getAttribute('data-msgid') || 0));
+                    });
+                    for (var k = 0; k < arr.length; k++) area2.appendChild(arr[k]);
+                }
+            }
             if (!before) {
                 var a = document.getElementById('dmMessagesArea');
                 if (a) scrollChatToBottom(a);
@@ -2142,9 +2578,9 @@ function addAnnouncement(m, prepend) {
         : attachmentHtml.call({ attName: m.attachment_name || '', attSize: m.attachment_size || null }, m.attachment_url, m.msg_type);
     var rq = '';
     if (m.reply_data) {
-        rq = '<div class="msg-reply-quote"><strong>' + eh(m.reply_data.display_name) + '</strong>: ' + eh(m.reply_data.message) + '</div>';
+        rq = '<div class="msg-reply-quote"><strong>' + eh(m.reply_data.display_name) + '</strong>: ' + m.reply_data.message + '</div>';
     }
-    var msgContent = m.is_markdown ? renderMd(m.message) : renderEmoji(eh(m.message));
+    var msgContent = m.is_markdown ? renderMd(m.message) : renderEmoji(m.message);
     var emojiCode = extractFirstEmojiCode(msgContent);
     var emojiMenuItem = emojiCode ? '<div class="msg-emoji-add" data-emoji-code="' + eh(emojiCode) + '">' + T('menu_add_emoji') + '</div>' : '';
     var reportMenuItem = '<div class="msg-report" onclick="reportMsgFromMenu(this,\'' + m.username + '\');closeAllMsgMenus()">' + T('menu_report') + '</div>';
@@ -2950,6 +3386,7 @@ async function doSupportReply(id) {
         el.removeAttribute('data-loaded');
         el.classList.remove('active');
         toggleSupportDetail(id);
+        loadSupportBadge();
     }
 }
 async function doSupportUpdateStatus(id) {
@@ -2966,7 +3403,7 @@ async function doSupportUpdateStatus(id) {
         },
         body: f.toString()
     }).then(r => r.json());
-    if (d.success) loadSupportTickets(supTab, supPage);
+    if (d.success) { loadSupportTickets(supTab, supPage); loadSupportBadge(); }
 }
 
 if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
@@ -3050,8 +3487,9 @@ function searchMessages(page) {
         document.getElementById('msgSearchPagination').style.display = (tp > 1 || d.total > 0) ? 'flex' : 'none';
     });
 }
-function openDmSearch() {
+function openDmSearch(u) {
     document.getElementById('dmOptionsMenu').classList.remove('active');
+    if (u && u !== D) openDm(u);   // 右键搜索他人记录时，先切换到该聊天
     if (!D) return;
     var label = G ? D : (_contactNotes[D] || D);
     document.getElementById('dmSearchTitle').textContent = 'Search: ' + label + ' (' + (G ? 'GID:'+G : D) + ')';
@@ -3311,6 +3749,86 @@ function loadDonations(page) {
     });
 }
 
+/* ===== 个人资料管理 (Profile Data Management) ===== */
+var _pmType = 'all', _pmData = null;
+
+function closePm() {
+    var p = document.getElementById('panel-profile-mgmt');
+    if (p) p.classList.remove('active');
+}
+
+function loadPm() {
+    var list = document.getElementById('pmList');
+    if (list) list.innerHTML = '<div class="es"><p>' + T('pmg_loading', 'Loading...') + '</p></div>';
+    fetch('../api/chat.php?action=my_content&type=' + encodeURIComponent(_pmType) + '&limit=200').then(function(r) {
+        return r.json();
+    }).then(function(d) {
+        if (!d.success) {
+            if (list) list.innerHTML = '<div class="es"><p>' + T('pmg_empty', 'Nothing here yet.') + '</p></div>';
+            return;
+        }
+        _pmData = d.items || [];
+        renderPm();
+    }).catch(function() {
+        if (list) list.innerHTML = '<div class="es"><p>' + T('pmg_empty', 'Nothing here yet.') + '</p></div>';
+    });
+}
+
+function pmTab(type) {
+    _pmType = type;
+    var tabs = document.querySelectorAll('#pmgTabs .pmg-tab');
+    for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle('active', tabs[i].getAttribute('data-type') === type);
+    renderPm();
+}
+
+function renderPm() {
+    var list = document.getElementById('pmList');
+    if (!list) return;
+    var items = _pmData || [];
+    var h = '';
+    for (var i = 0; i < items.length; i++) {
+        if (_pmType !== 'all' && items[i].kind !== _pmType) continue;
+        h += pmItemHtml(items[i]);
+    }
+    list.innerHTML = h || '<div class="es"><p>' + T('pmg_empty', 'Nothing here yet.') + '</p></div>';
+}
+
+function pmItemHtml(it) {
+    var thumb;
+    if (it.kind === 'photo' || it.kind === 'video') {
+        thumb = '<span class="pmg-thumb">' + (it.kind === 'video' ? '<i class="pmg-play">▶</i>' : '') + '<img src="' + eh(it.url) + '" loading="lazy" alt="" onerror="this.parentNode.classList.add(\'pmg-broken\')"></span>';
+    } else {
+        thumb = '<span class="pmg-thumb pmg-file">' + T('pmg_file_icon', '📄') + '</span>';
+    }
+    var size = it.size ? ' · ' + fmtSize(it.size) : '';
+    var kindLabel = ({ photo: 'photo', video: 'video', file: 'file' })[it.kind] || it.kind;
+    return '<div class="pmg-item" data-id="' + it.id + '">' +
+        thumb +
+        '<div class="pmg-info">' +
+        '<div class="pmg-name" title="' + eh(it.name) + '">' + eh(it.name) + '</div>' +
+        '<div class="pmg-meta">' + kindLabel + size + ' · ' + fmtTime(it.time) + '</div>' +
+        '</div>' +
+        '<button class="bsm danger pmg-revoke" onclick="revokePm(' + it.id + ')">' + T('pmg_revoke', 'Revoke') + '</button>' +
+        '</div>';
+}
+
+function revokePm(id) {
+    if (!confirm(T('pmg_revoke_confirm', 'Revoke this item? Recipients will see it as revoked, not deleted.'))) return;
+    var f = new URLSearchParams();
+    f.append('action', 'revoke_own');
+    f.append('message_id', id);
+    fetch('../api/chat.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: f.toString()
+    }).then(function(r) {
+        return r.json();
+    }).then(function(d) {
+        if (d.success) { loadPm(); }
+        else { alert(d.error || T('pmg_failed', 'Failed to revoke.')); }
+    });
+}
+
 function showAddDonationModal() {
     document.getElementById('addDonDateTime').value = '';
     document.getElementById('addDonUserSearch').value = '';
@@ -3459,9 +3977,12 @@ function loadMyGroups() {
     }).then(function(d) {
         if (!d.success) return;
         var h = '';
-        for (var i = 0; i < d.groups.length; i++) {
-            var g = d.groups[i];
-            h += '<div class="csi" onclick="openGroupChat(' + g.group_id + ',\'' + eh(g.name) + '\')"><div class="ca"><span class="online-dot on"></span></div><div class="cn">' + eh(g.name) + ' (GID: ' + g.group_id + ')</div></div>';
+        var sorted = d.groups.slice().sort(function(a, b) { return ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)); });
+        for (var i = 0; i < sorted.length; i++) {
+            var g = sorted[i];
+            _pinnedGroup[g.group_id] = g.pinned ? 1 : 0;
+            var gav = g.avatar_url ? '<img src="' + g.avatar_url + '" alt="">' : '';
+            h += '<div class="csi' + (_pinnedGroup[g.group_id] ? ' pinned' : '') + '" data-gid="' + g.group_id + '" onclick="openGroupChat(' + g.group_id + ',\'' + eh(g.name) + '\')"><div class="ca">' + (gav || '') + '</div><div class="cn">' + eh(g.name) + ' (GID: ' + g.group_id + ')</div></div>';
         }
         document.getElementById('myGroups').innerHTML = h || '<div style="color:#666;font-size:.72em;padding:4px 10px">No groups</div>';
     });
@@ -3490,6 +4011,7 @@ function openGroupChat(gid, gname) {
         seenMsgIds = {};
         document.getElementById('dmTitle').textContent = gname + ' (GID: ' + gid + ')';
         switchPanel('dm');
+        updateDmOptionsMenu();
         document.getElementById('dmMessagesArea').innerHTML = '<div class="es"><p>' + T('msg_loading') + '</p></div>';
         for (var i = 0; i < d.messages.length; i++) {
             if (d.messages[i].id > _glast) _glast = d.messages[i].id;
@@ -4815,7 +5337,11 @@ function lcLoadChannel(key) {
             req.onsuccess = function() {
                 var row = req.result;
                 if (!row) return resolve(null);
-                lcDecrypt(row).then(resolve).catch(function() { resolve(null); });
+                lcDecrypt(row).then(function(msgs) {
+                    // 按 id 排序后再返回，旧版脏缓存可能有乱序
+                    if (Array.isArray(msgs)) msgs.sort(function(a, b) { return (a.id || 0) - (b.id || 0); });
+                    resolve(msgs);
+                }).catch(function() { resolve(null); });
             };
             req.onerror = function() { resolve(null); };
         } catch (e) { resolve(null); }
@@ -4864,6 +5390,7 @@ function lcPersistMsg(key, m) {
         msgs = msgs || [];
         if (msgs.some(function(x) { return x.id === m.id; })) return;
         msgs.push(m);
+        msgs.sort(function(a, b) { return a.id - b.id; });   // 保持按 id 顺序，防止乱序渲染
         if (msgs.length > 2000) msgs = msgs.slice(-2000);
         lcSaveChannel(key, msgs);
     });
@@ -5325,9 +5852,13 @@ document.addEventListener('click', function(e) {
   var hit = e.target.closest ? e.target.closest('.sidebar') : null;
   if (!hit) return;
   var clickable = e.target.closest('.ngh, .csi, .na, .sri, .pi, .support-row');
-  if (clickable) {
-    setTimeout(closeMobileSidebar, 250);
+  if (!clickable) return;
+  // 纯「展开/折叠分组」的 .ngh（带 .ngb 兄弟体）不应收起抽屉，否则一展开菜单抽屉就退回
+  if (clickable.classList.contains('ngh')) {
+    var ng = clickable.closest('.ng');
+    if (ng && ng.querySelector('.ngb')) return;
   }
+  setTimeout(closeMobileSidebar, 250);
 });
 document.addEventListener('DOMContentLoaded', sidebarInit);
 window.addEventListener('resize', function() { sidebarInit(); });
@@ -5363,7 +5894,51 @@ function closeMyProfile() {
     document.getElementById('profileOverlay').classList.remove('active');
 }
 
-// ---- Profile drawer: click avatar in sidebar contacts or chat messages to view profile ----
+// ---- 右键菜单：sidebar 联系人（与聊天 ⋯ 选项一致） ----
+var _userCtxEl = null,
+    _ctxUser = null;
+function ensureUserCtxMenu() {
+    if (_userCtxEl && document.body.contains(_userCtxEl)) return _userCtxEl;
+    _userCtxEl = document.createElement('div');
+    _userCtxEl.id = 'userCtxMenu';
+    _userCtxEl.innerHTML =
+        '<button onclick="closeUserCtxMenu();viewDmProfile(_ctxUser)">' + T('btn_view_profile') + '</button>' +
+        '<button onclick="closeUserCtxMenu();reportDmUser(_ctxUser)">' + T('btn_report_user') + '</button>' +
+        '<button onclick="closeUserCtxMenu();openDmSearch(_ctxUser)">' + T('d_search_history') + '</button>' +
+        '<button id="ctxPinBtn" onclick="closeUserCtxMenu();togglePinContact(_ctxUser)">' + T('d_pin') + '</button>' +
+        '<button onclick="closeUserCtxMenu();changeNickname(_ctxUser)">' + T('d_change_nickname') + '</button>' +
+        '<button class="danger" onclick="closeUserCtxMenu();deleteDmContact(_ctxUser)">' + T('btn_delete_contact') + '</button>';
+    document.body.appendChild(_userCtxEl);
+    return _userCtxEl;
+}
+function openUserCtxMenu(e, username) {
+    if (e) e.preventDefault();
+    // 阻止 contextmenu 冒泡到 document 的监听器（否则菜单刚打开就被关掉，
+    // 表现为「菜单被用户名挡住/闪一下就没了」）。右键别处仍会正常关闭菜单。
+    if (e && e.stopPropagation) e.stopPropagation();
+    var el = ensureUserCtxMenu();
+    _ctxUser = username;
+    var pinBtn = document.getElementById('ctxPinBtn');
+    if (pinBtn) pinBtn.textContent = ((username === U) ? _pinnedSelf : _pinned[username]) ? T('d_unpin') : T('d_pin');
+    el.classList.add('active');
+    var x = e.clientX,
+        y = e.clientY;
+    var bw = el.offsetWidth || 80,
+        bh = el.offsetHeight || 180;
+    if (x + bw > window.innerWidth - 8) x = Math.max(8, window.innerWidth - bw - 8);
+    if (y + bh > window.innerHeight - 8) y = Math.max(8, window.innerHeight - bh - 8);
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+}
+function closeUserCtxMenu() {
+    if (_userCtxEl) _userCtxEl.classList.remove('active');
+}
+document.addEventListener('click', function() { closeUserCtxMenu(); });
+document.addEventListener('contextmenu', function(e) {
+    if (!(e.target.closest && e.target.closest('#userCtxMenu'))) closeUserCtxMenu();
+});
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { closeUserCtxMenu(); closeCodePreview(); } });
+window.addEventListener('scroll', function() { closeUserCtxMenu(); }, true);
 (function() {
     // Sidebar contact list: click on avatar (.ca) → open profile (stop propagation to avoid openDm)
     var fc = document.getElementById('friendContacts');
@@ -5380,6 +5955,17 @@ function closeMyProfile() {
                 openMyProfile(username);
             }
         }, true); // use capture to beat the inline onclick
+
+        // 右键联系人 → 上下文菜单（与 ⋯ 选项一致）
+        fc.addEventListener('contextmenu', function(e) {
+            var csi = e.target.closest('.csi');
+            if (!csi) return;
+            var username = csi.getAttribute('data-cuser');
+            if (!username || username === U) return;
+            e.preventDefault();
+            e.stopPropagation();   // 防止冒泡到 document 级 handler 把菜单立即关掉
+            openUserCtxMenu(e, username);
+        });
     }
 
     // Chat message bubbles: click on avatar → open profile
@@ -5411,3 +5997,409 @@ function closeMyProfile() {
         });
     }
 })();
+
+/* ================================================================
+   自訂滑鼠效果（移植自 apps/selfpage/exampl/src/utils/cursor.js）
+   ================================================================ */
+(function () {
+    // 觸控裝置不啟用
+    if (window.matchMedia && window.matchMedia("(hover: none)").matches) return;
+
+    // 建立跟隨滑鼠的白色小圓點
+    var cursor = document.createElement("div");
+    cursor.id = "cursor";
+    document.body.appendChild(cursor);
+
+    // 隱藏系統滑鼠游標，改成白色小圓點（文字輸入框保留 I 型游標）
+    var styleEl = document.createElement("style");
+    styleEl.innerHTML = '*:not(input):not(textarea):not([contenteditable="true"]) {cursor: url("data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 8 8\' width=\'10px\' height=\'10px\'><circle cx=\'4\' cy=\'4\' r=\'4\' fill=\'white\' /></svg>") 4 4, auto !important}';
+    document.head.appendChild(styleEl);
+
+    var pos = { curr: null, prev: null };
+    var lerp = function (a, b, n) {
+        if (Math.round(a) === b) return b;
+        return (1 - n) * a + n * b;
+    };
+    var move = function (left, top) {
+        cursor.style.left = left + "px";
+        cursor.style.top = top + "px";
+    };
+    var render = function () {
+        if (pos.prev) {
+            pos.prev.x = lerp(pos.prev.x, pos.curr.x, 0.35);
+            pos.prev.y = lerp(pos.prev.y, pos.curr.y, 0.35);
+            move(pos.prev.x, pos.prev.y);
+        } else {
+            pos.prev = pos.curr;
+        }
+        if (pos.curr && (pos.curr.x !== pos.prev.x || pos.curr.y !== pos.prev.y)) {
+            requestAnimationFrame(render);
+        }
+    };
+
+    document.addEventListener("mousemove", function (e) {
+        if (pos.curr == null) move(e.clientX - 9, e.clientY - 9);
+        pos.curr = { x: e.clientX - 9, y: e.clientY - 9 };
+        cursor.classList.remove("hidden");
+        render();
+    });
+    document.addEventListener("mouseenter", function () { cursor.classList.remove("hidden"); });
+    document.addEventListener("mouseleave", function () { cursor.classList.add("hidden"); });
+    document.addEventListener("mousedown", function () { cursor.classList.add("active"); });
+    document.addEventListener("mouseup", function () { cursor.classList.remove("active"); });
+})();
+
+/* ================================================================
+   Doodle 涂鸦：画在聊天画面上（矢量笔迹 + 激光光效）
+   ================================================================ */
+var Doodle = (function () {
+    var overlay = null, canvas = null, ctx = null;
+    var strokes = [];
+    var cur = null, drawing = false;
+    var color = '#4dd8ff', size = 6, erasing = false;
+    var W = 0, H = 0;
+    var penOnly = false; // 检测到 Apple Pencil 后 → 仅笔模式，忽略手指
+    var activeId = null; // 当前正在画的那支 pointer 的 id（防止手掌/另一支 pointer 干扰）
+
+    function init() {
+        overlay = document.getElementById('doodleOverlay');
+        canvas = document.getElementById('doodleCanvas');
+        if (!overlay || !canvas || ctx) return;
+        ctx = canvas.getContext('2d');
+
+        var sw = overlay.querySelectorAll('.dc');
+        for (var i = 0; i < sw.length; i++) {
+            sw[i].addEventListener('click', function () {
+                setColor(this.getAttribute('data-c'), this);
+            });
+        }
+        var sz = document.getElementById('doodleSize');
+        if (sz) sz.addEventListener('input', function () { size = parseInt(this.value, 10) || 12; });
+
+        canvas.addEventListener('pointerdown', onDown);
+        canvas.addEventListener('pointermove', onMove);
+        canvas.addEventListener('pointerup', onUp);
+        canvas.addEventListener('pointercancel', onUp);
+
+        // iPad 画图时防止误触发“全选”/长按菜单/手势缩放
+        var block = function (e) { e.preventDefault(); };
+        canvas.addEventListener('selectstart', block);
+        canvas.addEventListener('dragstart', block);
+        canvas.addEventListener('contextmenu', block);
+        overlay.addEventListener('selectstart', block);
+        overlay.addEventListener('contextmenu', block);
+        overlay.addEventListener('gesturestart', block);
+        overlay.addEventListener('gesturechange', block);
+        overlay.addEventListener('gestureend', block);
+
+        // Apple Pen 开关：可手动切换；Pencil 触碰时也会自动打开
+        var psw = document.getElementById('doodlePenSwitch');
+        if (psw) psw.addEventListener('change', function () {
+            penOnly = !!psw.checked;
+        });
+    }
+
+    function open() {
+        init();
+        if (!overlay) return;
+        W = window.innerWidth; H = window.innerHeight;
+        canvas.width = W; canvas.height = H;
+        strokes = []; cur = null; drawing = false;
+        penOnly = false; // 每次新开涂鸦都从“两者皆可”开始，直到检测到 Pencil
+        syncPenSwitch();
+        overlay.style.display = 'block';
+        document.body.classList.add('doodle-lock');
+        redraw();
+    }
+
+    function close() {
+        if (!overlay) return;
+        overlay.style.display = 'none';
+        document.body.classList.remove('doodle-lock');
+    }
+
+    function setColor(c, btn) {
+        color = c; erasing = false;
+        var eb = document.getElementById('doodleEraserBtn');
+        if (eb) eb.classList.remove('active');
+        var sw = overlay.querySelectorAll('.dc');
+        for (var i = 0; i < sw.length; i++) sw[i].classList.remove('active');
+        if (btn) btn.classList.add('active');
+    }
+
+    function pt(e) {
+        var r = canvas.getBoundingClientRect();
+        return [e.clientX - r.left, e.clientY - r.top];
+    }
+
+    // 把 penOnly 状态同步到工具栏上的 Apple Pen 开关
+    function syncPenSwitch() {
+        var psw = document.getElementById('doodlePenSwitch');
+        if (psw) psw.checked = penOnly;
+    }
+
+    // Doodle 调试用 verbose 日志（DevTools 控制台 → 级别选 Verbose/All 才能看到）
+    function dvlog() {
+        if (window.console && console.verbose) {
+            var args = ['[doodle]'].concat(Array.prototype.slice.call(arguments));
+            console.verbose.apply(console, args);
+        }
+    }
+
+    function onDown(e) {
+        var tp = e.pointerType || '?';
+        dvlog('pointerdown', tp, 'id#' + e.pointerId, '@' + Math.round(e.clientX) + ',' + Math.round(e.clientY),
+            'penOnly=' + penOnly, 'drawing=' + drawing, 'activeId=' + activeId);
+        // Apple Pencil 检测：碰到一次 Pencil 就自动打开开关 → 仅笔模式，之后手指（含手掌误触）全部忽略
+        if (e.pointerType === 'pen') { penOnly = true; syncPenSwitch(); }
+        if (e.pointerType === 'touch' && penOnly) { dvlog('  ↳ TOUCH IGNORED (penOnly)'); return; }
+
+        // 手掌/另一支 pointer 还压在屏幕上时，笔来了 → 丢掉那笔误触，让笔接管（修复“手放屏幕上笔就画不了”）
+        if (drawing && cur && activeId !== null && activeId !== e.pointerId && e.pointerType === 'pen') {
+            dvlog('  ↳ PEN TAKEOVER: discard palm stroke id#' + activeId);
+            strokes.pop();
+            drawing = false; cur = null; activeId = null;
+        }
+
+        // 关键：iOS Safari 上不要 preventDefault / 不要 setPointerCapture，否则 Apple Pencil
+        // 会在手掌按压时收不到笔事件，或画到一半丢失 pointermove。滚动已由 touch-action:none 阻止。
+        drawing = true;
+        activeId = e.pointerId;
+        cur = { tool: erasing ? 'eraser' : 'pen', color: color, size: size, points: [pt(e)] };
+        strokes.push(cur);
+        paintDot(ctx, cur.points[0], cur); // 落笔先画个点，增量绘制不整幅重绘
+    }
+    function onMove(e) {
+        if (!drawing || !cur || activeId !== e.pointerId) return;
+        var p = pt(e);
+        var last = cur.points[cur.points.length - 1];
+        // 按距离采样：移动不足 2px 不记录 → 线宽与画图速度无关（不会忽粗忽细）
+        var dx = p[0] - last[0], dy = p[1] - last[1];
+        if (dx * dx + dy * dy < 4) return;
+        dvlog('pointermove', e.pointerType || '?', 'id#' + e.pointerId, '@' + Math.round(p[0]) + ',' + Math.round(p[1]), 'pts=' + cur.points.length);
+        // 增量平滑绘制（不整幅重绘）→ 快，iPad 上画快也不丢事件/断线
+        paintSmoothSeg(ctx, cur.points, p, cur);
+        cur.points.push(p);
+    }
+    function onUp(e) {
+        dvlog('pointerup/cancel', e.pointerType || '?', 'id#' + e.pointerId, 'activeId=' + activeId);
+        if (activeId === e.pointerId) { drawing = false; cur = null; activeId = null; }
+    }
+
+    // 整段重绘（撤销/清空时）
+    function redraw() {
+        if (!ctx) return;
+        doodlePaintAll(ctx, strokes, 1, 0, 0);
+    }
+
+    function undo() { strokes.pop(); redraw(); }
+    function clearAll() { strokes = []; redraw(); }
+    function toggleEraser() {
+        erasing = !erasing;
+        var eb = document.getElementById('doodleEraserBtn');
+        if (eb) eb.classList.toggle('active', erasing);
+    }
+    function isEmpty() { return strokes.length === 0; }
+    function data() { return JSON.stringify(strokes); }
+
+    return { open: open, close: close, setColor: setColor, undo: undo, clear: clearAll, toggleEraser: toggleEraser, isEmpty: isEmpty, data: data };
+})();
+
+function openDoodle() { Doodle.open(); }
+function closeDoodle() { Doodle.close(); }
+function undoDoodle() { Doodle.undo(); }
+function clearDoodle() { Doodle.clear(); }
+function toggleDoodleEraser() { Doodle.toggleEraser(); }
+// ---- 实时增量绘制（快，不整幅重绘 → iPad 上画快也不丢事件） ----
+function smoothPath(ctx, pts, pNew) {
+    var n = pts.length;
+    ctx.beginPath();
+    if (n === 1) {
+        // 从首点画到新点的中点（保证与后续贝塞尔连续）
+        ctx.moveTo(pts[0][0], pts[0][1]);
+        ctx.lineTo((pts[0][0] + pNew[0]) / 2, (pts[0][1] + pNew[1]) / 2);
+    } else {
+        var p0 = pts[n - 2], p1 = pts[n - 1];
+        ctx.moveTo((p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2);
+        ctx.quadraticCurveTo(p1[0], p1[1], (p1[0] + pNew[0]) / 2, (p1[1] + pNew[1]) / 2);
+    }
+    ctx.stroke();
+}
+function paintSmoothSeg(ctx, pts, pNew, s) {
+    var w = Math.max(1, s.size);
+    ctx.save();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    if (s.tool === 'eraser') {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = w * 2.5;
+        smoothPath(ctx, pts, pNew);
+    } else {
+        // 实色 + 光晕（source-over，不用叠加 → 线段接头处不会出亮点/点点）
+        ctx.strokeStyle = s.color;
+        ctx.lineWidth = w * 1.8;
+        ctx.shadowColor = s.color; ctx.shadowBlur = 6;
+        smoothPath(ctx, pts, pNew);
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = w * 0.7;
+        smoothPath(ctx, pts, pNew);
+    }
+    ctx.restore();
+}
+function paintDot(ctx, p, s) {
+    var r = Math.max(1, s.size * 0.5);
+    ctx.save();
+    if (s.tool === 'eraser') {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.arc(p[0], p[1], r * 2.5, 0, Math.PI * 2); ctx.fill();
+    } else {
+        ctx.fillStyle = s.color;
+        ctx.shadowColor = s.color; ctx.shadowBlur = 6;
+        ctx.beginPath(); ctx.arc(p[0], p[1], r * 1.8, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(p[0], p[1], r * 0.7, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+}
+
+// ---- 涂鸦绘制原语（柔和霓虹 + 二次贝塞尔平滑，画快也不出折角/点） ----
+function paintSmoothPath(ctx, t) {
+    if (t.length === 1) {
+        // 单点：画一个小圆点
+        var r = Math.max(1, ctx.lineWidth * 0.5);
+        ctx.beginPath();
+        ctx.arc(t[0][0], t[0][1], r, 0, Math.PI * 2);
+        ctx.fill();
+        return;
+    }
+    // 二次贝塞尔过中点：点再稀疏也平滑，不会在转折处出现圆点/折角
+    ctx.beginPath();
+    ctx.moveTo((t[0][0] + t[1][0]) / 2, (t[0][1] + t[1][1]) / 2);
+    for (var i = 1; i < t.length - 1; i++) {
+        ctx.quadraticCurveTo(t[i][0], t[i][1], (t[i][0] + t[i + 1][0]) / 2, (t[i][1] + t[i + 1][1]) / 2);
+    }
+    ctx.lineTo(t[t.length - 1][0], t[t.length - 1][1]);
+    ctx.stroke();
+}
+// 把整组笔迹画到某个 ctx 上（重绘 / 截图合成 / 消息卡片回放共用）
+function doodlePaintAll(ctx, strokes, scale, ox, oy) {
+    scale = scale || 1; ox = ox || 0; oy = oy || 0;
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    for (var i = 0; i < strokes.length; i++) {
+        var s = strokes[i], pts = s.points || [], t = [];
+        for (var j = 0; j < pts.length; j++) {
+            if (pts[j] && pts[j].length >= 2) t.push([pts[j][0] * scale + ox, pts[j][1] * scale + oy]);
+        }
+        if (t.length < 1) continue;
+        ctx.save();
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        if (s.tool === 'eraser') {
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = Math.max(1, s.size * 2.5 * scale);
+            paintSmoothPath(ctx, t);
+        } else {
+            ctx.strokeStyle = s.color;
+            ctx.lineWidth = Math.max(1, s.size * 1.8 * scale);
+            ctx.shadowColor = s.color;
+            ctx.shadowBlur = 6;
+            paintSmoothPath(ctx, t);
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = Math.max(1, s.size * 0.7 * scale);
+            paintSmoothPath(ctx, t);
+        }
+        ctx.restore();
+    }
+}
+
+// ---- 发送：把涂鸦作为一条 doodle 消息发出去，对方在聊天里看到干净的发光涂鸦卡片 ----
+async function sendDoodle() {
+    if (!D || Doodle.isEmpty()) return;
+    var strokes = JSON.parse(Doodle.data());
+    var d = await apiRequest('send', { recipient: D, doodle: Doodle.data() }, { forceHttp: true });
+    if (d && d.success) {
+        Doodle.close();
+        delete seenMsgIds['dm_' + d.message_id];
+        await loadDmMessages();
+        requestAnimationFrame(function () {
+            var da = document.getElementById('dmMessagesArea');
+            if (da) scrollChatToBottom(da);
+        });
+        playDoodle(strokes); // 发送后自己也整屏看到（历史批量加载已抑制自动回放，不会重复）
+    } else {
+        xalert((d && d.error) || '发送失败');
+    }
+}
+
+/* ---- Doodle 消息：聊天里显示“✎ Doodle”徽章，点击/收到时在整屏回放 ---- */
+var _doodleBulk = false; // 历史批量加载时禁止自动整屏回放
+var _playTimer = null;
+
+function doodleCardHtml(m) {
+    var strokes = [];
+    try { strokes = JSON.parse(m.attachment || '') || []; } catch (e) { strokes = []; }
+    var esc = function (s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    };
+    return '<div class="msg-media doodle-msg"><button type="button" class="doodle-replay" data-strokes="' + esc(JSON.stringify(strokes)) + '" onclick="replayDoodleMsg(this)">✎ Doodle</button></div>';
+}
+
+function replayDoodleMsg(btn) {
+    var strokes = [];
+    try { strokes = JSON.parse(btn.getAttribute('data-strokes') || '[]') || []; } catch (e) { strokes = []; }
+    playDoodle(strokes);
+}
+
+// 整屏回放：把涂鸦放大铺满整个聊天窗口（不是消息框里的小卡片）
+function playDoodle(strokes) {
+    var ov = document.getElementById('doodleOverlay');
+    var cv = document.getElementById('doodleCanvas');
+    if (!ov || !cv || !strokes || !strokes.length) return;
+    var W = window.innerWidth, H = window.innerHeight;
+    cv.width = W; cv.height = H;
+    var ctx = cv.getContext('2d');
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, has = false;
+    for (var i = 0; i < strokes.length; i++) {
+        var pts = (strokes[i] && strokes[i].points) || [];
+        for (var j = 0; j < pts.length; j++) {
+            if (!pts[j] || pts[j].length < 2) continue;
+            minX = Math.min(minX, pts[j][0]); minY = Math.min(minY, pts[j][1]);
+            maxX = Math.max(maxX, pts[j][0]); maxY = Math.max(maxY, pts[j][1]);
+            has = true;
+        }
+    }
+    var scale = 1, ox = 0, oy = 0;
+    if (has) {
+        var bw = (maxX - minX) || 1, bh = (maxY - minY) || 1;
+        var pad = 40;
+        scale = Math.min((W - pad * 2) / bw, (H - pad * 2) / bh);
+        ox = (W - bw * scale) / 2 - minX * scale;
+        oy = (H - bh * scale) / 2 - minY * scale;
+    }
+    doodlePaintAll(ctx, strokes, scale, ox, oy);
+    ov.classList.add('playing'); // 隐藏工具栏，只显示整屏涂鸦
+    ov.style.display = 'block';
+    ov.onclick = function () { if (ov.classList.contains('playing')) closeDoodlePlay(); };
+    clearTimeout(_playTimer);
+    _playTimer = setTimeout(closeDoodlePlay, 4000);
+}
+function closeDoodlePlay() {
+    var ov = document.getElementById('doodleOverlay');
+    if (ov) {
+        ov.classList.remove('playing');
+        ov.style.display = 'none';
+        document.body.classList.remove('doodle-lock');
+        ov.onclick = null;
+    }
+}
+// 收到新的 doodle 消息时自动整屏回放（历史批量加载时不自动）
+function maybeAutoPlayDoodle(m) {
+    if (m.msg_type !== 'doodle' || _doodleBulk) return;
+    var strokes = [];
+    try { strokes = JSON.parse(m.attachment || '') || []; } catch (e) { strokes = []; }
+    if (strokes.length) playDoodle(strokes);
+}
