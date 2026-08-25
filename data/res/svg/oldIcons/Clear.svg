@@ -1,0 +1,14 @@
+<svg id="Clear" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <mask id="path-2-inside-1_4240_21234" fill="white">
+        <path
+            d="M4 6H20L19.1172 20.1248C19.0513 21.1788 18.1772 22 17.1211 22H6.8789C5.82278 22 4.94868 21.1788 4.8828 20.1248L4 6Z">
+        </path>
+    </mask>
+    <path
+        d="M4 6V4H1.8711L2.00389 6.12476L4 6ZM20 6L21.9961 6.12476L22.1289 4H20V6ZM4 8H20V4H4V8ZM18.0039 5.87524L17.1211 20L21.1133 20.2495L21.9961 6.12476L18.0039 5.87524ZM17.1211 20H6.8789V24H17.1211V20ZM6.8789 20L5.99611 5.87524L2.00389 6.12476L2.88669 20.2495L6.8789 20ZM6.8789 20H6.8789L2.88669 20.2495C3.01845 22.3577 4.76665 24 6.8789 24V20ZM17.1211 20V24C19.2333 24 20.9815 22.3577 21.1133 20.2495L17.1211 20Z"
+        fill="currentColor" mask="url(#path-2-inside-1_4240_21234)"></path>
+    <path d="M2 7L22 7.00013" stroke="currentColor" stroke-width="2"></path>
+    <path d="M7 3L17 3" stroke="currentColor" stroke-width="2"></path>
+    <path d="M10 11L10 17" stroke="currentColor" stroke-width="2"></path>
+    <path d="M14 11L14 17" stroke="currentColor" stroke-width="2"></path>
+</svg>

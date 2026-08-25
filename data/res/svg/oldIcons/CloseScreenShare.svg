@@ -1,0 +1,6 @@
+<svg id="CloseScreenShare" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+	<rect x="8" y="8.33337" width="1.88562" height="9.42808" transform="rotate(-45 8 8.33337)" fill="currentColor" />
+	<rect width="1.88562" height="9.42808" transform="matrix(-0.707107 -0.707107 -0.707107 0.707107 16 8.33337)" fill="currentColor" />
+	<path fill-rule="evenodd" clip-rule="evenodd" d="M2.5 3C1.67157 3 1 3.67157 1 4.5V17.5C1 18.3284 1.67157 19 2.5 19H21.5C22.3284 19 23 18.3284 23 17.5V4.5C23 3.67157 22.3284 3 21.5 3H2.5ZM21.5 4.5H2.5L2.5 17.5H21.5V4.5Z" fill="currentColor" />
+	<path d="M7 20.5V22H17V20.5H7Z" fill="currentColor" />
+</svg>

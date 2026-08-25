@@ -1,0 +1,8 @@
+<svg id="VoiceSetting" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M2 4.5H8" stroke="currentColor" style="stroke-width: inherit;"></path>
+<path d="M11 4.5H14" stroke="currentColor" style="stroke-width: inherit;"></path>
+<circle cx="9.5" cy="4.5" r="2" stroke="currentColor" style="stroke-width: inherit;"></circle>
+<path d="M14 11.5H8" stroke="currentColor" style="stroke-width: inherit;"></path>
+<path d="M5 11.5H2" stroke="currentColor" style="stroke-width: inherit;"></path>
+<circle r="2" transform="matrix(-1 0 0 1 6.5 11.5)" stroke="currentColor" style="stroke-width: inherit;"></circle>
+</svg>

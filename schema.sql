@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS contacts (
     msg TEXT DEFAULT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     note TEXT DEFAULT NULL,
+    pinned TINYINT(1) NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
     KEY idx_user_from (user_from),
     KEY idx_user_to (user_to)
@@ -132,6 +133,7 @@ CREATE TABLE IF NOT EXISTS group_members (
     user_id INT NOT NULL,
     role ENUM('owner','admin','member') NOT NULL DEFAULT 'member',
     muted TINYINT(1) NOT NULL DEFAULT 0,
+    pinned TINYINT(1) NOT NULL DEFAULT 0,
     joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (group_id, user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

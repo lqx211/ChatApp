@@ -1,0 +1,18 @@
+<svg id="Float" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+	<path
+		fill-rule="evenodd"
+		clip-rule="evenodd"
+		d="M9 9V13H13V9H9ZM8.46667 8C8.20893 8 8 8.20893 8 8.46667V13.5333C8 13.7911 8.20893 14 8.46667 14H13.5333C13.7911 14 14 13.7911 14 13.5333V8H8.46667Z"
+	/>
+	<path
+		fill-rule="evenodd"
+		clip-rule="evenodd"
+		d="M6.64642 7.35359L3.64642 4.35359L4.35353 3.64648L7.35353 6.64648L6.64642 7.35359Z"
+	/>
+	<path fill-rule="evenodd" clip-rule="evenodd" d="M7 7V5H8V8H5V7H7Z" />
+	<path
+		fill-rule="evenodd"
+		clip-rule="evenodd"
+		d="M3 3V13H7V14H2.68182C2.30526 14 2 13.6947 2 13.3182V2.68182C2 2.30526 2.30526 2 2.68182 2H13.3182C13.6947 2 14 2.30526 14 2.68182V7H13V3H3ZM8 14H13.3182C13.6947 14 14 13.6947 14 13.3182V8H13V13H8V14Z"
+	/>
+</svg>

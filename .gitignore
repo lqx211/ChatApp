@@ -60,8 +60,8 @@ data/sc/*
 # Temporary / cache resources (keep directory, ignore content)
 data/res/fileicon/*
 data/res/sound/*
-data/res/svg/*
 data/res/wallpaper/*
+# data/res/svg/* is NOT ignored — those SVG icons are app assets referenced by the UI and must ship with the repo.
 
 # =================== Sensitive config (track example files only) ===================
 # maintenance/config.php contains credentials — use config.example.php instead

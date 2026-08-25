@@ -1,0 +1,10 @@
+<svg id="ZoomOut" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M6 10L6 13L6.99999 13L7 9L3 9L2.99999 10L6 10Z" fill="currentColor"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M9.99999 10L9.99999 13H8.99999L8.99999 9L13 9V10H9.99999Z" fill="currentColor"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M5.99999 6H2.99999L2.99999 7H7L6.99999 3L5.99999 3L5.99999 6Z" fill="currentColor"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M9 7H13V6H10L9.99999 3L8.99999 3L9 7Z" fill="currentColor"/>
+<path d="M2.70711 2L2 2.70711L6.15036 6.85747L6.85747 6.15036L2.70711 2Z" fill="currentColor"/>
+<path d="M9.8457 9.13867L9.13859 9.84578L13.2841 13.9913L13.9912 13.2842L9.8457 9.13867Z" fill="currentColor"/>
+<path d="M6.13537 9.14307L6.84248 9.85017L2.70936 13.9833L2.00226 13.2762L6.13537 9.14307Z" fill="currentColor"/>
+<path d="M13.2786 2L13.9857 2.70711L9.84443 6.84834L9.13732 6.14124L13.2786 2Z" fill="currentColor"/>
+</svg>

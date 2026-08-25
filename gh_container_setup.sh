@@ -33,10 +33,10 @@ echo ""
 
 echo "Prepare container environemnt."
 sudo apt update -y
-sudo apt install php8.3 php8.3-mbstring php8.3-gd apache2 mysql-server mysql-client php8.3-mysql php-mysql -y
+sudo apt install php8.3 php8.3-mbstring php8.3-gd php8.3-curl apache2 mysql-server mysql-client php8.3-mysql php-mysql -y
 
 echo "Install required packages."
-sudo apt install mysql-server mysql-client apache2 php8.3 php8.3-mbstring php8.3-gd -y
+sudo apt install mysql-server mysql-client apache2 php8.3 php8.3-mbstring php8.3-gd php8.3-curl -y
 
 echo "Setup database."
 sudo service mysql start
@@ -44,7 +44,7 @@ sudo service mysql status
 sudo mysql -e "CREATE DATABASE IF NOT EXISTS chatapp DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_unicode_ci;" 
 sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '';"
 sudo mysql -e "FLUSH PRIVILEGES;"
-sudo apt install php-mysql php8.3-mysql php8.3-mbstring php8.3-gd -y
+sudo apt install php-mysql php8.3-mysql php8.3-mbstring php8.3-gd php8.3-curl -y
 
 echo "Setup server."
 sudo rm /var/www/html/index.html

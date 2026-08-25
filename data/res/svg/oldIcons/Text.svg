@@ -1,0 +1,5 @@
+<svg id="Text" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M11 3H13L4.5 21H2.5L11 3Z" fill="currentColor"></path>
+    <path d="M13 3H11L19.5 21H21.5L13 3Z" fill="currentColor"></path>
+    <rect x="7" y="13" width="10" height="2" fill="currentColor"></rect>
+</svg>

@@ -776,6 +776,7 @@ function init_db(): void {
         INDEX idx_user_to (user_to)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     db_add_column_if_missing('contacts', 'note', "TEXT DEFAULT NULL");
+    db_add_column_if_missing('contacts', 'pinned', "TINYINT(1) NOT NULL DEFAULT 0");
     db_add_column_if_missing('incidents', 'images', "TEXT DEFAULT NULL");
     db_add_column_if_missing('messages', 'group_id', "INT DEFAULT NULL");
     $pdo->exec("CREATE TABLE IF NOT EXISTS `groups` (
@@ -805,6 +806,7 @@ function init_db(): void {
     db_add_column_if_missing('groups', 'avatar', "VARCHAR(255) DEFAULT NULL");
     db_add_column_if_missing('groups', 'announcement', "TEXT DEFAULT NULL");
     db_add_column_if_missing('groups', 'all_muted', "TINYINT(1) NOT NULL DEFAULT 0");
+    db_add_column_if_missing('group_members', 'pinned', "TINYINT(1) NOT NULL DEFAULT 0");
     $pdo->exec("CREATE TABLE IF NOT EXISTS admin_logs (
         id INT AUTO_INCREMENT PRIMARY KEY,
         admin_uid INT NOT NULL,
