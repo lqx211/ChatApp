@@ -27,6 +27,16 @@
     var TOKEN = '';
     var myGroupsCache = [];
     var typingHideTimer = null;
+    var _connectAttempts = 0;    // 连接尝试次数（含重连）
+    var _offTimers = {};         // username -> 离线显示延迟定时器（防闪烁）
+
+    // verbose 级连接状态日志（DevTools 控制台 → 级别选 Verbose/All 才能看到）
+    function wslog() {
+        if (window.console && console.verbose) {
+            var args = ['[WSS]'].concat(Array.prototype.slice.call(arguments));
+            console.verbose.apply(console, args);
+        }
+    }
 
     // ---- request/response 通信（POST 移植 WSS） ----
     var _reqId = 0;
@@ -88,16 +98,29 @@
 
     /* ---------------- 在线状态 UI ---------------- */
     function setOnlineStatus(username, cls) {
-        var items = document.querySelectorAll('.csi[data-cuser]');
-        for (var i = 0; i < items.length; i++) {
-            if (items[i].getAttribute('data-cuser') === username) {
-                var cn = items[i].querySelector('.cn');
-                if (cn) {
-                    cn.classList.remove('on', 'dnd', 'rstr', 'off');
-                    if (cls) cn.classList.add(cls);
+        function applyAll(fn) {
+            var items = document.querySelectorAll('.csi[data-cuser]');
+            for (var i = 0; i < items.length; i++) {
+                if (items[i].getAttribute('data-cuser') === username) {
+                    var cn = items[i].querySelector('.cn');
+                    if (cn) fn(cn);
                 }
             }
         }
+        // 离线延迟 5s 显示：对方连接短暂抖动/重连时不闪（期间收到 online 则取消）
+        if (cls === 'off') {
+            if (_offTimers[username]) return;
+            _offTimers[username] = setTimeout(function() {
+                delete _offTimers[username];
+                applyAll(function(cn) { cn.classList.remove('on', 'dnd', 'rstr', 'off'); cn.classList.add('off'); });
+            }, 5000);
+            return;
+        }
+        if (_offTimers[username]) { clearTimeout(_offTimers[username]); delete _offTimers[username]; }
+        applyAll(function(cn) {
+            cn.classList.remove('on', 'dnd', 'rstr', 'off');
+            if (cls) cn.classList.add(cls);
+        });
     }
 
     /* ---------------- 消息处理 ---------------- */
@@ -139,10 +162,12 @@
                         } else if (m.msg_type === 'like' && !(m.id > L)) {
                             // 点赞行合并更新（非新行且聊天未打开）：静默忽略，不重复加未读/提醒
                         } else {
-                            // 其他私聊：未读数 + 提醒
-                            if (!unreadCounts[m.username]) unreadCounts[m.username] = 0;
-                            unreadCounts[m.username]++;
-                            if (typeof window.notifyNewMessage === 'function') window.notifyNewMessage(m);
+                            // 其他私聊：未读数 + 提醒（已读消息不计未读，避免重连/多标签重复推送把已读消息算成未读）
+                            if (!m.read_at) {
+                                if (!unreadCounts[m.username]) unreadCounts[m.username] = 0;
+                                unreadCounts[m.username]++;
+                                if (typeof window.notifyNewMessage === 'function') window.notifyNewMessage(m);
+                            }
                         }
                     }
                     if (typeof updateUnreads === 'function') updateUnreads();
@@ -176,6 +201,16 @@
                 }
                 break;
 
+            case 'unread_counts':
+                // 服务端 mark_read 后推送的权威未读数（多标签页同步，避免“已读仍显示未读”）
+                if (d.counts) {
+                    for (var uk in d.counts) {
+                        if (Object.prototype.hasOwnProperty.call(d.counts, uk)) unreadCounts[uk] = d.counts[uk];
+                    }
+                    if (typeof updateUnreads === 'function') updateUnreads();
+                }
+                break;
+
             case 'typing':
                 // 打字指示器（仅当前对话对象）
                 if (d.from && D === d.from) {
@@ -204,30 +239,51 @@
                     }
                 }
                 break;
+
+            case 'live_draw':
+                // Live Draw 实时协作板事件（邀请/接受/笔迹/清空/退出等），交给 chat.js 的 LiveDraw 模块处理
+                if (typeof window.handleLiveDraw === 'function') window.handleLiveDraw(d);
+                break;
+
+            case 'reload':
+                // 强制刷新（客户端版本过时 / 管理员下发）：先回执给发送方，再显示 Win8.1 风格窗口
+                if (d.from && window.wssSendReloadAck) window.wssSendReloadAck(d.from);
+                if (typeof window.showClientReloadDialog === 'function') window.showClientReloadDialog();
+                break;
+
+            case 'reload_ack':
+                // 目标客户端已确认收到 Reload，交给 chat.js 更新发送方状态窗口
+                if (typeof window.handleReloadAck === 'function') window.handleReloadAck(d);
+                break;
         }
     }
 
     /* ---------------- 连接管理 ---------------- */
     function scheduleReconnect() {
         if (reconnectTimer) return;
+        var delay = reconnectDelay;
         reconnectTimer = setTimeout(function() {
             reconnectTimer = null;
             reconnectDelay = Math.min(reconnectDelay * 2, 30000);
             connect();
         }, reconnectDelay);
+        wslog('Reconnecting in ' + delay + 'ms (next delay will be ' + reconnectDelay + 'ms)');
     }
 
     function connect() {
         if (WS_STATE === 'connecting' || WS_STATE === 'open') return;
-        if (!window.WebSocket) return;
-        if (!window.WSS_URL) return;
+        if (!window.WebSocket) { wslog('failed: 浏览器不支持 WebSocket'); return; }
+        if (!window.WSS_URL) { wslog('failed: 无 WSS_URL'); return; }
+        _connectAttempts++;
         WS_STATE = 'connecting';
+        wslog('Connecting... (attempt #' + _connectAttempts + ') → ' + WSS_URL);
 
         fetchToken().then(function() {
             var url = WSS_URL + '/?token=' + TOKEN;
             try {
                 ws = new WebSocket(url);
             } catch (e) {
+                wslog('failed: 创建 WebSocket 异常 →', e);
                 WS_STATE = 'closed';
                 scheduleReconnect();
                 return;
@@ -236,6 +292,7 @@
             ws.onopen = function() {
                 WS_STATE = 'open';
                 reconnectDelay = 1500;
+                wslog('Connected ✓ ' + url);
                 // 连接建立后立即同步游标 + 心跳
                 fetchMyGroups().then(function() {
                     sendHeartbeat();
@@ -248,8 +305,9 @@
 
             ws.onmessage = handleMessage;
 
-            ws.onclose = function() {
+            ws.onclose = function(ev) {
                 WS_STATE = 'closed';
+                wslog('Disconnected ✗ code=' + (ev && ev.code) + ' reason=' + (ev && ev.reason || '') + ' → 触发重连');
                 if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
                 _reqRejectAll(new Error('WSS_CLOSED'));
                 if (window.console) console.log('[WSS] 连接断开，准备重连');
@@ -257,9 +315,11 @@
             };
 
             ws.onerror = function() {
-                // onclose 会触发重连
+                // error 事件通常伴随随后的 close；单独记录用于排查
+                wslog('Failed (WebSocket error 事件)');
             };
-        }).catch(function() {
+        }).catch(function(e) {
+            wslog('failed: 获取 token 失败 →', e);
             WS_STATE = 'closed';
             scheduleReconnect();
         });
@@ -286,6 +346,33 @@
         if (WS_STATE !== 'open' || !ws || ws.readyState !== WebSocket.OPEN) return false;
         try {
             ws.send(JSON.stringify({ type: 'typing', to: to }));
+            return true;
+        } catch (e) { return false; }
+    };
+
+    // 发送 Live Draw 协作事件（实时画板中继：invite/accept/decline/stroke_*/clear/undo/close/snapshot/get_size/size）
+    window.wssSendLiveDraw = function(to, event, data) {
+        if (WS_STATE !== 'open' || !ws || ws.readyState !== WebSocket.OPEN) return false;
+        try {
+            ws.send(JSON.stringify({ type: 'live_draw', to: to, event: event, data: data || {} }));
+            return true;
+        } catch (e) { return false; }
+    };
+
+    // 发送强制 Reload 指令（admin/root 才有权限；服务端会校验角色）
+    window.wssSendReload = function(to) {
+        if (WS_STATE !== 'open' || !ws || ws.readyState !== WebSocket.OPEN) return false;
+        try {
+            ws.send(JSON.stringify({ type: 'reload', to: to }));
+            return true;
+        } catch (e) { return false; }
+    };
+
+    // 目标客户端收到 reload 后回执（发给原发送方，由 server 转发）
+    window.wssSendReloadAck = function(to) {
+        if (WS_STATE !== 'open' || !ws || ws.readyState !== WebSocket.OPEN) return false;
+        try {
+            ws.send(JSON.stringify({ type: 'reload_ack', to: to }));
             return true;
         } catch (e) { return false; }
     };

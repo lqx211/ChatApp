@@ -43,6 +43,11 @@ function apiRequest(action, params, opts) {
     // 附件/闪传：强制 HTTP（经 Cloudflare HTTPS 有保障，且避免阻塞 WSS 单线程）
     var hasAttachment = !!(paramsObj.attachment || paramsObj.temp_upload_id);
     var route = { send: 'ws', revoke: 'ws', mark_read: 'ws', unread_counts: 'ws' }[action] || 'http';
+    // 幂等：给 send 生成一次性 client_msg_id，WSS 与 HTTP 重试共用同一个键，
+    // 服务端据此去重 —— 防止「WSS 已插入但响应超时 → 降级 HTTP 再插一次」导致对方收到两条相同消息
+    if (action === 'send' && !paramsObj.client_msg_id) {
+        paramsObj.client_msg_id = 'c' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+    }
     var useWs = !opts.forceHttp && !hasAttachment && route === 'ws' &&
         typeof window.wssRequest === 'function' && window.wssRequestAvailable();
 
@@ -400,13 +405,23 @@ function switchPanel(n) {
     if (n === 'users') adminList(1);
     if (n === 'reports') loadReports();
     if (n === 'roles') loadRoleList();
-    if (n === 'music') {}
+    if (n === 'music' || n === 'dscview' || n === 'midi' || n === 'proxy') loadAppPanel(n);
     if (n === 'donations') loadDonations(1);
     if (n === 'profile-mgmt') loadPm();
     if (n === 'logs') loadAdminLogs(1);
     if (n === 'support') loadSupportTickets('open');
     if (n === 'level') loadLevelPanel();
     if (n === 'dbadmin') dbLoadTables();
+}
+
+// Apps 懒加载：侧边栏选中对应 app 才加载 iframe，避免不用 app 也拖慢首屏
+function loadAppPanel(n) {
+    var p = document.getElementById('panel-' + n);
+    if (!p) return;
+    var f = p.querySelector('iframe');
+    if (!f || f.getAttribute('src')) return; // 已加载则跳过
+    var src = f.getAttribute('data-src');
+    if (src) f.setAttribute('src', src);
 }
 
 var _logTab = 'admin', _logPage = 1;
@@ -1088,6 +1103,7 @@ var _cdResolve = null;
 function customDialog(title, msg, type) {
     return new Promise(function(resolve) {
         _cdResolve = resolve;
+        document.getElementById('customDialog').classList.remove('cd-danger'); // 普通对话框恢复默认蓝色主题
         document.getElementById('cdTitle').textContent = title;
         document.getElementById('cdMsg').textContent = msg || '';
         var inp = document.getElementById('cdInput'),
@@ -1818,6 +1834,9 @@ function updateDmOptionsMenu() {
     var isGrp = !!G;
     menu.querySelectorAll('.grp-opt').forEach(function(b) { b.style.display = isGrp ? '' : 'none'; });
     menu.querySelectorAll('.dm-opt').forEach(function(b) { b.style.display = isGrp ? 'none' : ''; });
+    // Reload Client：仅 admin/root（私聊会话）
+    var dmReload = document.getElementById('dmReloadBtn');
+    if (dmReload) dmReload.style.display = (ADMIN && !isGrp) ? '' : 'none';
     // 置顶按钮文案随当前会话置顶状态切换
     var dmPin = document.getElementById('dmPinBtn');
     if (dmPin) {
@@ -5907,6 +5926,7 @@ function ensureUserCtxMenu() {
         '<button onclick="closeUserCtxMenu();openDmSearch(_ctxUser)">' + T('d_search_history') + '</button>' +
         '<button id="ctxPinBtn" onclick="closeUserCtxMenu();togglePinContact(_ctxUser)">' + T('d_pin') + '</button>' +
         '<button onclick="closeUserCtxMenu();changeNickname(_ctxUser)">' + T('d_change_nickname') + '</button>' +
+        (ADMIN ? '<button onclick="closeUserCtxMenu();reloadClient(_ctxUser)">Reload Client</button>' : '') +
         '<button class="danger" onclick="closeUserCtxMenu();deleteDmContact(_ctxUser)">' + T('btn_delete_contact') + '</button>';
     document.body.appendChild(_userCtxEl);
     return _userCtxEl;
@@ -6402,4 +6422,554 @@ function maybeAutoPlayDoodle(m) {
     var strokes = [];
     try { strokes = JSON.parse(m.attachment || '') || []; } catch (e) { strokes = []; }
     if (strokes.length) playDoodle(strokes);
+}
+
+/* ============================================================
+   Live Draw：双人实时协作画板（透明覆盖在聊天画面上）
+   - 真·实时：流式转发笔迹（stroke_start / stroke_points / stroke_end）
+   - 发起者持有画板状态；wss 服务器纯转发
+   - 流程：发起者设画板大小 → 邀请 → 对方接受 → 双方同画
+   ============================================================ */
+var LiveDraw = (function () {
+    var overlay = null, canvas = null, ctx = null;
+    var strokes = [];          // 双方已完成的笔迹（权威列表，用于快照）
+    var pending = {};          // 进行中的笔迹 id -> stroke（双方）
+    var cur = null, drawing = false;
+    var color = '#4dd8ff', size = 6, erasing = false;
+    var W = 0, H = 0;          // 画板像素尺寸（共享坐标系）
+    var scale = 1;             // 显示缩放（fit 到屏幕）
+    var peer = null;           // 对方用户名
+    var sessionActive = false;
+    var penOnly = false;
+    var activeId = null;
+    var pendingInvite = null;  // 收到的邀请 {from, board}
+    var lastSent = 0;          // 节流
+    var strokeSeq = 0;
+    var _getSizeWaiter = null; // host 等待对方窗口尺寸的回调
+
+    function byId(id) { return document.getElementById(id); }
+
+    function init() {
+        overlay = document.getElementById('ldOverlay');
+        canvas = document.getElementById('ldCanvas');
+        if (!overlay || !canvas || ctx) return;
+        ctx = canvas.getContext('2d');
+
+        var sw = overlay.querySelectorAll('.dc');
+        for (var i = 0; i < sw.length; i++) {
+            sw[i].addEventListener('click', function () { setColor(this.getAttribute('data-c'), this); });
+        }
+        var sz = document.getElementById('ldSize');
+        if (sz) sz.addEventListener('input', function () { size = parseFloat(this.value) || 6; });
+
+        if (byId('ldEraserBtn')) byId('ldEraserBtn').onclick = toggleEraser;
+        if (byId('ldUndoBtn')) byId('ldUndoBtn').onclick = undo;
+        if (byId('ldClearBtn')) byId('ldClearBtn').onclick = clearAll;
+        if (byId('ldExitBtn')) byId('ldExitBtn').onclick = exit;
+
+        canvas.addEventListener('pointerdown', onDown);
+        canvas.addEventListener('pointermove', onMove);
+        canvas.addEventListener('pointerup', onUp);
+        canvas.addEventListener('pointercancel', onUp);
+        var block = function (e) { e.preventDefault(); };
+        ['selectstart', 'dragstart', 'contextmenu'].forEach(function (t) { canvas.addEventListener(t, block); });
+        ['selectstart', 'contextmenu', 'gesturestart', 'gesturechange', 'gestureend'].forEach(function (t) { overlay.addEventListener(t, block); });
+    }
+
+    var _setupBound = false; // 防重复绑定（DOMContentLoaded + openSetup 兜底都可能触发）
+    function initSetup() {
+        if (_setupBound) return;
+        _setupBound = true;
+        var sizeBtns = document.querySelectorAll('#ldSizeOpts .ld-size-btn');
+        for (var i = 0; i < sizeBtns.length; i++) {
+            (function (btn) {
+                btn.addEventListener('click', function () { selectSize(btn.getAttribute('data-size')); });
+            })(sizeBtns[i]);
+        }
+        if (byId('ldSetupCancel')) byId('ldSetupCancel').onclick = function () { byId('ldSetupOverlay').classList.remove('active'); };
+        if (byId('ldSetupStart')) byId('ldSetupStart').onclick = startSession;
+    }
+
+    function setColor(c, btn) {
+        color = c; erasing = false;
+        var eb = byId('ldEraserBtn'); if (eb) eb.classList.remove('active');
+        var sw = overlay.querySelectorAll('.dc');
+        for (var i = 0; i < sw.length; i++) sw[i].classList.remove('active');
+        if (btn) btn.classList.add('active');
+    }
+    function toggleEraser() {
+        erasing = !erasing;
+        var eb = byId('ldEraserBtn'); if (eb) eb.classList.toggle('active', erasing);
+    }
+
+    // 屏幕坐标 → 画板坐标（除以显示缩放，保证共享坐标系一致）
+    function pt(e) {
+        var r = canvas.getBoundingClientRect();
+        return [(e.clientX - r.left) / scale, (e.clientY - r.top) / scale];
+    }
+
+    // 画布像素尺寸 = W×H，CSS 缩放铺满可用区域（保留顶部工具栏空间）
+    function fitCanvas() {
+        var vw = window.innerWidth, vh = window.innerHeight;
+        var availW = vw - 40, availH = vh - 90;
+        scale = Math.min(availW / W, availH / H);
+        if (!(scale > 0)) scale = 1;
+        canvas.width = W; canvas.height = H;
+        canvas.style.width = Math.round(W * scale) + 'px';
+        canvas.style.height = Math.round(H * scale) + 'px';
+    }
+
+    function allStrokes() {
+        var list = strokes.slice();
+        for (var k in pending) if (pending.hasOwnProperty(k)) list.push(pending[k]);
+        return list;
+    }
+    function redraw() {
+        if (!ctx) return;
+        ctx.clearRect(0, 0, W, H);
+        doodlePaintAll(ctx, allStrokes(), 1, 0, 0);
+    }
+
+    function openBoard(board, peerName, hostRole) {
+        init();
+        if (!overlay) return;
+        W = Math.max(64, Math.round(board.w));
+        H = Math.max(64, Math.round(board.h));
+        peer = peerName;
+        strokes = []; pending = {}; cur = null; drawing = false;
+        erasing = false; penOnly = false; strokeSeq = 0;
+        byId('ldPeerName').textContent = peer;
+        fitCanvas();
+        overlay.style.display = 'flex';
+        document.body.classList.add('doodle-lock');
+        sessionActive = true;
+        redraw();
+    }
+    function teardown() {
+        sessionActive = false;
+        if (overlay) overlay.style.display = 'none';
+        document.body.classList.remove('doodle-lock');
+        peer = null;
+        strokes = []; pending = {}; cur = null; drawing = false;
+        var eb = byId('ldEraserBtn'); if (eb) eb.classList.remove('active');
+    }
+    function exit() {
+        if (sessionActive && peer) send('close', {});
+        teardown();
+    }
+
+    function send(event, data) {
+        if (!peer || !window.wssSendLiveDraw) return;
+        window.wssSendLiveDraw(peer, event, data || {});
+    }
+
+    // ---------- 本地绘制 ----------
+    function onDown(e) {
+        if (!sessionActive) return;
+        if (e.pointerType === 'pen') penOnly = true;
+        if (e.pointerType === 'touch' && penOnly) return;
+        if (drawing && cur && activeId !== null && activeId !== e.pointerId && e.pointerType === 'pen') {
+            if (cur.id && pending[cur.id]) delete pending[cur.id]; // 丢掉手掌误触（进行中笔迹在 pending，不在 strokes）
+            drawing = false; cur = null; activeId = null;
+        }
+        drawing = true; activeId = e.pointerId;
+        var s = { tool: erasing ? 'eraser' : 'pen', color: color, size: size, points: [pt(e)] };
+        var id = 's' + (++strokeSeq);
+        cur = { id: id };
+        pending[id] = s;
+        send('stroke_start', { id: id, stroke: { tool: s.tool, color: s.color, size: s.size, points: [s.points[0]] } });
+        paintDot(ctx, s.points[0], s);
+    }
+    function onMove(e) {
+        if (!drawing || !cur || activeId !== e.pointerId || !sessionActive) return;
+        var p = pt(e);
+        var s = pending[cur.id];
+        if (!s) return;
+        var last = s.points[s.points.length - 1];
+        var dx = p[0] - last[0], dy = p[1] - last[1];
+        if (dx * dx + dy * dy < 4) return;
+        paintSmoothSeg(ctx, s.points, p, s);
+        s.points.push(p);
+        var now = Date.now();
+        if (now - lastSent > 40) { // 节流 ~40ms，真·实时且不刷爆 wss
+            lastSent = now;
+            send('stroke_points', { id: cur.id, pts: [p] });
+        }
+    }
+    function onUp(e) {
+        if (!drawing || !cur || activeId !== e.pointerId) return;
+        var s = pending[cur.id];
+        if (s) {
+            send('stroke_end', { id: cur.id, stroke: s });
+            strokes.push(s);
+            delete pending[cur.id];
+        }
+        drawing = false; cur = null; activeId = null;
+    }
+
+    // ---------- 接收对方笔迹 ----------
+    function onStrokeStart(id, stroke) {
+        if (!stroke) return;
+        pending[id] = { tool: stroke.tool || 'pen', color: stroke.color || '#4dd8ff', size: stroke.size || 6, points: (stroke.points || []).slice() };
+        var s = pending[id];
+        if (s.points.length) paintDot(ctx, s.points[0], s);
+    }
+    function onStrokePoints(id, pts) {
+        var s = pending[id];
+        if (!s || !pts) return;
+        for (var i = 0; i < pts.length; i++) {
+            var p = pts[i];
+            if (!p || p.length < 2) continue;
+            s.points.push(p);
+            if (s.points.length >= 2) paintSmoothSeg(ctx, s.points, p, s);
+            else paintDot(ctx, p, s);
+        }
+    }
+    function onStrokeEnd(id, stroke) {
+        var s = pending[id];
+        if (!s) return;
+        if (stroke) {
+            s.tool = stroke.tool || s.tool;
+            s.color = stroke.color || s.color;
+            s.size = stroke.size || s.size;
+            s.points = (stroke.points || []).slice();
+        }
+        delete pending[id];
+        strokes.push(s);
+        redraw(); // 以权威终稿重绘，保证两端一致
+    }
+
+    // ---------- 清空 / 撤销 ----------
+    function clearAll() {
+        strokes = []; pending = {};
+        redraw();
+        send('clear', {});
+    }
+    function onClear() { strokes = []; pending = {}; redraw(); }
+
+    function undo() {
+        if (!strokes.length) return;
+        strokes.pop();
+        redraw();
+        send('sync', { strokes: strokes }); // 撤销通过全量同步保证两端一致
+    }
+    function onSync(data) {
+        strokes = (data && data.strokes) || [];
+        pending = {};
+        redraw();
+    }
+
+    // ---------- 发起流程 ----------
+    var _selSize = 'mine';
+    function openSetup() {
+        if (!window.wssSendLiveDraw) { xalert('需要 WebSocket 连接才能发起 Live Draw'); return; }
+        // 直接用当前正在对话的对象（D），不需要选人
+        var invitee = (typeof D !== 'undefined' && D) ? D : '';
+        initSetup(); // 兜底：确保按钮监听已绑（等 DOM 就绪后第一次打开时也会绑）
+        byId('ldInvitee').textContent = invitee || '（未打开对话）';
+        byId('ldInviteeNote').textContent = invitee ? '' : '请先打开一个私聊对话，再点 Live Draw';
+        byId('ldSetupStart').disabled = !invitee;
+        selectSize('mine');
+        byId('ldSetupOverlay').classList.add('active');
+    }
+    function selectSize(kind) {
+        _selSize = kind;
+        var btns = document.querySelectorAll('#ldSizeOpts .ld-size-btn');
+        for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('active', btns[i].getAttribute('data-size') === kind);
+        byId('ldCustomRow').style.display = (kind === 'custom') ? 'flex' : 'none';
+        byId('ldSizeNote').textContent = (kind === 'mine') ? ('当前窗口 ' + window.innerWidth + ' × ' + window.innerHeight) : '';
+    }
+    function startSession() {
+        var recipient = (typeof D !== 'undefined') ? D : '';
+        if (!recipient) { xalert('请先打开一个私聊对话'); return; }
+        if (!window.wssSendLiveDraw) { xalert('WebSocket 未连接，无法发起'); return; }
+
+        var w, h;
+        if (_selSize === 'mine') { w = window.innerWidth; h = window.innerHeight; }
+        else if (_selSize === '1024x768') { w = 1024; h = 768; }
+        else if (_selSize === '640x480') { w = 640; h = 480; }
+        else if (_selSize === 'custom') {
+            w = parseFloat(byId('ldCustomW').value);
+            h = parseFloat(byId('ldCustomH').value);
+            if (!w || !h || w < 64 || h < 64) { xalert('请输入有效的宽高（≥64）'); return; }
+        } else if (_selSize === 'peer') {
+            var btn = byId('ldSetupStart');
+            btn.disabled = true; btn.textContent = '等待对方窗口大小…';
+            requestPeerSize(recipient, function (pw, ph) {
+                btn.disabled = false; btn.textContent = '发起';
+                if (!pw || !ph) { xalert('获取对方窗口大小失败，请重试'); return; }
+                doStart(recipient, pw, ph);
+            });
+            return;
+        }
+        doStart(recipient, w, h);
+    }
+    function doStart(recipient, w, h) {
+        byId('ldSetupOverlay').classList.remove('active');
+        var sent = window.wssSendLiveDraw(recipient, 'invite', { board: { w: w, h: h } });
+        if (!sent) { xalert('WebSocket 未连接，无法发起'); return; }
+        openBoard({ w: w, h: h }, recipient, true);
+    }
+    function requestPeerSize(recipient, cb) {
+        var done = false;
+        var timer = setTimeout(function () { if (!done) { done = true; cb(0, 0); } }, 5000);
+        _getSizeWaiter = function (w, h) { if (!done) { done = true; clearTimeout(timer); cb(w, h); } };
+        window.wssSendLiveDraw(recipient, 'get_size', {});
+    }
+    function sendSize(to) {
+        window.wssSendLiveDraw(to, 'size', { w: window.innerWidth, h: window.innerHeight });
+    }
+
+    // ---------- 被邀请流程：内嵌卡片（像闪传一样出现在聊天里，不再居中弹窗） ----------
+    function onInvite(from, data) {
+        if (sessionActive || pendingInvite) {
+            if (window.wssSendLiveDraw) window.wssSendLiveDraw(from, 'decline', { reason: 'busy' });
+            return;
+        }
+        var board = data.board || { w: 1024, h: 768 };
+        pendingInvite = { from: from, board: board };
+        renderInviteCard(from, board);
+    }
+    function renderInviteCard(from, board) {
+        var area = document.getElementById('dmMessagesArea');
+        if (!area) return;
+        var card = document.createElement('div');
+        card.className = 'ld-invite-card';
+
+        var info = document.createElement('div');
+        info.className = 'ld-invite-info';
+        var b = document.createElement('b');
+        b.textContent = from;
+        info.appendChild(document.createTextNode('🖊️ '));
+        info.appendChild(b);
+        info.appendChild(document.createTextNode(' 邀请你一起画板（' + Math.round(board.w) + ' × ' + Math.round(board.h) + '）'));
+
+        var actions = document.createElement('div');
+        actions.className = 'ld-invite-actions';
+        var ok = document.createElement('button');
+        ok.type = 'button'; ok.className = 'bsm ld-invite-ok'; ok.textContent = '同意';
+        ok.style.background = '#2a4a2a'; ok.style.borderColor = '#3a6a3a';
+        var no = document.createElement('button');
+        no.type = 'button'; no.className = 'bsm ld-invite-no'; no.textContent = '拒绝';
+        no.style.background = '#4a2020'; no.style.borderColor = '#5c2a2a';
+        actions.appendChild(ok); actions.appendChild(no);
+
+        card.appendChild(info); card.appendChild(actions);
+        area.appendChild(card);
+        if (typeof scrollChatToBottom === 'function') scrollChatToBottom(area);
+
+        ok.onclick = function () { acceptInviteFromCard(card, from, board); };
+        no.onclick = function () { declineInviteFromCard(card, from); };
+        return card;
+    }
+    function dimInviteCard(card) {
+        var btns = card.querySelectorAll('button');
+        for (var i = 0; i < btns.length; i++) btns[i].disabled = true;
+    }
+    function acceptInviteFromCard(card, from, board) {
+        if (!pendingInvite) return;
+        pendingInvite = null;
+        dimInviteCard(card);
+        window.wssSendLiveDraw(from, 'accept', {});
+        openBoard(board, from, false);
+    }
+    function declineInviteFromCard(card, from) {
+        if (!pendingInvite) return;
+        pendingInvite = null;
+        dimInviteCard(card);
+        window.wssSendLiveDraw(from, 'decline', {});
+    }
+    function onAccept(from) {
+        if (from !== peer || !sessionActive) return;
+        // 对方接受：把当前全部已完成笔迹快照发给对方
+        window.wssSendLiveDraw(peer, 'snapshot', { strokes: strokes, board: { w: W, h: H } });
+    }
+    function onSnapshot(data) {
+        strokes = (data && data.strokes) || [];
+        pending = {};
+        if (data && data.board) {
+            W = Math.max(64, Math.round(data.board.w));
+            H = Math.max(64, Math.round(data.board.h));
+            fitCanvas();
+        }
+        redraw();
+    }
+
+    function showBanner(msg) {
+        var b = byId('ldBanner');
+        if (!b) return;
+        b.textContent = msg; b.style.display = 'block';
+    }
+    function hideBanner() {
+        var b = byId('ldBanner');
+        if (b) b.style.display = 'none';
+    }
+    function onClose() {
+        showBanner('对方已退出画板');
+        teardown();
+        setTimeout(hideBanner, 2200);
+    }
+
+    // ---------- wss 事件分发 ----------
+    window.handleLiveDraw = function (d) {
+        var event = d.event || '';
+        var data = d.data || {};
+        var from = d.from || '';
+        switch (event) {
+            case 'invite': if (from) onInvite(from, data); break;
+            case 'accept': onAccept(from); break;
+            case 'decline': break;
+            case 'get_size': sendSize(from); break;
+            case 'size': if (_getSizeWaiter) { var wf = _getSizeWaiter; _getSizeWaiter = null; wf(data.w, data.h); } break;
+            case 'snapshot': if (from === peer && sessionActive) onSnapshot(data); break;
+            case 'stroke_start': if (from === peer && sessionActive) onStrokeStart(data.id, data.stroke); break;
+            case 'stroke_points': if (from === peer && sessionActive) onStrokePoints(data.id, data.pts); break;
+            case 'stroke_end': if (from === peer && sessionActive) onStrokeEnd(data.id, data.stroke); break;
+            case 'clear': if (from === peer && sessionActive) onClear(); break;
+            case 'sync': if (from === peer && sessionActive) onSync(data); break;
+            case 'close': if (from === peer) onClose(); break;
+        }
+    };
+
+    // 绑定设置弹窗按钮：等 DOM 就绪再绑（chat.js 在 body 底部弹窗 HTML 之前加载，
+    // 模块加载时立即绑会找不到元素 → 按钮“按不进去”）。守卫保证只绑一次。
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initSetup);
+    } else {
+        initSetup();
+    }
+
+    return { init: init, openSetup: openSetup };
+})();
+
+// ---------- Pen 菜单（Doodle / Live Draw） ----------
+function togglePenMenu(ev, btn) {
+    ev.stopPropagation();
+    var menu = document.getElementById('penMenu');
+    if (!menu) return;
+    var isOpen = menu.style.display === 'block';
+    hidePenMenu();
+    if (!isOpen) {
+        var r = btn.getBoundingClientRect();
+        menu.style.display = 'block';
+        var mh = menu.offsetHeight;
+        // 向上弹出（按钮上方），避免超出底部边框看不见
+        menu.style.left = Math.max(8, r.left) + 'px';
+        menu.style.top = Math.max(4, (r.top - mh - 4)) + 'px';
+        setTimeout(function () { document.addEventListener('click', penOutside); }, 0);
+    }
+}
+function penOutside(ev) {
+    var menu = document.getElementById('penMenu');
+    if (menu && !menu.contains(ev.target)) hidePenMenu();
+}
+function hidePenMenu() {
+    var menu = document.getElementById('penMenu');
+    if (menu) menu.style.display = 'none';
+    document.removeEventListener('click', penOutside);
+}
+function openLiveDrawSetup() {
+    if (typeof LiveDraw !== 'undefined' && LiveDraw.openSetup) LiveDraw.openSetup();
+}
+
+/* ============================================================
+   强制 Reload：wss 下发（客户端过时）/ admin 指定 / root 全部
+   发送时显示状态窗口：等待目标确认（10s 无响应则提示）
+   ============================================================ */
+var _reloadStatusTimer = null;
+var _reloadStatusOk = null;
+var _reloadPendingTo = null;
+
+function showReloadStatusDialog(toLabel, ackTarget) {
+    _reloadPendingTo = ackTarget;
+    var dlg = document.getElementById('customDialog');
+    if (!dlg) return;
+    document.getElementById('cdTitle').textContent = '客户端版本过时';
+    var msg = document.getElementById('cdMsg');
+    msg.textContent = '正在发送Reload命令...\n\n' + toLabel;
+    msg.style.whiteSpace = 'pre-line';
+    var inp = document.getElementById('cdInput'),
+        ok = document.getElementById('cdOk'),
+        cancel = document.getElementById('cdCancel');
+    inp.style.display = 'none';
+    cancel.style.display = 'none';
+    ok.style.display = 'block';
+    ok.disabled = true;
+    ok.textContent = '确认';
+    ok.onclick = function() { _reloadPendingTo = null; ok.disabled = true; dlg.classList.remove('active'); };
+    _reloadStatusOk = ok;
+    dlg.classList.add('active');
+    // 10s 无响应 → 提示对方太旧/网络不稳定
+    _reloadStatusTimer = setTimeout(function() {
+        _reloadStatusTimer = null;
+        if (_reloadPendingTo !== null) {
+            _reloadPendingTo = null;
+            if (dlg.classList.contains('active')) {
+                msg.textContent = '无响应，对方客户端可能太旧或网络极其不稳定。';
+                msg.style.whiteSpace = 'normal';
+                ok.disabled = false;
+            }
+        }
+    }, 10000);
+}
+
+function _reloadAckReceived() {
+    if (_reloadStatusTimer) { clearTimeout(_reloadStatusTimer); _reloadStatusTimer = null; }
+    _reloadPendingTo = null;
+    var dlg = document.getElementById('customDialog');
+    if (dlg && dlg.classList.contains('active')) {
+        var msg = document.getElementById('cdMsg');
+        msg.textContent = '已发送Reload命令！';
+        msg.style.whiteSpace = 'normal';
+        if (_reloadStatusOk) _reloadStatusOk.disabled = false;
+    }
+}
+
+// 收到目标客户端 reload_ack（由 wss_client 转发调用）
+window.handleReloadAck = function(d) {
+    if (_reloadPendingTo === null) return;
+    // 指定用户：仅接受匹配来源；全部（*）：任意来源都算
+    if (_reloadPendingTo !== '*' && d.from !== _reloadPendingTo) return;
+    _reloadAckReceived();
+};
+
+function reloadClient(username) {
+    if (typeof ADMIN === 'undefined' || !ADMIN) return;
+    if (!window.wssSendReload || !window.wssSendReload(username)) {
+        xalert('WebSocket 未连接，无法发送 Reload');
+        return;
+    }
+    showReloadStatusDialog('To: ' + username, username);
+}
+function reloadDmClient() {
+    if (!D) return;
+    reloadClient(D);
+}
+function reloadAllClients() {
+    if (typeof IS_ROOT === 'undefined' || !IS_ROOT) return;
+    if (!window.wssSendReload || !window.wssSendReload('*')) {
+        xalert('WebSocket 未连接，无法发送 Reload');
+        return;
+    }
+    showReloadStatusDialog('To: 所有在线客户端', '*');
+}
+// 收到 wss reload 推送：Win8.1 风格「客户端版本过时」窗口（复用 customDialog 的 DOM），点 Reload 刷新页面
+function showClientReloadDialog() {
+    var dlg = document.getElementById('customDialog');
+    if (!dlg) { window.location.reload(); return; }
+    dlg.classList.add('cd-danger'); // 过时窗口：红色主题、无关闭符号、只能 Reload
+    document.getElementById('cdTitle').textContent = '客户端版本过时';
+    var msg = document.getElementById('cdMsg');
+    msg.textContent = '你正在使用的客户端已经过时，请重新加载页面以获取最新客户端。';
+    msg.style.whiteSpace = 'normal';
+    var inp = document.getElementById('cdInput'),
+        ok = document.getElementById('cdOk'),
+        cancel = document.getElementById('cdCancel');
+    inp.style.display = 'none';
+    cancel.style.display = 'none';
+    ok.style.display = 'block';
+    ok.disabled = false;
+    ok.textContent = 'Reload';
+    ok.onclick = function() { window.location.reload(); };
+    dlg.classList.add('active');
 }

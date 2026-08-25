@@ -18,9 +18,16 @@ if (isset($_SESSION['username'])) {
     exit;
 }
 
-// 版本号（来自 config/info.php，git 短哈希）
-$__info = include __DIR__ . '/../../config/info.php';
-$appVersion = is_array($__info) ? (string)($__info['version'] ?? '') : '';
+// 来自 index.php 的入口：fromindex=1 且 t 距当前 unix 时间戳 <3 秒 → 显示 ChatApp 主页入口 UI，否则显示登录表单
+$fromIndex = (($_GET['fromindex'] ?? '') === '1');
+$__t = (int)($_GET['t'] ?? 0);
+$showHome = $fromIndex && $__t > 0 && abs(time() - $__t) < 3;
+
+// 壁纸同步：同一会话内所有页面（首页入口 / 登录表单）共用同一张壁纸（首次访问随机，之后沿用）
+if (empty($_SESSION['wallpaper']) || (int)$_SESSION['wallpaper'] < 1 || (int)$_SESSION['wallpaper'] > 10) {
+    $_SESSION['wallpaper'] = rand(1, 10);
+}
+$bgWallpaper = (int)$_SESSION['wallpaper'];
 ?><!DOCTYPE html>
 <html lang="<?php echo $currentLang === 'zh' ? 'zh-Hans' : 'en'; ?>">
 <head>
@@ -31,7 +38,7 @@ $appVersion = is_array($__info) ? (string)($__info['version'] ?? '') : '';
     </script>
     <![endif]-->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo t('title_login'); ?></title><link rel="stylesheet" href="../../css/global.css">
+    <title><?php echo $showHome ? 'ChatApp' : t('title_login'); ?></title><link rel="stylesheet" href="../../css/global.css">
     <style>
         * {
             margin: 0;
@@ -50,7 +57,7 @@ $appVersion = is_array($__info) ? (string)($__info['version'] ?? '') : '';
             background-image:
                 radial-gradient(rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.5) 100%),
                 radial-gradient(rgba(0, 0, 0, 0) 33%, rgba(0, 0, 0, 0.3) 166%),
-                url('../bg/background<?php echo rand(1, 10); ?>.jpg');
+                url('../bg/background<?php echo $bgWallpaper; ?>.jpg');
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
@@ -182,6 +189,90 @@ $appVersion = is_array($__info) ? (string)($__info['version'] ?? '') : '';
             font-family: inherit;
             outline: none;
         }
+        /* 自定义下拉组件：不依赖系统原生 select 面板，面板完全由 CSS 控制 */
+        .cselect {
+            position: relative;
+            display: inline-block;
+            text-align: left;
+            vertical-align: middle;
+        }
+        .cselect.full {
+            display: block;
+        }
+        .cselect-trigger {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            width: 100%;
+            box-sizing: border-box;
+            background: #1e1e1e;
+            border: 1px solid #444;
+            color: #e0e0e0;
+            padding: 4px 8px;
+            font-size: 0.78em;
+            font-family: inherit;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .cselect.full .cselect-trigger {
+            padding: 11px 14px;
+            font-size: 0.95em;
+        }
+        .cselect-trigger:hover {
+            border-color: #666;
+        }
+        .cselect-arrow {
+            font-size: 0.7em;
+            color: #888;
+            transition: transform 0.2s;
+        }
+        .cselect.open .cselect-arrow {
+            transform: rotate(180deg);
+        }
+        .cselect-menu {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            min-width: 100%;
+            box-sizing: border-box;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            border-radius: 4px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+            z-index: 50;
+            padding: 4px;
+            opacity: 0;
+            transform: translateY(-4px);
+            pointer-events: none;
+            transition: opacity 0.18s ease, transform 0.18s ease;
+        }
+        .cselect.open .cselect-menu {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+        .cselect-item {
+            padding: 8px 12px;
+            color: #ccc;
+            font-size: 0.82em;
+            cursor: pointer;
+            border-radius: 2px;
+            transition: background 0.12s, color 0.12s;
+        }
+        .cselect.full .cselect-item {
+            font-size: 0.95em;
+        }
+        .cselect-item:hover {
+            background: #2a2a2a;
+            color: #fff;
+        }
+        .cselect-item.selected {
+            color: #fff;
+            background: #333;
+        }
         .error-msg {
             background: #3d2020;
             border: 1px solid #5c2a2a;
@@ -273,63 +364,100 @@ $appVersion = is_array($__info) ? (string)($__info['version'] ?? '') : '';
             gap: 10px;
         }
         .rstr-actions .btn-primary.continue {
-            background: #4a2a2a;
-            border-color: #6a3a3a;
-            color: #e06060;
+            background: #e0b030;
+            border-color: #b8902a;
+            color: #1a1a1a;
         }
         .rstr-actions .btn-primary.continue:hover {
-            background: #5a3a3a;
+            background: #f0c040;
+            color: #1a1a1a;
         }
 
-        /* 主页底部版权栏（从 lqx211.com 抄来） */
-        #footer {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 46px;
-            line-height: 46px;
+        /* ===== ChatApp 主页入口（index.php → login.php?fromindex=1 短时效显示） ===== */
+        .auth-container.home {
+            width: 680px;
+            max-width: 92vw;
             text-align: center;
-            z-index: 0;
-            font-size: 14px;
-            word-break: keep-all;
-            white-space: nowrap;
-            color: #fff;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            background: rgba(0, 0, 0, 0.25);
         }
-        #footer .f-left {
-            position: absolute;
-            left: 24px;
-            top: 0;
+        .home-logo { font-size: 46px; line-height: 1; margin-bottom: 6px; }
+        .auth-container.home h1 {
+            font-size: 2.5em;
+            background: linear-gradient(135deg, #a8c9ff 0%, #d9b6ff 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
-        #footer .f-right {
-            position: absolute;
-            right: 24px;
-            top: 0;
+        .home-subtitle { color: rgba(255, 255, 255, 0.72); font-size: 1em; margin: 6px 0 28px; }
+        .home-entries { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; }
+        .home-card {
+            display: flex; flex-direction: column; align-items: center;
+            background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 26px 20px 20px; width: 250px; border-radius: 14px;
+            text-decoration: none; color: #d5d5d5;
+            transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
         }
-        #footer a {
-            color: #fff;
-            text-decoration: none;
+        .home-card:hover {
+            transform: translateY(-4px);
+            background: rgba(255, 255, 255, 0.09);
+            border-color: rgba(255, 255, 255, 0.24);
+            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
         }
-        #footer a:hover {
-            color: rgb(57, 159, 255);
-            text-decoration: underline;
+        .home-icon { font-size: 32px; margin-bottom: 10px; }
+        .home-label { font-size: 0.72em; letter-spacing: 2.5px; text-transform: uppercase; color: #8fc0ff; margin-bottom: 8px; font-weight: 600; }
+        .home-card h2 { font-size: 1.08em; color: #fff; margin-bottom: 8px; font-weight: 600; }
+        .home-card p { font-size: 0.8em; color: rgba(255, 255, 255, 0.55); line-height: 1.5; }
+        .home-go { margin-top: 14px; font-size: 0.8em; color: #7fb0ff; opacity: 0; transform: translateY(4px); transition: opacity 0.18s ease, transform 0.18s ease; }
+        .home-card:hover .home-go { opacity: 1; transform: translateY(0); }
+        .home-extra { margin-top: 26px; }
+        .home-tablet-link {
+            display: inline-block; color: rgba(255, 255, 255, 0.5); font-size: 0.8em;
+            text-decoration: none; border: 1px solid rgba(255, 255, 255, 0.14);
+            padding: 7px 16px; border-radius: 999px;
+            transition: color 0.18s ease, border-color 0.18s ease;
         }
-        @media (max-width: 560px) {
-            #footer .c-hidden {
-                display: none;
-            }
+        .home-tablet-link:hover { color: #fff; border-color: rgba(255, 255, 255, 0.32); }
+        .home-credit { margin-top: 14px; color: rgba(255, 255, 255, 0.4); font-size: 0.76em; }
+        .home-login-link { display: inline-block; margin-top: 16px; color: rgba(255, 255, 255, 0.5); font-size: 0.8em; text-decoration: none; }
+        .home-login-link:hover { color: #fff; text-decoration: underline; }
+
+        /* 进入/切换动画：首页入口 与 登录表单 共用，导航切换时平滑淡入上浮 */
+        @keyframes authFadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: none; }
         }
-        @media (max-width: 480px) {
-            #footer .hidden {
-                display: none;
-            }
-        }
+        .auth-container { animation: authFadeIn 0.45s ease; }
     </style>
 </head>
 <body>
+    <?php if ($showHome): ?>
+    <div class="auth-container home">
+        <div class="home-logo">💬</div>
+        <h1>ChatApp</h1>
+        <p class="home-subtitle">其实就是一个自己暑假期间写的聊天网站</p>
+        <div class="home-entries">
+            <a href="chat.php" class="home-card">
+                <div class="home-icon">💬</div>
+                <div class="home-label">最新版本</div>
+                <h2>目前正在开发的地方</h2>
+                <p>选这个准没错</p>
+                <div class="home-go">进入 →</div>
+            </a>
+            <a href="../../apps/music/index.html" class="home-card">
+                <div class="home-icon">🎵</div>
+                <div class="home-label">听音乐</div>
+                <h2>聊天界面里不起眼的音乐组件</h2>
+                <p>只想听音乐不想注册（热知识：兼容 IE9）</p>
+                <div class="home-go">进入 →</div>
+            </a>
+        </div>
+        <div class="home-extra">
+            <a href="../../tablet/index.html" class="home-tablet-link">点这里看看已废弃的「尝试兼容 IE9」版本</a>
+            <br><br>
+            <a href="login.php" class="home-login-link">不想看主页？直接登录 →</a>
+            <p class="home-credit">(14 岁 + Deepseek V4 Flash 写的)</p>
+        </div>
+    </div>
+    <?php else: ?>
     <div class="auth-container">
         <div class="lang-selector" id="langSelector">
             <label for="langSwitch"><?php echo t('lang_select'); ?>:</label>
@@ -404,22 +532,17 @@ $appVersion = is_array($__info) ? (string)($__info['version'] ?? '') : '';
             <div class="rstr-body"><?php echo t('msg_restricted_login_body'); ?></div>
             <div class="rstr-reason" id="rstrReason"></div>
             <div class="rstr-actions">
-                <button class="btn-primary continue" onclick="doContinueLogin()"><?php echo t('btn_continue_login'); ?></button>
+                <button class="btn-primary continue" onclick="doContinueLogin()">Login</button>
                 <button class="btn-primary" onclick="doLogout()"><?php echo t('btn_log_out'); ?></button>
             </div>
         </div>
 
         <a href="../../index.php" class="back-link" id="backLink"><?php echo t('msg_back_entry'); ?></a>
     </div>
+    <?php endif; ?>
 
-    <!-- 主页底部版权栏 -->
-    <footer id="footer" class="blur">
-        <div class="power">
-            <span class="f-left">ChatApp</span>
-            <span><span class="hidden">Copyright&nbsp;</span>&copy; 2026 <a href="//lqx211.com">铵铵</a> <span class="hidden">&amp;&nbsp;Made&nbsp;by <a href="https://github.com/lqx211" target="_blank">lqx211</a></span></span>
-            <?php if ($appVersion !== ''):?><span class="f-right">Version <?php echo htmlspecialchars($appVersion);?></span><?php endif;?>
-        </div>
-    </footer>
+    <!-- 共享底部版权栏（modern/partials/footer.php，一处更新全站生效） -->
+    <?php include __DIR__ . '/../partials/footer.php'; ?>
 
     <script src="../scripts/pow.js"></script>
     <script>
@@ -683,6 +806,79 @@ $appVersion = is_array($__info) ? (string)($__info['version'] ?? '') : '';
                 showError('Something went wrong.');
             }
         }
-    </script>
+        /* ===== 自定义下拉组件：用 div 面板替换系统原生 select 弹出列表 ===== */
+        function initCustomSelect(selectId, full) {
+            var select = document.getElementById(selectId);
+            if (!select || select.__cselect) return;
+            select.__cselect = true;
+
+            var opts = select.querySelectorAll('option');
+            var current = select.selectedIndex < 0 ? 0 : select.selectedIndex;
+
+            var wrap = document.createElement('div');
+            wrap.className = 'cselect' + (full ? ' full' : '');
+
+            var trigger = document.createElement('button');
+            trigger.type = 'button';
+            trigger.className = 'cselect-trigger';
+            trigger.innerHTML = '<span class="cselect-label"></span><span class="cselect-arrow">&#9660;</span>';
+
+            var menu = document.createElement('div');
+            menu.className = 'cselect-menu';
+            var items = [];
+
+            for (var i = 0; i < opts.length; i++) {
+                (function(idx) {
+                    var it = document.createElement('div');
+                    it.className = 'cselect-item' + (idx === current ? ' selected' : '');
+                    it.textContent = opts[idx].textContent;
+                    it.addEventListener('click', function() {
+                        select.selectedIndex = idx;
+                        sync();
+                        close();
+                        select.dispatchEvent(new Event('change', { bubbles: true }));
+                    });
+                    menu.appendChild(it);
+                    items.push(it);
+                })(i);
+            }
+
+            function sync() {
+                var idx = select.selectedIndex < 0 ? 0 : select.selectedIndex;
+                trigger.querySelector('.cselect-label').textContent = opts[idx].textContent;
+                for (var j = 0; j < items.length; j++) {
+                    items[j].classList.toggle('selected', j === idx);
+                }
+            }
+
+            function close() {
+                wrap.classList.remove('open');
+                document.removeEventListener('click', outsideHandler);
+            }
+
+            function outsideHandler(e) {
+                if (!wrap.contains(e.target)) close();
+            }
+
+            trigger.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (wrap.classList.contains('open')) {
+                    close();
+                } else {
+                    wrap.classList.add('open');
+                    document.addEventListener('click', outsideHandler);
+                }
+            });
+
+            sync();
+            wrap.appendChild(trigger);
+            wrap.appendChild(menu);
+            select.style.display = 'none'; // 保留原生 select（值同步 + 表单提交），仅视觉隐藏
+            select.insertAdjacentElement('afterend', wrap);
+        }
+
+        // 页面加载完初始化：语言选择器（紧凑）+ 注册偏好语言（全宽）
+        initCustomSelect('langSwitch', false);
+        initCustomSelect('regLanguage', true);    </script>
 </body>
 </html>

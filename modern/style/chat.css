@@ -30,6 +30,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .csi .ca img{width:100%;height:100%;object-fit:cover}
 .csi .cn{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .csi .cn.unread-cnt{color:#e06060}
+/* 在线状态指示（wss presence 推送 on/off/dnd/rstr）：只改名字颜色，不加圆点 */
+.csi .cn.on{color:#7fdc7f}
+.csi .cn.off{color:#666}
+.csi .cn.dnd{color:#e0a050}
+.csi .cn.rstr{color:#e06060}
 .na{padding:6px 14px 6px 24px;cursor:pointer;color:#777;font-size:.75em}
 .na:hover{color:#aaa}
 .sbox{padding:4px 14px 8px 24px}
@@ -135,6 +140,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .cd-actions .bsm{border-radius:0;padding:6px 18px;font-size:.8em}
 .cd-actions #cdOk{background:#2a4a2a;border-color:#3a6a3a}
 .cd-actions #cdOk:hover{background:#356035}
+/* 客户端版本过时（强制 Reload）窗口：红色主题、无 ✕ 关闭符号、只能 Reload */
+.cd-danger .cd-titlebar{background:#6b2525}
+.cd-danger .cd-close{display:none}
+.cd-danger .cd-actions #cdOk{background:#7a2020;border-color:#a03a3a}
+.cd-danger .cd-actions #cdOk:hover{background:#8f2626}
 .msg-cb{display:flex;align-items:center;gap:6px;color:#888;font-size:.78em;margin:4px 0;text-align:left}
 .msg-cb input{accent-color:#888}
 .att-preview{max-width:320px;max-height:200px;object-fit:contain;margin:12px auto;display:block;border:1px solid #444}
@@ -508,6 +518,52 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .flash-menu>div:hover{background:#3a3a3a;color:#fff}
 .flash-menu img{filter:invert(0.65)}
 .flash-menu>div:hover img{filter:invert(0.9)}
+
+/* Pen 菜单：Doodle / Live Draw 二选一 */
+.pen-menu{min-width:220px}
+
+/* Live Draw 协作画板 */
+#ldOverlay{display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.45)}
+#ldOverlay.show{display:flex}
+#ldCanvas{position:relative;width:auto;height:auto;background:rgba(255,255,255,0.03);box-shadow:0 0 0 1px rgba(255,255,255,0.15),0 8px 40px rgba(0,0,0,0.6)}
+.ld-banner{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:rgba(20,22,30,0.92);border:1px solid rgba(255,255,255,0.15);
+  color:#fff;padding:16px 24px;border-radius:12px;font-size:14px;z-index:6;
+  box-shadow:0 8px 30px rgba(0,0,0,0.5);
+}
+
+/* Live Draw 邀请内嵌卡片（像闪传卡片一样出现在聊天里，不再居中弹窗打扰） */
+.ld-invite-card{background:#22313c;border:1px solid #3a5a6a;border-radius:8px;padding:10px 14px;margin:4px 0;color:#ccc;font-size:.82em}
+.ld-invite-card .ld-invite-info{margin-bottom:8px;line-height:1.4}
+.ld-invite-card .ld-invite-info b{color:#fff}
+.ld-invite-card .ld-invite-actions{display:flex;gap:8px}
+.ld-invite-card button{flex:1;padding:6px 10px;border-radius:4px;cursor:pointer;font-family:inherit;font-size:.8em;color:#fff;border:1px solid}
+.ld-invite-card button:disabled{opacity:.35;cursor:default}
+
+/* 拼音输入法：中/EN 切换 + 候选条（Win8.1 风格深色） */
+.ime-toggle{min-width:30px;font-weight:600}
+.ime-toggle.ime-active{background:#2a4a2a;border-color:#3a7a3a;color:#fff}
+#imeCandBar{position:fixed;z-index:9000;display:none;background:rgba(28,30,40,0.95);border:1px solid #4a5a6a;border-radius:4px;box-shadow:0 6px 20px rgba(0,0,0,0.5);padding:4px;max-width:min(90vw,620px)}
+.ime-bar-preview{color:#9ab8d8;font-size:13px;padding:2px 6px 5px;border-bottom:1px solid #3a4a5a;margin-bottom:3px;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ime-bar-cands{white-space:normal}
+.ime-cand{display:inline-block;padding:4px 8px;margin:2px;border-radius:3px;color:#e0e0e0;font-size:14px;cursor:pointer;white-space:nowrap}
+.ime-cand:hover{background:#3a4a5a}
+.ime-cand.sel{background:#2a4a7a;color:#fff}
+.ime-cand-num{color:#6a8aae;font-size:11px;margin-right:5px}
+
+/* 发起设置弹窗：画板大小选项 */
+.ld-size-opts{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.ld-size-btn{
+  padding:6px 12px;border:1px solid #444;background:#1e1e1e;color:#ccc;
+  border-radius:6px;cursor:pointer;font-size:.82em;font-family:inherit;transition:all .15s;
+}
+.ld-size-btn:hover{border-color:#666;color:#fff}
+.ld-size-btn.active{background:#2a4a2a;border-color:#3a7a3a;color:#fff}
+.ld-custom-row{display:flex;gap:12px;align-items:center;margin-top:8px;color:#ccc;font-size:.85em}
+.ld-custom-row input{width:90px;padding:6px 8px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;border-radius:4px;font-size:.9em}
+.ld-invitee{background:#1e1e1e;border:1px solid #444;color:#e0e0e0;padding:10px 14px;border-radius:4px;font-size:.95em;margin-bottom:4px}
+.ld-size-note{margin-top:8px;color:#8a8a8a;font-size:.8em;min-height:1em}
 
 .flash-card{background:#262626;border:1px solid #3f3f3f;border-radius:8px;padding:10px 12px;min-width:220px;max-width:340px;margin-top:4px}
 .flash-title{font-size:.68em;color:#6a9fd8;font-weight:600;margin-bottom:5px}

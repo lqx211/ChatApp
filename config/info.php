@@ -14,7 +14,7 @@ if (is_file($__headFile)) {
         if (is_file($__refFile)) {
             $__hash = @file_get_contents($__refFile);
             if (is_string($__hash) && preg_match('/^[0-9a-f]{40}$/i', trim($__hash))) {
-                $__infoVersion = substr(trim($__hash), 0, 6);
+                $__infoVersion = substr(trim($__hash), 0, 7);
                 $__infoBuild   = date('Y-m-d', (int)@filemtime($__refFile));
             }
         }

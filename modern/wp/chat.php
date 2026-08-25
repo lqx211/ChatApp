@@ -11,8 +11,10 @@ $customTitle = $currentUser['custom_title'] ?? '';
 //   localhost/127.0.0.1 调试 -> 直连本机 9090 (不走 Tunnel)
 //   公网域名               -> 经 Cloudflare Tunnel 走 wss.lqx211.com
 $__host = $_SERVER['HTTP_HOST'] ?? '';
+// HTTP_HOST 可能带端口（如 localhost:8080），去掉端口再拼 ws 地址，避免 ws://host:8080:9090 这种错误
+$__hostNoPort = preg_replace('/:\d+$/', '', $__host);
 if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !== false) {
-    $wssUrl = 'ws://' . $__host . ':9090';
+    $wssUrl = 'ws://' . $__hostNoPort . ':9090';
 } else {
     $wssUrl = 'wss://wss.lqx211.com';
 }
@@ -152,20 +154,20 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
   <?php if(chatapp_has_permission($currentUser['user_id']??0, 'announcements.send') && !($currentUser['restricted']??0)):?>
   <div class="upload-progress" id="uploadProgress"><div></div></div>
   <div class="md-preview" id="mdPreviewAnn"></div>
-  <div class="cia"><textarea id="messageInput" oninput="autoResize(this);onMdInput('mdPreviewAnn','messageInput','mdCheckAnn')" placeholder="<?php echo t('label_type_announcement');?>" maxlength="1000" rows="1" style="resize:none;overflow-y:auto;line-height:1.4;max-height:20em"></textarea><input type="file" id="mediaFile" style="display:none" onchange="previewAttachment(this, sendAnnouncement, 'sendBtn')"><button class="bsm" onclick="toggleEmojiPicker(event,'messageInput')" title="Emoji">😊</button><button class="bsm" onclick="toggleFlashMenu(event,this)" title="Attach">📁</button><input type="file" id="flashMediaFile" style="display:none" onchange="flashFileChosen(this,'announcement')"><label class="md-check"><input type="checkbox" id="mdCheckAnn" onchange="onMdInput('mdPreviewAnn','messageInput','mdCheckAnn')"> Markdown</label><button class="bs" id="sendBtn" onclick="sendAnnouncement()"><?php echo t('btn_send');?></button></div>
+  <div class="cia"><textarea id="messageInput" oninput="autoResize(this);onMdInput('mdPreviewAnn','messageInput','mdCheckAnn')" placeholder="<?php echo t('label_type_announcement');?>" maxlength="1000" rows="1" style="resize:none;overflow-y:auto;line-height:1.4;max-height:20em"></textarea><input type="file" id="mediaFile" style="display:none" onchange="previewAttachment(this, sendAnnouncement, 'sendBtn')"><button class="bsm" onclick="toggleEmojiPicker(event,'messageInput')" title="Emoji">😊</button><button class="bsm" onclick="toggleFlashMenu(event,this)" title="Attach">📁</button><button class="bsm" onclick="togglePenMenu(event,this)" title="Doodle / Live Draw">✏️</button><input type="file" id="flashMediaFile" style="display:none" onchange="flashFileChosen(this,'announcement')"><label class="md-check"><input type="checkbox" id="mdCheckAnn" onchange="onMdInput('mdPreviewAnn','messageInput','mdCheckAnn')"> Markdown</label><button class="bs" id="sendBtn" onclick="sendAnnouncement()"><?php echo t('btn_send');?></button></div>
   <?php else:?>
   <div class="cia" style="justify-content:center;color:#666;font-size:.82em;padding:14px 20px"><?php echo t('msg_read_only');?></div>
   <?php endif;?>
  </div>
 
  <div class="panel" id="panel-dm">
-  <div class="ch"><h2 id="dmTitle"><?php echo t('title_chat');?></h2><div class="dm-options-wrap"><button class="bsm" onclick="toggleDmOptions(event)"><?php echo t('btn_options');?></button><div class="dm-options-menu" id="dmOptionsMenu"><button class="grp-opt" onclick="openGroupInfo()"><?php echo t('g_view_group');?></button><button class="grp-opt" id="grpPinBtn" onclick="togglePinGroup()"><?php echo t('d_pin');?></button><button class="dm-opt" onclick="viewDmProfile()"><?php echo t('btn_view_profile');?></button><button class="dm-opt" onclick="reportDmUser()"><?php echo t('btn_report_user');?></button><button class="dm-opt" onclick="openDmSearch()"><?php echo t('d_search_history');?></button><button class="dm-opt" onclick="changeNickname()"><?php echo t('d_change_nickname');?></button><button class="dm-opt" id="dmPinBtn" onclick="togglePinContact()"><?php echo t('d_pin');?></button><button class="dm-opt danger" onclick="deleteDmContact()"><?php echo t('btn_delete_contact');?></button></div></div></div>
+  <div class="ch"><h2 id="dmTitle"><?php echo t('title_chat');?></h2><div class="dm-options-wrap"><button class="bsm" onclick="toggleDmOptions(event)"><?php echo t('btn_options');?></button><div class="dm-options-menu" id="dmOptionsMenu"><button class="grp-opt" onclick="openGroupInfo()"><?php echo t('g_view_group');?></button><button class="grp-opt" id="grpPinBtn" onclick="togglePinGroup()"><?php echo t('d_pin');?></button><button class="dm-opt" onclick="viewDmProfile()"><?php echo t('btn_view_profile');?></button><button class="dm-opt" onclick="reportDmUser()"><?php echo t('btn_report_user');?></button><button class="dm-opt" onclick="openDmSearch()"><?php echo t('d_search_history');?></button><button class="dm-opt" onclick="changeNickname()"><?php echo t('d_change_nickname');?></button><button class="dm-opt" id="dmReloadBtn" onclick="reloadDmClient()">Reload Client</button><button class="dm-opt" id="dmPinBtn" onclick="togglePinContact()"><?php echo t('d_pin');?></button><button class="dm-opt danger" onclick="deleteDmContact()"><?php echo t('btn_delete_contact');?></button></div></div></div>
   <div class="ma" id="dmMessagesArea"><div class="es"><p><?php echo t('msg_select_contact');?></p></div></div>
   <div class="typing-indicator" id="typingIndicator"></div>
   <div class="upload-progress" id="dmUploadProgress"><div></div></div>
   <div class="md-preview" id="mdPreviewDm"></div>
   <div class="reply-bar" id="replyBar" style="display:none"><span id="replyBarText"></span><button class="bsm" onclick="cancelReply()">&#x2715;</button></div>
-  <div class="cia"><textarea id="dmMessageInput" oninput="autoResize(this);onDmInput();onMdInput('mdPreviewDm','dmMessageInput','mdCheckDm')" placeholder="<?php echo t('label_type_message');?>" maxlength="1000" rows="1" style="resize:none;overflow-y:auto;line-height:1.4;max-height:20em"></textarea><input type="file" id="dmMediaFile" style="display:none" onchange="previewAttachment(this, sendDmMessage, 'dmSendBtn')"><button class="bsm" onclick="toggleEmojiPicker(event,'dmMessageInput')" title="Emoji">😊</button><button class="bsm" onclick="toggleFlashMenu(event,this)" title="Attach">📁</button><button class="bsm" onclick="openDoodle()" title="Doodle">✏️</button><input type="file" id="flashMediaFileDm" style="display:none" onchange="flashFileChosen(this,'dm')"><label class="md-check"><input type="checkbox" id="mdCheckDm" onchange="onMdInput('mdPreviewDm','dmMessageInput','mdCheckDm')"> Markdown</label><button class="bs" id="dmSendBtn" onclick="sendDmMessage()"><?php echo t('btn_send');?></button></div>
+  <div class="cia"><textarea id="dmMessageInput" oninput="autoResize(this);onDmInput();onMdInput('mdPreviewDm','dmMessageInput','mdCheckDm')" placeholder="<?php echo t('label_type_message');?>" maxlength="1000" rows="1" style="resize:none;overflow-y:auto;line-height:1.4;max-height:20em"></textarea><input type="file" id="dmMediaFile" style="display:none" onchange="previewAttachment(this, sendDmMessage, 'dmSendBtn')"><button class="bsm" onclick="toggleEmojiPicker(event,'dmMessageInput')" title="Emoji">😊</button><button class="bsm" onclick="toggleFlashMenu(event,this)" title="Attach">📁</button><button class="bsm" onclick="togglePenMenu(event,this)" title="Doodle / Live Draw">✏️</button><button class="bsm ime-toggle" id="imeToggle" type="button" title="拼音输入开关">EN</button><input type="file" id="flashMediaFileDm" style="display:none" onchange="flashFileChosen(this,'dm')"><label class="md-check"><input type="checkbox" id="mdCheckDm" onchange="onMdInput('mdPreviewDm','dmMessageInput','mdCheckDm')"> Markdown</label><button class="bs" id="dmSendBtn" onclick="sendDmMessage()"><?php echo t('btn_send');?></button></div>
  </div>
 
  <?php if($isAdmin):?>
@@ -244,19 +246,19 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
  </div>
 
  <div class="panel" id="panel-music">
-  <div class="music-frame"><iframe id="playerFrame" src="../../apps/music/index.html"></iframe></div>
+  <div class="music-frame"><iframe id="playerFrame" data-src="../../apps/music/index.html"></iframe></div>
  </div>
 
  <div class="panel" id="panel-dscview">
-  <div class="music-frame"><iframe src="../../apps/dscview/index.php"></iframe></div>
+  <div class="music-frame"><iframe data-src="../../apps/dscview/index.php"></iframe></div>
  </div>
 
  <div class="panel" id="panel-midi">
-  <div class="music-frame"><iframe src="../../apps/midi_obfuscation/index.php"></iframe></div>
+  <div class="music-frame"><iframe data-src="../../apps/midi_obfuscation/index.php"></iframe></div>
  </div>
 
  <div class="panel" id="panel-proxy">
-  <div class="music-frame"><iframe src="../../apps/proxy/index.php"></iframe></div>
+  <div class="music-frame"><iframe data-src="../../apps/proxy/index.php"></iframe></div>
  </div>
 
  <?php if($isRoot):?>
@@ -403,6 +405,12 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
  <div class="panel" id="panel-more">
   <div class="ch"><h2><?php echo t('title_settings');?></h2></div>
   <div class="sc">
+   <?php if($isRoot):?>
+   <div class="ss"><h3>Reload All Clients</h3>
+     <p style="color:#888;font-size:.78em;margin-bottom:8px">强制所有在线客户端刷新（仅 Root）</p>
+     <button class="bsm" onclick="reloadAllClients()" style="background:#4a2020;border-color:#5c2a2a;color:#e06060">Reload All Clients</button>
+   </div>
+   <?php endif;?>
    <div class="er" id="errorMsg"></div><div class="su" id="successMsg"></div>
    <div class="ss"><h3><?php echo t('title_preferred_language');?></h3><div class="fg"><select id="languageSelect" style="width:100%;max-width:300px;padding:8px 12px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-size:.85em;font-family:inherit;outline:none"><option value="en"<?php echo ($currentUser['preferred_language']??'en')==='en'?' selected':'';?>><?php echo t('lang_en');?></option><option value="zh"<?php echo ($currentUser['preferred_language']??'en')==='zh'?' selected':'';?>><?php echo t('lang_zh');?></option><option value="zh_egg"<?php echo ($currentUser['preferred_language']??'en')==='zh_egg'?' selected':'';?>><?php echo t('lang_zh_egg');?></option><option value="wyw"<?php echo ($currentUser['preferred_language']??'en')==='wyw'?' selected':'';?>><?php echo t('lang_wyw');?></option><option value="raw"<?php echo ($currentUser['preferred_language']??'en')==='raw'?' selected':'';?>><?php echo t('lang_raw');?></option></select></div><button class="bsm" onclick="changeLanguage()"><?php echo t('btn_save');?></button></div>
    <div class="ss"><h3><?php echo t('title_display_name');?></h3><div class="fg"><label><?php echo t('msg_display_name_hint');?></label><input type="text" id="displayNameInput" maxlength="256" placeholder="<?php echo t('msg_leave_empty');?>" value="<?php echo htmlspecialchars($currentUser['display_name'] ?? '');?>"></div><button class="bsm" onclick="changeDisplayName()"><?php echo t('btn_save');?></button></div>
@@ -517,6 +525,7 @@ var NOTIF_SYS=<?php echo (int)($currentUser['notif_system'] ?? 1);?>;
 var NOTIF_BANNER=<?php echo (int)($currentUser['notif_banner'] ?? 1);?>;
 var TYPING_VIS=<?php echo (int)($currentUser['typing_visible'] ?? 1);?>;
 var ADMIN=<?php echo $isAdmin ? 'true' : 'false';?>;
+var IS_ROOT=<?php echo $isRoot ? 'true' : 'false';?>;
 var CACHE_KEY='<?php echo htmlspecialchars($currentUser['cache_key'] ?? '', ENT_QUOTES);?>';
 var LOCAL_CACHE=<?php echo (int)($currentUser['local_cache_enabled'] ?? 0);?>;
 var MYUID=<?php echo (int)($currentUser['user_id'] ?? 0);?>;
@@ -533,6 +542,14 @@ var MYSELF_PIN=<?php echo (int)($currentUser['pin_self'] ?? 1);?>;
 <script src="../scripts/chat.js?v=<?php echo time();?>"></script>
 <script src="../scripts/wss_client.js?v=<?php echo time();?>"></script>
 <script>try{wssInit();}catch(e){}</script>
+<!-- 拼音输入法（引擎小，8MB 词典首次输入时懒加载） -->
+<script src="../kb/ime_engine.js?v=<?php echo time();?>"></script>
+<script src="../kb/ime_ui.js?v=<?php echo time();?>"></script>
+<script>
+try {
+  ImePinyinUI.attach(document.getElementById('dmMessageInput'), 'imeToggle');
+} catch (e) {}
+</script>
 <div class="modal-overlay" id="addDonModal"><div class="modal-box"><h3>Add Donation</h3><table style="width:100%;border-collapse:collapse;font-size:.82em"><tr><td style="padding:6px 12px">DateTime</td><td style="padding:6px"><input type="text" id="addDonDateTime" placeholder="YYYY-MM-DD HH:MM:SS" style="width:100%;padding:6px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:inherit"></td></tr><tr><td style="padding:6px 12px">User</td><td style="padding:6px"><input type="text" id="addDonUserSearch" placeholder="Search username or UID..." autocomplete="off" oninput="searchDonUser()" style="width:100%;padding:6px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:inherit"><input type="hidden" id="addDonUserId"><div id="donUserSearchResults" style="max-height:120px;overflow-y:auto;border:1px solid #333;background:#1a1a1a;display:none"></div></td></tr><tr><td style="padding:6px 12px">WeixinID</td><td style="padding:6px"><input type="text" id="addDonWeixin" placeholder="Optional" style="width:100%;padding:6px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:inherit"></td></tr><tr><td style="padding:6px 12px">QQ</td><td style="padding:6px"><input type="text" id="addDonQQ" placeholder="Optional" style="width:100%;padding:6px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:inherit"></td></tr></table><div class="modal-actions" style="margin-top:10px"><button class="bsm" onclick="closeAddDonModal()">Cancel</button><button class="bsm" onclick="doAddDonation()" style="background:#2a4a2a;border-color:#3a6a3a">Save</button></div></div></div>
 <input type="file" id="customEmojiFile" accept="image/*" multiple style="display:none" onchange="uploadCustomEmoji()"><div class="emoji-popup" id="emojiPopup" style="display:none"><div class="emoji-sidebar"><button class="active" id="emojiTabBuiltin" onclick="switchEmojiTab('builtin')">内置表情</button><button id="emojiTabCustom" onclick="switchEmojiTab('custom')">自定义表情</button></div><div class="emoji-grid" id="emojiGrid"></div></div>
 
@@ -709,5 +726,64 @@ var MYSELF_PIN=<?php echo (int)($currentUser['pin_self'] ?? 1);?>;
     <label class="doodle-switch" title="Apple Pen 模式：开启后仅 Pencil 可画，忽略手指（Pencil 触碰时自动开启）"><input type="checkbox" id="doodlePenSwitch"><span class="ds-track"><span class="ds-thumb"></span></span><span class="ds-label">Apple Pen</span></label>
     <button class="bs" id="doodleSendBtn" onclick="sendDoodle()" style="background:#2a4a2a;border-color:#3a6a3a">发送</button>
   </div>
+</div>
+
+<!-- Pen 菜单：Doodle（本地涂鸦）/ Live Draw（双人实时画板） -->
+<div class="flash-menu pen-menu" id="penMenu" style="display:none">
+  <div onclick="openDoodle();hidePenMenu()">✏️ Doodle（本地涂鸦）</div>
+  <div onclick="openLiveDrawSetup();hidePenMenu()">🖊️ Live Draw（双人实时画板）</div>
+</div>
+
+<!-- Live Draw 发起设置弹窗（发起者：选对象 + 设画板大小） -->
+<div class="modal-overlay" id="ldSetupOverlay">
+  <div class="modal-box ld-setup">
+    <h3>🖊️ Live Draw 发起协作画板</h3>
+    <div class="fg" style="text-align:left"><label>邀请对象（当前对话）</label>
+      <div class="ld-invitee" id="ldInvitee">…</div>
+      <div class="ld-size-note" id="ldInviteeNote"></div>
+    </div>
+    <div class="fg" style="text-align:left"><label>画板大小</label>
+      <div class="ld-size-opts" id="ldSizeOpts">
+        <button type="button" class="ld-size-btn active" data-size="mine">我的窗口</button>
+        <button type="button" class="ld-size-btn" data-size="peer">对方窗口</button>
+        <button type="button" class="ld-size-btn" data-size="1024x768">1024 × 768</button>
+        <button type="button" class="ld-size-btn" data-size="640x480">640 × 480</button>
+        <button type="button" class="ld-size-btn" data-size="custom">自定义</button>
+      </div>
+      <div class="ld-custom-row" id="ldCustomRow" style="display:none">
+        <label>宽 <input type="number" id="ldCustomW" step="any" min="64" value="800"></label>
+        <label>高 <input type="number" id="ldCustomH" step="any" min="64" value="600"></label>
+      </div>
+      <div class="ld-size-note" id="ldSizeNote"></div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="bsm" id="ldSetupCancel">取消</button>
+      <button type="button" class="bsm" id="ldSetupStart" style="background:#2a4a2a;border-color:#3a6a3a">发起</button>
+    </div>
+  </div>
+</div>
+
+<!-- Live Draw 协作画板覆盖层（双方共用；复用 doodle 覆盖层/工具栏样式） -->
+<div id="ldOverlay" class="doodle-overlay" style="display:none">
+  <canvas id="ldCanvas"></canvas>
+  <div class="doodle-toolbar">
+    <span class="doodle-title">Live Draw — <span id="ldPeerName"></span></span>
+    <span class="doodle-colors" id="ldColors">
+      <button class="dc" data-c="#ffffff" style="background:#ffffff" title="白"></button>
+      <button class="dc" data-c="#ff5d5d" style="background:#ff5d5d" title="红"></button>
+      <button class="dc" data-c="#ffb84d" style="background:#ffb84d" title="橙"></button>
+      <button class="dc" data-c="#ffe94d" style="background:#ffe94d" title="黄"></button>
+      <button class="dc" data-c="#6dff6d" style="background:#6dff6d" title="绿"></button>
+      <button class="dc active" data-c="#4dd8ff" style="background:#4dd8ff" title="青"></button>
+      <button class="dc" data-c="#4d7dff" style="background:#4d7dff" title="蓝"></button>
+      <button class="dc" data-c="#d84dff" style="background:#d84dff" title="紫"></button>
+    </span>
+    <label class="doodle-size">粗细 <input type="range" id="ldSize" min="1" max="40" value="6"></label>
+    <button class="bsm" id="ldEraserBtn" type="button">橡皮</button>
+    <button class="bsm" id="ldUndoBtn" type="button">撤销</button>
+    <button class="bsm" id="ldClearBtn" type="button">清空</button>
+    <button class="bsm" id="ldExitBtn" type="button" style="background:#4a2a2a;border-color:#6a3a3a">✕ 退出</button>
+  </div>
+  <div class="ld-banner" id="ldBanner" style="display:none"></div>
 </div>
 </body></html>

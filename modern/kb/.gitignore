@@ -1,0 +1,11 @@
+# =================== ChatApp 拼音输入法 ===================
+# 只提交我们自己写的东西 + 用到的词典：
+#   - ime_engine.js / ime_ui.js   （自写引擎 / UI）
+#   - data/pinyin_data.js         （Google 拼音词典 8MB，Apache 2.0，见 LICENSE）
+#
+# 下面这些是上游 google-input-tools 的完整源码（chrome/os XKB、Windows IME client、
+# cloud 输入工具），本仓库只借用了 pinyin_data.js，其余没有任何运行时引用，
+# 体积巨大，不进 git（本地保留即可）。
+chrome/
+client/
+cloud/

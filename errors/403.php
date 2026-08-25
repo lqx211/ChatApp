@@ -2,7 +2,14 @@
 require_once __DIR__ . '/../api/config.php';
 chatapp_session_start();
 http_response_code(403);
+
+// 壁纸同步（与登录页 modern/wp/login.php 一致：首次随机，之后沿用会话内壁纸）
+if (empty($_SESSION['wallpaper']) || (int)$_SESSION['wallpaper'] < 1 || (int)$_SESSION['wallpaper'] > 10) {
+    $_SESSION['wallpaper'] = rand(1, 10);
+}
+$bgWallpaper = (int)$_SESSION['wallpaper'];
 ?>
+
 
 <!-- i know the variable names are crazy but dont change -->
  
@@ -13,8 +20,10 @@ http_response_code(403);
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title><?php echo t('errorpage'); ?> - ChatApp</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;background:#1a1a1a;color:#c0c0c0;display:flex;justify-content:center;align-items:center;min-height:100vh}
+@font-face{font-family:'Roboto';src:url('../css/fonts/Roboto-Regular.ttf') format('truetype');font-weight:400;font-style:normal}
+@font-face{font-family:'Chinese';src:url('../css/fonts/chinese.otf') format('opentype');font-weight:400;font-style:normal}
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Roboto','Chinese',-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',sans-serif !important}
+body{font-family:'Roboto','Chinese',-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',sans-serif;color:#e0e0e0;display:flex;justify-content:center;align-items:center;min-height:100vh;background-color:#1a1a1a;background-image:radial-gradient(rgba(0,0,0,0) 0%,rgba(0,0,0,0.5) 100%),radial-gradient(rgba(0,0,0,0) 33%,rgba(0,0,0,0.3) 166%),url('../modern/bg/background<?php echo $bgWallpaper; ?>.jpg');background-size:cover;background-position:center;background-repeat:no-repeat;background-attachment:fixed}
 a{color:#6a9fd8}
 .error-wrapper{background:#2a2a2a;border:1px solid #3a3a3a;padding:40px 38px;width:500px;box-shadow:0 8px 32px rgba(0,0,0,0.4);text-align:center}
 .error-icon{margin-bottom:20px;font-size:48px}
@@ -81,5 +90,7 @@ h2{font-size:1.1em;color:#999;font-weight:400;margin-bottom:24px}
         '<p><strong><?php echo t('errorpage_debug_url'); ?>:</strong> ' + location.href + '</p>';
 })();
 </script>
+<!-- 共享底部版权栏（modern/partials/footer.php） -->
+<?php include __DIR__ . '/../modern/partials/footer.php'; ?>
 </body>
 </html>

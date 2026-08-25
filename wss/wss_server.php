@@ -198,7 +198,7 @@ function ws_send_json(int $cid, array $data): bool {
     if (!isset($cl[$cid])) return false;
     $sock = $cl[$cid]['sock'];
     if (!is_resource($sock)) return false;
-    $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
     $frame = ws_encode_text($json);
     $written = @fwrite($sock, $frame);
     if ($written === false || $written < strlen($frame)) {
@@ -232,6 +232,85 @@ function ws_send_to_users(array $usernames, array $data): void {
 }
 
 // ==================== 消息处理（复用 chat.php proc() 逻辑） ====================
+/**
+ * Live Draw 实时协作板中继。
+ * 纯转发：把 `event` + `data` 从发起者转发给目标用户。不做在线检测——
+ * 目标不在线就收不到，会话自然无进展，发起方可自行退出。
+ * 画板状态（尺寸/笔迹）全部由发起者客户端持有，服务器无状态、单次事件循环内完成。
+ */
+function ws_handle_live_draw(int $cid, array $data): void {
+    $from = $GLOBALS['clients'][$cid]['username'] ?? '';
+    $to   = (string)($data['to'] ?? '');
+    if ($to === '' || $from === '' || $to === $from) return;
+
+    $payload = [
+        'type'  => 'live_draw',
+        'from'  => $from,
+        'to'    => $to,
+        'event' => (string)($data['event'] ?? ''),
+        'data'  => $data['data'] ?? null,
+    ];
+
+    // 取消在线检测：直接转发。不在线就静默丢给目标，不回执 offline。
+    ws_send_to_user($to, $payload);
+}
+
+/**
+ * 查询用户角色（root/admin/user）
+ */
+function ws_user_role(int $uid): string {
+    try {
+        $stmt = ws_db()->prepare("SELECT role FROM users WHERE user_id = ?");
+        $stmt->execute([$uid]);
+        return (string)($stmt->fetchColumn() ?: 'user');
+    } catch (\Throwable $e) {
+        return 'user';
+    }
+}
+
+/**
+ * 强制客户端 Reload。
+ *   to = '*' 或空 → 全部在线客户端（仅 root）
+ *   to = 用户名   → 指定用户（admin/root）
+ * 服务端校验角色，防止普通用户滥用。
+ */
+function ws_handle_reload(int $cid, array $data): void {
+    $cl = $GLOBALS['clients'][$cid] ?? null;
+    if (!$cl) return;
+    $role = ws_user_role((int)$cl['user_id']);
+    $isRoot = ($role === 'root');
+    $isAdmin = $isRoot || ($role === 'admin');
+    $target = (string)($data['to'] ?? '');
+    // 载荷带上发送方用户名，目标客户端据此回执确认（reload_ack）
+    $payload = ['type' => 'reload', 'from' => $cl['username']];
+
+    if ($target === '' || $target === '*') {
+        // 全部在线客户端：仅 root
+        if (!$isRoot) { ws_log("拒绝非 root 的 Reload All: {$cl['username']}"); return; }
+        $count = count($GLOBALS['clients'] ?? []);
+        foreach (array_keys($GLOBALS['clients'] ?? []) as $c2) {
+            ws_send_json($c2, $payload);
+        }
+        ws_log("Root {$cl['username']} 触发了 Reload All（{$count} 个连接）");
+    } else {
+        // 指定用户：admin/root
+        if (!$isAdmin) { ws_log("拒绝非 admin 的 Reload: {$cl['username']}"); return; }
+        ws_send_to_user($target, $payload);
+        ws_log("{$cl['username']} 发送 Reload 给 {$target}");
+    }
+}
+
+/**
+ * Reload 确认回执：目标客户端收到 reload 后发来，转发给原发送方（admin/root）用于更新发送状态窗口。
+ */
+function ws_handle_reload_ack(int $cid, array $data): void {
+    $cl = $GLOBALS['clients'][$cid] ?? null;
+    if (!$cl) return;
+    $to = (string)($data['to'] ?? '');
+    if ($to === '') return;
+    ws_send_to_user($to, ['type' => 'reload_ack', 'from' => $cl['username']]);
+}
+
 /**
  * 处理消息行 -> 前端渲染格式（私聊/公告）。与 api/chat.php proc() 一致。
  */
@@ -465,11 +544,17 @@ function ws_handshake($sock, string $request): ?array {
 
     // 响应 101
     $accept = ws_accept_key($key);
+    // 仅当客户端在请求里声明了子协议时才回显，否则浏览器会因「服务端返回了未请求的
+    // Sec-WebSocket-Protocol」而拒绝握手（Unexpected response code / 校验失败）
+    $protoHeader = '';
+    if (!empty($headers['sec-websocket-protocol'])) {
+        $protoHeader = 'Sec-WebSocket-Protocol: ' . $headers['sec-websocket-protocol'] . "\r\n";
+    }
     $response = "HTTP/1.1 101 Switching Protocols\r\n"
         . "Upgrade: websocket\r\n"
         . "Connection: Upgrade\r\n"
         . "Sec-WebSocket-Accept: {$accept}\r\n"
-        . "Sec-WebSocket-Protocol: chat\r\n"
+        . $protoHeader
         . "\r\n";
     @fwrite($sock, $response);
 
@@ -513,7 +598,7 @@ function ws_poll_messages(): void {
     if ($minL > 0) {
         $stmt = $pdo->prepare("SELECT m.id, m.sender_id, su.username, su.display_name, su.avatar,
             m.recipient_id, ru.username AS recipient_name,
-            m.message, m.msg_type, m.attachment, m.time, m.datetime, m.deleted_at, m.reply_to, m.temp_upload_id
+            m.message, m.msg_type, m.attachment, m.time, m.datetime, m.deleted_at, m.read_at, m.reply_to, m.temp_upload_id
             FROM messages m
             LEFT JOIN users su ON su.user_id = m.sender_id
             LEFT JOIN users ru ON ru.user_id = m.recipient_id
@@ -564,7 +649,7 @@ function ws_poll_messages(): void {
     try {
         $likeStmt = $pdo->prepare("SELECT m.id, m.sender_id, su.username, su.display_name, su.avatar,
             m.recipient_id, ru.username AS recipient_name,
-            m.message, m.msg_type, m.attachment, m.time, m.datetime, m.deleted_at, m.reply_to, m.temp_upload_id
+            m.message, m.msg_type, m.attachment, m.time, m.datetime, m.deleted_at, m.read_at, m.reply_to, m.temp_upload_id
             FROM messages m
             LEFT JOIN users su ON su.user_id = m.sender_id
             LEFT JOIN users ru ON ru.user_id = m.recipient_id
@@ -741,10 +826,19 @@ function ws_refresh_client(int $cid): void {
     if (!$cl) return;
     $pdo = ws_db();
 
-    // 私聊+公告：从 l 之后拉
+    // 全新连接（l=0）：完整历史由客户端 HTTP action=all 加载，这里只把游标同步到最新，
+    // 避免把最早的历史消息再推一遍（否则重连后会把大量已读旧消息算成未读）
+    if ((int)$cl['l'] <= 0) {
+        try {
+            $GLOBALS['clients'][$cid]['l'] = (int)($pdo->query("SELECT MAX(id) FROM messages WHERE group_id IS NULL")->fetchColumn() ?? 0);
+        } catch (\Throwable $e) {}
+        return;
+    }
+
+    // 私聊+公告：从 l 之后拉（增量补推）
     $stmt = $pdo->prepare("SELECT m.id, m.sender_id, su.username, su.display_name, su.avatar,
         m.recipient_id, ru.username AS recipient_name,
-        m.message, m.msg_type, m.attachment, m.time, m.datetime, m.deleted_at, m.reply_to, m.temp_upload_id
+        m.message, m.msg_type, m.attachment, m.time, m.datetime, m.deleted_at, m.read_at, m.reply_to, m.temp_upload_id
         FROM messages m
         LEFT JOIN users su ON su.user_id = m.sender_id
         LEFT JOIN users ru ON ru.user_id = m.recipient_id
@@ -837,6 +931,18 @@ function ws_handle_request(int $cid, array $data): void {
                 break;
             case 'mark_read':
                 $result = chat_action_mark_read($pdo, $uid, $username, $params);
+                // 已读后把最新未读数推给本人所有连接（多标签页同步，避免“已读仍显示未读”）
+                if (!empty($result['success'])) {
+                    try {
+                        $uc = chat_action_unread_counts($pdo, $uid, $username);
+                        if (!empty($uc['success'])) {
+                            $push = ['type' => 'unread_counts', 'counts' => $uc['counts'] ?? []];
+                            foreach ($GLOBALS['clients'] as $c2 => $cl2) {
+                                if ((int)$cl2['user_id'] === $uid) ws_send_json($c2, $push);
+                            }
+                        }
+                    } catch (\Throwable $e) {}
+                }
                 break;
             case 'unread_counts':
                 // GET 类操作，无额外参数
@@ -903,9 +1009,16 @@ function ws_main(): void {
             $conn = @stream_socket_accept($server, 0);
             if ($conn) {
                 // 读取握手请求（HTTP 头部）
+                // 刚 accept 的 socket 数据可能还没到达：显式非阻塞 + stream_select 等待可读，
+                // 避免第一次 fread 读到空串就 break，误判 "Invalid request"（400 竞态 bug）
+                stream_set_blocking($conn, false);
                 $request = '';
                 $deadline = microtime(true) + 5;
                 while (strpos($request, "\r\n\r\n") === false && microtime(true) < $deadline) {
+                    $r = [$conn]; $w = null; $e = null;
+                    $sel = @stream_select($r, $w, $e, 0, 200000); // 等待最多 200ms 可读
+                    if ($sel === false) break;
+                    if ($sel === 0) continue; // 暂无数据，继续等（直到 deadline）
                     $chunk = fread($conn, 4096);
                     if ($chunk === false || $chunk === '') break;
                     $request .= $chunk;
@@ -994,6 +1107,18 @@ function ws_main(): void {
                                     if ($glast > $cl['glast']) $GLOBALS['clients'][$cid]['glast'] = $glast;
                                 } catch (\Throwable $e) {}
                             }
+                            break;
+                        case 'live_draw':
+                            // Live Draw 实时协作板：纯中继转发（画板状态由发起者客户端持有，服务器不存状态）
+                            ws_handle_live_draw($cid, $data);
+                            break;
+                        case 'reload':
+                            // 强制客户端 Reload：指定用户（admin/root）或全部在线（仅 root），服务器校验角色
+                            ws_handle_reload($cid, $data);
+                            break;
+                        case 'reload_ack':
+                            // 目标客户端已收到 Reload：回执转发给原发送方（admin/root）用于显示状态
+                            ws_handle_reload_ack($cid, $data);
                             break;
                         default:
                             ws_log("未知消息类型: $type (from #{$GLOBALS['clients'][$cid]['username']})");
