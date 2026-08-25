@@ -447,11 +447,11 @@ function chat_action_my_content(PDO $pdo, int $uid, array $p): array {
         if ($type !== 'all' && $kind !== $type) continue;
 
         if ($r['msg_type'] === 'file' && $meta) {
-            $url = '../api/file.php?u=' . $uid . '&f=' . rawurlencode($meta['file']) . '&name=' . rawurlencode($meta['name'] ?? 'file');
+            $url = '../../api/file.php?u=' . $uid . '&f=' . rawurlencode($meta['file']) . '&name=' . rawurlencode($meta['name'] ?? 'file');
             $name = $meta['name'] ?? 'file';
             $size = isset($meta['size']) ? (int)$meta['size'] : null;
         } else {
-            $url = '../api/file.php?u=' . $uid . '&f=' . rawurlencode($att);
+            $url = '../../api/file.php?u=' . $uid . '&f=' . rawurlencode($att);
             $name = $att;
             $size = null;
         }
@@ -563,7 +563,7 @@ function chat_action_conversations(PDO $pdo, int $uid): array {
         $isDeleted = ($r['last_deleted'] !== null);
         $avatar = $r['avatar'];
         if (!empty($avatar) && strpos($avatar, 'data:') !== 0 && preg_match('/^[0-9a-zA-Z_]+\\.(png|jpg|jpeg|gif|webp)$/i', $avatar)) {
-            $avatar = '../api/avatar.php?u=' . urlencode($r['username']);
+            $avatar = '../../api/avatar.php?u=' . urlencode($r['username']);
         }
         $list[] = [
             'uid' => (int)$r['partner_id'],

@@ -374,7 +374,7 @@ switch ($action) {
         // 文件名 avatar → ../api/avatar.php URL（与 contacts/chat 接口一致）
         foreach ($users as &$du) {
             if (!empty($du['avatar']) && strpos($du['avatar'], 'data:') !== 0 && preg_match('/^[0-9a-zA-Z_]+\.(png|jpg|jpeg|gif|webp)$/i', $du['avatar'])) {
-                $du['avatar'] = '../api/avatar.php?u=' . urlencode($du['username']);
+                $du['avatar'] = '../../api/avatar.php?u=' . urlencode($du['username']);
             }
         }
         unset($du);
@@ -450,7 +450,7 @@ switch ($action) {
         // 文件名 avatar → ../api/avatar.php URL
         foreach ($blocks as &$b) {
             if (!empty($b['avatar']) && strpos($b['avatar'], 'data:') !== 0 && preg_match('/^[0-9a-zA-Z_]+\.(png|jpg|jpeg|gif|webp)$/i', $b['avatar'])) {
-                $b['avatar'] = '../api/avatar.php?u=' . urlencode($b['username']);
+                $b['avatar'] = '../../api/avatar.php?u=' . urlencode($b['username']);
             }
         }
         unset($b);
@@ -538,7 +538,7 @@ switch ($action) {
         file_put_contents($file, $raw);
         $pdo->prepare("UPDATE users SET bg_image = ?, bg_updated_at = NOW() WHERE user_id = ?")
             ->execute(['user/' . $uid . '/bg.' . $fmt, $uid]);
-        $url = '../api/file.php?u=' . $uid . '&f=bg.' . $fmt . '&v=' . time();
+        $url = '../../api/file.php?u=' . $uid . '&f=bg.' . $fmt . '&v=' . time();
         echo json_encode(['success' => true, 'url' => $url, 'version' => time()]);
         break;
 
@@ -562,7 +562,7 @@ switch ($action) {
         $url = null; $version = null;
         if ($u && $u['bg_image']) {
             $ver = strtotime($u['bg_updated_at'] ?: date('Y-m-d H:i:s'));
-            $url = '../api/file.php?f=' . rawurlencode($u['bg_image']) . '&v=' . $ver;
+            $url = '../../api/file.php?f=' . rawurlencode($u['bg_image']) . '&v=' . $ver;
             $version = $ver;
         }
         // Built-in presets from data/res/wallpaper/
@@ -570,10 +570,10 @@ switch ($action) {
         $wpDir = __DIR__ . '/../data/res/wallpaper';
         if (is_dir($wpDir)) {
             foreach (glob($wpDir . '/*.jpg') as $f) {
-                $presets[] = ['name' => basename($f, '.jpg'), 'url' => '../data/res/wallpaper/' . basename($f)];
+                $presets[] = ['name' => basename($f, '.jpg'), 'url' => '../../data/res/wallpaper/' . basename($f)];
             }
             foreach (glob($wpDir . '/*.png') as $f) {
-                $presets[] = ['name' => basename($f, '.png'), 'url' => '../data/res/wallpaper/' . basename($f)];
+                $presets[] = ['name' => basename($f, '.png'), 'url' => '../../data/res/wallpaper/' . basename($f)];
             }
         }
         echo json_encode(['success' => true, 'url' => $url, 'version' => $version, 'presets' => $presets]);
@@ -593,7 +593,7 @@ switch ($action) {
         $pdo->prepare("UPDATE users SET bg_image = ?, bg_updated_at = NOW() WHERE user_id = ?")
             ->execute(['res/wallpaper/' . $name . '.' . pathinfo($f, PATHINFO_EXTENSION), $uid]);
         $ver = time();
-        $url = '../data/res/wallpaper/' . $name . '.' . pathinfo($f, PATHINFO_EXTENSION) . '?v=' . $ver;
+        $url = '../../data/res/wallpaper/' . $name . '.' . pathinfo($f, PATHINFO_EXTENSION) . '?v=' . $ver;
         echo json_encode(['success' => true, 'url' => $url, 'version' => $ver]);
         break;
 
@@ -701,7 +701,7 @@ switch ($action) {
         $pdo->prepare("UPDATE users SET bg_private_image = ? WHERE username = ?")
             ->execute(['bgi/' . $uid . '.private.' . $ext, $_SESSION['username']]);
         $ver = time();
-        $url = '../api/file.php?type=bgi_private&u=' . $uid . '&v=' . $ver;
+        $url = '../../api/file.php?type=bgi_private&u=' . $uid . '&v=' . $ver;
         echo json_encode(['success' => true, 'url' => $url, 'private_image' => 'bgi/' . $uid . '.private.' . $ext, 'video' => $isVideo]);
         break;
 
@@ -817,7 +817,7 @@ switch ($action) {
         $pdo->prepare("UPDATE users SET profile_bg_image = ?, profile_bg_updated_at = NOW() WHERE user_id = ?")
             ->execute(['bgi/' . $uid . '.' . $ext, $uid]);
         $ver = time();
-        $url = '../api/file.php?type=bgi&u=' . $uid . '&v=' . $ver;
+        $url = '../../api/file.php?type=bgi&u=' . $uid . '&v=' . $ver;
         echo json_encode(['success' => true, 'url' => $url, 'version' => $ver, 'video' => $isVideo]);
         break;
 
@@ -849,7 +849,7 @@ switch ($action) {
             $uStmt = $pdo->prepare("SELECT user_id FROM users WHERE username = ?");
             $uStmt->execute([$_SESSION['username']]);
             $uid = (int)($uStmt->fetchColumn() ?: 0);
-            $url = '../api/file.php?type=bgi&u=' . $uid . '&v=' . $ver;
+            $url = '../../api/file.php?type=bgi&u=' . $uid . '&v=' . $ver;
             $version = $ver;
         }
         echo json_encode(['success' => true, 'url' => $url, 'version' => $version]);

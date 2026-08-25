@@ -145,7 +145,7 @@ function chatapp_avatar_url(?string $avatar, ?string $username): string {
     if (empty($avatar) || empty($username)) return '';
     if (strpos($avatar, 'data:') === 0) return $avatar;
     if (preg_match('/^[0-9a-zA-Z_]+\.(png|jpg|jpeg|gif|webp)$/i', $avatar)) {
-        return '../api/avatar.php?u=' . urlencode($username);
+        return '../../api/avatar.php?u=' . urlencode($username);
     }
     return $avatar;
 }
@@ -157,7 +157,7 @@ function chatapp_group_avatar_url(?string $avatar, int $groupId): string {
     if (empty($avatar)) return '';
     if (strpos($avatar, 'data:') === 0) return $avatar;
     if (preg_match('/^[0-9a-zA-Z_]+\.(png|jpg|jpeg|gif|webp)$/i', $avatar)) {
-        return '../api/avatar.php?g=' . $groupId;
+        return '../../api/avatar.php?g=' . $groupId;
     }
     return $avatar;
 }

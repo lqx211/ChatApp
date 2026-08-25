@@ -284,7 +284,7 @@ function proc(array $msgs): array {
         $m['recipient'] = $m['recipient_name'] ?: null;
         // 新格式 avatar 存文件名（如 10077.png），转成 /api/avatar.php 可访问 URL；data URI 保留原样
         if (!empty($m['avatar']) && strpos($m['avatar'], 'data:') !== 0 && preg_match('/^[0-9a-zA-Z_]+\.(png|jpg|jpeg|gif|webp)$/i', $m['avatar'])) {
-            $m['avatar'] = '../api/avatar.php?u=' . urlencode($m['username'] ?? '');
+            $m['avatar'] = '../../api/avatar.php?u=' . urlencode($m['username'] ?? '');
         }
         $m['avatar'] = $m['avatar'] ?? null;
         $m['msg_type'] = $m['msg_type'] ?? null;
@@ -304,7 +304,7 @@ function proc(array $msgs): array {
             if ($m['msg_type'] === 'file') {
                 $meta = json_decode($m['attachment'], true);
                 if (is_array($meta) && !empty($meta['file'])) {
-                    $m['attachment_url'] = '../api/file.php?u=' . ((int)$m['user_id']) . '&f=' . rawurlencode($meta['file']) . '&name=' . rawurlencode($meta['name'] ?? 'file');
+                    $m['attachment_url'] = '../../api/file.php?u=' . ((int)$m['user_id']) . '&f=' . rawurlencode($meta['file']) . '&name=' . rawurlencode($meta['name'] ?? 'file');
                     $m['attachment_name'] = $meta['name'] ?? 'file';
                     $m['attachment_size'] = isset($meta['size']) ? (int)$meta['size'] : null;
                 } else {
@@ -334,7 +334,7 @@ function proc(array $msgs): array {
                 // 涂鸦消息：attachment 存的是笔迹 JSON（矢量点），不是文件
                 $m['attachment_url'] = null;
             } else {
-                $m['attachment_url'] = '../api/file.php?u=' . ((int)$m['user_id']) . '&f=' . $m['attachment'];
+                $m['attachment_url'] = '../../api/file.php?u=' . ((int)$m['user_id']) . '&f=' . $m['attachment'];
             }
         } elseif (!$m['is_deleted']) {
             $m['attachment_url'] = null;

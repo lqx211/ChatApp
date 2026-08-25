@@ -6,7 +6,7 @@
 require_once __DIR__ . '/config.php';
 
 // ---- Proof-of-Work challenge (anti-bot register/login gate) ----
-// Custom byte-level hash, implemented identically in modern/pow.js (no public
+// Custom byte-level hash, implemented identically in modern/scripts/pow.js (no public
 // algorithm code). The client must find a nonce with
 //   powhash(challenge ':' nonce) < target   (target = 2^(256 - POW_TARGET_BITS))
 define('POW_TARGET_BITS', 15);      // sub-second difficulty (~2^15 tries)

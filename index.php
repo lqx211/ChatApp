@@ -100,12 +100,12 @@ require_once __DIR__ . '/maintenance.php';
         <p class="subtitle">其实就是一个自己暑假期间写的聊天网站</p>
         
         <div class="entries">
-            <a href="modern/index.php" class="entry-card">
+            <a href="/modern/wp/index.php" class="entry-card">
                 <div class="label">最新版本</div>
                 <h2>目前正在开发的地方</h2>
                 <p>选这个准没错</p>
             </a>
-            <a href="apps/music/index.html" class="entry-card">
+            <a href="/apps/music/index.html" class="entry-card">
                 <div class="label">听音乐</div>
                 <h2>在聊天界面不起眼的地方的一个音乐组件</h2>
                 <p>只想听音乐不想注册(热知识: 兼容IE9)</p>

@@ -244,7 +244,7 @@ function ws_proc_messages(PDO $pdo, array $msgs, array $replyMap = []): array {
         $m['recipient'] = $m['recipient_name'] ?? null;
         // 文件名 avatar → ../api/avatar.php URL（与 api/chat.php proc() 一致）
         if (!empty($m['avatar']) && strpos($m['avatar'], 'data:') !== 0 && preg_match('/^[0-9a-zA-Z_]+\.(png|jpg|jpeg|gif|webp)$/i', $m['avatar'])) {
-            $m['avatar'] = '../api/avatar.php?u=' . urlencode($m['username'] ?? 'Unknown');
+            $m['avatar'] = '../../api/avatar.php?u=' . urlencode($m['username'] ?? 'Unknown');
         }
         $m['avatar'] = $m['avatar'] ?? null;
         $m['msg_type'] = $m['msg_type'] ?? null;
@@ -262,7 +262,7 @@ function ws_proc_messages(PDO $pdo, array $msgs, array $replyMap = []): array {
             if ($m['msg_type'] === 'file') {
                 $meta = json_decode($m['attachment'], true);
                 if (is_array($meta) && !empty($meta['file'])) {
-                    $m['attachment_url'] = '../api/file.php?u=' . $senderId . '&f=' . rawurlencode($meta['file']) . '&name=' . rawurlencode($meta['name'] ?? 'file');
+                    $m['attachment_url'] = '../../api/file.php?u=' . $senderId . '&f=' . rawurlencode($meta['file']) . '&name=' . rawurlencode($meta['name'] ?? 'file');
                     $m['attachment_name'] = $meta['name'] ?? 'file';
                     $m['attachment_size'] = isset($meta['size']) ? (int)$meta['size'] : null;
                 } else {
@@ -288,7 +288,7 @@ function ws_proc_messages(PDO $pdo, array $msgs, array $replyMap = []): array {
                 // 点赞系统消息：attachment 存的是 JSON 次数，不是文件
                 $m['attachment_url'] = null;
             } else {
-                $m['attachment_url'] = '../api/file.php?u=' . $senderId . '&f=' . $m['attachment'];
+                $m['attachment_url'] = '../../api/file.php?u=' . $senderId . '&f=' . $m['attachment'];
             }
         } elseif (!$m['is_deleted']) {
             $m['attachment_url'] = null;
@@ -344,10 +344,10 @@ function ws_proc_group_message(PDO $pdo, array $m): array {
         if ($m['msg_type'] === 'file') {
             $meta = json_decode($m['attachment'], true);
             if (is_array($meta) && !empty($meta['file'])) {
-                $m['attachment_url'] = '../api/file.php?u=' . $sendingUid . '&f=' . rawurlencode($meta['file']) . '&name=' . rawurlencode($meta['name'] ?? 'file');
+                $m['attachment_url'] = '../../api/file.php?u=' . $sendingUid . '&f=' . rawurlencode($meta['file']) . '&name=' . rawurlencode($meta['name'] ?? 'file');
             } else $m['attachment_url'] = null;
         } elseif ($m['msg_type'] === 'photo' || $m['msg_type'] === 'audio') {
-            $m['attachment_url'] = '../api/file.php?u=' . $sendingUid . '&f=' . $m['attachment'];
+            $m['attachment_url'] = '../../api/file.php?u=' . $sendingUid . '&f=' . $m['attachment'];
         }
     }
     return $m;

@@ -251,7 +251,7 @@ switch ($action) {
         // 新格式 avatar 存的是文件名（如 10077.png），需转成 /api/avatar.php 可访问的 URL
         foreach ($contacts as &$c) {
             if (!empty($c['avatar']) && strpos($c['avatar'], 'data:') !== 0 && preg_match('/^[0-9a-zA-Z_]+\.(png|jpg|jpeg|gif|webp)$/i', $c['avatar'])) {
-                $c['avatar'] = '../api/avatar.php?u=' . urlencode($c['username']);
+                $c['avatar'] = '../../api/avatar.php?u=' . urlencode($c['username']);
             }
         }
         unset($c);
@@ -271,7 +271,7 @@ switch ($action) {
         // 文件名 avatar → URL（新格式）
         foreach ($pending as &$p) {
             if (!empty($p['avatar']) && strpos($p['avatar'], 'data:') !== 0 && preg_match('/^[0-9a-zA-Z_]+\.(png|jpg|jpeg|gif|webp)$/i', $p['avatar'])) {
-                $p['avatar'] = '../api/avatar.php?u=' . urlencode($p['username']);
+                $p['avatar'] = '../../api/avatar.php?u=' . urlencode($p['username']);
             }
         }
         unset($p);

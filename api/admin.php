@@ -197,7 +197,7 @@ switch ($action) {
         $u['friend_relation'] = $rel ? $rel['status'] : null;
         // 文件名 avatar → ../api/avatar.php URL（data URI 保留原样）
         if (!empty($u['avatar']) && strpos($u['avatar'], 'data:') !== 0 && preg_match('/^[0-9a-zA-Z_]+\.(png|jpg|jpeg|gif|webp)$/i', $u['avatar'])) {
-            $u['avatar'] = '../api/avatar.php?u=' . urlencode($u['username']);
+            $u['avatar'] = '../../api/avatar.php?u=' . urlencode($u['username']);
         }
         echo json_encode(['success'=>true,'user'=>$u]);
         break;
