@@ -190,6 +190,10 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
     $tempUploadId = (int)($p['temp_upload_id'] ?? 0);
     $recipientName = trim((string)($p['recipient'] ?? ''));
     $doodle      = trim((string)($p['doodle'] ?? ''));
+    // 幂等键：客户端在 WSS 超时降级 HTTP 重试时共用同一键，服务端据此去重，
+    // 避免同一条消息被插入两次（对方看到两条相同消息）
+    $clientMsgId = trim((string)($p['client_msg_id'] ?? ''));
+    if (strlen($clientMsgId) > 64) $clientMsgId = substr($clientMsgId, 0, 64);
 
     // WSS 通道禁止附件/闪传（避免阻塞单线程事件循环，强制走 HTTP）
     if (!$allowAttachment && (!empty($attachmentB64) || $tempUploadId > 0)) {
@@ -364,8 +368,17 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
                 }
             }
         }
-        $pdo->prepare('INSERT INTO messages (sender_id, recipient_id, message, msg_type, attachment, reply_to, time, datetime, temp_upload_id) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)')
-            ->execute([$senderUid, $recipientId, $msg, $msgType, $attachmentFilename, $replyTo ?: null, $time, $tempUploadId ?: null]);
+        // ---- 幂等去重：同一发送者 + 同一 client_msg_id 在 120s 内已插入 → 直接返回既有 id，不再插第二次 ----
+        if ($clientMsgId !== '') {
+            $dupStmt = $pdo->prepare(
+                "SELECT id FROM messages WHERE sender_id = ? AND client_msg_id = ? AND datetime > NOW() - INTERVAL 120 SECOND LIMIT 1"
+            );
+            $dupStmt->execute([$senderUid, $clientMsgId]);
+            $dupId = (int)$dupStmt->fetchColumn();
+            if ($dupId) return ['success' => true, 'message_id' => $dupId];
+        }
+        $pdo->prepare('INSERT INTO messages (sender_id, recipient_id, message, msg_type, attachment, reply_to, time, datetime, temp_upload_id, client_msg_id) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)')
+            ->execute([$senderUid, $recipientId, $msg, $msgType, $attachmentFilename, $replyTo ?: null, $time, $tempUploadId ?: null, $clientMsgId !== '' ? $clientMsgId : null]);
         $newMsgId = (int)$pdo->lastInsertId();
 
         if ($tempUploadId > 0) {

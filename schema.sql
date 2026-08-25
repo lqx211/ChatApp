@@ -92,9 +92,26 @@ CREATE TABLE IF NOT EXISTS messages (
     group_id INT DEFAULT NULL,
     reply_to INT DEFAULT NULL,
     temp_upload_id INT DEFAULT NULL,
+    client_msg_id VARCHAR(64) DEFAULT NULL,
     PRIMARY KEY (id),
     KEY idx_id (id),
-    KEY idx_read (read_at)
+    KEY idx_read (read_at),
+    KEY idx_client_msg (sender_id, client_msg_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ----------------------------------------------------------------------
+-- Pinyin IME user learning habits (word frequency / custom words)
+-- ----------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS user_ime_learning (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    word VARCHAR(100) NOT NULL,
+    pinyin VARCHAR(255) DEFAULT NULL,
+    count INT NOT NULL DEFAULT 1,
+    is_custom TINYINT(1) NOT NULL DEFAULT 0,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_user_word (user_id, word),
+    KEY idx_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ----------------------------------------------------------------------

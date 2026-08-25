@@ -656,6 +656,19 @@ function init_db(): void {
     }
     db_add_column_if_missing('incidents', 'exp_awarded', "TINYINT(1) NOT NULL DEFAULT 0");
     db_add_column_if_missing('messages', 'temp_upload_id', "INT DEFAULT NULL");
+    db_add_column_if_missing('messages', 'client_msg_id', "VARCHAR(64) DEFAULT NULL");
+    // 拼音输入法用户习惯（词频/自造词，跨设备同步）
+    $pdo->exec("CREATE TABLE IF NOT EXISTS user_ime_learning (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        word VARCHAR(100) NOT NULL,
+        pinyin VARCHAR(255) DEFAULT NULL,
+        count INT NOT NULL DEFAULT 1,
+        is_custom TINYINT(1) NOT NULL DEFAULT 0,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_user_word (user_id, word),
+        KEY idx_user (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     $pdo->exec("CREATE TABLE IF NOT EXISTS temp_uploads (
         id INT AUTO_INCREMENT PRIMARY KEY,
         hash CHAR(64) NOT NULL UNIQUE,
