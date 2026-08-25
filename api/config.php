@@ -300,8 +300,10 @@ function db_add_column_if_missing(string $table, string $column, string $definit
     $pdo = db();
     $table = preg_replace('/[^a-zA-Z_]/', '', $table);
     $column = preg_replace('/[^a-zA-Z_]/', '', $column);
+    // 用 fetch() 判断列是否存在：rowCount() 对 SHOW COLUMNS 在某些驱动上恒为 0，
+    // 会把已存在的列误判为缺失 → 重复 ALTER → "Duplicate column" 500。
     $result = $pdo->query("SHOW COLUMNS FROM `$table` LIKE '$column'");
-    if ($result && $result->rowCount() === 0) {
+    if ($result && $result->fetch() === false) {
         $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
     }
 }
@@ -628,6 +630,7 @@ function init_db(): void {
     db_add_column_if_missing('users', 'anyone_add_friend', "TINYINT(1) NOT NULL DEFAULT 1");
     db_add_column_if_missing('users', 'likes', "INT NOT NULL DEFAULT 0");
     db_add_column_if_missing('users', 'auto_focus_input', "TINYINT(1) NOT NULL DEFAULT 1");
+    db_add_column_if_missing('users', 'pin_self', "TINYINT(1) NOT NULL DEFAULT 1");
     // ---- 黑名单（设置页 · 黑名单管理） ----
     $pdo->exec("CREATE TABLE IF NOT EXISTS user_blocks (
         user_id INT UNSIGNED NOT NULL,
