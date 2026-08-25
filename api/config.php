@@ -3,6 +3,44 @@
  * ChatApp - Configuration
  */
 
+// ---- mbstring 兜底 ----
+// 极简 / 容器 PHP 可能未安装 mbstring 扩展，而本应用大量使用 mb_* 函数。
+// 若缺失则提供 UTF-8 安全的降级实现，避免「Call to undefined function」500。
+// 真实扩展存在时本段自动跳过（function_exists 守卫）。
+if (!function_exists('mb_substr') || !function_exists('mb_strlen')) {
+
+    if (!function_exists('mb_strlen')) {
+        function mb_strlen($string = '', $encoding = null) {
+            $s = (string)$string;
+            if (@preg_match('//u', $s) === 1) {
+                $n = @preg_match_all('/./us', $s, $_m);
+                return ($n === false) ? strlen($s) : $n;
+            }
+            return strlen($s);
+        }
+    }
+
+    if (!function_exists('mb_substr')) {
+        function mb_substr($string, $start, $length = null, $encoding = null) {
+            $s = (string)$string;
+            $chars = @preg_split('//u', $s, -1, PREG_SPLIT_NO_EMPTY);
+            if ($chars === false) { // 非 UTF-8 → 字节级降级
+                return $length === null ? substr($s, $start) : substr($s, $start, $length);
+            }
+            if ($length === null) {
+                $length = max(0, mb_strlen($s, $encoding) - $start);
+            }
+            return implode('', array_slice($chars, $start, $length));
+        }
+    }
+
+    if (!function_exists('mb_strtoupper')) {
+        function mb_strtoupper($string, $encoding = null) {
+            return strtoupper((string)$string);
+        }
+    }
+}
+
 // Keep PHP time interpretation in sync with MySQL NOW() (HKT/UTC+8).
 // Without this, DATETIME values stored via NOW() are parsed by strtotime()
 // as UTC, producing negative cooldown diffs that permanently block

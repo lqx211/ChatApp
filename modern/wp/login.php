@@ -357,7 +357,7 @@ $appVersion = is_array($__info) ? (string)($__info['version'] ?? '') : '';
             <form class="form-panel" id="loginPanel" onsubmit="handleLogin(event)">
                 <div class="form-group">
                     <label for="loginUsername"><?php echo t('label_username'); ?></label>
-                    <input type="text" id="loginUsername" maxlength="20" required autocomplete="username">
+                    <input type="text" id="loginUsername" maxlength="100" required autocomplete="username">
                 </div>
                 <div class="form-group">
                     <label for="loginPassword"><?php echo t('label_password'); ?></label>
@@ -372,7 +372,7 @@ $appVersion = is_array($__info) ? (string)($__info['version'] ?? '') : '';
             <form class="form-panel" id="registerPanel" onsubmit="handleRegister(event)">
                 <div class="form-group">
                     <label for="regUsername"><?php echo t('label_username'); ?></label>
-                    <input type="text" id="regUsername" maxlength="20" required autocomplete="username" placeholder="<?php echo t('msg_login_username_hint'); ?>">
+                    <input type="text" id="regUsername" maxlength="100" required autocomplete="username" placeholder="<?php echo t('msg_login_username_hint'); ?>">
                 </div>
                 <div class="form-group">
                     <label for="regPassword"><?php echo t('label_password'); ?></label>

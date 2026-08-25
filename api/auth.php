@@ -79,6 +79,48 @@ function chatapp_verify_pow(string $challenge, string $nonce): bool {
     return true;
 }
 
+/** 用户名注入检测：识别 PHP / XSS / SQL 注入特征。
+ *  返回 'php' | 'xss' | 'mysql'，未发现则返回 null。
+ *  优先级：PHP（如 <?php 含 <，须先于 XSS）→ XSS → SQL。 */
+function chatapp_detect_username_injection(string $username): ?string {
+    $u = strtolower($username);
+    $php = [
+        '<?php', '<?=', '?>', 'phpinfo', 'eval(', 'system(', 'exec(', 'shell_exec',
+        'passthru', 'proc_open', 'popen', 'assert(', 'create_function', 'preg_replace',
+        'base64_decode', 'gzinflate', 'str_rot13', '$_get', '$_post', '$_request',
+        '$_server', '$_cookie', '$_session', '$_files', '$_env', 'getenv(', 'putenv(',
+        'mail(', 'file_get_contents', 'file_put_contents', 'fopen(', 'unlink(', 'chmod(',
+        'include ', 'include_once', 'require ', 'require_once', 'call_user_func',
+        'serialize(', 'unserialize(', 'opendir(', 'glob(',
+    ];
+    $xss = [
+        '<script', '</script', '<iframe', '<img', '<svg', '<body', '<input', '<form',
+        '<embed', '<object', '<link', '<meta', '<style', '<a ', '<div', '<span',
+        'javascript:', 'vbscript:', 'data:text/html', 'onerror=', 'onload=', 'onclick=',
+        'onmouseover=', 'onfocus=', 'onchange=', 'onsubmit=', 'onkeydown=', 'onkeyup=',
+        'alert(', 'confirm(', 'prompt(', 'document.cookie', 'document.location',
+        'window.location', 'innerhtml', 'fetch(', 'xmlhttprequest', 'fromcharcode',
+        'atob(', 'btoa(', 'srcdoc', '<', '>',
+    ];
+    $mysql = [
+        'union select', 'union all select', 'select * from', 'select count(', 'order by',
+        'drop table', 'drop database', 'delete from', 'insert into', 'update ',
+        '1=1', '1=2', "' or '", "'or'", '" or "', '"or"', "' or 1", "or '1'='1", 'or 1=1',
+        "'--", '"--', '--', ';--', '/*', '*/', 'sleep(', 'benchmark(', 'information_schema',
+        'version()', 'database()', 'user()', 'load_file', 'into outfile', 'into dumpfile',
+        'char(', 'concat(', 'group_concat', 'hex(', '0x', 'like ', 'between', 'having',
+        'exists(', 'case when', 'if(', ';', "'", '"',
+    ];
+    $web = [
+        '%s','%d'
+    ];
+    foreach ($php as $p)   { if (strpos($u, $p) !== false) return 'php'; }
+    foreach ($xss as $p)   { if (strpos($u, $p) !== false) return 'xss'; }
+    foreach ($mysql as $p) { if (strpos($u, $p) !== false) return 'mysql'; }
+    foreach ($web as $p) { if (strpos($u, $p) !== false) return 'web'; }
+    return null;
+}
+
 chatapp_session_start();
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
@@ -158,6 +200,18 @@ switch ($action) {
         break;
 
     case 'login':
+        // 用户名注入检测：PHP / XSS / SQL 注入特征直接拒绝并返回对应提示。
+        // （放在最前，无需先过 PoW，脚本化扫描同样会被拦截）
+        $__injUsername = trim((string)($_POST['username'] ?? ''));
+        $__injection = chatapp_detect_username_injection($__injUsername);
+        if ($__injection !== null) {
+            chatapp_log('security_logs', [
+                'event_type' => 'login_injection',
+                'details' => $__injection . ' injection attempt on username=' . mb_substr($__injUsername, 0, 100),
+            ]);
+            echo json_encode(['success' => false, 'error' => t('login_injection_' . $__injection)]);
+            exit;
+        }
         // PoW challenge replaces the old fixed sleep(1) throttle. The restricted
         // "continue login" flow (confirm=1) already passed PoW on its first
         // attempt, so it is exempt here.
@@ -176,6 +230,14 @@ switch ($action) {
         }
         if (empty($password)) {
             echo json_encode(['success' => false, 'error' => 'Empty password']); exit;
+        }
+        // 用户名长度检测：仅在登录获取账号名时校验（注册后端仍维持 3-20 限制）
+        $__unameLen = mb_strlen($username);
+        if ($__unameLen < 3) {
+            echo json_encode(['success' => false, 'error' => t('login_username_too_short')]); exit;
+        }
+        if ($__unameLen > 20) {
+            echo json_encode(['success' => false, 'error' => t('login_username_toooo_long')]); exit;
         }
         $pdo = db();
         // IP rate limit: max 5 failed attempts per minute

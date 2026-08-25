@@ -4,6 +4,13 @@
  */
 
 return [
+    'login_injection_php' => '哇塞了，皮痒了是吧，竟敢用PHP注入？', // Forcefully use Chinese for this part.
+    'login_injection_xss' => '哇塞了，皮痒了是吧，竟敢用XSS注入？',
+    'login_injection_mysql' => '哇塞了，皮痒了是吧，竟敢用SQL注入？',
+    'login_injection_web' => '可以啊，塞%s是让我自己填是吗？',
+    'login_username_toooo_long' => '你这用户名不对劲，咋这么长呢？',
+    'login_username_too_short' => '你这用户名这么短，老实交代你吃了多少？',
+    'msg_too_many_attempts' => 'Too many attempts!',
     // General
     'enterchat_loading_pagename' => 'ChatApp',
     'enterchat_loading_loadstr'  => 'Loading',

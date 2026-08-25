@@ -5,6 +5,14 @@
  */
 
 return [
+    'login_injection_php' => '豈敢以 PHP 注入耶？皮癢乎？', // 此處刻意保留中文意趣
+    'login_injection_xss' => '豈敢以 XSS 注入耶？皮癢乎？',
+    'login_injection_mysql' => '豈敢以 SQL 注入耶？皮癢乎？',
+
+    'login_username_toooo_long' => '你这用户名不对劲',
+    'login_username_too_short' => '你这用户名这么短，老实交代你吃了多少？',
+    'msg_too_many_attempts' => '请求过多',
+
     // General
     'enterchat_loading_pagename' => 'ChatApp',
     'enterchat_loading_loadstr'  => '載入中',

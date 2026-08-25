@@ -186,11 +186,11 @@ else
 fi
 
 # if you are on mac, remove sudo below
-sudo apt install mysql-server mysql-client apache2 php8.3 -y # its going to be brew and without sudo in mac
+sudo apt install mysql-server mysql-client apache2 php8.3 php8.3-mbstring php8.3-gd -y # its going to be brew and without sudo in mac
 sudo mysql -e "CREATE DATABASE IF NOT EXISTS chatapp DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_unicode_ci;" 
 sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '';"
 sudo mysql -e "FLUSH PRIVILEGES;"
-sudo apt install php-mysql php8.3-mysql -y
+sudo apt install php-mysql php8.3-mysql php8.3-mbstring php8.3-gd -y
 
 # --- Security hardening: honor .htaccess (so data/*.htaccess rules apply)
 # --- and disable directory listing. (On mac/brew adjust the conf path.)
