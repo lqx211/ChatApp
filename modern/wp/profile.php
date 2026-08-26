@@ -231,7 +231,7 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
       </div>
     </div>
     <button class="like-btn" id="likeBtn" onclick="likeProfile()"<?php if($isSelf):?> disabled style="cursor:default;opacity:.75"<?php endif;?> title="<?php echo htmlspecialchars(t('p_like'));?>">
-      <span class="like-icon" id="likeIcon"><?php echo $isSelf ? '♥' : '♡';?></span>
+      <span class="like-icon" id="likeIcon"><img src="../../data/res/cil/cil-heart.svg" class="like-heart<?php echo $isSelf ? ' liked' : ''; ?>" alt=""></span>
       <span class="like-num" id="likeNum"><?php echo (int)($profileUser['likes'] ?? 0);?></span>
     </button>
   </div>
@@ -274,7 +274,7 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
 
   <!-- 9. 资料完成度 -->
   <div class="completion-row">
-    <span>📋</span>
+    <span><img src="../../data/res/cil/cil-clipboard.svg" class="completion-ico" alt=""></span>
     <!-- <span class="comp-text">资料完成度NaN%</span> -->
      <span class="comp-text"><?php echo t('p_complete_hint');?></span>
     <span class="comp-action"><?php echo t('p_complete_action');?></span>
@@ -769,7 +769,7 @@ function likeProfile() {
     }).then(function(r) { return r.json(); }).then(function(d) {
         if (d.success) {
             var n = document.getElementById('likeNum'); if (n) n.textContent = d.likes;
-            var ic = document.getElementById('likeIcon'); if (ic) ic.textContent = '♥';
+            var ic = document.getElementById('likeIcon'); if (ic) { var lh = ic.querySelector('.like-heart'); if (lh) lh.classList.add('liked'); }
             showLikeToast(<?php echo json_encode(t('p_like_ok'));?>);
             // 点赞方自己的聊天窗口（若正与对方聊天）：WSS 不回推自己的消息，手动刷新
             try {

@@ -211,6 +211,9 @@ body {
   margin-top: 4px;
 }
 .like-icon { font-size: 18px; line-height: 1; color: #d0d5dd; }
+.like-heart { width: 18px; height: 18px; filter: brightness(0) invert(1); opacity: .4; transition: opacity .15s; }
+.like-heart.liked { opacity: 1; }
+.completion-ico { width: 18px; height: 18px; vertical-align: -3px; filter: brightness(0) invert(1); }
 .like-num { font-size: 11px; color: #6b7280; margin-top: 2px; }
 
 /* ==================================================================

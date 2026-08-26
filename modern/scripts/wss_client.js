@@ -245,10 +245,16 @@
                 if (typeof window.handleLiveDraw === 'function') window.handleLiveDraw(d);
                 break;
 
+            case 'call':
+                // WebRTC 通话信令（语音/视频）：offer/answer/ice/hangup/busy/cancel，交给 chat.js 的 ChatCall 模块
+                if (typeof window.handleCall === 'function') window.handleCall(d);
+                break;
+
             case 'reload':
-                // 强制刷新（客户端版本过时 / 管理员下发）：先回执给发送方，再显示 Win8.1 风格窗口
+                // 强制刷新（客户端版本过时 / 管理员下发）：先回执给发送方，再锁死客户端并显示 Win8.1 窗口
                 if (d.from && window.wssSendReloadAck) window.wssSendReloadAck(d.from);
-                if (typeof window.showClientReloadDialog === 'function') window.showClientReloadDialog();
+                if (typeof window.lockClient === 'function') window.lockClient();
+                else if (typeof window.showClientReloadDialog === 'function') window.showClientReloadDialog();
                 break;
 
             case 'reload_ack':
@@ -355,6 +361,15 @@
         if (WS_STATE !== 'open' || !ws || ws.readyState !== WebSocket.OPEN) return false;
         try {
             ws.send(JSON.stringify({ type: 'live_draw', to: to, event: event, data: data || {} }));
+            return true;
+        } catch (e) { return false; }
+    };
+
+    // 发送 WebRTC 通话信令（语音/视频：offer/answer/ice/hangup/busy/cancel）
+    window.wssSendCall = function(to, event, data) {
+        if (WS_STATE !== 'open' || !ws || ws.readyState !== WebSocket.OPEN) return false;
+        try {
+            ws.send(JSON.stringify({ type: 'call', to: to, event: event, data: data || {} }));
             return true;
         } catch (e) { return false; }
     };

@@ -418,11 +418,11 @@ function renderPage() {
 /* ---------------- chat rendering ---------------- */
 
 const FRAG_LABEL = {
-  SEARCH: '🔍 搜索',
-  THINK: '💭 思考过程',
-  TOOL_OPEN: '🛠 工具调用',
-  TOOL_SEARCH: '🛠 工具搜索',
-  FILE: '📎 文件',
+  SEARCH: '<img class="dsw-ico" src="../../data/res/cil/cil-search.svg" alt=""> 搜索',
+  THINK: '<img class="dsw-ico" src="../../data/res/cil/cil-lightbulb.svg" alt=""> 思考过程',
+  TOOL_OPEN: '<img class="dsw-ico" src="../../data/res/cil/cil-cog.svg" alt=""> 工具调用',
+  TOOL_SEARCH: '<img class="dsw-ico" src="../../data/res/cil/cil-cog.svg" alt=""> 工具搜索',
+  FILE: '<img class="dsw-ico" src="../../data/res/cil/cil-paperclip.svg" alt=""> 文件',
 };
 
 function openChat(id) {
@@ -544,8 +544,8 @@ const STAT_LABELS = {
   SEARCH: '搜索', TOOL_OPEN: '工具调用', TOOL_SEARCH: '工具搜索', FILE: '文件',
 };
 const STAT_ICONS = {
-  REQUEST: '✍️', RESPONSE: '🤖', THINK: '💭', SEARCH: '🔍',
-  TOOL_OPEN: '🛠', TOOL_SEARCH: '🔎', FILE: '📎',
+  REQUEST: '<img class="dsw-ico" src="../../data/res/cil/cil-pen-alt.svg" alt="">', RESPONSE: '<img class="dsw-ico" src="../../data/res/cil/cil-comment-square.svg" alt="">', THINK: '<img class="dsw-ico" src="../../data/res/cil/cil-lightbulb.svg" alt="">', SEARCH: '<img class="dsw-ico" src="../../data/res/cil/cil-search.svg" alt="">',
+  TOOL_OPEN: '<img class="dsw-ico" src="../../data/res/cil/cil-cog.svg" alt="">', TOOL_SEARCH: '<img class="dsw-ico" src="../../data/res/cil/cil-search.svg" alt="">', FILE: '<img class="dsw-ico" src="../../data/res/cil/cil-paperclip.svg" alt="">',
 };
 
 function renderStats() {
@@ -633,7 +633,7 @@ function renderStats() {
 
   const html = `
     <div class="statsWrap">
-      <h3 class="statsTitle">📊 对话统计</h3>
+      <h3 class="statsTitle"><img class="dsw-ico" src="../../data/res/cil/cil-bar-chart.svg" style="width:16px;height:16px;vertical-align:-2px;margin-right:4px" alt=""> 对话统计</h3>
 
       <div class="statCards">
         <div class="statCard"><div class="statCardNum">${fmt(messages.length)}</div><div class="statCardLabel">消息总数</div></div>
@@ -659,11 +659,11 @@ function renderStats() {
 
       <div class="statSection">
         <div class="statSectionTitle">其他信息</div>
-        <div class="statRow"><span class="statLabel">⏱ 对话跨度</span><span class="statNum">${durationText}</span></div>
-        <div class="statRow"><span class="statLabel">🌙 最活跃时段</span><span class="statNum">${activeHours || '—'}</span></div>
-        <div class="statRow"><span class="statLabel">🧠 思考字符</span><span class="statNum">${fmt(thinkChars)}</span></div>
-        <div class="statRow"><span class="statLabel">📅 创建</span><span class="statNum">${item && item.inserted_at ? esc(fmtDate(item.inserted_at)) : '—'}</span></div>
-        <div class="statRow"><span class="statLabel">🔄 更新</span><span class="statNum">${item && item.updated_at ? esc(fmtDate(item.updated_at)) : '—'}</span></div>
+        <div class="statRow"><span class="statLabel"><img class="dsw-ico" src="../../data/res/cil/cil-clock.svg" alt=""> 对话跨度</span><span class="statNum">${durationText}</span></div>
+        <div class="statRow"><span class="statLabel"><img class="dsw-ico" src="../../data/res/cil/cil-moon.svg" alt=""> 最活跃时段</span><span class="statNum">${activeHours || '—'}</span></div>
+        <div class="statRow"><span class="statLabel"><img class="dsw-ico" src="../../data/res/cil/cil-lightbulb.svg" alt=""> 思考字符</span><span class="statNum">${fmt(thinkChars)}</span></div>
+        <div class="statRow"><span class="statLabel"><img class="dsw-ico" src="../../data/res/cil/cil-calendar.svg" alt=""> 创建</span><span class="statNum">${item && item.inserted_at ? esc(fmtDate(item.inserted_at)) : '—'}</span></div>
+        <div class="statRow"><span class="statLabel"><img class="dsw-ico" src="../../data/res/cil/cil-sync.svg" alt=""> 更新</span><span class="statNum">${item && item.updated_at ? esc(fmtDate(item.updated_at)) : '—'}</span></div>
       </div>
     </div>`;
 

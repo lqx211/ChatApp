@@ -26,7 +26,7 @@ require_once __DIR__ . '/../../maintenance.php';
         <section class="card upload-card" id="uploadCard">
             <div class="drop" id="dropZone">
                 <input type="file" id="fileInput" accept=".mid,.midi,audio/midi,audio/x-midi" hidden>
-                <div class="drop-icon">♪</div>
+                <div class="drop-icon"><img src="../../data/res/cil/cil-music-note.svg" style="width:44px;height:44px;filter:brightness(0) invert(1)" alt=""></div>
                 <p class="drop-txt">点击选择 或 拖拽 MIDI 文件到此处</p>
                 <p class="drop-sub">支持 .mid/*.midi</p>
             </div>
@@ -60,7 +60,7 @@ require_once __DIR__ . '/../../maintenance.php';
             <div class="actions">
                 <button class="bsm go" id="btnPlay">试听</button>
                 <button class="bsm" id="btnStop" hidden>停止</button>
-                <button class="bs m" id="btnDownload">⬇ 下载混淆后的 MIDI</button>
+                <button class="bs m" id="btnDownload"><img src="../../data/res/cil/cil-arrow-thick-bottom.svg" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px;filter:brightness(0) invert(1)" alt=""> 下载混淆后的 MIDI</button>
             </div>
             <p class="hint">试听为浏览器内置合成器，效果非常差劲，强烈不建议听</p>
         </section>

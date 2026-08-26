@@ -16,7 +16,7 @@
 <!-- 上传 -->
 <div id="dropzone">
   <div class="uploader-inner">
-    <div class="uploader-icon">🐋</div>
+    <div class="uploader-icon"><img src="../../data/res/cil/cil-speech.svg" alt=""></div>
     <h1>DeepSeek 聊天记录</h1>
     <p>选择导出的聊天记录 JSON，全部在本地浏览器解析，不会上传到任何服务器。</p>
     <label class="btn-primary" for="fileinput">选择 JSON 文件</label>
@@ -39,7 +39,7 @@
   <aside id="sidebar">
     <div id="logoRow">
       <div id="brand">
-        <span id="brandMark">🐋</span>
+        <span id="brandMark"><img src="../../data/res/cil/cil-speech.svg" alt=""></span>
         <span id="brandName">聊天记录</span>
       </div>
       <button id="reuploadBtn" class="iconButton" type="button" title="重新上传">⟲</button>
@@ -62,7 +62,7 @@
 
   <main id="main">
     <div id="empty">
-      <div id="empty-icon">💬</div>
+      <div id="empty-icon"><img src="../../data/res/cil/cil-comment-bubble.svg" alt=""></div>
       <p>从左侧选择一条对话开始查看</p>
     </div>
     <div id="chatview" class="hidden">

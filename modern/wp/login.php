@@ -380,6 +380,7 @@ $bgWallpaper = (int)$_SESSION['wallpaper'];
             text-align: center;
         }
         .home-logo { font-size: 46px; line-height: 1; margin-bottom: 6px; }
+        .home-logo img { width: 52px; height: 52px; filter: brightness(0) invert(1); }
         .auth-container.home h1 {
             font-size: 2.5em;
             background: linear-gradient(135deg, #a8c9ff 0%, #d9b6ff 100%);
@@ -403,6 +404,7 @@ $bgWallpaper = (int)$_SESSION['wallpaper'];
             box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
         }
         .home-icon { font-size: 32px; margin-bottom: 10px; }
+        .home-icon img { width: 38px; height: 38px; filter: brightness(0) invert(1); }
         .home-label { font-size: 0.72em; letter-spacing: 2.5px; text-transform: uppercase; color: #8fc0ff; margin-bottom: 8px; font-weight: 600; }
         .home-card h2 { font-size: 1.08em; color: #fff; margin-bottom: 8px; font-weight: 600; }
         .home-card p { font-size: 0.8em; color: rgba(255, 255, 255, 0.55); line-height: 1.5; }
@@ -431,19 +433,19 @@ $bgWallpaper = (int)$_SESSION['wallpaper'];
 <body>
     <?php if ($showHome): ?>
     <div class="auth-container home">
-        <div class="home-logo">💬</div>
+        <div class="home-logo"><img src="../../data/res/cil/cil-comment-bubble.svg" alt=""></div>
         <h1>ChatApp</h1>
         <p class="home-subtitle">其实就是一个自己暑假期间写的聊天网站</p>
         <div class="home-entries">
             <a href="chat.php" class="home-card">
-                <div class="home-icon">💬</div>
+                <div class="home-icon"><img src="../../data/res/cil/cil-comment-bubble.svg" alt=""></div>
                 <div class="home-label">最新版本</div>
                 <h2>目前正在开发的地方</h2>
                 <p>选这个准没错</p>
                 <div class="home-go">进入 →</div>
             </a>
             <a href="../../apps/music/index.html" class="home-card">
-                <div class="home-icon">🎵</div>
+                <div class="home-icon"><img src="../../data/res/cil/cil-music-note.svg" alt=""></div>
                 <div class="home-label">听音乐</div>
                 <h2>聊天界面里不起眼的音乐组件</h2>
                 <p>只想听音乐不想注册（热知识：兼容 IE9）</p>

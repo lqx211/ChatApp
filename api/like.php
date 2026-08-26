@@ -83,14 +83,14 @@ if ($isFriend) {
     if ($last && $last['msg_type'] === 'like' && (int)$last['sender_id'] === $myUid && $last['deleted_at'] === null) {
         $meta = json_decode((string)($last['attachment'] ?? ''), true);
         $n = is_array($meta) ? (int)($meta['n'] ?? 1) : 1;
-        $now = date('Y-m-d H:i:s');
-        $pdo->prepare("UPDATE messages SET attachment=?, datetime=?, time=? WHERE id=?")->execute([json_encode(['n' => $n + 1]), $now, $now, (int)$last['id']]);
+        $now = time(); // time 列 = UNIX 秒；datetime = NOW()
+        $pdo->prepare("UPDATE messages SET attachment=?, datetime=NOW(), time=? WHERE id=?")->execute([json_encode(['n' => $n + 1]), $now, (int)$last['id']]);
         echo json_encode(['success' => true, 'likes' => $likes, 'merged' => true, 'msg_id' => (int)$last['id'], 'n' => $n + 1]);
         exit;
     }
-    $now = date('Y-m-d H:i:s');
-    $pdo->prepare('INSERT INTO messages (sender_id, recipient_id, message, msg_type, attachment, time, datetime) VALUES (?, ?, ?, ?, ?, ?, ?)')
-        ->execute([$myUid, $tid, $target, 'like', json_encode(['n' => 1]), $now, $now]);
+    $now = time();
+    $pdo->prepare('INSERT INTO messages (sender_id, recipient_id, message, msg_type, attachment, time, datetime) VALUES (?, ?, ?, ?, ?, ?, NOW())')
+        ->execute([$myUid, $tid, $target, 'like', json_encode(['n' => 1]), $now]);
 }
 
 echo json_encode(['success' => true, 'likes' => $likes, 'remaining' => 9 - $cnt]);

@@ -256,6 +256,26 @@ function ws_handle_live_draw(int $cid, array $data): void {
 }
 
 /**
+ * WebRTC 通话信令中继（语音/视频）。
+ * 纯转发：offer/answer/ice/hangup/busy/cancel 原样转给目标用户。
+ * WebRTC 媒体流是点对点的，服务器只做 SDP/ICE 信令转发，不碰媒体。
+ */
+function ws_handle_call(int $cid, array $data): void {
+    $from = $GLOBALS['clients'][$cid]['username'] ?? '';
+    $to   = (string)($data['to'] ?? '');
+    if ($to === '' || $from === '' || $to === $from) return;
+
+    $payload = [
+        'type'  => 'call',
+        'from'  => $from,
+        'to'    => $to,
+        'event' => (string)($data['event'] ?? ''),
+        'data'  => $data['data'] ?? null,
+    ];
+    ws_send_to_user($to, $payload);
+}
+
+/**
  * 查询用户角色（root/admin/user）
  */
 function ws_user_role(int $uid): string {
@@ -1111,6 +1131,10 @@ function ws_main(): void {
                         case 'live_draw':
                             // Live Draw 实时协作板：纯中继转发（画板状态由发起者客户端持有，服务器不存状态）
                             ws_handle_live_draw($cid, $data);
+                            break;
+                        case 'call':
+                            // WebRTC 通话信令（语音/视频）：SDP/ICE 中继
+                            ws_handle_call($cid, $data);
                             break;
                         case 'reload':
                             // 强制客户端 Reload：指定用户（admin/root）或全部在线（仅 root），服务器校验角色

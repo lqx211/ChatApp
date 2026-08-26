@@ -203,12 +203,14 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
     if (empty($message) && empty($attachmentB64) && $tempUploadId <= 0 && empty($doodle)) {
         return ['success' => false, 'error' => 'Empty'];
     }
-    if (mb_strlen($message) > 1000) {
+    if (mb_strlen($message) > 32767) { // 2^15 - 1
         return ['success' => false, 'error' => 'Too long'];
     }
 
     $msgType = null;
     $attachmentFilename = null;
+    // E2EE：message 是 base64 JSON envelope（无 HTML 活性内容），存原样、不 htmlspecialchars
+    $isE2ee = (($p['msg_type'] ?? '') === 'e2ee');
 
     if (!empty($attachmentB64)) {
         if (!preg_match('/^data:([^;]+);base64,(.+)$/s', $attachmentB64, $m)) {
@@ -233,7 +235,7 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
             'video/ogg' => 'ogg', 'video/mov' => 'mov',
             'audio/mpeg' => 'mp3', 'audio/mp4' => 'm4a', 'audio/x-m4a' => 'm4a',
             'audio/wav' => 'wav', 'audio/x-wav' => 'wav', 'audio/flac' => 'flac',
-            'audio/ogg' => 'ogg',
+            'audio/ogg' => 'ogg', 'audio/webm' => 'webm',
             'application/pdf' => 'pdf', 'application/zip' => 'zip',
             'application/msword' => 'doc', 'application/vnd.ms-excel' => 'xls',
         ];
@@ -283,6 +285,10 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
         }
         $msg = strip_tags($message);
         $msgType = 'md';
+    } elseif ($isE2ee) {
+        // E2EE 密文：JSON envelope（base64 字段，无 <>& 活性内容），原样存储
+        $msg = $message;
+        $msgType = 'e2ee';
     } else {
         $msg = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
         $msgType = $msgType ?? null;
@@ -304,7 +310,7 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
         $message = '';
         $msg = '';
     }
-    $time = gmdate('Y/m/d H:i:s');
+    $time = time(); // messages.time 列：BIGINT，UNIX 秒级 UTC 时间戳（前端 new Date(ts*1000)）
     $recipientId = null;
 
     if (!empty($recipientName)) {

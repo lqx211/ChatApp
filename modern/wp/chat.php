@@ -93,7 +93,7 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
    <div class="ng">
     <div class="ngh" onclick="toggleGroup('contactsGroup')"><span><?php echo t('title_contacts');?></span><span class="ar op" id="arrow-contactsGroup">&#9654;</span></div>
     <div class="ngb op" id="body-contactsGroup">
-     <div class="csi<?php echo (!empty($currentUser['pin_self'])) ? ' pinned' : ''; ?>" onclick="openDm('<?php echo htmlspecialchars($currentUser['username']);?>')" oncontextmenu="openUserCtxMenu(event,'<?php echo htmlspecialchars($currentUser['username']);?>')"><div class="ca" id="contactSelfAvatar"><?php if($currentUser['avatar']):?><img src="<?php echo htmlspecialchars(chatapp_avatar_url($currentUser['avatar'] ?? '', $currentUser['username'] ?? ''));?>"><?php endif;?></div><div class="cn"><?php echo chatapp_display_name($currentUser);?> <?php echo t('msg_online');?><span id="selfPinMark" style="display:<?php echo (!empty($currentUser['pin_self'])) ? 'inline' : 'none'; ?>;font-size:.7em;color:#6a9fd8;margin-left:4px">📌</span></div></div>
+     <div class="csi<?php echo (!empty($currentUser['pin_self'])) ? ' pinned' : ''; ?>" onclick="openDm('<?php echo htmlspecialchars($currentUser['username']);?>')" oncontextmenu="openUserCtxMenu(event,'<?php echo htmlspecialchars($currentUser['username']);?>')"><div class="ca" id="contactSelfAvatar"><?php if($currentUser['avatar']):?><img src="<?php echo htmlspecialchars(chatapp_avatar_url($currentUser['avatar'] ?? '', $currentUser['username'] ?? ''));?>"><?php endif;?></div><div class="cn"><?php echo chatapp_display_name($currentUser);?> <?php echo t('msg_online');?><span id="selfPinMark" style="display:<?php echo (!empty($currentUser['pin_self'])) ? 'inline' : 'none'; ?>;margin-left:4px"><img src="../../data/res/cil/cil-pin.svg" style="width:11px;height:11px;vertical-align:-1px"></span></div></div>
      <div id="friendContacts"></div>
      <div id="pendingBadge" style="display:none"><div class="na" onclick="togglePendingSidebar()" style="color:#e0a040"><?php echo t('msg_friend_requests');?> (<span id="pendingCount">0</span>)</div></div>
      <div id="pendingList" style="display:none"></div>
@@ -118,6 +118,9 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
      <div class="na" onclick="switchPanel('dscview')">查询DS聊天记录</div>
      <div class="na" onclick="switchPanel('midi')">MIDI 混淆器</div>
      <div class="na" onclick="switchPanel('proxy')">网页代理</div>
+     <?php if($isRoot):?><div class="na" onclick="switchPanel('filemgr')">文件管理器</div><?php endif;?>
+     <div class="na" onclick="confirmExternal('https://sites.google.com/wingkwong.edu.hk/eng/lesson-materials')">某校英文学习资源</div>
+     <div class="na" onclick="confirmExternal('https://www.hkeaa.edu.hk/en/')">HKEAA</div>
     </div>
    </div>
    <div class="ng"><div class="ngh" onclick="switchPanel('public-emoji')" style="cursor:pointer"><span><?php echo t('title_public_emoji');?></span></div></div>
@@ -126,7 +129,7 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
    <div class="ng"><div class="ngh" onclick="switchPanel('reports')" style="cursor:pointer"><span><?php echo t('title_report_incidents');?></span><span class="ngh-badge" id="repBadge" style="display:none">0</span></div></div>
    <div class="ng"><div class="ngh" onclick="switchPanel('users')" style="cursor:pointer"><span><?php echo t('title_all_users');?></span></div></div>
    <?php endif;?>
-   <div class="ng"><div class="ngh" onclick="switchPanel('support')" style="cursor:pointer;<?php echo ($currentUser['restricted']??0)?'background:#3a2a1e;border-left:3px solid #e0a040;':''?>"><?php if ($isAdmin): ?><span><?php echo t('title_support');?> <?php echo ($currentUser['restricted']??0)?'⚠':' ';?><span id="supAdminCount" style="color:#e0a040;font-weight:700">(0+0+0)</span></span><?php else: ?><span><?php echo t('title_support');?> <?php echo ($currentUser['restricted']??0)?'⚠':' ';?></span><span class="ngh-badge sup-badge" id="supBadge" style="display:none">0</span><?php endif; ?></div></div>
+   <div class="ng"><div class="ngh" onclick="switchPanel('support')" style="cursor:pointer;<?php echo ($currentUser['restricted']??0)?'background:#3a2a1e;border-left:3px solid #e0a040;':''?>"><?php if ($isAdmin): ?><span><?php echo t('title_support');?> <?php echo ($currentUser['restricted']??0)?'<img src="../../data/res/cil/cil-warning.svg" style="width:13px;height:13px;vertical-align:-2px;margin-left:3px">':' ';?><span id="supAdminCount" style="color:#e0a040;font-weight:700">(0+0+0)</span></span><?php else: ?><span><?php echo t('title_support');?> <?php echo ($currentUser['restricted']??0)?'<img src="../../data/res/cil/cil-warning.svg" style="width:13px;height:13px;vertical-align:-2px;margin-left:3px">':' ';?></span><span class="ngh-badge sup-badge" id="supBadge" style="display:none">0</span><?php endif; ?></div></div>
    <?php if($isAdmin):?>
    <div class="ng"><div class="ngh" onclick="switchPanel('logs')" style="cursor:pointer"><span>Logs</span></div></div>
    <?php endif;?>
@@ -154,20 +157,26 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
   <?php if(chatapp_has_permission($currentUser['user_id']??0, 'announcements.send') && !($currentUser['restricted']??0)):?>
   <div class="upload-progress" id="uploadProgress"><div></div></div>
   <div class="md-preview" id="mdPreviewAnn"></div>
-  <div class="cia"><textarea id="messageInput" oninput="autoResize(this);onMdInput('mdPreviewAnn','messageInput','mdCheckAnn')" placeholder="<?php echo t('label_type_announcement');?>" maxlength="1000" rows="1" style="resize:none;overflow-y:auto;line-height:1.4;max-height:20em"></textarea><input type="file" id="mediaFile" style="display:none" onchange="previewAttachment(this, sendAnnouncement, 'sendBtn')"><button class="bsm" onclick="toggleEmojiPicker(event,'messageInput')" title="Emoji">😊</button><button class="bsm" onclick="toggleFlashMenu(event,this)" title="Attach">📁</button><button class="bsm" onclick="togglePenMenu(event,this)" title="Doodle / Live Draw">✏️</button><input type="file" id="flashMediaFile" style="display:none" onchange="flashFileChosen(this,'announcement')"><label class="md-check"><input type="checkbox" id="mdCheckAnn" onchange="onMdInput('mdPreviewAnn','messageInput','mdCheckAnn')"> Markdown</label><button class="bs" id="sendBtn" onclick="sendAnnouncement()"><?php echo t('btn_send');?></button></div>
+  <div class="cia"><textarea id="messageInput" oninput="autoResize(this);onMdInput('mdPreviewAnn','messageInput','mdCheckAnn')" placeholder="<?php echo t('label_type_announcement');?>" maxlength="32767" rows="1" style="resize:none;overflow-y:auto;line-height:1.4;max-height:20em"></textarea><input type="file" id="mediaFile" style="display:none" onchange="previewAttachment(this, sendAnnouncement, 'sendBtn')"><button class="bsm" onclick="toggleEmojiPicker(event,'messageInput')" title="Emoji"><img src="../../data/res/cil/cil-smile.svg" style="width:16px;height:16px;vertical-align:-3px"></button><button class="bsm" onclick="toggleFlashMenu(event,this)" title="Attach"><img src="../../data/res/cil/cil-folder.svg" style="width:16px;height:16px;vertical-align:-3px"></button><button class="bsm" onclick="togglePenMenu(event,this)" title="Doodle / Live Draw"><img src="../../data/res/cil/cil-pen.svg" style="width:16px;height:16px;vertical-align:-3px"></button><input type="file" id="flashMediaFile" style="display:none" onchange="flashFileChosen(this,'announcement')"><label class="md-check"><input type="checkbox" id="mdCheckAnn" onchange="onMdInput('mdPreviewAnn','messageInput','mdCheckAnn')"> Markdown</label><button class="bs" id="sendBtn" onclick="sendAnnouncement()"><?php echo t('btn_send');?></button></div>
   <?php else:?>
   <div class="cia" style="justify-content:center;color:#666;font-size:.82em;padding:14px 20px"><?php echo t('msg_read_only');?></div>
   <?php endif;?>
  </div>
 
  <div class="panel" id="panel-dm">
-  <div class="ch"><h2 id="dmTitle"><?php echo t('title_chat');?></h2><div class="dm-options-wrap"><button class="bsm" onclick="toggleDmOptions(event)"><?php echo t('btn_options');?></button><div class="dm-options-menu" id="dmOptionsMenu"><button class="grp-opt" onclick="openGroupInfo()"><?php echo t('g_view_group');?></button><button class="grp-opt" id="grpPinBtn" onclick="togglePinGroup()"><?php echo t('d_pin');?></button><button class="dm-opt" onclick="viewDmProfile()"><?php echo t('btn_view_profile');?></button><button class="dm-opt" onclick="reportDmUser()"><?php echo t('btn_report_user');?></button><button class="dm-opt" onclick="openDmSearch()"><?php echo t('d_search_history');?></button><button class="dm-opt" onclick="changeNickname()"><?php echo t('d_change_nickname');?></button><button class="dm-opt" id="dmReloadBtn" onclick="reloadDmClient()">Reload Client</button><button class="dm-opt" id="dmPinBtn" onclick="togglePinContact()"><?php echo t('d_pin');?></button><button class="dm-opt danger" onclick="deleteDmContact()"><?php echo t('btn_delete_contact');?></button></div></div></div>
+  <div class="ch"><h2 id="dmTitle"><?php echo t('title_chat');?></h2><span id="dmE2eeBadge" class="dm-e2ee-badge" style="display:none"></span><div class="dm-options-wrap"><button class="bsm" onclick="toggleDmOptions(event)"><?php echo t('btn_options');?></button><div class="dm-options-menu" id="dmOptionsMenu"><button class="grp-opt" onclick="openGroupInfo()"><?php echo t('g_view_group');?></button><button class="grp-opt" id="grpPinBtn" onclick="togglePinGroup()"><?php echo t('d_pin');?></button><button class="dm-opt" onclick="viewDmProfile()"><?php echo t('btn_view_profile');?></button><button class="dm-opt" id="dmE2eeBtn" onclick="toggleDmE2ee()">🔒 端到端加密</button><button class="dm-opt" onclick="startVoiceCall()"><img src="../../data/res/svg/phone_24.svg" width="15" style="vertical-align:-2px"> 语音通话</button><button class="dm-opt" onclick="startVideoCall()"><img src="../../data/res/svg/video_24.svg" width="15" style="vertical-align:-2px"> 视频通话</button><button class="dm-opt" onclick="reportDmUser()"><?php echo t('btn_report_user');?></button><button class="dm-opt" onclick="openDmSearch()"><?php echo t('d_search_history');?></button><button class="dm-opt" onclick="changeNickname()"><?php echo t('d_change_nickname');?></button><button class="dm-opt" id="dmReloadBtn" onclick="reloadDmClient()">Reload Client</button><button class="dm-opt" id="dmPinBtn" onclick="togglePinContact()"><?php echo t('d_pin');?></button><button class="dm-opt danger" onclick="deleteDmContact()"><?php echo t('btn_delete_contact');?></button></div></div></div>
   <div class="ma" id="dmMessagesArea"><div class="es"><p><?php echo t('msg_select_contact');?></p></div></div>
   <div class="typing-indicator" id="typingIndicator"></div>
   <div class="upload-progress" id="dmUploadProgress"><div></div></div>
   <div class="md-preview" id="mdPreviewDm"></div>
   <div class="reply-bar" id="replyBar" style="display:none"><span id="replyBarText"></span><button class="bsm" onclick="cancelReply()">&#x2715;</button></div>
-  <div class="cia"><textarea id="dmMessageInput" oninput="autoResize(this);onDmInput();onMdInput('mdPreviewDm','dmMessageInput','mdCheckDm')" placeholder="<?php echo t('label_type_message');?>" maxlength="1000" rows="1" style="resize:none;overflow-y:auto;line-height:1.4;max-height:20em"></textarea><input type="file" id="dmMediaFile" style="display:none" onchange="previewAttachment(this, sendDmMessage, 'dmSendBtn')"><button class="bsm" onclick="toggleEmojiPicker(event,'dmMessageInput')" title="Emoji">😊</button><button class="bsm" onclick="toggleFlashMenu(event,this)" title="Attach">📁</button><button class="bsm" onclick="togglePenMenu(event,this)" title="Doodle / Live Draw">✏️</button><button class="bsm ime-toggle" id="imeToggle" type="button" title="拼音输入开关">EN</button><input type="file" id="flashMediaFileDm" style="display:none" onchange="flashFileChosen(this,'dm')"><label class="md-check"><input type="checkbox" id="mdCheckDm" onchange="onMdInput('mdPreviewDm','dmMessageInput','mdCheckDm')"> Markdown</label><button class="bs" id="dmSendBtn" onclick="sendDmMessage()"><?php echo t('btn_send');?></button></div>
+  <div class="rec-bar" id="dmRecBar" style="display:none"><span class="rec-dot"></span><span>录音中</span><span id="dmRecTimer">0:00</span><button class="bsm" onclick="cancelVoiceRec()">&#x2715; 取消</button></div>
+  <div class="cia"><textarea id="dmMessageInput" oninput="autoResize(this);onDmInput();onMdInput('mdPreviewDm','dmMessageInput','mdCheckDm')" placeholder="<?php echo t('label_type_message');?>" maxlength="32767" rows="1" style="resize:none;overflow-y:auto;line-height:1.4;max-height:20em"></textarea><input type="file" id="dmMediaFile" style="display:none" onchange="previewAttachment(this, sendDmMessage, 'dmSendBtn')"><button class="bsm nine-hide" onclick="toggleEmojiPicker(event,'dmMessageInput')" title="Emoji"><img src="../../data/res/svg/expression_24.svg" width="16" style="vertical-align:-2px"></button><button class="bsm nine-hide" onclick="toggleFlashMenu(event,this)" title="Attach"><img src="../../data/res/svg/folder_24.svg" width="16" style="vertical-align:-2px"></button><button class="bsm nine-hide" onclick="togglePenMenu(event,this)" title="Doodle / Live Draw"><img src="../../data/res/svg/brush_24.svg" width="16" style="vertical-align:-2px"></button><button class="bsm" id="dmNineBtn" onclick="toggleDmNineMenu(event,this)" title="更多"><svg width="16" height="16" viewBox="0 0 24 24" fill="#ccc"><circle cx="5" cy="5" r="1.8"/><circle cx="12" cy="5" r="1.8"/><circle cx="19" cy="5" r="1.8"/><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/><circle cx="5" cy="19" r="1.8"/><circle cx="12" cy="19" r="1.8"/><circle cx="19" cy="19" r="1.8"/></svg></button><button class="bsm ime-toggle" id="imeToggle" type="button" title="拼音输入开关">EN</button><button class="bsm" id="dmMicBtn" onclick="toggleVoiceRec()" title="语音消息"><img src="../../data/res/svg/microphone_on_24.svg" width="16" style="vertical-align:-2px"></button><input type="file" id="flashMediaFileDm" style="display:none" onchange="flashFileChosen(this,'dm')"><label class="md-check"><input type="checkbox" id="mdCheckDm" onchange="onMdInput('mdPreviewDm','dmMessageInput','mdCheckDm')"> Markdown</label><button class="bs" id="dmSendBtn" onclick="sendDmMessage()"><?php echo t('btn_send');?></button></div>
+  <div class="nine-menu" id="dmNineMenu" style="display:none">
+    <div class="nine-cell" onclick="nineEmoji()"><img src="../../data/res/svg/expression_24.svg" alt=""><span>表情包</span></div>
+    <div class="nine-cell" onclick="nineFlash()"><img src="../../data/res/svg/fast_folder_16.svg" alt=""><span>闪传</span></div>
+    <div class="nine-cell" onclick="nineUpload()"><img src="../../data/res/svg/folder_16.svg" alt=""><span>上载</span></div>
+  </div>
  </div>
 
  <?php if($isAdmin):?>
@@ -260,6 +269,13 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
  <div class="panel" id="panel-proxy">
   <div class="music-frame"><iframe data-src="../../apps/proxy/index.php"></iframe></div>
  </div>
+
+ <?php if($isRoot):?>
+ <!-- 文件管理器 (root only) -->
+ <div class="panel" id="panel-filemgr">
+  <div class="music-frame"><iframe data-src="../../apps/filemgr/index.php"></iframe></div>
+ </div>
+ <?php endif;?>
 
  <?php if($isRoot):?>
  <!-- Database Admin (root only) -->
@@ -539,9 +555,13 @@ var WSS_URL=<?php echo json_encode($wssUrl);?>;
 var SERVER_TZ='<?php echo date('P');?>';
 var MYSELF_PIN=<?php echo (int)($currentUser['pin_self'] ?? 1);?>;
 </script>
+<script src="../scripts/vendor/nacl.min.js"></script>
+<script src="../scripts/vendor/nacl-util.min.js"></script>
+<script src="../scripts/e2ee.js?v=<?php echo time();?>"></script>
 <script src="../scripts/chat.js?v=<?php echo time();?>"></script>
 <script src="../scripts/wss_client.js?v=<?php echo time();?>"></script>
 <script>try{wssInit();}catch(e){}</script>
+<script>try{if(window.E2EE)E2EE.init().catch(function(){});}catch(e){}</script>
 <!-- 拼音输入法（引擎小，8MB 词典首次输入时懒加载） -->
 <script src="../kb/ime_engine.js?v=<?php echo time();?>"></script>
 <script src="../kb/ime_ui.js?v=<?php echo time();?>"></script>
@@ -562,7 +582,7 @@ try {
 
 <!-- My flash files modal -->
 <div class="modal-overlay" id="flashMyModal"><div class="modal-box"><h3><?php echo t('flash_my', '我的闪传文件');?></h3><div id="flashMyList" style="max-height:360px;overflow-y:auto;text-align:left;margin-bottom:14px"></div><div class="modal-actions"><button class="bsm" onclick="closeFlashMyModal()"><?php echo t('btn_cancel');?></button></div></div></div>
-<div class="modal-overlay" id="customDialog"><div class="modal-box cd-win"><div class="cd-titlebar"><span class="cd-title" id="cdTitle"></span><button type="button" class="cd-close" onclick="closeCustomDialog(false)" title="Close">✕</button></div><div class="cd-body"><p class="cd-msg" id="cdMsg"></p><input type="text" id="cdInput" class="cd-input" style="display:none"><div class="modal-actions cd-actions"><button class="bsm" id="cdCancel" onclick="cdResolve(false)">Cancel</button><button class="bsm" id="cdOk" onclick="cdResolve(true)">OK</button></div></div></div></div>
+<div class="modal-overlay" id="customDialog"><div class="modal-box cd-win"><div class="cd-titlebar"><span class="cd-title" id="cdTitle"></span><button type="button" class="cd-close" onclick="closeCustomDialog(false)" title="Close"><img src="../../data/res/cil/cil-x.svg" style="width:14px;height:14px"></button></div><div class="cd-body"><p class="cd-msg" id="cdMsg"></p><input type="text" id="cdInput" class="cd-input" style="display:none"><div class="modal-actions cd-actions"><button class="bsm" id="cdCancel" onclick="cdResolve(false)">Cancel</button><button class="bsm" id="cdOk" onclick="cdResolve(true)">OK</button></div></div></div></div>
 
 <!-- EXP toast container (bottom-right, in-page) -->
 <div id="expToasts"></div>
@@ -722,7 +742,7 @@ try {
     <button class="bsm" id="doodleEraserBtn" onclick="toggleDoodleEraser()">橡皮</button>
     <button class="bsm" onclick="undoDoodle()">撤销</button>
     <button class="bsm" onclick="clearDoodle()">清空</button>
-    <button class="bsm" onclick="closeDoodle()">✕ 取消</button>
+    <button class="bsm" onclick="closeDoodle()"><img src="../../data/res/cil/cil-x.svg" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"> 取消</button>
     <label class="doodle-switch" title="Apple Pen 模式：开启后仅 Pencil 可画，忽略手指（Pencil 触碰时自动开启）"><input type="checkbox" id="doodlePenSwitch"><span class="ds-track"><span class="ds-thumb"></span></span><span class="ds-label">Apple Pen</span></label>
     <button class="bs" id="doodleSendBtn" onclick="sendDoodle()" style="background:#2a4a2a;border-color:#3a6a3a">发送</button>
   </div>
@@ -730,14 +750,14 @@ try {
 
 <!-- Pen 菜单：Doodle（本地涂鸦）/ Live Draw（双人实时画板） -->
 <div class="flash-menu pen-menu" id="penMenu" style="display:none">
-  <div onclick="openDoodle();hidePenMenu()">✏️ Doodle（本地涂鸦）</div>
-  <div onclick="openLiveDrawSetup();hidePenMenu()">🖊️ Live Draw（双人实时画板）</div>
+  <div onclick="openDoodle();hidePenMenu()"><img src="../../data/res/cil/cil-pen.svg" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"> Doodle（本地涂鸦）</div>
+  <div onclick="openLiveDrawSetup();hidePenMenu()"><img src="../../data/res/cil/cil-pen-nib.svg" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"> Live Draw（双人实时画板）</div>
 </div>
 
 <!-- Live Draw 发起设置弹窗（发起者：选对象 + 设画板大小） -->
 <div class="modal-overlay" id="ldSetupOverlay">
   <div class="modal-box ld-setup">
-    <h3>🖊️ Live Draw 发起协作画板</h3>
+    <h3><img src="../../data/res/cil/cil-pen-nib.svg" style="width:16px;height:16px;vertical-align:-3px;margin-right:4px"> Live Draw 发起协作画板</h3>
     <div class="fg" style="text-align:left"><label>邀请对象（当前对话）</label>
       <div class="ld-invitee" id="ldInvitee">…</div>
       <div class="ld-size-note" id="ldInviteeNote"></div>
@@ -763,6 +783,17 @@ try {
   </div>
 </div>
 
+<!-- Live Draw 等待对方接受（发起方：发完邀请后先等「同意」才进画板） -->
+<div class="modal-overlay" id="ldWaitOverlay">
+  <div class="modal-box ld-setup">
+    <h3><img src="../../data/res/cil/cil-pen-nib.svg" style="width:16px;height:16px;vertical-align:-3px;margin-right:4px"> 等待接受邀请</h3>
+    <div class="ld-wait-text" style="text-align:center;color:#aaa;font-size:.9em;margin:18px 0">正在等待 <b id="ldWaitName" style="color:#e0e0e0">…</b> 接受邀请…</div>
+    <div class="modal-actions">
+      <button type="button" class="bsm" id="ldWaitCancel" style="background:#4a2a2a;border-color:#6a3a3a">取消邀请</button>
+    </div>
+  </div>
+</div>
+
 <!-- Live Draw 协作画板覆盖层（双方共用；复用 doodle 覆盖层/工具栏样式） -->
 <div id="ldOverlay" class="doodle-overlay" style="display:none">
   <canvas id="ldCanvas"></canvas>
@@ -782,8 +813,53 @@ try {
     <button class="bsm" id="ldEraserBtn" type="button">橡皮</button>
     <button class="bsm" id="ldUndoBtn" type="button">撤销</button>
     <button class="bsm" id="ldClearBtn" type="button">清空</button>
-    <button class="bsm" id="ldExitBtn" type="button" style="background:#4a2a2a;border-color:#6a3a3a">✕ 退出</button>
+    <button class="bsm" id="ldExitBtn" type="button" style="background:#4a2a2a;border-color:#6a3a3a"><img src="../../data/res/cil/cil-x.svg" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"> 退出</button>
   </div>
   <div class="ld-banner" id="ldBanner" style="display:none"></div>
+</div>
+
+<!-- WebRTC 通话：来电提示 -->
+<div class="modal-overlay" id="callIncomingOverlay" style="display:none">
+  <div class="modal-box call-incoming">
+    <div class="call-avatar" id="callIncomingIcon"><img src="../../data/res/svg/phone_24.svg" width="46" style="vertical-align:middle"></div>
+    <div class="call-title">来电…</div>
+    <div class="call-name" id="callIncomingName">…</div>
+    <div class="modal-actions">
+      <button class="bsm call-btn call-decline" onclick="rejectCall()"><img src="../../data/res/cil/cil-x.svg" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"> 拒绝</button>
+      <button class="bsm call-btn call-answer" onclick="acceptCall()"><img src="../../data/res/cil/cil-check.svg" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"> 接听</button>
+    </div>
+  </div>
+</div>
+
+<!-- WebRTC 通话：通话窗口（语音/视频共用） -->
+<div id="callOverlay">
+  <div class="call-video-wrap" id="callVideoWrap" style="display:none">
+    <video id="callRemoteVideo" autoplay playsinline style="display:none"></video>
+    <video id="callLocalVideo" autoplay playsinline muted style="display:none"></video>
+  </div>
+  <div class="call-audio-wrap" id="callAudioWrap" style="display:none">
+    <div class="call-avatar big"><img src="../../data/res/svg/phone_24.svg" width="64" style="vertical-align:middle"></div>
+    <div class="call-name" id="callPeerName">…</div>
+    <div class="call-dur" id="callDur">0:00</div>
+    <div class="call-status" id="callStatus"></div>
+  </div>
+  <div id="callScreenWrap" style="display:none">
+    <video id="callRemoteScreen" autoplay playsinline></video>
+  </div>
+  <div class="call-waves">
+    <div class="call-wave-row">
+      <span class="call-wave-label">对方</span>
+      <canvas id="callWaveRemote" class="call-wave" width="560" height="48"></canvas>
+    </div>
+    <div class="call-wave-row">
+      <span class="call-wave-label">自己</span>
+      <canvas id="callWaveLocal" class="call-wave" width="560" height="48"></canvas>
+    </div>
+  </div>
+  <div class="call-controls">
+    <button class="bsm" id="callShareBtn" onclick="toggleScreenShare()"><img src="../../data/res/svg/share_screen_24.svg" width="16" style="vertical-align:-3px"> 共享屏幕</button>
+    <button class="bsm" id="callMuteBtn" onclick="toggleCallMute()"><img src="../../data/res/svg/microphone_on_24.svg" width="16" style="vertical-align:-3px"> 静音</button>
+    <button class="bsm call-hangup" onclick="hangupCall()"><img src="../../data/res/svg/hangup_filled_24.svg" width="16" style="vertical-align:-3px"> 挂断</button>
+  </div>
 </div>
 </body></html>

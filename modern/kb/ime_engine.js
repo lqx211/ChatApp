@@ -16,6 +16,29 @@ var ImePinyin = (function () {
     var _ready = false;
     var _d = null; // {sourceMap, targetMap, sourceSegments, targetSegments, targetPositions, targetProbs, defaultProb, chosTokens[]}
     var _learn = {}; // 用户习惯：word -> {pinyin, count, is_custom}
+    // 模糊音 + 错别字容错配置（on: 模糊音；typo: 错别字；penalty 越靠近 0 越靠后）
+    var _fuzzy = {
+        on: true,
+        typo: true,
+        penalty: 0.85,      // 模糊音：轻微偏向精确，但仍按真实词频竞争（否则 是/中/中国 永远排不上）
+        typoPenalty: 0.6,   // 错别字容错：编辑距离修正，更靠后
+        rules: {
+            'z': ['zh'], 'zh': ['z'],
+            'c': ['ch'], 'ch': ['c'],
+            's': ['sh'], 'sh': ['s'],
+            'n': ['l'], 'l': ['n'],
+            'r': ['l'], 'l': ['r'],
+            'f': ['h'], 'h': ['f'],
+            'k': ['g'], 'g': ['k'],
+            'an': ['ang'], 'ang': ['an'],
+            'en': ['eng'], 'eng': ['en'],
+            'in': ['ing'], 'ing': ['in'],
+            'ian': ['iang'], 'iang': ['ian'],
+            'uan': ['uang'], 'uang': ['uan']
+        }
+    };
+    function setFuzzy(on) { _fuzzy.on = !!on; }
+    function isFuzzy() { return _fuzzy.on; }
 
     /* ---------- 加载词典（懒加载：动态 script 标签，8MB 一次性） ---------- */
     function load(cb) {
@@ -198,14 +221,148 @@ var ImePinyin = (function () {
         return out.slice(0, 12);
     }
 
-    /* ---------- 音节候选：单字母无精确词条时用前缀联想顶替（w → 我/为/玩…） ---------- */
+    /* ---------- 模糊音 / 错别字容错 ---------- */
+    // 音节的模糊音变体（应用规则，只保留合法音节）：zong→zhong、si→shi…
+    function fuzzyVariants(syl) {
+        if (!_fuzzy.on) return [];
+        var out = [], seen = {}; seen[syl] = 1;
+        var queue = [syl];
+        while (queue.length) {
+            var cur = queue.shift();
+            for (var a in _fuzzy.rules) {
+                if (!Object.prototype.hasOwnProperty.call(_fuzzy.rules, a)) continue;
+                var idx = cur.indexOf(a);
+                if (idx < 0) continue;
+                var alts = _fuzzy.rules[a];
+                for (var b = 0; b < alts.length; b++) {
+                    var rep = cur.slice(0, idx) + alts[b] + cur.slice(idx + a.length);
+                    if (!seen[rep] && _d.syllableSet[rep]) { seen[rep] = 1; out.push(rep); queue.push(rep); }
+                }
+            }
+        }
+        return out;
+    }
+    // 编辑距离 ≤1（含相邻换位 Damerau）—— 错别字容错
+    function isOneEdit(a, b) {
+        var la = a.length, lb = b.length;
+        if (la === lb) {
+            var diff = 0, i;
+            for (i = 0; i < la; i++) if (a[i] !== b[i]) diff++;
+            if (diff === 1) return true;
+            for (i = 0; i < la - 1; i++) {
+                if (a[i] !== b[i] && a[i] === b[i + 1] && a[i + 1] === b[i] &&
+                    a.slice(0, i) === b.slice(0, i) && a.slice(i + 2) === b.slice(i + 2)) return true;
+            }
+            return false;
+        }
+        if (Math.abs(la - lb) === 1) {
+            var s = la < lb ? a : b, l = la < lb ? b : a, li = 0;
+            for (var j = 0; j < l.length && li < s.length; j++) if (s[li] === l[j]) li++;
+            return li === s.length;
+        }
+        return false;
+    }
+    // 与音节编辑距离=1 的合法音节（错别字容错候选）：xie→xei…
+    function typoVariants(syl) {
+        if (!_fuzzy.on || !_fuzzy.typo) return [];
+        var out = [];
+        var toks = _d.chosTokens;
+        for (var i = 0; i < toks.length; i++) {
+            if (toks[i] === syl) continue;
+            if (isOneEdit(syl, toks[i])) out.push(toks[i]);
+        }
+        return out;
+    }
+    // 某音节的模糊/容错候选（fz=1 标记近似结果，UI 可加 ≈）
+    function fuzzyCandidates(syl, includeTypo) {
+        var seen = {}, out = [];
+        function addFrom(syl2, pen) {
+            var m = getTargetMappings([syl2]);
+            for (var k = 0; k < m.length; k++) {
+                if (m[k].word && !seen[m[k].word]) { seen[m[k].word] = 1; out.push({ word: m[k].word, prob: (m[k].prob || 0) * pen, fz: 1 }); }
+            }
+        }
+        var fv = fuzzyVariants(syl);
+        for (var i = 0; i < fv.length; i++) addFrom(fv[i], _fuzzy.penalty);
+        if (includeTypo) {
+            var tv = typoVariants(syl);
+            for (var j = 0; j < tv.length; j++) addFrom(tv[j], _fuzzy.typoPenalty);
+        }
+        out.sort(function (a, b) { return (b.prob || 0) - (a.prob || 0); });
+        return out.slice(0, 12);
+    }
+    // 多音节无精确词组时的变体组合（有限枚举，如 zongguo → zhong+guo=中国）
+    // useTypo=false 只做模糊音（推荐）：避免 zongguo→gong+zuo=工作 这种错别字假阳性把 中国 挤掉
+    function variantCombos(seq, useTypo) {
+        var sets = [];
+        for (var i = 0; i < seq.length; i++) {
+            var st = [seq[i]].concat(fuzzyVariants(seq[i])).concat(useTypo ? typoVariants(seq[i]) : []);
+            sets.push(st.slice(0, 4));
+        }
+        var combos = [[]];
+        for (var s = 0; s < sets.length; s++) {
+            var next = [];
+            for (var c = 0; c < combos.length && next.length <= 64; c++) {
+                for (var v = 0; v < sets[s].length; v++) next.push(combos[c].concat([sets[s][v]]));
+            }
+            combos = next;
+        }
+        var seen = {}, out = [];
+        for (var k = 0; k < combos.length; k++) {
+            var cseq = combos[k];
+            if (cseq.join('') === seq.join('')) continue;
+            var m = getTargetMappings(cseq);
+            for (var j = 0; j < m.length && out.length < 12; j++) {
+                if (m[j].word && !seen[m[j].word]) { seen[m[j].word] = 1; out.push({ word: m[j].word, prob: (m[j].prob || 0) * _fuzzy.penalty, fz: 1 }); }
+            }
+        }
+        out.sort(function (a, b) { return (b.prob || 0) - (a.prob || 0); });
+        return out;
+    }
+
+    /* ---------- 音节候选：精确优先 → 模糊/容错 → 单字母前缀联想 ---------- */
     function syllableCandidates(seq) {
         if (seq.length === 1) {
             var m = getTargetMappings(seq);
-            if (m.length) return m;
+            if (m.length) {
+                // 精确音节有候选：合并模糊音（带惩罚，按概率重排，否则精确占满前 9 名模糊永远排不上）
+                if (_fuzzy.on) {
+                    var fz = fuzzyCandidates(seq[0], false);
+                    if (fz.length) {
+                        var seenM = {}, merged = [];
+                        for (var i = 0; i < m.length; i++) { if (!seenM[m[i].word]) { seenM[m[i].word] = 1; merged.push(m[i]); } }
+                        for (var j = 0; j < fz.length; j++) { if (!seenM[fz[j].word]) { seenM[fz[j].word] = 1; merged.push(fz[j]); } }
+                        merged.sort(function (a, b) { return (b.prob || 0) - (a.prob || 0); });
+                        return merged;
+                    }
+                }
+                return m;
+            }
+            // 单字母（w/h/z…）：不套模糊/容错（太噪），直接用前缀联想
+            if (seq[0].length === 1) return abbrevCandidates(seq[0]);
+            // 多字母音节无候选：模糊/容错 → 再退回前缀联想
+            var fc = _fuzzy.on ? fuzzyCandidates(seq[0], true) : [];
+            if (fc.length) return fc;
             return abbrevCandidates(seq[0]);
         }
-        return getTargetMappings(seq);
+        // 多音节：精确词组优先；2 音节合并模糊词组（zongguo→中国），3-4 音节仅精确为空时回退
+        var exact = getTargetMappings(seq);
+        if (_fuzzy.on && seq.length === 2) {
+            var cb2 = variantCombos(seq, false);
+            if (cb2.length) {
+                var seenX = {}, merged = [];
+                for (var a = 0; a < exact.length; a++) { if (!seenX[exact[a].word]) { seenX[exact[a].word] = 1; merged.push(exact[a]); } }
+                for (var b = 0; b < cb2.length; b++) { if (!seenX[cb2[b].word]) { seenX[cb2[b].word] = 1; merged.push(cb2[b]); } }
+                merged.sort(function (x, y) { return (y.prob || 0) - (x.prob || 0); });
+                return merged;
+            }
+        }
+        if (exact.length) return exact;
+        if (_fuzzy.on && seq.length <= 4) {
+            var cb = variantCombos(seq, true);
+            if (cb.length) return cb;
+        }
+        return [];
     }
 
     /* ---------- 最优分词（Viterbi）：倾向用词典词组，组合成整句候选 ---------- */
@@ -237,7 +394,7 @@ var ImePinyin = (function () {
             words.unshift(b.word);
             pos = b.start;
         }
-        return { word: words.join(''), prob: dp[n] };
+        return { word: words.join(''), prob: Math.pow(dp[n], 1 / words.length), full: true };
     }
 
     /* ---------- 用户习惯：加载/记录/查询 ---------- */
@@ -271,38 +428,44 @@ var ImePinyin = (function () {
 
         function add(c) { if (c && c.word && !seen[c.word]) { seen[c.word] = true; out.push(c); } }
 
-        // A) 完整拼音：整句/整词候选优先
+        // A) 完整拼音才有整串词典词组（存在非法音节时无法整体映射：nihao→你好）
         if (complete) {
-            // 整串词典词组（nihao→你好）
             var full = getTargetMappings(s);
-            for (var i = 0; i < full.length && out.length < maxResults; i++) add(full[i]);
-
-            if (s.length > 1) {
-                // 最优分词整句（woxianzaihenkaixin → 我现在很开心）
-                var best = bestSegmentation(s);
-                if (best && best.word.length >= 2) add(best);
-
-                // 每音节 top1 连成句（作为候选）
-                var perSyllable = [];
-                for (var k = 0; k < s.length; k++) perSyllable.push(syllableCandidates([s[k]]).slice(0, 3));
-                var allTop = '', pr = 1;
-                for (var t = 0; t < perSyllable.length; t++) {
-                    if (perSyllable[t][0]) { allTop += perSyllable[t][0].word; pr *= perSyllable[t][0].prob; }
-                }
-                if (allTop && allTop.length >= 2) add({ word: allTop, prob: pr });
-
-                // 单字候选（跨音节按词频排序）
-                var singles = [], seenS = {};
-                for (var u = 0; u < perSyllable.length; u++) {
-                    for (var v = 0; v < perSyllable[u].length; v++) {
-                        var w = perSyllable[u][v];
-                        if (w.word && !seenS[w.word]) { seenS[w.word] = true; singles.push(w); }
-                    }
-                }
-                singles.sort(function (a, b) { return (b.prob || 0) - (a.prob || 0); });
-                for (var q = 0; q < singles.length && out.length < maxResults; q++) add(singles[q]);
+            // 单音节时给模糊/容错候选留 ~4 个位（否则精确填满 9 名，模糊永远排不上：zong 里 中/重 出不来）
+            var aCap = s.length === 1 ? Math.max(3, maxResults - 4) : maxResults;
+            for (var i = 0; i < full.length && out.length < aCap; i++) {
+                // 整串多字词组：完整覆盖所有拼音 → 排序时加权置顶（否则被高频单字淹没）
+                if (full[i].word && full[i].word.length >= 2) full[i].full = true;
+                add(full[i]);
             }
         }
+
+        if (s.length > 1) {
+            // 最优分词整句（syllableCandidates 已模糊/容错感知：woxianzaihenkaixin→我现在很开心）
+            var best = bestSegmentation(s);
+            if (best && best.word.length >= 2) add(best);
+
+            // 每音节 top1 连成句（作为候选）
+            var perSyllable = [];
+            for (var k = 0; k < s.length; k++) perSyllable.push(syllableCandidates([s[k]]).slice(0, 3));
+            var allTop = '', pr = 1;
+            for (var t = 0; t < perSyllable.length; t++) {
+                if (perSyllable[t][0]) { allTop += perSyllable[t][0].word; pr *= perSyllable[t][0].prob; }
+            }
+            if (allTop && allTop.length >= 2) add({ word: allTop, prob: pr });
+        }
+
+        // 单字候选（跨音节按词频排序；无论完整与否，模糊/容错都能出）
+        var singles = [], seenS = {};
+        for (var u = 0; u < s.length; u++) {
+            var per = syllableCandidates([s[u]]).slice(0, 9);
+            for (var v = 0; v < per.length; v++) {
+                var w = per[v];
+                if (w.word && !seenS[w.word]) { seenS[w.word] = true; singles.push(w); }
+            }
+        }
+        singles.sort(function (a, b) { return (b.prob || 0) - (a.prob || 0); });
+        for (var q = 0; q < singles.length && out.length < maxResults; q++) add(singles[q]);
 
         // B) 拼音前缀联想（简拼/首字母）：w → 我/为/玩…
         if (out.length < maxResults) {
@@ -323,10 +486,15 @@ var ImePinyin = (function () {
             }
         }
 
-        // 按概率降序（含用户习惯加权后重排）
-        out.sort(function (a, b) { return (b.prob || 0) - (a.prob || 0); });
+        // 按「有效分数」降序：整句/整词（full，覆盖完整拼音）加权置顶，避免被高频单字淹没
+        var FULL_BOOST = 8;
+        out.sort(function (a, b) {
+            var sa = (a.prob || 0) * (a.full ? FULL_BOOST : 1);
+            var sb = (b.prob || 0) * (b.full ? FULL_BOOST : 1);
+            return sb - sa;
+        });
         return out.slice(0, maxResults);
     }
 
-    return { load: load, isReady: isReady, decode: decode, segment: segmentPinyin, setLearning: setLearning, bumpLearning: bumpLearning, getLearning: getLearning };
+    return { load: load, isReady: isReady, decode: decode, segment: segmentPinyin, setLearning: setLearning, bumpLearning: bumpLearning, getLearning: getLearning, setFuzzy: setFuzzy, isFuzzy: isFuzzy };
 })();

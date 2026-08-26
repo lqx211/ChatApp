@@ -28,7 +28,7 @@ return [
     'pmg_revoke' => '撤回',
     'pmg_revoke_confirm' => '確欲撤回此條乎？對方所見惟「已撤回」三字，非刪除也。',
     'pmg_failed' => '撤回不成。',
-    'pmg_file_icon' => '📄',
+    'pmg_file_icon' => '<img src="../../data/res/cil/cil-file.svg" class="pmg-file-ico" alt="">',
     'pmg_back' => '返回',
     'enterchat_loading_5s' => '尚未載畢乎？',
     'enterchat_loading_10s' => '何以猶未下載畢耶？',

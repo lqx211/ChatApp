@@ -181,6 +181,7 @@ var ImePinyinUI = (function () {
                 html += '<div class="ime-cand' + (i === _sel ? ' sel' : '') + '" data-i="' + i + '">'
                     + '<span class="ime-cand-num">' + (i + 1) + '</span>'
                     + esc(_cands[i].word)
+                    + (_cands[i].fz ? '<span class="ime-cand-fz">≈</span>' : '')
                     + '</div>';
             }
             html += '</div>';

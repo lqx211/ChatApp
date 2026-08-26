@@ -26,21 +26,26 @@
         if (u && u.avatar) return '<img class="li-avatar" src="' + esc(u.avatar) + '" alt="">';
         return '<div class="li-avatar">' + letterAvatar(u ? (u.display_name || u.username) : '') + '</div>';
     }
-    // 解析应用本地时间 'Y/m/d H:i:s' 或 'Y-m-d H:i:s' → 友好显示
+    // 解析消息时间（新版 time=UNIX 秒；旧版 'Y/m/d H:i:s' 或 'Y-m-d H:i:s'）→ 友好显示
     function fmtTime(dt) {
-        if (!dt) return '';
-        var m = String(dt).match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})[ T](\d{1,2}):(\d{2})/);
-        if (!m) return String(dt);
+        if (!dt && dt !== 0) return '';
+        var d;
+        if (typeof dt === 'number' || /^\d{9,11}$/.test(String(dt).trim())) {
+            d = new Date(Number(dt) * 1000);
+        } else {
+            var m = String(dt).match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})[ T](\d{1,2}):(\d{2})/);
+            if (!m) return String(dt);
+            d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+        }
         var now = new Date();
         var p = function (n) { return (n < 10 ? '0' : '') + n; };
-        var Y = +m[1], Mo = +m[2], D = +m[3], H = +m[4], Mi = +m[5];
         var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        var that = new Date(Y, Mo - 1, D);
+        var that = new Date(d.getFullYear(), d.getMonth(), d.getDate());
         var diffDays = Math.round((today - that) / 86400000);
-        if (diffDays === 0) return p(H) + ':' + p(Mi);
+        if (diffDays === 0) return p(d.getHours()) + ':' + p(d.getMinutes());
         if (diffDays === 1) return '昨天';
-        if (Y === now.getFullYear()) return Mo + '/' + D;
-        return Y + '/' + Mo + '/' + D;
+        if (d.getFullYear() === now.getFullYear()) return (d.getMonth() + 1) + '/' + d.getDate();
+        return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate();
     }
 
     /* ---------------- Tab 切换 ---------------- */
@@ -188,8 +193,8 @@
     var allConvs = [];
     var convFilter = '';
     function convLastText(c) {
-        if (c.last_type === 'file') return '📎 ' + (c.attachment_name || t('m_file'));
-        if (c.last_type === 'temp') return '📎 ' + t('m_flash');
+        if (c.last_type === 'file') return '[' + (c.attachment_name || t('m_file')) + ']';
+        if (c.last_type === 'temp') return '[' + t('m_flash') + ']';
         if (c.last_type === 'image') return '[图片]';
         return c.last_message || '';
     }
@@ -459,7 +464,7 @@
             var m = msgs[i];
             if (mode !== 'replace' && m.id && seenRendered[m.id]) continue;
             if (mode !== 'replace' && m.id) seenRendered[m.id] = 1;
-            var tSec = (m.time ? Date.parse(String(m.time).replace(/\//g, '-').replace(' ', 'T')) : 0) / 1000;
+            var tSec = m.time ? (typeof m.time === 'number' || /^\d{9,11}$/.test(String(m.time).trim()) ? Number(m.time) : (Date.parse(String(m.time).replace(/\//g, '-').replace(' ', 'T')) / 1000)) : 0;
             if (isNaN(tSec)) tSec = 0;
             if (!prev || Math.abs(tSec - prev) > 300) {
                 chunks.push('<div class="msg-time">' + esc(fmtTime(m.time)) + '</div>');
@@ -496,7 +501,7 @@
         if (m.attachment_url && m.msg_type !== 'file' && /\.(png|jpe?g|gif|webp)(\?|$)/i.test(m.attachment_url)) {
             body += '<img src="' + esc(m.attachment_url) + '" style="max-width:210px;max-height:260px;border-radius:6px;display:block">';
         } else if (m.msg_type === 'file' || m.attachment_url) {
-            body += '<a class="file" href="' + esc(m.attachment_url || '#') + '" target="_blank" rel="noopener">📎 ' + esc(m.attachment_name || t('m_file', 'File')) + '</a>';
+            body += '<a class="file" href="' + esc(m.attachment_url || '#') + '" target="_blank" rel="noopener"><img src="../../data/res/cil/cil-paperclip.svg" style="width:12px;height:12px;vertical-align:-1px;margin-right:3px;filter:brightness(0) invert(1)" alt=""> ' + esc(m.attachment_name || t('m_file', 'File')) + '</a>';
         } else {
             body += renderEmoji(esc(m.message || ''));
         }

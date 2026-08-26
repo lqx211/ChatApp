@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <path fill="var(--ci-primary-color, currentcolor)" d="M16 64h480v32H16zm152 88h328v32H168zM16 240h480v32H16zm152 88h328v32H168zM16 416h480v32H16z" class="ci-primary"/>
+</svg>

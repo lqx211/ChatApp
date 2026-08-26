@@ -572,10 +572,10 @@ function init_db(): void {
         id INT AUTO_INCREMENT PRIMARY KEY,
         sender_id INT NOT NULL DEFAULT 0,
         recipient_id INT DEFAULT NULL,
-        message TEXT NOT NULL,
+        message MEDIUMTEXT NOT NULL,
         msg_type VARCHAR(10) DEFAULT NULL,
         attachment TEXT DEFAULT NULL,
-        time VARCHAR(19) NOT NULL,
+        time BIGINT NOT NULL DEFAULT 0,
         datetime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         deleted_at DATETIME DEFAULT NULL,
         INDEX idx_id (id)
@@ -657,6 +657,24 @@ function init_db(): void {
     db_add_column_if_missing('incidents', 'exp_awarded', "TINYINT(1) NOT NULL DEFAULT 0");
     db_add_column_if_missing('messages', 'temp_upload_id', "INT DEFAULT NULL");
     db_add_column_if_missing('messages', 'client_msg_id', "VARCHAR(64) DEFAULT NULL");
+    // messages.time 列迁移：VARCHAR(19)（自定义字符串，时区易错）→ BIGINT（UNIX 秒级 UTC 时间戳）
+    $timeCol = $pdo->query("SHOW COLUMNS FROM messages LIKE 'time'")->fetch();
+    if ($timeCol && stripos((string)$timeCol['Type'], 'varchar') !== false) {
+        // 先把存量字符串（服务器本地 HKT 'Y-m-d H:i:s'）转成 epoch 秒；已是数字则保留
+        $rows = $pdo->query("SELECT id, time FROM messages WHERE time <> ''")->fetchAll();
+        $upd = $pdo->prepare("UPDATE messages SET time = ? WHERE id = ?");
+        foreach ($rows as $r) {
+            $v = (string)$r['time'];
+            $ts = preg_match('/^\d{9,11}$/', $v) ? (int)$v : strtotime($v);
+            $upd->execute([$ts === false || $ts === 0 ? 0 : $ts, (int)$r['id']]);
+        }
+        $pdo->exec("ALTER TABLE messages MODIFY time BIGINT NOT NULL DEFAULT 0");
+    }
+    // messages.message 列：TEXT(64KB) → MEDIUMTEXT(16MB)，容纳 32767 字符长消息（utf8mb4 CJK 可达 ~98KB）
+    $msgCol = $pdo->query("SHOW COLUMNS FROM messages LIKE 'message'")->fetch();
+    if ($msgCol && stripos((string)$msgCol['Type'], 'mediumtext') === false) {
+        $pdo->exec("ALTER TABLE messages MODIFY message MEDIUMTEXT NOT NULL");
+    }
     // 拼音输入法用户习惯（词频/自造词，跨设备同步）
     $pdo->exec("CREATE TABLE IF NOT EXISTS user_ime_learning (
         id INT AUTO_INCREMENT PRIMARY KEY,

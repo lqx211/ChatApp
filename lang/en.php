@@ -26,7 +26,7 @@ return [
     'pmg_revoke' => 'Revoke',
     'pmg_revoke_confirm' => 'Revoke this item? Recipients will see it as revoked, not deleted.',
     'pmg_failed' => 'Failed to revoke.',
-    'pmg_file_icon' => '📄',
+    'pmg_file_icon' => '<img src="../../data/res/cil/cil-file.svg" class="pmg-file-ico" alt="">',
     'pmg_back' => 'Back',
     'enterchat_loading_5s' => 'Still loading?',
     'enterchat_loading_10s' => 'Stillllllll loading?',

@@ -335,7 +335,7 @@ switch ($action) {
         $gid = (int)($_POST['group_id'] ?? 0);
         // Sanitize group text: strip HTML tags server-side as defense-in-depth
         // (clients escape on render; this also protects non-escaping clients/WSS).
-        $msg = strip_tags(trim(mb_substr($_POST['message'] ?? '', 0, 1000)));
+        $msg = strip_tags(trim(mb_substr($_POST['message'] ?? '', 0, 32767)));
         if (!$gid || empty($msg)) { echo json_encode(['success' => false]); exit; }
         // Must be a member
         $info = $pdo->query("SELECT role, muted FROM group_members WHERE group_id=$gid AND user_id=$myUid")->fetch();
@@ -350,8 +350,8 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'All members are muted in this group.']);
             exit;
         }
-        $now = date('Y-m-d H:i:s');
-        $pdo->prepare("INSERT INTO messages (sender_id, group_id, message, time, datetime) VALUES (?, ?, ?, ?, ?)")->execute([$myUid, $gid, $msg, $now, $now]);
+        $now = time(); // messages.time 列存 UNIX 秒；datetime 用 NOW()
+        $pdo->prepare("INSERT INTO messages (sender_id, group_id, message, time, datetime) VALUES (?, ?, ?, ?, NOW())")->execute([$myUid, $gid, $msg, $now]);
         echo json_encode(['success' => true, 'id' => (int)$pdo->lastInsertId()]);
         break;
 

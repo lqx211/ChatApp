@@ -194,7 +194,7 @@ if ($target === '') {
 </head>
 <body>
 <div class="wrap">
-  <h1>🌐 网页代理</h1>
+  <h1><img src="../../data/res/cil/cil-globe-alt.svg" style="width:22px;height:22px;vertical-align:-4px;margin-right:6px;filter:brightness(0) invert(1)" alt=""> 网页代理</h1>
   <p class="sub">透过本服务器访问目标网页（绕过域名封锁）。登录态、表单、重定向均已处理。</p>
   <form method="get" action="index.php">
     <input type="text" name="u" placeholder="<?php echo htmlspecialchars($placeholder, ENT_QUOTES, 'UTF-8'); ?>" autofocus autocomplete="off">

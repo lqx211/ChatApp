@@ -32,7 +32,7 @@ return [
     'pmg_revoke' => '撤回',
     'pmg_revoke_confirm' => '确定要撤回这条吗？对面只会看到「已撤回」，不会真删。',
     'pmg_failed' => '撤回失败了。',
-    'pmg_file_icon' => '📄',
+    'pmg_file_icon' => '<img src="../../data/res/cil/cil-file.svg" class="pmg-file-ico" alt="">',
     'pmg_back' => '回去',
     'enterchat_loading_5s' => '怎么还没加载好呀',
     'enterchat_loading_10s' => '怎么还没下载好呀',

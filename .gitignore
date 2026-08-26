@@ -22,6 +22,7 @@ error_log
 ASSISTANT_ChatApp_README.md
 prompt_obfuscator.md
 .pnpm-store
+_*
 ca-bkup-*.sql
 ca-fullbkup-*.tar.*
 tablet-archive-20260803.tar.gz
@@ -70,3 +71,6 @@ maintenance/config.php
 # =================== Keep directory structure ===================
 # Ensure empty directories are tracked via .gitkeep
 # (setup.sh will create .gitkeep files where needed)
+
+# =================== Vendored icon source (not used at runtime) ===================
+data/res/brand/src/

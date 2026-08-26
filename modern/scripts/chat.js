@@ -3,6 +3,7 @@ var U, TZ, DND, RSTR, DS, L = 0,
     S = false,
     D = null,
     typingTimer = null;
+var _dmE2eeOn = false; // 当前 DM 会话的 E2EE 共享开关（发送时据此加密）
 var seenMsgIds = {};
 var pendingMedia = null,
     pendingDmMedia = null;
@@ -119,7 +120,8 @@ function renderMd(text) {
     // ---- fenced code blocks (with generic syntax highlighting) ----
     var inCode = false, codeLang = '', codeBuf = [];
     function flushCode() {
-        out.push('<pre><code class="language-' + (codeLang || 'text') + '">' + hlCode(codeBuf.join('\n')) + '</code></pre>');
+        var lang = codeLang || 'text';
+        out.push('<div class="codebox"><pre><code class="language-' + lang + '">' + hlCode(codeBuf.join('\n')) + '</code></pre></div>');
         inCode = false; codeLang = ''; codeBuf = [];
     }
 
@@ -299,6 +301,92 @@ function brNewlines(html) {
     return html.replace(/<pre>[\s\S]*?<\/pre>|\n/g, function(m0) { return m0 === '\n' ? '<br>' : m0; });
 }
 
+/* ================================================================
+   TextMate 语法高亮（shiki = VS Code TextMate 引擎的浏览器实现）
+   - 懒加载：出现代码块才从 CDN 拉 shiki + oniguruma WASM（首次约 7MB，之后浏览器缓存）
+   - 渲染后对 .codebox pre code 二次高亮；未就绪/离线/未知语言时回退到上面的 hlCode
+   ================================================================ */
+var _shiki = null, _shikiReady = false, _shikiLoading = false, _shikiWait = [];
+var _SHIKI_CDN = 'https://cdn.jsdelivr.net/npm/shiki@1/';
+
+function loadShiki() {
+    if (_shikiReady) return Promise.resolve();
+    if (_shikiLoading) return new Promise(function (r) { _shikiWait.push(r); });
+    _shikiLoading = true;
+    return Promise.all([
+        import(_SHIKI_CDN + '+esm'),
+        // 用户自写 PVM2 扩展的 TextMate 语法（apps/pvm2/vscode-pvm2）
+        fetch('../../apps/pvm2/vscode-pvm2/syntaxes/pvm2.tmLanguage.json')
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .catch(function () { return null; })
+    ]).then(function (res) {
+        var mod = res[0], tm = res[1];
+        var langs = ['bash','shell','sh','php','javascript','js','typescript','ts','jsx','tsx','python','py','sql','html','xml','css','json','yaml','yml','markdown','md','ini','toml','java','c','cpp','csharp','go','rust','ruby','kotlin','swift','dockerfile','makefile','powershell','plaintext','text'];
+        if (tm) langs.push(Object.assign({}, tm, { name: 'pvm2', aliases: ['pve', 'pvm', 'pvs'] }));
+        return mod.createHighlighter({
+            langs: langs,
+            themes: ['github-dark']
+        });
+    }).then(function (h) {
+        _shiki = h; _shikiReady = true;
+        var w = _shikiWait; _shikiWait = [];
+        for (var i = 0; i < w.length; i++) w[i]();
+        highlightAllCodeboxes();
+    }).catch(function (e) {
+        _shikiLoading = false;
+        var w = _shikiWait; _shikiWait = [];
+        for (var i = 0; i < w.length; i++) w[i]();
+        console.error('[shiki] 加载失败，回退到内置高亮', e);
+    });
+}
+
+function highlightCodebox(codeEl) {
+    if (!_shikiReady || !codeEl || codeEl.getAttribute('data-shiki')) return;
+    var m = (codeEl.className || '').match(/language-([\w+#-]+)/);
+    var lang = m ? m[1] : 'text';
+    if (lang === 'text' || lang === 'plaintext' || lang === 'txt') lang = 'text';
+    var code = codeEl.textContent;
+    if (!code) return;
+    try {
+        var html = _shiki.codeToHtml(code, { lang: lang === 'text' ? 'plaintext' : lang, theme: 'github-dark' });
+        var tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        var c = tmp.querySelector('code');
+        if (c && c.innerHTML) {
+            codeEl.innerHTML = c.innerHTML; // 只取 token spans，保留我们自己的 .codebox 外壳
+            codeEl.setAttribute('data-shiki', '1');
+            codeEl.classList.add('shiki-hl');
+        }
+    } catch (e) { /* 未知语言：保留 hlCode 结果 */ }
+}
+function highlightAllCodeboxes() {
+    var list = document.querySelectorAll('.codebox pre code');
+    for (var i = 0; i < list.length; i++) highlightCodebox(list[i]);
+}
+// 监听消息区 DOM：新出现的代码块自动触发 shiki（懒加载）
+function initShikiObserver() {
+    var root = document.querySelector('.main-content') || document.body;
+    if (!root || !window.MutationObserver) return;
+    new MutationObserver(function (muts) {
+        var need = false;
+        for (var i = 0; i < muts.length && !need; i++) {
+            var nodes = muts[i].addedNodes;
+            for (var j = 0; j < nodes.length; j++) {
+                var el = nodes[j];
+                if (el.nodeType !== 1) continue;
+                if ((el.classList && el.classList.contains('codebox')) || (el.querySelector && el.querySelector('.codebox'))) { need = true; break; }
+            }
+        }
+        if (!need) return;
+        requestAnimationFrame(function () {
+            if (document.querySelector('.codebox pre code')) {
+                loadShiki().then(function () { highlightAllCodeboxes(); });
+            }
+        });
+    }).observe(root, { childList: true, subtree: true });
+}
+initShikiObserver();
+
 function onMdInput(previewId, inputId, checkId) {
     var cb = document.getElementById(checkId),
         preview = document.getElementById(previewId);
@@ -347,7 +435,7 @@ function previewAttachment(input, sendFn, btnId) {
         }
     } else {
         // Large file: friendly note instead of heavy preview
-        pH = '<div style="color:#aaa;padding:20px;text-align:center">📄 ' + f.name + '<br><span style="color:#888;font-size:.8em">' + fmtSize(f.size) + ' · Large file (preview skipped)</span></div>';
+        pH = '<div style="color:#aaa;padding:20px;text-align:center"><img src="../../data/res/cil/cil-file.svg" style="width:16px;height:16px;vertical-align:-2px;margin-right:4px"> ' + f.name + '<br><span style="color:#888;font-size:.8em">' + fmtSize(f.size) + ' · Large file (preview skipped)</span></div>';
     }
     document.getElementById('attachPreview').innerHTML = pH;
     document.getElementById('attachInfo').innerHTML = iH;
@@ -361,6 +449,69 @@ function cancelAttachment() {
     attSendFn = null;
     attBtnId = null;
 }
+
+/* ============ 语音消息（MediaRecorder → 音频附件） ============ */
+var _voiceRec = null;
+var _voiceTimerInt = null;
+var _voiceMime = (function () {
+    var cs = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'];
+    for (var i = 0; i < cs.length; i++) {
+        try { if (window.MediaRecorder && MediaRecorder.isTypeSupported(cs[i])) return cs[i]; } catch (e) {}
+    }
+    return '';
+})();
+
+function _voiceTick() {
+    var el = document.getElementById('dmRecTimer');
+    if (!el) return;
+    var t = _voiceRec ? Math.max(0, Math.floor((Date.now() - _voiceRec.startTime) / 1000)) : 0;
+    el.textContent = Math.floor(t / 60) + ':' + ('0' + (t % 60)).slice(-2);
+}
+function updateVoiceRecUI() {
+    var rec = _voiceRec !== null;
+    var bar = document.getElementById('dmRecBar');
+    var mic = document.getElementById('dmMicBtn');
+    if (mic) mic.classList.toggle('recording', rec);
+    if (bar) bar.style.display = rec ? 'flex' : 'none';
+    if (!rec && _voiceTimerInt) { clearInterval(_voiceTimerInt); _voiceTimerInt = null; }
+}
+function toggleVoiceRec() {
+    if (_voiceRec) stopVoiceRec();
+    else startVoiceRec();
+}
+function startVoiceRec() {
+    if (S) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { xalert('此浏览器不支持录音'); return; }
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+        var rec;
+        try { rec = _voiceMime ? new MediaRecorder(stream, { mimeType: _voiceMime }) : new MediaRecorder(stream); }
+        catch (e) { rec = new MediaRecorder(stream); }
+        var chunks = [];
+        rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+        rec.onstop = function () {
+            stream.getTracks().forEach(function (t) { t.stop(); });
+            var discard = _voiceRec ? _voiceRec.discard : false;
+            _voiceRec = null;
+            updateVoiceRecUI();
+            if (discard) return;
+            var blob = new Blob(chunks, { type: rec.mimeType || _voiceMime || 'audio/mp4' });
+            if (blob.size < 300) return; // 太短，忽略
+            var reader = new FileReader();
+            reader.onload = function () {
+                pendingDmMedia = { data: reader.result, name: 'voice.m4a' };
+                sendDmMessage();
+            };
+            reader.readAsDataURL(blob);
+        };
+        rec.start();
+        _voiceRec = { rec: rec, stream: stream, startTime: Date.now(), discard: false };
+        updateVoiceRecUI();
+        _voiceTimerInt = setInterval(_voiceTick, 500);
+        _voiceTick();
+    }).catch(function () { xalert('无法访问麦克风，请检查权限'); });
+}
+function stopVoiceRec() { if (_voiceRec) _voiceRec.rec.stop(); }
+function cancelVoiceRec() { if (_voiceRec) { _voiceRec.discard = true; _voiceRec.rec.stop(); } }
 document.getElementById('attachSendBtn').addEventListener('click', function() {
     if (!attFile) return;
     var _f = attFile,
@@ -405,7 +556,7 @@ function switchPanel(n) {
     if (n === 'users') adminList(1);
     if (n === 'reports') loadReports();
     if (n === 'roles') loadRoleList();
-    if (n === 'music' || n === 'dscview' || n === 'midi' || n === 'proxy') loadAppPanel(n);
+    if (n === 'music' || n === 'dscview' || n === 'midi' || n === 'proxy' || n === 'filemgr') loadAppPanel(n);
     if (n === 'donations') loadDonations(1);
     if (n === 'profile-mgmt') loadPm();
     if (n === 'logs') loadAdminLogs(1);
@@ -481,15 +632,18 @@ function eh(t) {
     return d.innerHTML
 }
 
-// 服务器数据库里存储的本地时区（chat.php 注入 SERVER_TZ）。
-// messages.time / datetime 由 PHP date('Y-m-d H:i:s')（Asia/Hong_Kong）写入，
-// 并非 UTC —— 解析时必须显式按此偏移换算，绝不能追加 'Z' 当 UTC 用。
+// messages.time 列已改为 BIGINT（UNIX 秒级 UTC 时间戳），前端 new Date(ts*1000) 即可；
+// 兼容旧格式：datetime 列仍是 'Y-m-d H:i:s'（服务器本地 Asia/Hong_Kong 钟面，chat.php 注入 SERVER_TZ），
+// 解析旧字符串时必须显式按该偏移换算，绝不能追加 'Z' 当 UTC 用。
 var SERVER_TZ = (typeof SERVER_TZ !== 'undefined') ? SERVER_TZ : '+08:00';
 
-// 把一个 "YYYY-MM-DD HH:MM:SS" 字符串（服务器本地钟面时间）精确换算成时间戳。
-// 直接 Date.UTC 构造 + 减去服务器时区偏移，杜绝 getHours() 受浏览器本地时区影响。
+// 把一条消息的 time 统一换算成毫秒时间戳：新版（epoch 秒）或旧字符串（服务器本地钟面）
 function timeToTs(s) {
-    if (!s) return null;
+    if (s === null || s === undefined || s === '') return null;
+    // 新版 messages.time = UNIX 秒
+    if (typeof s === 'number' || /^\d{9,11}$/.test(String(s).trim())) {
+        return Number(s) * 1000;
+    }
     var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
     if (!m) return null;
     var mt = String(SERVER_TZ).match(/^([+-])(\d{2}):(\d{2})$/);
@@ -1161,6 +1315,17 @@ function xconfirm(m) {
     return customDialog('ChatApp', m, 'confirm');
 }
 
+// 外部链接警告：点外部链接先弹确认（No/Yes），确认后才新标签打开
+function confirmExternal(url) {
+    var p = customDialog('外部链接', '你即将要前往外部链接，是否确认？\n链接: ' + url, 'confirm');
+    var msg = document.getElementById('cdMsg');
+    if (msg) msg.style.whiteSpace = 'pre-wrap'; // 保留 \n 换行
+    var ok = document.getElementById('cdOk'), cancel = document.getElementById('cdCancel');
+    if (ok) ok.textContent = 'Yes';
+    if (cancel) cancel.textContent = 'No';
+    return p.then(function (v) { if (v) window.open(url, '_blank', 'noopener'); });
+}
+
 function xprompt(m, d) {
     document.getElementById('cdInput').value = d || '';
     return customDialog('ChatApp', m, 'prompt');
@@ -1765,11 +1930,28 @@ function scrollChatToBottom(el) {
     }
 }
 
+// E2EE 状态徽章：双方都开=绿锁；一方开=黄警告；都没开=隐藏
+function updateDmE2eeBadge(u) {
+    var badge = document.getElementById('dmE2eeBadge');
+    if (!badge) return;
+    if (!window.E2EE || !window.nacl || !u) { badge.style.display = 'none'; return; }
+    E2EE.getStatus(u).then(function(on) {
+        if (on) {
+            badge.textContent = '🔒 ' + T('e2ee_badge_on', '端到端加密已开启');
+            badge.className = 'dm-e2ee-badge on';
+            badge.style.display = 'inline';
+        } else {
+            badge.style.display = 'none';
+        }
+    }).catch(function() { badge.style.display = 'none'; });
+}
+
 function openDm(u) {
     G = null;
     D = u;
     document.getElementById('dmTitle').textContent = T('title_chat') + ': ' + (_contactNotes[u] || u) + ' (' + u + ')';
     switchPanel('dm');
+    updateDmE2eeBadge(u);
     updateDmOptionsMenu();
     document.getElementById('dmMessagesArea').innerHTML = '<div class="es"><p>' + T('msg_loading') + '</p></div>';
     seenMsgIds = {};
@@ -1845,6 +2027,40 @@ function updateDmOptionsMenu() {
     }
     var grpPin = document.getElementById('grpPinBtn');
     if (grpPin) grpPin.textContent = _pinnedGroup[G] ? T('d_unpin') : T('d_pin');
+    // E2EE 开关文案随当前对话状态切换
+    var dmE2 = document.getElementById('dmE2eeBtn');
+    if (dmE2 && D) {
+        dmE2.disabled = true;
+        E2EE.getStatus(D).then(function (on) {
+            _dmE2eeOn = !!on;
+            dmE2.textContent = on ? '🔓 ' + T('d_e2ee_off', '关闭端到端加密') : '🔒 ' + T('d_e2ee_on', '开启端到端加密');
+            dmE2.disabled = false;
+        }).catch(function () { dmE2.disabled = false; });
+    }
+}
+
+// 切换当前对话的 E2EE（Options 菜单里，套用于对话：任一方开/关即整体开/关）；
+// 成功后本地立即渲染自己的系统提示（WSS 不会回声自己的消息），并刷新徽章/菜单文案
+function toggleDmE2ee() {
+    if (!D || !window.E2EE) return;
+    var btn = document.getElementById('dmE2eeBtn');
+    if (btn) btn.disabled = true;
+    E2EE.getStatus(D).then(function (cur) {
+        return E2EE.setStatus(!cur, D);
+    }).then(function (d) {
+        if (btn) btn.disabled = false;
+        if (d && d.success) {
+            _dmE2eeOn = !!d.enabled;
+            if (d.message_id) {
+                var m = { id: d.message_id, msg_type: 'sys_e2ee', message: d.enabled ? 'on' : 'off', username: U, recipient: D };
+                addDmMessage(m);
+            }
+        }
+        updateDmE2eeBadge(D);
+        updateDmOptionsMenu();
+    }).catch(function () {
+        if (btn) btn.disabled = false;
+    });
 }
 
 function togglePinContact(u) {
@@ -2100,7 +2316,8 @@ var CODE_EXT = {
     'sql':'sql','json':'json','xml':'xml','yml':'yaml','yaml':'yaml','md':'markdown','markdown':'markdown',
     'ini':'ini','toml':'ini','cfg':'ini','conf':'ini','lua':'lua','pl':'perl','pm':'perl',
     'r':'r','dart':'dart','cs':'csharp','vb':'vb','ps1':'powershell','bat':'bat','cmd':'bat',
-    'dockerfile':'dockerfile','makefile':'makefile','cmake':'cmake','gradle':'groovy','groovy':'groovy'
+    'dockerfile':'dockerfile','makefile':'makefile','cmake':'cmake','gradle':'groovy','groovy':'groovy',
+    'pve':'pvm2','pvm':'pvm2','pvs':'pvm2'   // PVM2 虚拟机汇编（用户自写扩展语法）
 };
 var _monacoBase = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/';
 var _monacoPromise = null;
@@ -2139,6 +2356,72 @@ function ensureMonaco() {
     return _monacoPromise;
 }
 
+// PVM2 自定义语言（Monarch tokenizer，对照用户自写扩展的 TextMate 语法实现）
+function registerPvm2Language(mon) {
+    if (!mon || !mon.languages || mon.__pvm2Reg) return;
+    mon.__pvm2Reg = true;
+    var id = 'pvm2', exists = false;
+    try { exists = mon.languages.getLanguages().some(function (l) { return l.id === id; }); } catch (e) {}
+    if (exists) return;
+    mon.languages.register({ id: id, extensions: ['.pve', '.pvm', '.pvs'], aliases: ['PVM2', 'pvm2'] });
+    mon.languages.setMonarchTokensProvider(id, {
+        defaultToken: '',
+        tokenPostfix: '.pvm2',
+        keywords: ['function','if','elif','else','while','switch','case','break','return','exit'],
+        types: ['uint64','uint32','uint16','uint8','int64','int32','int16','int8','RTLM','string','float','auto','void','any','int'],
+        commands: ['mcpystr','mclear','mpush','mpop','mfind','mget','mset','mnew','mdel','mlen','mstr','print','sleep','read','echo','prn','inp','mov','inc','chr','ord','hlt','abrt','and','or','xor','shl','shr','sqrt','abs','neg','dec','not','add','sub','mul','div','pow','mod','rnd','eq','neq','gtr','gte','lte','lt'],
+        brackets: [
+            { open: '{', close: '}', token: 'delimiter.curly' },
+            { open: '[', close: ']', token: 'delimiter.bracket' },
+            { open: '(', close: ')', token: 'delimiter.parenthesis' }
+        ],
+        tokenizer: {
+            root: [
+                [/\/\*/, 'comment.block', '@blockComment'],
+                [/\/\/.*$/, 'comment.line'],
+                [/[ \t\r\n]+/, 'white'],
+                [/[fF]"/, { token: 'string', next: '@fstrD' }],
+                [/[fF]'/, { token: 'string', next: '@fstrS' }],
+                [/"/, { token: 'string', next: '@strD' }],
+                [/'/, { token: 'string', next: '@strS' }],
+                [/!!?[A-Za-z][A-Za-z0-9]*/, 'keyword.directive'],
+                [/\b0[xX][0-9a-fA-F]+/, 'number.hex'],
+                [/-?\d+\.\d+/, 'number.float'],
+                [/-?\d+/, 'number'],
+                [/%[0-9]/, 'variable.register'],
+                [/\bT[0-9]{1,2}\b/, 'variable.tmp'],
+                [/\bL[0-9]{1,4}\b/, 'variable.local'],
+                [/\bM[0-9]{1,4}\b/, 'variable.memory'],
+                [/\$[0-9]+/, 'variable.parameter'],
+                [/\b(function)\s+([A-Za-z_][A-Za-z0-9_]*)/, ['keyword', 'entity.name.function']],
+                [/[a-zA-Z_][a-zA-Z0-9_]*/, { cases: { '@keywords': 'keyword', '@types': 'type', '@commands': 'support.function', '@default': 'identifier' } }],
+                [/[{}()\[\]]/, '@brackets'],
+                [/==|!=|>=|<=|>>|<<|&&|\|\||[+\-*/%=<>!]/, 'operator'],
+                [/[;,]/, 'delimiter'],
+                [/:/, 'delimiter']
+            ],
+            blockComment: [
+                [/\*\//, 'comment.block', '@pop'],
+                [/./, 'comment.block']
+            ],
+            strD: [ [/[^"\\]+/, 'string'], [/\\./, 'string.escape'], [/"/, { token: 'string', next: '@pop' }] ],
+            strS: [ [/[^'\\]+/, 'string'], [/\\./, 'string.escape'], [/'/, { token: 'string', next: '@pop' }] ],
+            fstrD: [ [/[^"{}\\]+/, 'string'], [/\\./, 'string.escape'], [/\{/, { token: 'string.escape', next: '@interp' }], [/"/, { token: 'string', next: '@pop' }] ],
+            fstrS: [ [/[^'{}\\]+/, 'string'], [/\\./, 'string.escape'], [/\{/, { token: 'string.escape', next: '@interp' }], [/'/, { token: 'string', next: '@pop' }] ],
+            interp: [
+                [/[a-zA-Z_][a-zA-Z0-9_]*/, { cases: { '@types': 'type', '@commands': 'support.function', '@default': 'variable' } }],
+                [/%[0-9]/, 'variable.register'],
+                [/\bT[0-9]{1,2}\b/, 'variable.tmp'],
+                [/\bL[0-9]{1,4}\b/, 'variable.local'],
+                [/\bM[0-9]{1,4}\b/, 'variable.memory'],
+                [/\$[0-9]+/, 'variable.parameter'],
+                [/-?\d+/, 'number'],
+                [/\}/, { token: 'string.escape', next: '@pop' }]
+            ]
+        }
+    });
+}
+
 function previewCodeFile(btn) {
     if (!btn) return;
     var url = btn.getAttribute('data-url');
@@ -2158,6 +2441,7 @@ function previewCodeFile(btn) {
         loading.style.display = 'none';
         ed.style.display = 'block';
         ensureMonaco().then(function(mon) {
+            registerPvm2Language(mon);
             try {
                 _cpEditor = mon.editor.create(ed, {
                     value: text,
@@ -2252,6 +2536,7 @@ function addDmMessage(m, prepend) {
     }
     var es = a.querySelector('.es');
     if (es) es.remove();
+    var own = (m.username === U);
     // ---- 点赞系统消息：聊天中间灰色字，链接到被赞方个人主页；连续点赞合并为 ×n ----
     if (m.msg_type === 'like') {
         // 已撤回/合并废弃的点赞行：从 DOM 移除（历史行合并后服务端标 is_deleted）
@@ -2280,13 +2565,35 @@ function addDmMessage(m, prepend) {
         else a.appendChild(le);
         return;
     }
-    var own = (m.username === U),
-        d = document.createElement('div');
+    // ---- E2EE 状态系统提示：聊天中间灰字（参照 like 系统行） ----
+    if (m.msg_type === 'sys_e2ee') {
+        var e2On = (m.message === 'on');
+        var e2Txt = own
+            ? (e2On ? T('e2ee_notice_me_on', '🔒 你已开启端到端加密') : T('e2ee_notice_me_off', '你已关闭端到端加密'))
+            : (e2On ? T('e2ee_notice_them_on', '🔒 对方已开启端到端加密') : T('e2ee_notice_them_off', '对方已关闭端到端加密'));
+        var e2el = document.createElement('div');
+        e2el.className = 'like-sysline';
+        e2el.setAttribute('data-msgid', m.id);
+        e2el.textContent = e2Txt;
+        if (prepend) { e2el.style.order = '-1'; a.insertBefore(e2el, a.firstChild); }
+        else a.appendChild(e2el);
+        return;
+    }
+    // ---- E2EE 密文消息：占位 → 异步解密 → 替换为明文行 ----
+    if (m.msg_type === 'e2ee') {
+        return addDmE2ee(m, prepend);
+    }
+    var d = buildDmMsgRow(m, own);
+    appendDmMsgRow(a, d, m, prepend);
+}
+
+/** 构建普通 DM 消息行（E2EE 解密后也复用）。 */
+function buildDmMsgRow(m, own) {
+    var d = document.createElement('div');
     d.className = 'mr' + (own ? ' own' : '');
     d.setAttribute('data-msgid', m.id);
     d.setAttribute('data-msguser', m.username);
     d.setAttribute('data-raw', m.message || '');
-    if (prepend) d.style.order = '-1';
     var dl = m.is_deleted === true,
         dc = dl ? ' dl' : '',
         rh = '';
@@ -2323,6 +2630,10 @@ function addDmMessage(m, prepend) {
     } else if (own && !dl) rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-fwd" onclick="openForwardModal(this);closeAllMsgMenus()">' + T('menu_forward') + '</div><div onclick="replyDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + emojiMenuItem + reportMenuItem + '<div onclick="revokeDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_revoke') + '</div></div>';
     else if (!dl) rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-fwd" onclick="openForwardModal(this);closeAllMsgMenus()">' + T('menu_forward') + '</div><div onclick="replyDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + emojiMenuItem + reportMenuItem + '<div style="color:#555;cursor:not-allowed">' + T('menu_revoke') + '</div></div>';
     d.innerHTML = av + '<div class="mc"><div class="mb"><div class="mu">' + eh(_contactNotes[m.username] || m.display_name || m.username) + '</div>' + rq + '<div class="mt' + dc + '">' + msgContent + '</div>' + md + '<div class="mti">' + fmtTime(m.time) + '</div></div>' + rh + '</div>';
+    return d;
+}
+function appendDmMsgRow(a, d, m, prepend) {
+    if (prepend) d.style.order = '-1';
     // Start status polling for flash cards
     if (m.msg_type === 'temp' && m.temp_upload_id) {
         startTempPoll(d);
@@ -2331,6 +2642,57 @@ function addDmMessage(m, prepend) {
     else a.appendChild(d);
     startImagesIn(d);
     maybeAutoPlayDoodle(m);
+}
+
+/** E2EE 消息：占位 → 异步解密 → 替换为明文行；解密结果写入本地缓存（避免重载再解密失败）。 */
+function addDmE2ee(m, prepend) {
+    var a = document.getElementById('dmMessagesArea');
+    var peer = (m.username === U) ? D : m.username;
+    // 本地缓存里已有解密版本：直接渲染明文
+    if (m._e2ee_decrypted) {
+        var dd = buildDmMsgRow(m, m.username === U);
+        appendDmMsgRow(a, dd, m, prepend);
+        return;
+    }
+    var ph = document.createElement('div');
+    ph.className = 'mr' + (m.username === U ? ' own' : '') + ' e2ee-decrypting';
+    ph.setAttribute('data-msgid', m.id);
+    ph.innerHTML = '<div class="mc"><div class="mb"><div class="mt">🔒 ' + T('e2ee_decrypting', '正在解密…') + '</div></div></div>';
+    if (prepend) { ph.style.order = '-1'; a.insertBefore(ph, a.firstChild); }
+    else a.appendChild(ph);
+    var p = (window.E2EE && typeof E2EE.decrypt === 'function')
+        ? E2EE.decrypt(peer, m.message)
+        : Promise.reject(new Error('no-e2ee'));
+    p.then(function (res) {
+        if (res && res.plaintext != null) {
+            m.message = res.plaintext;
+            m.is_markdown = !!res.isMarkdown;
+            m._e2ee_decrypted = true;
+            lcPersistDecrypted('dm_' + (D || peer), m);
+            var dd2 = buildDmMsgRow(m, m.username === U);
+            if (ph.parentNode) ph.parentNode.replaceChild(dd2, ph);
+        } else {
+            throw new Error('empty');
+        }
+    }).catch(function () {
+        ph.innerHTML = '<div class="mc"><div class="mb"><div class="mt e2ee-undecryptable">🔒 ' + T('e2ee_cant_decrypt', '无法解密此消息') + '</div></div></div>';
+    });
+}
+
+/** 用解密后的明文版本替换本地缓存中同 id 的条目（lcPersistMsg 只加不换）。 */
+function lcPersistDecrypted(key, m) {
+    if (!LC_READY || !m || !m.id) return;
+    lcLoadChannel(key).then(function (msgs) {
+        msgs = msgs || [];
+        var replaced = false;
+        for (var i = 0; i < msgs.length; i++) {
+            if (msgs[i].id === m.id) { msgs[i] = m; replaced = true; break; }
+        }
+        if (!replaced) msgs.push(m);
+        msgs.sort(function (x, y) { return (x.id || 0) - (y.id || 0); });
+        if (msgs.length > 2000) msgs = msgs.slice(-2000);
+        lcSaveChannel(key, msgs);
+    });
 }
 
 function replyDmMessage(id) {
@@ -2436,7 +2798,7 @@ function onDmInput() {
     }, 3000);
 }
 async function sendDmMessage() {
-    if (!D || S || RSTR) return;
+    if (CLIENT_LOCKED || !D || S || RSTR) return;
     var i = document.getElementById('dmMessageInput'),
         m = i.value.trim();
     if (!m && !pendingDmMedia) return;
@@ -2455,6 +2817,23 @@ async function sendDmMessage() {
             pendingDmMedia = null;
             pDm.attachment = _at.data || _at;
             if (_at.name) pDm.filename = _at.name;
+        }
+        // E2EE：对话已开启且无附件 → 加密后发送（msg_type='e2ee'，服务器只存密文 envelope）
+        // 安全策略：加密失败绝不静默明文发送（fail-closed），而是阻止发送并明确提示。
+        if (!pendingDmMedia && D && _dmE2eeOn && window.E2EE && window.nacl) {
+            var e2On = await E2EE.getStatus(D).catch(function () { return false; });
+            if (e2On) {
+                try {
+                    var env = await E2EE.encrypt(D, m, !!pDm.md);
+                    pDm.message = JSON.stringify(env);
+                    pDm.msg_type = 'e2ee';
+                    delete pDm.md; // 密文里已带 md 标志，明文渲染时恢复
+                } catch (err) {
+                    i.focus();
+                    xalert(T('e2ee_encrypt_fail', '🔒 无法加密：对方尚未准备好端到端加密密钥，或会话不可用。消息未发送（不会明文发送）。'));
+                    return;
+                }
+            }
         }
         var d = await apiRequest('send', pDm);
         if (d.success) {
@@ -2484,7 +2863,7 @@ async function sendDmMessage() {
     }
 }
 async function sendGroupMessage() {
-    if (!G || S || RSTR) return;
+    if (CLIENT_LOCKED || !G || S || RSTR) return;
     var i = document.getElementById('dmMessageInput'),
         m = i.value.trim();
     if (!m && !pendingDmMedia) return;
@@ -3817,7 +4196,7 @@ function pmItemHtml(it) {
     if (it.kind === 'photo' || it.kind === 'video') {
         thumb = '<span class="pmg-thumb">' + (it.kind === 'video' ? '<i class="pmg-play">▶</i>' : '') + '<img src="' + eh(it.url) + '" loading="lazy" alt="" onerror="this.parentNode.classList.add(\'pmg-broken\')"></span>';
     } else {
-        thumb = '<span class="pmg-thumb pmg-file">' + T('pmg_file_icon', '📄') + '</span>';
+        thumb = '<span class="pmg-thumb pmg-file">' + T('pmg_file_icon', '<img src="../../data/res/cil/cil-file.svg" class="pmg-file-ico" alt="">') + '</span>';
     }
     var size = it.size ? ' · ' + fmtSize(it.size) : '';
     var kindLabel = ({ photo: 'photo', video: 'video', file: 'file' })[it.kind] || it.kind;
@@ -4079,6 +4458,7 @@ function toggleEmojiPicker(e, targetId) {
     var popup = document.getElementById('emojiPopup');
     if (popup.style.display === 'flex') {
         popup.style.display = 'none';
+        emojiUndockMobile();
         return;
     }
     var btn = e.target.closest('button[title=Emoji]');
@@ -4096,6 +4476,7 @@ function toggleEmojiPicker(e, targetId) {
     }
     popup.style.left = left + 'px';
     popup.style.display = 'flex';
+    emojiDockMobile();
     switchEmojiTab('builtin');
 }
 
@@ -4561,6 +4942,12 @@ document.addEventListener('touchmove', clearEmojiContextTimer, { passive: true }
 document.addEventListener('touchend', clearEmojiContextTimer, { passive: true });
 document.addEventListener('touchcancel', clearEmojiContextTimer, { passive: true });
 document.addEventListener('click', function(e) {
+    // 点表情选择器外部任意处 → 关闭（包括停靠状态下点消息气泡等）
+    var popup = document.getElementById('emojiPopup');
+    if (popup && popup.style.display === 'flex' && e.target && e.target.closest && !e.target.closest('#emojiPopup') && !e.target.closest('button[title=Emoji]') && !e.target.closest('#dmNineMenu') && !e.target.closest('#dmNineBtn')) {
+        popup.style.display = 'none';
+        emojiUndockMobile();
+    }
     // Mobile touch: tapping a message bubble opens the context menu; desktop keeps current behavior.
     var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0);
     var bubbling = isTouch && e.target && e.target.closest ? e.target.closest('.mr') : null;
@@ -4595,8 +4982,6 @@ document.addEventListener('click', function(e) {
         });
         return;
     }
-    var popup = document.getElementById('emojiPopup');
-    if (popup && popup.style.display === 'flex' && !e.target.closest('#emojiPopup') && !e.target.closest('button[title=Emoji]')) popup.style.display = 'none';
     if (!e.target.closest('.msg-more-btn') && !e.target.closest('.msg-menu')) {
         closeAllMsgMenus();
     }
@@ -4692,7 +5077,7 @@ async function doUpgrade() {
                 MYLV = d.payload.level;
                 MYEXP = d.payload.exp;
             }
-            xalert('🎉 ' + T('lvl_upgraded', '升级成功') + ' → Lv.' + (d.level || MYLV));
+            xalert(T('lvl_upgraded', '升级成功') + ' → Lv.' + (d.level || MYLV));
             // refresh settings page display too
             loadLevelPanel();
         } else {
@@ -4817,6 +5202,76 @@ function flashMenuMy() {
 function closeFlashMyModal() {
     document.getElementById('flashMyModal').classList.remove('active');
 }
+
+// ================= 9 点菜单（移动端输入区折叠按钮 → 弹框网格） =================
+function toggleDmNineMenu(e, btn) {
+    e.stopPropagation();
+    e.preventDefault();
+    var menu = document.getElementById('dmNineMenu');
+    if (!menu) return;
+    var wasOpen = menu.style.display === 'grid';
+    menu.style.display = 'none';
+    if (wasOpen) return;
+    var r = btn.getBoundingClientRect();
+    menu.style.display = 'grid';
+    var mw = menu.offsetWidth, mh = menu.offsetHeight;
+    var left = r.left + r.width - mw;
+    if (left < 4) left = 4;
+    if (left + mw > window.innerWidth - 4) left = window.innerWidth - mw - 4;
+    if (r.top >= mh + 10) menu.style.top = (r.top - mh - 8) + 'px';
+    else menu.style.top = (r.bottom + 8) + 'px';
+    menu.style.left = left + 'px';
+}
+function closeDmNineMenu() {
+    var m = document.getElementById('dmNineMenu');
+    if (m) m.style.display = 'none';
+}
+// 手机端表情选择器停靠在输入栏下面（给 .main-content 加下内边距，把聊天/输入栏抬上去）
+function emojiDockMobile() {
+    var mc = document.querySelector('.main-content');
+    if (mc && window.matchMedia && window.matchMedia('(max-width:768px)').matches) mc.classList.add('emoji-open');
+}
+function emojiUndockMobile() {
+    var mc = document.querySelector('.main-content');
+    if (mc) mc.classList.remove('emoji-open');
+}
+function nineEmoji() {
+    closeDmNineMenu();
+    var popup = document.getElementById('emojiPopup');
+    var btn = document.getElementById('dmNineBtn');
+    if (!popup || !btn) return;
+    if (popup.style.display === 'flex') { popup.style.display = 'none'; emojiUndockMobile(); return; }
+    _emojiTarget = 'dmMessageInput';
+    var rect = btn.getBoundingClientRect();
+    var popW = 360;
+    var left = rect.left + (rect.width - popW) / 2;
+    if (left < 4) left = 4;
+    if (left + popW > window.innerWidth - 4) left = window.innerWidth - popW - 4;
+    if (rect.top >= 160) popup.style.top = (rect.top - 158) + 'px';
+    else popup.style.top = (rect.bottom + 6) + 'px';
+    popup.style.left = left + 'px';
+    popup.style.display = 'flex';
+    emojiDockMobile();
+    switchEmojiTab('builtin');
+}
+function nineFlash() {
+    closeDmNineMenu();
+    var i = document.getElementById('flashMediaFileDm');
+    if (i) i.click();
+}
+function nineUpload() {
+    closeDmNineMenu();
+    var i = document.getElementById('dmMediaFile');
+    if (i) i.click();
+}
+// 点击 9 点菜单/按钮外部时收起
+document.addEventListener('click', function (e) {
+    var menu = document.getElementById('dmNineMenu');
+    if (!menu || menu.style.display !== 'grid') return;
+    if (e.target.closest && e.target.closest('#dmNineMenu')) return;
+    if (e.target.closest && e.target.closest('#dmNineBtn')) return;
+    menu.style.display = 'none';
+});
 
 function flashFileChosen(input, target) {
     var f = input.files[0];
@@ -5851,18 +6306,15 @@ function isMobileView() {
   return window.matchMedia && window.matchMedia('(max-width:768px)').matches;
 }
 function sidebarInit() {
-  var tg = document.getElementById('sidebarToggleBtn');
-  var ov = document.getElementById('sidebarOverlay');
+  var side = document.querySelector('.sidebar');
   if (!isMobileView()) {
     // Desktop: keep natural sidebar; toggle/overlay stay hidden (CSS display:none also covers it)
     closeMobileSidebar();
-    var side = document.querySelector('.sidebar');
     if (side) side.classList.remove('open');
     return;
   }
-  // Mobile: auto-open the sidebar on entry so visitors see the nav.
-  // Tapping a nav item (handled below) auto-collapses it again.
-  openMobileSidebar();
+  // Mobile: 默认收起侧边栏，只在用户按下 #sidebarToggleBtn 时才展开（不再进入页面自动弹出）
+  closeMobileSidebar();
 }
 document.addEventListener('click', function(e) {
   if (!isMobileView()) return;
@@ -6022,20 +6474,22 @@ window.addEventListener('scroll', function() { closeUserCtxMenu(); }, true);
    自訂滑鼠效果（移植自 apps/selfpage/exampl/src/utils/cursor.js）
    ================================================================ */
 (function () {
-    // 觸控裝置不啟用
-    if (window.matchMedia && window.matchMedia("(hover: none)").matches) return;
-
-    // 建立跟隨滑鼠的白色小圓點
+    // 触屏 + 鼠标通用：建立跟随指针的白色小圆点。
+    // 触屏（无 hover）下手指按下/拖动时，圆点从上一个触摸点快速「飞」到当前触摸点。
     var cursor = document.createElement("div");
     cursor.id = "cursor";
     document.body.appendChild(cursor);
 
-    // 隱藏系統滑鼠游標，改成白色小圓點（文字輸入框保留 I 型游標）
+    // 隐藏系統滑鼠游標，改成白色小圓點（文字輸入框保留 I 型游標）
+    // hotspot 必须与 SVG 圆心的像素质点重合：SVG 尺寸(8px)=viewBox(8x8)，圆心在 4,4，
+    // 故 `url(...) 4 4` 即精确居中；若尺寸/viewBox 不一致（如 10px 却仍写 4 4），
+    // 热点会偏左上、圆点看起来偏右下。
     var styleEl = document.createElement("style");
-    styleEl.innerHTML = '*:not(input):not(textarea):not([contenteditable="true"]) {cursor: url("data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 8 8\' width=\'10px\' height=\'10px\'><circle cx=\'4\' cy=\'4\' r=\'4\' fill=\'white\' /></svg>") 4 4, auto !important}';
+    styleEl.innerHTML = '*:not(input):not(textarea):not([contenteditable="true"]) {cursor: url("data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 8 8\' width=\'8px\' height=\'8px\'><circle cx=\'4\' cy=\'4\' r=\'4\' fill=\'white\' /></svg>") 4 4, auto !important}';
     document.head.appendChild(styleEl);
 
     var pos = { curr: null, prev: null };
+    var _fast = false; // 触屏模式：用更快的 lerp 系数，让圆点快速飞到触摸点
     var lerp = function (a, b, n) {
         if (Math.round(a) === b) return b;
         return (1 - n) * a + n * b;
@@ -6046,8 +6500,9 @@ window.addEventListener('scroll', function() { closeUserCtxMenu(); }, true);
     };
     var render = function () {
         if (pos.prev) {
-            pos.prev.x = lerp(pos.prev.x, pos.curr.x, 0.35);
-            pos.prev.y = lerp(pos.prev.y, pos.curr.y, 0.35);
+            var n = _fast ? 0.7 : 0.35;
+            pos.prev.x = lerp(pos.prev.x, pos.curr.x, n);
+            pos.prev.y = lerp(pos.prev.y, pos.curr.y, n);
             move(pos.prev.x, pos.prev.y);
         } else {
             pos.prev = pos.curr;
@@ -6058,6 +6513,7 @@ window.addEventListener('scroll', function() { closeUserCtxMenu(); }, true);
     };
 
     document.addEventListener("mousemove", function (e) {
+        _fast = false;
         if (pos.curr == null) move(e.clientX - 9, e.clientY - 9);
         pos.curr = { x: e.clientX - 9, y: e.clientY - 9 };
         cursor.classList.remove("hidden");
@@ -6067,6 +6523,87 @@ window.addEventListener('scroll', function() { closeUserCtxMenu(); }, true);
     document.addEventListener("mouseleave", function () { cursor.classList.add("hidden"); });
     document.addEventListener("mousedown", function () { cursor.classList.add("active"); });
     document.addEventListener("mouseup", function () { cursor.classList.remove("active"); });
+
+    // 触屏：手指落下/拖动时，圆点从上一个触摸点快速飞到当前触摸点（passive 不挡滚动）
+    document.addEventListener("touchstart", function (e) {
+        var t = e.touches ? e.touches[0] : null;
+        if (!t) return;
+        _fast = true;
+        pos.curr = { x: t.clientX - 9, y: t.clientY - 9 };
+        cursor.classList.remove("hidden");
+        cursor.classList.add("active");
+        render();
+    }, { passive: true });
+    document.addEventListener("touchmove", function (e) {
+        var t = e.touches ? e.touches[0] : null;
+        if (!t) return;
+        _fast = true;
+        pos.curr = { x: t.clientX - 9, y: t.clientY - 9 };
+        cursor.classList.remove("hidden");
+        render();
+    }, { passive: true });
+    document.addEventListener("touchend", function () {
+        cursor.classList.add("hidden");
+        cursor.classList.remove("active");
+        _fast = false;
+    });
+    document.addEventListener("touchcancel", function () {
+        cursor.classList.add("hidden");
+        cursor.classList.remove("active");
+        _fast = false;
+    });
+
+    // ================================================================
+    // iframe 光标桥接：apps 面板等 iframe 里的鼠标/触屏也驱动同一个白点。
+    // 同源 iframe 可直接在其 contentDocument 挂监听，用 getBoundingClientRect
+    // 把 iframe 内坐标换算到父页视口坐标，喂给同一个 pos/render。
+    // 跨域 iframe 无法访问 contentDocument（抛异常）→ 跳过，保留系统光标。
+    // ================================================================
+    function _framePost(iframe, type, x, y, kind) {
+        if (type === 'move') {
+            var rect = iframe.getBoundingClientRect();
+            _fast = (kind === 'touch');
+            pos.curr = { x: rect.left + x - 9, y: rect.top + y - 9 };
+            cursor.classList.remove('hidden');
+            if (kind === 'touch') cursor.classList.add('active');
+            else cursor.classList.remove('active');
+            render();
+        } else if (type === 'end') {
+            cursor.classList.add('hidden');
+            cursor.classList.remove('active');
+            _fast = false;
+        } else if (type === 'down') {
+            cursor.classList.add('active');
+        } else if (type === 'up') {
+            cursor.classList.remove('active');
+        }
+    }
+    function _bridgeFrame(iframe) {
+        try {
+            var w = iframe.contentWindow, d = iframe.contentDocument;
+            if (!w || !d || !d.head) return; // 未加载完成
+            if (w.__chatappCursorBridge) return; // 已桥接（iframe 导航后 window 换新 → 自动重桥接）
+            w.__chatappCursorBridge = true;
+            // 隐藏 iframe 内的系统光标（输入框保留 I 型），只留我们的白点
+            var st = d.createElement('style');
+            st.textContent = '*:not(input):not(textarea):not([contenteditable="true"]){cursor:url("data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 8 8\' width=\'8px\' height=\'8px\'><circle cx=\'4\' cy=\'4\' r=\'4\' fill=\'white\'/></svg>") 4 4,auto !important}';
+            d.head.appendChild(st);
+            d.addEventListener('mousemove', function (e) { _framePost(iframe, 'move', e.clientX, e.clientY, 'mouse'); }, { passive: true });
+            d.addEventListener('touchstart', function (e) { var t = e.touches && e.touches[0]; if (t) _framePost(iframe, 'move', t.clientX, t.clientY, 'touch'); }, { passive: true });
+            d.addEventListener('touchmove', function (e) { var t = e.touches && e.touches[0]; if (t) _framePost(iframe, 'move', t.clientX, t.clientY, 'touch'); }, { passive: true });
+            d.addEventListener('touchend', function () { _framePost(iframe, 'end'); });
+            d.addEventListener('touchcancel', function () { _framePost(iframe, 'end'); });
+            d.addEventListener('mousedown', function () { _framePost(iframe, 'down'); });
+            d.addEventListener('mouseup', function () { _framePost(iframe, 'up'); });
+        } catch (err) { /* 跨域：无法访问，保留系统光标 */ }
+    }
+    // 先扫一遍已有 iframe，再定期重扫（覆盖懒加载 data-src 与 iframe 内部跳转）
+    var _fs0 = document.querySelectorAll('iframe');
+    for (var _i0 = 0; _i0 < _fs0.length; _i0++) _bridgeFrame(_fs0[_i0]);
+    setInterval(function () {
+        var fs = document.querySelectorAll('iframe');
+        for (var i = 0; i < fs.length; i++) _bridgeFrame(fs[i]);
+    }, 1500);
 })();
 
 /* ================================================================
@@ -6365,7 +6902,7 @@ function doodleCardHtml(m) {
     var esc = function (s) {
         return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     };
-    return '<div class="msg-media doodle-msg"><button type="button" class="doodle-replay" data-strokes="' + esc(JSON.stringify(strokes)) + '" onclick="replayDoodleMsg(this)">✎ Doodle</button></div>';
+    return '<div class="msg-media doodle-msg"><button type="button" class="doodle-replay" data-strokes="' + esc(JSON.stringify(strokes)) + '" onclick="replayDoodleMsg(this)"><img src="../../data/res/cil/cil-pen.svg" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px">Doodle</button></div>';
 }
 
 function replayDoodleMsg(btn) {
@@ -6443,6 +6980,7 @@ var LiveDraw = (function () {
     var penOnly = false;
     var activeId = null;
     var pendingInvite = null;  // 收到的邀请 {from, board}
+    var _waiting = null;       // 发起后等待对方接受 {recipient, w, h}
     var lastSent = 0;          // 节流
     var strokeSeq = 0;
     var _getSizeWaiter = null; // host 等待对方窗口尺寸的回调
@@ -6488,6 +7026,7 @@ var LiveDraw = (function () {
         }
         if (byId('ldSetupCancel')) byId('ldSetupCancel').onclick = function () { byId('ldSetupOverlay').classList.remove('active'); };
         if (byId('ldSetupStart')) byId('ldSetupStart').onclick = startSession;
+        if (byId('ldWaitCancel')) byId('ldWaitCancel').onclick = cancelWait;
     }
 
     function setColor(c, btn) {
@@ -6708,7 +7247,28 @@ var LiveDraw = (function () {
         byId('ldSetupOverlay').classList.remove('active');
         var sent = window.wssSendLiveDraw(recipient, 'invite', { board: { w: w, h: h } });
         if (!sent) { xalert('WebSocket 未连接，无法发起'); return; }
-        openBoard({ w: w, h: h }, recipient, true);
+        // 等对方同意后才进画板（不能发完邀请就直接进）
+        _waiting = { recipient: recipient, w: w, h: h };
+        showWaitOverlay(recipient);
+    }
+    // 发起方等待对方接受：模态框 + 取消邀请
+    function showWaitOverlay(recipient) {
+        var w = byId('ldWaitOverlay');
+        if (!w) return;
+        var n = byId('ldWaitName');
+        if (n) n.textContent = recipient;
+        w.classList.add('active');
+    }
+    function hideWaitOverlay() {
+        var w = byId('ldWaitOverlay');
+        if (w) w.classList.remove('active');
+        _waiting = null;
+    }
+    function cancelWait() {
+        if (!_waiting) return;
+        var recipient = _waiting.recipient;
+        hideWaitOverlay();
+        if (window.wssSendLiveDraw) window.wssSendLiveDraw(recipient, 'cancel', {});
     }
     function requestPeerSize(recipient, cb) {
         var done = false;
@@ -6727,8 +7287,15 @@ var LiveDraw = (function () {
             return;
         }
         var board = data.board || { w: 1024, h: 768 };
-        pendingInvite = { from: from, board: board };
-        renderInviteCard(from, board);
+        pendingInvite = { from: from, board: board, card: null };
+        pendingInvite.card = renderInviteCard(from, board);
+    }
+    // 发起方取消了等待：关掉对应的邀请卡
+    function onCancel(from) {
+        if (pendingInvite && pendingInvite.from === from) {
+            if (pendingInvite.card && pendingInvite.card.parentNode) pendingInvite.card.parentNode.removeChild(pendingInvite.card);
+            pendingInvite = null;
+        }
     }
     function renderInviteCard(from, board) {
         var area = document.getElementById('dmMessagesArea');
@@ -6740,7 +7307,10 @@ var LiveDraw = (function () {
         info.className = 'ld-invite-info';
         var b = document.createElement('b');
         b.textContent = from;
-        info.appendChild(document.createTextNode('🖊️ '));
+        var pen = document.createElement('img');
+        pen.src = '../../data/res/cil/cil-pen.svg';
+        pen.style.cssText = 'width:14px;height:14px;vertical-align:-2px;margin-right:4px';
+        info.appendChild(pen);
         info.appendChild(b);
         info.appendChild(document.createTextNode(' 邀请你一起画板（' + Math.round(board.w) + ' × ' + Math.round(board.h) + '）'));
 
@@ -6770,6 +7340,12 @@ var LiveDraw = (function () {
         if (!pendingInvite) return;
         pendingInvite = null;
         dimInviteCard(card);
+        // 若正在等待别人接受，先取消自己的等待并通知对方（避免同时进两个画板）
+        if (_waiting) {
+            var wrecip = _waiting.recipient;
+            hideWaitOverlay();
+            if (window.wssSendLiveDraw) window.wssSendLiveDraw(wrecip, 'cancel', {});
+        }
         window.wssSendLiveDraw(from, 'accept', {});
         openBoard(board, from, false);
     }
@@ -6780,9 +7356,25 @@ var LiveDraw = (function () {
         window.wssSendLiveDraw(from, 'decline', {});
     }
     function onAccept(from) {
-        if (from !== peer || !sessionActive) return;
-        // 对方接受：把当前全部已完成笔迹快照发给对方
-        window.wssSendLiveDraw(peer, 'snapshot', { strokes: strokes, board: { w: W, h: H } });
+        // 发起方：对方点了「同意」才真正进入画板
+        if (_waiting && from === _waiting.recipient) {
+            var wh = _waiting;
+            hideWaitOverlay();
+            openBoard({ w: wh.w, h: wh.h }, wh.recipient, true);
+            // 把当前全部已完成笔迹快照发给对方
+            window.wssSendLiveDraw(wh.recipient, 'snapshot', { strokes: strokes, board: { w: W, h: H } });
+            return;
+        }
+        // 兜底：已在画板中收到 accept（如重连）→ 补发快照
+        if (from === peer && sessionActive) {
+            window.wssSendLiveDraw(peer, 'snapshot', { strokes: strokes, board: { w: W, h: H } });
+        }
+    }
+    function onDecline(from) {
+        if (!_waiting || from !== _waiting.recipient) return;
+        var recipient = _waiting.recipient;
+        hideWaitOverlay();
+        xalert(recipient + ' 拒绝了邀请');
     }
     function onSnapshot(data) {
         strokes = (data && data.strokes) || [];
@@ -6818,7 +7410,8 @@ var LiveDraw = (function () {
         switch (event) {
             case 'invite': if (from) onInvite(from, data); break;
             case 'accept': onAccept(from); break;
-            case 'decline': break;
+            case 'decline': onDecline(from); break;
+            case 'cancel': if (from) onCancel(from); break;
             case 'get_size': sendSize(from); break;
             case 'size': if (_getSizeWaiter) { var wf = _getSizeWaiter; _getSizeWaiter = null; wf(data.w, data.h); } break;
             case 'snapshot': if (from === peer && sessionActive) onSnapshot(data); break;
@@ -6871,6 +7464,430 @@ function hidePenMenu() {
 function openLiveDrawSetup() {
     if (typeof LiveDraw !== 'undefined' && LiveDraw.openSetup) LiveDraw.openSetup();
 }
+
+/* ============================================================
+   WebRTC 语音/视频通话（ChatCall）
+   信令走 wss（type='call'，服务端纯转发）；媒体流点对点（STUN 打洞）。
+   ============================================================ */
+var ChatCall = (function () {
+    var pc = null, localStream = null, remoteStream = null, peer = null, kind = 'audio';
+    var audioCtx = null, waveRaf = null;
+    var lAnL = null, lAnR = null, rAnL = null, rAnR = null; // 本地/远端 的 L/R 声道 analyser
+    var renegotiating = false;
+    var screenOn = false;             // 对方是否在共享屏幕
+    var screenStream = null, screenSender = null; // 自己共享的屏幕流/发送器
+    var camTrackId = null;            // 远端相机视频 track id（用于区分屏幕 track）
+    var role = null;              // 'caller' | 'callee'
+    var ringing = false;
+    var pendingOffer = null;      // callee 收到的 offer（sdp + kind）
+    var iceBuffer = [];
+    var startTs = 0, timerInt = null, ringTimer = null;
+    var muted = false;
+
+    function byId(id) { return document.getElementById(id); }
+
+    /* ---------- 信令 ---------- */
+    function send(event, data) {
+        if (peer && window.wssSendCall) window.wssSendCall(peer, event, data || {});
+    }
+
+    /* ---------- 媒体 / PeerConnection ---------- */
+    function getMedia(video) {
+        return navigator.mediaDevices.getUserMedia({ audio: true, video: video });
+    }
+    function makePc() {
+        if (typeof window.RTCPeerConnection === 'undefined') { xalert('此浏览器不支持 WebRTC'); return null; }
+        var cfg = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        var p = new RTCPeerConnection(cfg);
+        p.onicecandidate = function (e) { if (e.candidate) send('ice', { candidate: e.candidate }); };
+        p.ontrack = function (e) {
+            var stream = (e.streams && e.streams[0]) ? e.streams[0] : null;
+            var track = e.track;
+            if (track && track.kind === 'video') {
+                // 视频：相机 vs 屏幕（屏幕 track id 与相机不同，或对方已通知在共享）
+                if (screenOn || (camTrackId && track.id !== camTrackId)) {
+                    var sv = byId('callRemoteScreen');
+                    if (sv) sv.srcObject = stream;
+                    showScreenUI();
+                } else {
+                    camTrackId = track.id;
+                    var rv = byId('callRemoteVideo');
+                    if (rv) { rv.srcObject = stream; rv.style.display = kind === 'video' ? 'block' : 'none'; }
+                }
+                return;
+            }
+            // 音频
+            if (stream) { remoteStream = stream; wireRemoteWave(stream); }
+            var rv2 = byId('callRemoteVideo');
+            if (rv2 && !screenOn) { rv2.srcObject = stream; rv2.style.display = kind === 'video' ? 'block' : 'none'; }
+        };
+        return p;
+    }
+
+    /* ---------- 声波轨道（对方 / 自己，双声道 DAW 样式） ---------- */
+    function ensureAudio() {
+        if (!audioCtx) {
+            var AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC) return false;
+            audioCtx = new AC();
+        }
+        if (audioCtx.state === 'suspended') { try { audioCtx.resume(); } catch (e) {} }
+        return true;
+    }
+    // 每个轨道用 ChannelSplitter(2) 拆出 L/R 两路，各自接 analyser
+    function wireWave(stream, isLocal) {
+        if (!stream || !ensureAudio()) return;
+        var anL = null, anR = null;
+        try {
+            var src = audioCtx.createMediaStreamSource(stream);
+            var split = audioCtx.createChannelSplitter(2);
+            src.connect(split);
+            anL = audioCtx.createAnalyser(); anL.fftSize = 256;
+            anR = audioCtx.createAnalyser(); anR.fftSize = 256;
+            split.connect(anL, 0);
+            split.connect(anR, 1);
+        } catch (e) { anL = null; anR = null; }
+        if (isLocal) { lAnL = anL; lAnR = anR; } else { rAnL = anL; rAnR = anR; }
+    }
+    function wireLocalWave(stream) { wireWave(stream, true); }
+    function wireRemoteWave(stream) { wireWave(stream, false); }
+    function traceLine(ctx, w, h, data, cy) {
+        ctx.strokeStyle = '#4dd8ff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (var i = 0; i < data.length; i++) {
+            var v = (data[i] - 128) / 128;
+            var x = (i / (data.length - 1)) * w;
+            var y = cy + v * (h * 0.2);
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+    }
+    // 双声道绘制：L 上半轨、R 下半轨；若 R 无信号（单声道）则把 L 镜像到下半轨，保持 DAW 立体声观感
+    function drawStereo(canvas, anL, anR) {
+        var ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        var w = canvas.width, h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+        var dL = new Uint8Array(128), dR = new Uint8Array(128);
+        if (anL) anL.getByteTimeDomainData(dL); else dL.fill(128);
+        if (anR) anR.getByteTimeDomainData(dR); else dR.fill(128);
+        var flat = true;
+        for (var i = 0; i < 128; i++) if (dR[i] !== 128) { flat = false; break; }
+        if (flat) for (var j = 0; j < 128; j++) dR[j] = 256 - dL[j];
+        traceLine(ctx, w, h, dL, h * 0.25);
+        traceLine(ctx, w, h, dR, h * 0.75);
+    }
+    function startWaves() {
+        stopWaves();
+        var wl = byId('callWaveLocal'), wr = byId('callWaveRemote');
+        if (!wl && !wr) return;
+        if (!ensureAudio()) return;
+        var cw = byId('callOverlay') && byId('callOverlay').querySelector('.call-waves');
+        if (cw) cw.classList.add('on'); // 关键：.on 加在容器上（CSS 用 .call-waves.on 控制显示），之前加在 canvas 上导致一直透明
+        var dpr = window.devicePixelRatio || 1;
+        [wl, wr].forEach(function (c) {
+            if (!c) return;
+            c.width = Math.max(2, Math.round(c.clientWidth * dpr));
+            c.height = Math.max(2, Math.round(c.clientHeight * dpr));
+        });
+        var loop = function () {
+            waveRaf = requestAnimationFrame(loop);
+            if (wr && (rAnL || rAnR)) drawStereo(wr, rAnL, rAnR);
+            if (wl && (lAnL || lAnR)) drawStereo(wl, lAnL, lAnR);
+        };
+        waveRaf = requestAnimationFrame(loop);
+    }
+    function stopWaves() {
+        if (waveRaf) { cancelAnimationFrame(waveRaf); waveRaf = null; }
+        var cw = byId('callOverlay') && byId('callOverlay').querySelector('.call-waves');
+        if (cw) cw.classList.remove('on');
+        var wl = byId('callWaveLocal'), wr = byId('callWaveRemote');
+        [wl, wr].forEach(function (c) {
+            if (!c) return;
+            var ctx = c.getContext && c.getContext('2d');
+            if (ctx) ctx.clearRect(0, 0, c.width, c.height);
+        });
+    }
+
+    /* ---------- 通话状态 UI ---------- */
+    function showCallUI(state) {
+        var ov = byId('callOverlay');
+        if (!ov) return;
+        ov.style.display = 'flex';
+        var st = byId('callStatus');
+        if (st) st.textContent = state === 'ringing' ? '呼叫中…' : '通话中';
+        var nm = byId('callPeerName');
+        if (nm) nm.textContent = peer || '';
+        var vw = byId('callVideoWrap'), aw = byId('callAudioWrap');
+        if (vw) vw.style.display = kind === 'video' ? 'block' : 'none';
+        if (aw) aw.style.display = kind === 'video' ? 'none' : 'block';
+        if (state === 'active') { startTimer(); startWaves(); } else { stopTimer(); stopWaves(); }
+    }
+    function hideCallUI() {
+        var ov = byId('callOverlay');
+        if (ov) ov.style.display = 'none';
+        stopTimer();
+    }
+    function showIncoming(from, k) {
+        var ov = byId('callIncomingOverlay');
+        if (!ov) return;
+        var nm = byId('callIncomingName'); if (nm) nm.textContent = from;
+        var ic = byId('callIncomingIcon'); if (ic) ic.innerHTML = k === 'video' ? '<img src="../../data/res/svg/video_24.svg" width="46" style="vertical-align:middle">' : '<img src="../../data/res/svg/phone_24.svg" width="46" style="vertical-align:middle">';
+        ov.style.display = 'flex';
+    }
+    function hideIncoming() {
+        var ov = byId('callIncomingOverlay');
+        if (ov) ov.style.display = 'none';
+    }
+    function startTimer() {
+        if (timerInt) return;
+        startTs = Date.now();
+        timerInt = setInterval(function () {
+            var el = byId('callDur');
+            if (!el) return;
+            var t = Math.floor((Date.now() - startTs) / 1000);
+            el.textContent = Math.floor(t / 60) + ':' + ('0' + (t % 60)).slice(-2);
+        }, 500);
+    }
+    function stopTimer() { if (timerInt) { clearInterval(timerInt); timerInt = null; } }
+
+    /* ---------- 发起 ---------- */
+    function startCall(username, video) {
+        if (pc) { xalert('已在通话中'); return; }
+        if (!username) { xalert('请先打开一个私聊对话'); return; }
+        if (!window.wssSendCall) { xalert('需要 WebSocket 连接才能通话'); return; }
+        ensureAudio(); // 在点击手势内创建/恢复 AudioContext，避免被浏览器挂起
+        kind = video ? 'video' : 'audio';
+        peer = username; role = 'caller'; ringing = true;
+        screenOn = false; camTrackId = null;
+        getMedia(video).then(function (stream) {
+            localStream = stream;
+            wireLocalWave(stream);
+            pc = makePc();
+            if (!pc) { cleanup(); return; }
+            stream.getTracks().forEach(function (t) { pc.addTrack(t, stream); });
+            var lv = byId('callLocalVideo');
+            if (lv) { lv.srcObject = stream; lv.style.display = kind === 'video' ? 'block' : 'none'; }
+            showCallUI('ringing');
+            pc.createOffer().then(function (offer) {
+                pc.setLocalDescription(offer);
+                send('offer', { sdp: offer, kind: kind });
+            });
+            ringTimer = setTimeout(function () {
+                if (ringing) { cleanup(); xalert('对方无响应'); }
+            }, 30000);
+        }).catch(function () { xalert('无法访问麦克风' + (video ? '/摄像头' : '')); });
+    }
+
+    /* ---------- 接听方 ---------- */
+    function onOffer(from, data) {
+        // 通话中的重协商（对方加/去屏幕共享轨道等）
+        if (data && data.reneg && pc && from === peer) {
+            pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function () {
+                return pc.createAnswer();
+            }).then(function (answer) {
+                pc.setLocalDescription(answer);
+                send('answer', { sdp: answer, reneg: true });
+            }).catch(function () {});
+            return;
+        }
+        if (pc) { send('busy', {}); return; }
+        peer = from; role = 'callee';
+        kind = (data && data.kind === 'video') ? 'video' : 'audio';
+        pendingOffer = data;
+        showIncoming(from, kind);
+    }
+    function accept() {
+        if (!pendingOffer || !peer) return;
+        ensureAudio(); // 接听按钮手势内创建/恢复 AudioContext
+        screenOn = false; camTrackId = null;
+        var offer = pendingOffer; pendingOffer = null;
+        hideIncoming();
+        getMedia(kind === 'video').then(function (stream) {
+            localStream = stream;
+            wireLocalWave(stream);
+            pc = makePc();
+            if (!pc) { cleanup(); return; }
+            stream.getTracks().forEach(function (t) { pc.addTrack(t, stream); });
+            var lv = byId('callLocalVideo');
+            if (lv) { lv.srcObject = stream; lv.style.display = kind === 'video' ? 'block' : 'none'; }
+            pc.setRemoteDescription(new RTCSessionDescription(offer.sdp)).then(function () {
+                return pc.createAnswer();
+            }).then(function (answer) {
+                pc.setLocalDescription(answer);
+                send('answer', { sdp: answer });
+                flushIce();
+                showCallUI('active');
+            }).catch(function () { xalert('接听失败'); cleanup(); });
+        }).catch(function () { xalert('无法访问麦克风/摄像头'); cleanup(); });
+    }
+    function reject() {
+        send('busy', {});
+        hideIncoming();
+        peer = null; pendingOffer = null;
+    }
+
+    /* ---------- 发起方收到 answer ---------- */
+    function onAnswer(from, data) {
+        if (role !== 'caller' || from !== peer || !pc) return;
+        if (data && data.reneg) {
+            renegotiating = false;
+            pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function () {
+                flushIce();
+            }).catch(function () {});
+            return;
+        }
+        ringing = false;
+        if (ringTimer) { clearTimeout(ringTimer); ringTimer = null; }
+        pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function () {
+            flushIce();
+            showCallUI('active');
+        }).catch(function () { xalert('连接失败'); });
+    }
+
+    /* ---------- ICE ---------- */
+    function onIce(from, data) {
+        if (from !== peer || !data || !data.candidate) return;
+        if (pc && pc.remoteDescription) pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(function () {});
+        else iceBuffer.push(data.candidate);
+    }
+    function flushIce() {
+        if (!pc) return;
+        iceBuffer.forEach(function (c) { pc.addIceCandidate(new RTCIceCandidate(c)).catch(function () {}); });
+        iceBuffer = [];
+    }
+
+    function onBusy(from) {
+        if (role === 'caller' && ringing && from === peer) {
+            ringing = false;
+            if (ringTimer) { clearTimeout(ringTimer); ringTimer = null; }
+            cleanup();
+            xalert(from + ' 正忙或已拒绝');
+        }
+    }
+
+    /* ---------- 挂断 / 清理 ---------- */
+    function hangup() {
+        if (peer && window.wssSendCall) window.wssSendCall(peer, 'hangup', {});
+        cleanup();
+    }
+    function onHangup(from) {
+        if (from === peer) { cleanup(); xalert('对方已挂断'); }
+    }
+    function cleanup() {
+        if (pc) { try { pc.close(); } catch (e) {} }
+        pc = null;
+        if (localStream) { localStream.getTracks().forEach(function (t) { t.stop(); }); }
+        localStream = null;
+        peer = null; role = null; kind = 'audio'; ringing = false; pendingOffer = null; iceBuffer = [];
+        if (ringTimer) { clearTimeout(ringTimer); ringTimer = null; }
+        var lv = byId('callLocalVideo'), rv = byId('callRemoteVideo');
+        if (lv) lv.srcObject = null;
+        if (rv) rv.srcObject = null;
+        remoteStream = null;
+        stopWaves();
+        [lAnL, lAnR, rAnL, rAnR].forEach(function (a) { if (a) { try { a.disconnect(); } catch (e) {} } });
+        lAnL = lAnR = rAnL = rAnR = null;
+        if (screenSender && pc) { try { pc.removeTrack(screenSender); } catch (e) {} }
+        if (screenStream) { screenStream.getTracks().forEach(function (t) { t.stop(); }); }
+        screenStream = null; screenSender = null; screenOn = false; camTrackId = null; renegotiating = false;
+        hideScreenUI();
+        var sb = byId('callShareBtn');
+        if (sb) { sb.innerHTML = '<img src="../../data/res/svg/share_screen_24.svg" width="16" style="vertical-align:-3px"> 共享屏幕'; sb.classList.remove('sharing'); }
+        if (audioCtx) { try { audioCtx.close(); } catch (e) {} } audioCtx = null;
+        hideIncoming(); hideCallUI();
+    }
+
+    function toggleMute() {
+        muted = !muted;
+        if (localStream) localStream.getAudioTracks().forEach(function (t) { t.enabled = !muted; });
+        var b = byId('callMuteBtn');
+        if (b) { b.classList.toggle('muted', muted); b.innerHTML = muted ? '<img src="../../data/res/svg/microphone_off_24.svg" width="16" style="vertical-align:-3px"> 取消静音' : '<img src="../../data/res/svg/microphone_on_24.svg" width="16" style="vertical-align:-3px"> 静音'; }
+    }
+
+    /* ---------- 重新协商（加/去轨道用） ---------- */
+    function renegotiate() {
+        if (!pc || renegotiating) return;
+        renegotiating = true;
+        pc.createOffer().then(function (offer) {
+            return pc.setLocalDescription(offer).then(function () {
+                send('offer', { sdp: offer, kind: kind, reneg: true });
+            });
+        }).catch(function () { renegotiating = false; });
+    }
+
+    /* ---------- 屏幕共享 ---------- */
+    function showScreenUI() {
+        var w = byId('callScreenWrap');
+        if (w) w.style.display = 'flex';
+    }
+    function hideScreenUI() {
+        var w = byId('callScreenWrap');
+        if (w) w.style.display = 'none';
+        var s = byId('callRemoteScreen');
+        if (s) s.srcObject = null;
+    }
+    function startScreenShare() {
+        if (!pc) { xalert('请先接通通话再共享屏幕'); return; }
+        if (screenStream) return;
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) { xalert('此浏览器不支持屏幕共享'); return; }
+        navigator.mediaDevices.getDisplayMedia({ video: true, audio: false }).then(function (stream) {
+            var t = stream.getVideoTracks()[0];
+            if (!t) { stream.getTracks().forEach(function (x) { x.stop(); }); return; }
+            screenStream = stream;
+            t.onended = function () { stopScreenShare(); }; // 浏览器「停止共享」栏
+            screenSender = pc.addTrack(t, stream);
+            send('screenshare', { on: true }); // 先通知对方，再重协商
+            var s = byId('callRemoteScreen');
+            if (s) s.srcObject = stream; // 共享方自己也大屏看
+            showScreenUI();
+            var b = byId('callShareBtn');
+            if (b) { b.innerHTML = '<img src="../../data/res/svg/stop_record_24.svg" width="16" style="vertical-align:-3px"> 停止共享'; b.classList.add('sharing'); }
+            renegotiate();
+        }).catch(function () { /* 用户取消授权，静默 */ });
+    }
+    function stopScreenShare() {
+        if (screenSender && pc) { try { pc.removeTrack(screenSender); } catch (e) {} }
+        if (screenStream) { screenStream.getTracks().forEach(function (t) { t.stop(); }); }
+        screenStream = null; screenSender = null;
+        send('screenshare', { on: false });
+        hideScreenUI();
+        var b = byId('callShareBtn');
+        if (b) { b.innerHTML = '<img src="../../data/res/svg/share_screen_24.svg" width="16" style="vertical-align:-3px"> 共享屏幕'; b.classList.remove('sharing'); }
+        renegotiate();
+    }
+    function toggleScreenShare() {
+        if (screenStream) stopScreenShare(); else startScreenShare();
+    }
+    function onScreenSignal(from, data) {
+        if (from !== peer) return;
+        screenOn = !!(data && data.on);
+        if (screenOn) showScreenUI(); else hideScreenUI();
+    }
+
+    /* ---------- wss 事件分发 ---------- */
+    window.handleCall = function (d) {
+        var event = d.event || '', data = d.data || {}, from = d.from || '';
+        switch (event) {
+            case 'offer': if (from) onOffer(from, data); break;
+            case 'answer': if (from) onAnswer(from, data); break;
+            case 'ice': if (from) onIce(from, data); break;
+            case 'busy': if (from) onBusy(from); break;
+            case 'hangup': if (from) onHangup(from); break;
+            case 'screenshare': if (from) onScreenSignal(from, data); break;
+        }
+    };
+
+    return { startCall: startCall, accept: accept, reject: reject, hangup: hangup, toggleMute: toggleMute, toggleScreenShare: toggleScreenShare, startScreenShare: startScreenShare, stopScreenShare: stopScreenShare, isInCall: function () { return !!pc; } };
+})();
+function startVoiceCall() { if (ChatCall) ChatCall.startCall(D, false); }
+function startVideoCall() { if (ChatCall) ChatCall.startCall(D, true); }
+function acceptCall() { if (ChatCall) ChatCall.accept(); }
+function rejectCall() { if (ChatCall) ChatCall.reject(); }
+function hangupCall() { if (ChatCall) ChatCall.hangup(); }
+function toggleCallMute() { if (ChatCall) ChatCall.toggleMute(); }
+function toggleScreenShare() { if (ChatCall) ChatCall.toggleScreenShare(); }
 
 /* ============================================================
    强制 Reload：wss 下发（客户端过时）/ admin 指定 / root 全部
@@ -6953,6 +7970,37 @@ function reloadAllClients() {
     }
     showReloadStatusDialog('To: 所有在线客户端', '*');
 }
+// ================================================================
+// 客户端过时全局锁定：收到 wss reload 后禁用一切功能，只能刷新页面。
+// 用 document 级捕获拦截 + 全局标志，不依赖可被删除的 DOM（删掉对话框/任何 div 也照样锁死）。
+// ================================================================
+var CLIENT_LOCKED = false;
+
+function _lockBlock(e) {
+    if (!CLIENT_LOCKED) return;
+    // 放行「客户端版本过时」红色对话框本身：只能点 Reload 刷新页面
+    var dlg = document.getElementById('customDialog');
+    if (dlg && dlg.classList.contains('cd-danger') && dlg.classList.contains('active') && dlg.contains(e.target)) return;
+    e.stopPropagation();
+    if (e.cancelable) e.preventDefault();
+}
+
+// 收到 reload 后调用：置锁定标志 + 挂捕获拦截 + 收起当前输入/录音状态 + 弹红色对话框
+function lockClient() {
+    if (CLIENT_LOCKED) return;
+    CLIENT_LOCKED = true;
+    var evts = ['mousedown', 'mouseup', 'click', 'dblclick', 'pointerdown', 'pointerup', 'contextmenu', 'touchstart', 'touchend'];
+    for (var i = 0; i < evts.length; i++) document.addEventListener(evts[i], _lockBlock, true);
+    document.addEventListener('wheel', _lockBlock, { capture: true, passive: false });
+    document.addEventListener('keydown', _lockBlock, true);
+    document.addEventListener('keyup', _lockBlock, true);
+    var foc = document.activeElement;
+    if (foc && foc.blur) { try { foc.blur(); } catch (err) {} }
+    if (typeof window.stopVoiceRec === 'function') { try { stopVoiceRec(); } catch (err) {} }
+    if (typeof window.cancelVoiceRec === 'function') { try { cancelVoiceRec(); } catch (err) {} }
+    showClientReloadDialog();
+}
+
 // 收到 wss reload 推送：Win8.1 风格「客户端版本过时」窗口（复用 customDialog 的 DOM），点 Reload 刷新页面
 function showClientReloadDialog() {
     var dlg = document.getElementById('customDialog');

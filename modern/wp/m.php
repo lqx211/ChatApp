@@ -33,15 +33,15 @@ if (!empty($meAvatar) && strpos($meAvatar, 'data:') !== 0 && preg_match('/^[0-9a
   <div class="chat-body" id="chatBody"></div>
   <div class="emoji-panel" id="emojiPanel" style="display:none">
     <div class="emoji-tabs">
-      <button class="emoji-tab active" id="emojiTabBuiltin">😊</button>
-      <button class="emoji-tab" id="emojiTabCustom">✚</button>
+      <button class="emoji-tab active" id="emojiTabBuiltin"><img src="../../data/res/cil/cil-smile.svg" style="width:16px;height:16px;vertical-align:-3px;filter:brightness(0) invert(1)"></button>
+      <button class="emoji-tab" id="emojiTabCustom"><img src="../../data/res/cil/cil-plus.svg" style="width:15px;height:15px;vertical-align:-3px;filter:brightness(0) invert(1)"></button>
     </div>
     <div class="emoji-grid" id="emojiGridBuiltin"></div>
     <div class="emoji-grid" id="emojiGridCustom" style="display:none"></div>
   </div>
   <div class="chat-inputbar">
-    <button class="input-icon" id="chatEmojiBtn">😊</button>
-    <input id="chatInput" placeholder="<?php echo t('m_enter_message');?>" autocomplete="off" maxlength="1000">
+    <button class="input-icon" id="chatEmojiBtn"><img src="../../data/res/cil/cil-smile.svg" style="width:18px;height:18px;vertical-align:-3px;filter:brightness(0) invert(1)"></button>
+    <input id="chatInput" placeholder="<?php echo t('m_enter_message');?>" autocomplete="off" maxlength="32767">
     <button id="chatSendBtn"><?php echo t('btn_send');?></button>
   </div>
 </section>
