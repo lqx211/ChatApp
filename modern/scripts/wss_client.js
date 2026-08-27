@@ -248,6 +248,8 @@
             case 'call':
                 // WebRTC 通话信令（语音/视频）：offer/answer/ice/hangup/busy/cancel，交给 chat.js 的 ChatCall 模块
                 if (typeof window.handleCall === 'function') window.handleCall(d);
+                // 独立屏幕共享（share_* 事件），交给 chat.js 的 ChatShare 模块
+                if (typeof window.handleShare === 'function') window.handleShare(d);
                 break;
 
             case 'reload':

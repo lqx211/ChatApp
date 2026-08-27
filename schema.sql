@@ -262,21 +262,23 @@ CREATE TABLE IF NOT EXISTS donations (
 -- ----------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS temp_uploads (
     id INT NOT NULL AUTO_INCREMENT,
-    hash CHAR(64) NOT NULL,
+    hash CHAR(64) DEFAULT NULL,
     owner_uid INT NOT NULL,
     filename VARCHAR(255) NOT NULL,
     size BIGINT NOT NULL,
     ext VARCHAR(20) DEFAULT NULL,
+    status TINYINT(1) NOT NULL DEFAULT 0,
     message_id INT DEFAULT NULL,
     uploaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     expires_at DATETIME NOT NULL,
     last_download_at DATETIME DEFAULT NULL,
     download_started_at DATETIME DEFAULT NULL,
     downloaded_bytes BIGINT NOT NULL DEFAULT 0,
+    uploaded_bytes BIGINT NOT NULL DEFAULT 0,
     download_complete TINYINT(1) NOT NULL DEFAULT 0,
     revoked TINYINT(1) NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
-    UNIQUE KEY hash (hash),
+    KEY idx_temp_hash (hash),
     KEY idx_temp_owner (owner_uid),
     KEY idx_temp_expires (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -491,6 +491,32 @@
         });
     }
 
+    /* ---------------- 安全码（WhatsApp 式 60 位比对） ---------------- */
+    /** 双方身份公钥的确定性指纹 → 60 位数字（5 位一组）。双方一致 = 无中间人/冒充。
+     *  注意：同浏览器多账号共享 IndexedDB 会算错；不同浏览器/设备各自算自己的才正确。 */
+    function safetyNumber(peer) {
+        return idbGet('keys', 'identity').then(function (identity) {
+            if (!identity || !identity.ik_pub) throw new Error('e2ee_no_identity');
+            return apiGet({ action: 'get_bundle', username: peer }).then(function (b) {
+                if (!b || !b.success || !b.ik_pub) throw new Error('e2ee_no_bundle');
+                var mine = identity.ik_pub, theirs = b.ik_pub;
+                var a = mine < theirs ? mine : theirs;
+                var z = mine < theirs ? theirs : mine;
+                var ua = fromB64(a), ub = fromB64(z);
+                var bytes = new Uint8Array(ua.length + ub.length);
+                bytes.set(ua, 0);
+                bytes.set(ub, ua.length);
+                var h = nacl.hash(bytes); // SHA-512
+                var hex = '';
+                for (var i = 0; i < h.length; i++) hex += h[i].toString(16).padStart(2, '0');
+                var digits = (BigInt('0x' + hex) % (10n ** 60n)).toString().padStart(60, '0');
+                var parts = [];
+                for (var j = 0; j < 12; j++) parts.push(digits.substr(j * 5, 5));
+                return parts.join(' ');
+            });
+        });
+    }
+
     /* ---------------- 初始化 ---------------- */
     function init() {
         if (!global.nacl || !global.nacl.util || !global.indexedDB) return Promise.resolve({ ok: false, reason: 'no-crypto' });
@@ -503,6 +529,7 @@
         setStatus: setStatus,
         getStatus: getStatus,
         getPartnerStatus: getPartnerStatus,
+        safetyNumber: safetyNumber,
         encrypt: encrypt,
         decrypt: decrypt,
         _internal: { idbGet: idbGet, idbPut: idbPut }

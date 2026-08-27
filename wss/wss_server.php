@@ -374,14 +374,16 @@ function ws_proc_messages(PDO $pdo, array $msgs, array $replyMap = []): array {
                 $m['attachment_size'] = isset($meta['size']) ? (int)$meta['size'] : null;
                 $m['attachment_url'] = null;
                 if ($m['temp_upload_id'] > 0) {
-                    $tStmt = $pdo->prepare("SELECT revoked, expires_at FROM temp_uploads WHERE id = ?");
+                    $tStmt = $pdo->prepare("SELECT revoked, expires_at, status FROM temp_uploads WHERE id = ?");
                     $tStmt->execute([(int)$m['temp_upload_id']]);
                     $tmps = $tStmt->fetch();
                     $m['temp_revoked'] = $tmps ? (int)$tmps['revoked'] : 0;
                     $m['temp_expires'] = $tmps ? $tmps['expires_at'] : null;
+                    $m['temp_status'] = $tmps ? (((int)$tmps['status'] === 1) ? 'ready' : 'uploading') : 'ready';
                 } else {
                     $m['temp_revoked'] = 0;
                     $m['temp_expires'] = null;
+                    $m['temp_status'] = 'ready';
                 }
             } elseif ($m['msg_type'] === 'like') {
                 // 点赞系统消息：attachment 存的是 JSON 次数，不是文件

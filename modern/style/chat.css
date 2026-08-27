@@ -23,8 +23,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .like-sysline{text-align:center;font-size:.72em;color:#7f8288;padding:6px 0;margin:2px 0}
 .like-sysline a{color:#8fb6d9;text-decoration:none;cursor:pointer}
 .like-sysline a:hover{text-decoration:underline}
+/* E2EE 状态系统行：蓝色 */
+.like-sysline.e2ee-sysline{color:#4da3ff}
 .e2ee-decrypting .mt{color:#7f8288;font-style:italic;text-align:center}
 .e2ee-undecryptable{color:#c06060;text-align:center}
+.e2ee-undecryptable a{color:#c06060;text-decoration:underline;cursor:pointer}
+/* E2EE 安全码（WhatsApp 式 60 位） */
+.safety-number{font-family:'SFMono-Regular',Consolas,Menlo,monospace;font-size:1.05em;letter-spacing:.02em;line-height:1.8;color:#4da3ff;background:#12141a;border:1px solid #333;border-radius:8px;padding:12px 14px;margin:10px 0 14px;text-align:center;user-select:all;word-break:break-all}
 .csi:hover{background:#2a2a2a;color:#ccc}
 .csi.pinned{background:#22313c}
 .csi.pinned:hover,.csi.pinned.active{background:#2b3b46}
@@ -181,9 +186,6 @@ img[src*="data/res/svg/"],img[src*="data/res/cil/"],img[src*="data/res/brand/"]{
 .call-wave-row{display:flex;align-items:center;gap:10px}
 .call-wave-label{flex:none;width:36px;text-align:right;font-size:.75em;color:#8ab8d8}
 .call-wave{flex:1;width:100%;height:48px;background:rgba(0,0,0,.3);border-radius:6px}
-#callScreenWrap{position:absolute;inset:0;background:#000;display:none;align-items:center;justify-content:center;z-index:3}
-#callScreenWrap video{width:100%;height:100%;object-fit:contain}
-#callShareBtn.sharing{background:#c0392b;border-color:#c0392b}
 .call-hangup{background:#7a2020;border-color:#a03a3a;color:#fff}
 #callMuteBtn.muted{background:#7a7a20;border-color:#a0a03a;color:#fff}
 /* 语音消息：录音按钮 + 录音条 */
@@ -570,15 +572,21 @@ img[src*="data/res/svg/"],img[src*="data/res/cil/"],img[src*="data/res/brand/"]{
 .flash-menu img{filter:invert(0.65)}
 .flash-menu>div:hover img{filter:invert(0.9)}
 /* ---- 9 点菜单（输入区折叠按钮弹框：4 列方块网格，高度自适应内容） ---- */
-#dmNineBtn{display:none;align-items:center;justify-content:center}
+#dmNineBtn{display:inline-flex;align-items:center;justify-content:center}
 #dmNineBtn svg{display:block}
+.nine-hide{display:none !important}
 #dmNineMenu{position:fixed;z-index:1200;grid-template-columns:repeat(4,auto);gap:8px;background:#2a2a2a;border:1px solid #555;border-radius:8px;padding:8px;box-shadow:0 6px 18px rgba(0,0,0,.55)}
 #dmNineMenu .nine-cell{width:56px;height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:#1e1e1e;border:1px solid #3a3a3a;border-radius:8px;cursor:pointer;color:#ccc;font-size:.68em;user-select:none}
 #dmNineMenu .nine-cell:hover{background:#2a2a2a;border-color:#555;color:#fff}
 #dmNineMenu .nine-cell img{width:22px;height:22px;object-fit:contain}
+
+/* ---- 独立屏幕共享（不走通话）：全屏显示窗口 + 邀请弹窗 ---- */
+#shareOverlay{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(92vw,880px);height:min(78vh,560px);min-width:320px;min-height:220px;z-index:9998;display:none;flex-direction:column;background:#000;border:1px solid #444;border-radius:8px;box-shadow:0 12px 40px rgba(0,0,0,.6);overflow:hidden;resize:both}
+#shareOverlay .share-top{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(20,22,30,.95);z-index:2;flex:0 0 auto;user-select:none}
+#shareOverlay .share-title{color:#fff;font-size:.9em;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#shareOverlay .share-wait{flex:1;display:flex;align-items:center;justify-content:center;color:#9ab8d8;font-size:.9em;padding:20px;text-align:center}
+#shareVideo{width:100%;flex:1;min-height:0;object-fit:contain;background:#000}
 @media (max-width:768px){
-  #dmNineBtn{display:inline-flex}
-  .nine-hide{display:none !important}
   /* 手机端表情选择器：停靠在输入栏下面的底部面板（把聊天/输入栏抬上去） */
   #emojiPopup{left:0 !important;right:0 !important;width:100% !important;top:auto !important;bottom:0 !important;height:44vh;max-height:44vh;border-radius:12px 12px 0 0;border-left:none;border-right:none;border-bottom:none}
   #emojiPopup .emoji-grid{grid-template-columns:repeat(8,minmax(0,1fr));max-height:none;flex:1}
@@ -633,6 +641,9 @@ img[src*="data/res/svg/"],img[src*="data/res/cil/"],img[src*="data/res/brand/"]{
 .ld-size-note{margin-top:8px;color:#8a8a8a;font-size:.8em;min-height:1em}
 
 .flash-card{background:#262626;border:1px solid #3f3f3f;border-radius:8px;padding:10px 12px;min-width:220px;max-width:340px;margin-top:4px}
+.flash-progress{display:none;width:100%;height:3px;border-radius:2px;background:rgba(255,255,255,.25);overflow:hidden;margin-top:6px}
+.flash-progress-fill{height:100%;width:0%;background:#3b82f6;border-radius:2px;transition:width .1s linear}
+.flash-progress-pct{margin-top:4px;font-size:11px;color:#c8ccd4;text-align:right;font-variant-numeric:tabular-nums;line-height:1}
 .flash-title{font-size:.68em;color:#6a9fd8;font-weight:600;margin-bottom:5px}
 .flash-title::before{content:"";display:inline-block;width:11px;height:11px;background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236a9fd8' stroke-width='2' stroke-linejoin='round' stroke-linecap='round'><polygon points='13 2 3 14 12 14 11 22 21 10 12 10 13 2'/></svg>") no-repeat center/contain;margin-right:4px;vertical-align:-1px}
 .flash-file{color:#ddd;font-size:.82em;font-weight:600;word-break:break-all;margin-bottom:6px}
