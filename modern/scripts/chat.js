@@ -3229,7 +3229,9 @@ async function pm() {
     // WSS 在线时跳过 HTTP 轮询：新消息已由 WSS 推送（type:msg）
     if (typeof window.wssRequestAvailable === 'function' && window.wssRequestAvailable()) return;
     try {
-        var r = await fetch('../../api/chat.php?action=fetch&after=' + L),
+        // 打开私聊时把轮询收敛到该会话（服务端按 dm 过滤），避免自聊/其它会话消息串台
+        var pollUrl = '../../api/chat.php?action=fetch&after=' + L + (D ? '&dm=' + encodeURIComponent(D) : '');
+        var r = await fetch(pollUrl),
             d = await r.json();
         if (d.success && d.messages.length > 0) {
             for (var i = 0; i < d.messages.length; i++) {

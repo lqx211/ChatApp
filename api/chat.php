@@ -99,18 +99,31 @@ switch ($action) {
         }
         $pdo = db();
         $after = (int)($_GET['after'] ?? 0);
+        $myUid = get_my_uid($pdo);
 
         $sel = "SELECT m.id, m.sender_id, su.username, su.display_name, su.avatar, su.user_id,
                        m.recipient_id, ru.username AS recipient_name,
                        m.message, m.msg_type, m.attachment, m.time, m.datetime, m.deleted_at, m.reply_to, m.temp_upload_id
                 FROM messages m
                 LEFT JOIN users su ON su.user_id = m.sender_id
-                LEFT JOIN users ru ON ru.user_id = m.recipient_id
-                WHERE m.id > ? AND m.group_id IS NULL AND (m.recipient_id IS NULL OR m.recipient_id = ? OR m.sender_id = ?)
-                ORDER BY m.id ASC";
-        $myUid = get_my_uid($pdo);
-        $stmt = $pdo->prepare($sel);
-        $stmt->execute([$after, $myUid, $myUid]);
+                LEFT JOIN users ru ON ru.user_id = m.recipient_id";
+
+        // 可选 dm 参数：打开私聊时轮询只取该会话双方消息（sender/recipient 互指），
+        // 绝不掺入自聊消息（sender=recipient=自己）或其它会话，避免“聊天串台”。
+        $dmName = trim($_GET['dm'] ?? '');
+        if ($dmName !== '') {
+            $dmUid = get_uid_by_name($pdo, $dmName);
+            if ($dmUid > 0) {
+                $stmt = $pdo->prepare("$sel WHERE m.id > ? AND ((m.sender_id=? AND m.recipient_id=?) OR (m.sender_id=? AND m.recipient_id=?)) ORDER BY m.id ASC");
+                $stmt->execute([$after, $myUid, $dmUid, $dmUid, $myUid]);
+            } else {
+                $stmt = $pdo->prepare("$sel WHERE m.id > ? AND m.recipient_id IS NULL ORDER BY m.id ASC");
+                $stmt->execute([$after]);
+            }
+        } else {
+            $stmt = $pdo->prepare("$sel WHERE m.id > ? AND m.group_id IS NULL AND (m.recipient_id IS NULL OR m.recipient_id = ? OR m.sender_id = ?) ORDER BY m.id ASC");
+            $stmt->execute([$after, $myUid, $myUid]);
+        }
         $messages = $stmt->fetchAll();
         $processed = proc($messages);
         $latestId = !empty($messages) ? end($messages)['id'] : $after;
