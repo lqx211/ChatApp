@@ -39,6 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pwd = (string)($_POST['password'] ?? '');
         $mu  = trim($_POST['maint_user'] ?? '');
         $mp  = (string)($_POST['maint_pass'] ?? '');
+        $dn  = trim((string)($_POST['display_name'] ?? ''));
         if ($pwd !== '') {
             if (strlen($pwd) < 8) { echo json_encode(['success' => false, 'error' => 'Password min 8.']); exit; }
             db()->prepare('UPDATE users SET password=? WHERE user_id=10000')->execute([password_hash($pwd, PASSWORD_BCRYPT)]);
@@ -54,6 +55,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (@file_put_contents($maintFile, $body) === false) { echo json_encode(['success' => false, 'error' => 'Could not write maintenance config.']); exit; }
         } elseif (($mu === '') !== ($mp === '')) {
             echo json_encode(['success' => false, 'error' => 'Maintenance username and password must both be set (or both empty).']); exit;
+        }
+        // 显示名称（可选；留空 = 保持现状）
+        if ($dn !== '') {
+            $dn = preg_replace('/[\x00-\x1F\x7F]/', '', $dn);
+            $dn = mb_substr($dn, 0, 256);
+            db()->prepare('UPDATE users SET display_name=? WHERE user_id=10000')->execute([$dn]);
         }
         echo json_encode(['success' => true]); exit;
     }
@@ -134,6 +141,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     color:#e0e0e0; font-size:.92em; font-family:inherit; outline:none; border-radius:0; transition:border-color .2s;
   }
   .fg input:focus { border-color:#888; }
+  .uinput { position:relative; margin-bottom:20px; }
+  .uinput label { display:block; margin-bottom:3px; color:#888; font-size:.74em; }
+  .uinput input {
+    width:100%; padding:9px 0 7px; background:transparent; border:none; border-bottom:1px solid #555;
+    color:#e0e0e0; font-size:.95em; font-family:inherit; outline:none; border-radius:0;
+  }
+  .uinput input::placeholder { color:#777; opacity:1; }
+  .uinput::after {
+    content:''; position:absolute; left:0; right:0; bottom:0; height:2px;
+    background:#4a9dd8; transform:scaleX(0); transition:transform .28s cubic-bezier(.4,0,.2,1); transform-origin:left;
+  }
+  .uinput:focus-within::after { transform:scaleX(1); }
   .hint { color:#888; font-size:.74em; line-height:1.55; margin:8px 0 2px; }
   .check { display:flex; align-items:flex-start; gap:8px; margin:12px 0; font-size:.78em; color:#c88; line-height:1.45; }
   .check input { margin-top:2px; }
@@ -164,6 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <script>
 var LANG = <?php echo json_encode($currentLang); ?>;
+var ME_DISPLAY = <?php echo json_encode((string)($me['display_name'] ?? '')); ?>;
 function L(e, z) { return LANG === 'en' ? e : z; }
 
 var STEP = -1;         // -1 splash, 0 lang, 1 tour, 2 security, 3 done
@@ -270,7 +290,12 @@ function skipTour(){ stepSecurity(); }
 function stepSecurity(){
   STEP = 2; dots();
   headTitle(L('Security setup','安全初始化'));
-  body('<div class="fg"><label>'+L('New admin password (optional)','新管理员密码（可选）')+'</label>'+
+  var dnPh = ME_DISPLAY
+    ? L('Current: ','当前: ')+ME_DISPLAY+L(' (leave blank to keep)','（留空保持）')
+    : L('Set your display name (optional)','设置你的显示名称（可选）');
+  body('<div class="uinput"><label>'+L('Display name','显示名称')+'</label>'+
+       '<input type="text" id="dn" autocomplete="off" placeholder="'+dnPh+'"></div>'+
+       '<div class="fg"><label>'+L('New admin password (optional)','新管理员密码（可选）')+'</label>'+
        '<input type="password" id="pw" autocomplete="new-password" placeholder="'+L('leave blank to keep current','留空保持现状')+'"></div>'+
        '<div class="fg"><label>'+L('Maintenance portal username (optional)','维护门户用户名（可选）')+'</label>'+
        '<input type="text" id="mu" autocomplete="off" placeholder="'+L('leave blank to keep current','留空保持现状')+'"></div>'+
@@ -287,6 +312,7 @@ function submitSecurity(){
   if ((!!mu) !== (!!mp)){ alert(L('Maintenance username & password must both be set (or both empty).','维护门户用户名和密码需同时填写（或都留空）。')); return; }
   var qs = new URLSearchParams();
   qs.append('action','set_creds'); qs.append('password',pw); qs.append('maint_user',mu); qs.append('maint_pass',mp);
+  qs.append('display_name', $('dn') ? $('dn').value.trim() : '');
   fetch('oobe.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:qs.toString() })
     .then(function(r){ return r.json(); }).then(function(d){
       if (d.success) finishNow();
