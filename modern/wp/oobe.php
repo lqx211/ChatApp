@@ -178,6 +178,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   .wsline .uinput.testing::after { background:#e0a040; transform:scaleX(1); animation:pulse 1s ease infinite; }
   @keyframes pulse { 50% { opacity:.3; } }
   .hint { color:#888; font-size:.74em; line-height:1.55; margin:8px 0 2px; }
+  .wsnote {
+    margin:0 0 14px; padding:10px 12px;
+    background:rgba(224,160,64,0.08); border:1px solid rgba(224,160,64,0.45);
+    border-radius:8px; color:#d8b06a; font-size:.76em; line-height:1.65;
+  }
+  .wsnote b { color:#e8c080; }
+  .wsnote code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.92em; background:rgba(0,0,0,0.35); padding:1px 5px; border-radius:4px; color:#f0c890; }
   .check { display:flex; align-items:flex-start; gap:8px; margin:12px 0; font-size:.78em; color:#c88; line-height:1.45; }
   .check input { margin-top:2px; }
   .doneWrap { text-align:center; padding:8px 0; }
@@ -354,6 +361,12 @@ function stepWS(){
     ['public',  L('Public','公网')]
   ];
   var h = '<div class="hint" style="margin-bottom:14px">'+L('We will test each server below. Continue sends a ping and waits for a pong reply.','将依次测试下面的服务器。点击「继续」发送 ping 并等待 pong 回包。')+'</div>';
+  h += '<div class="wsnote">'+
+       '<b>'+L('Reminder:','提示：')+'</b> '+L('the WebSocket server must be running, or the tests below will fail. Start it once:','WebSocket 服务器必须已启动，否则下方测试会失败。请先启动一次：')+
+       '<br><code>cd wss &amp;&amp; ./start.sh -d</code>'+
+       '&nbsp;'+L('· or install as a systemd service:','· 或安装为 systemd 服务：')+
+       '<code>wss/chatapp-wss.service</code>'+
+       '</div>';
   for (var i=0;i<modes.length;i++){
     var m = modes[i];
     h += '<div class="wsline">'+
