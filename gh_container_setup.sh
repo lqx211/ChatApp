@@ -47,20 +47,33 @@ sudo mysql -e "FLUSH PRIVILEGES;"
 sudo apt install php-mysql php8.3-mysql php8.3-mbstring php8.3-gd php8.3-curl -y
 
 echo "Setup server."
-sudo rm /var/www/html/index.html
-sudo cp -R ./* /var/www/html
+# 清空默认站点，完整复制仓库（含 .git，供 Upgrade System 使用）
+sudo rm -rf /var/www/html
+sudo mkdir -p /var/www/html
+sudo cp -R . /var/www/html/
+# 运行用户写权限（Upgrade System 的 git checkout / 上传需要；容器测试环境）
+sudo chown -R www-data:www-data /var/www/html
 sudo chmod -R 777 /tmp
 
-# --- Security hardening ---
-# Honor .htaccess (so the data/*.htaccess deny rules take effect) and disable
-# directory listing app-wide.
+# --- Security hardening + 友好错误页 ---
+# Honor .htaccess (so the data/*.htaccess deny rules take effect), disable
+# directory listing, hide PHP errors, and route 403/404/500 to ChatApp's
+# friendly error pages.
 sudo tee /etc/apache2/conf-available/chatapp-security.conf > /dev/null <<'EOF'
 <Directory /var/www/html>
     AllowOverride All
     Options -Indexes
+    php_value display_errors 0
+    php_value log_errors 1
 </Directory>
+
+# ChatApp 友好错误页：403 / 404 / 500 自动导向
+ErrorDocument 403 /errors/403.php
+ErrorDocument 404 /errors/404.php
+ErrorDocument 500 /errors/500.php
 EOF
 sudo a2enconf chatapp-security
+sudo a2enmod rewrite 2>/dev/null || true
 sudo service apache2 start
 sudo service apache2 status
 
