@@ -631,6 +631,10 @@ function eh(t) {
     d.appendChild(document.createTextNode(t));
     return d.innerHTML
 }
+// eh() 不转义双引号（文本上下文），属性值需额外把 " 转成 &quot;
+function ehAttr(t) {
+    return eh(t).replace(/"/g, '&quot;');
+}
 
 // messages.time 列已改为 BIGINT（UNIX 秒级 UTC 时间戳），前端 new Date(ts*1000) 即可；
 // 兼容旧格式：datetime 列仍是 'Y-m-d H:i:s'（服务器本地 Asia/Hong_Kong 钟面，chat.php 注入 SERVER_TZ），
@@ -862,7 +866,7 @@ function loadContacts() {
             var sorted = d.contacts.slice().sort(function(a, b) { return ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)); });
             for (var i = 0; i < sorted.length; i++) {
                 var c = sorted[i],
-                    a = c.avatar ? '<img src="' + c.avatar + '">' : '<img src="../../data/profile_empty.png">';
+                    a = c.avatar ? '<img src="' + ehAttr(c.avatar) + '">' : '<img src="../../data/profile_empty.png">';
                 _contactNotes[c.username] = c.note || '';
                 _pinned[c.username] = c.pinned ? 1 : 0;
                 // ca 直接内联 onclick（Edge 兼容）：点头像打开个人资料，stopPropagation 避免触发 openDm
@@ -1012,7 +1016,7 @@ function discoverUsers(page) {
         else
             for (var i = 0; i < d.users.length; i++) {
                 var u = d.users[i],
-                    av = u.avatar ? '<span class="srch-avatar"><img src="' + u.avatar + '" alt=""></span>' : '<span class="srch-avatar"></span>';
+                    av = u.avatar ? '<span class="srch-avatar"><img src="' + ehAttr(u.avatar) + '" alt=""></span>' : '<span class="srch-avatar"></span>';
                 // 整行可点击 → 打开该用户个人主页（Add Friend 按钮单独 stopPropagation）
                 h += '<tr style="cursor:pointer" onclick="openMyProfile(\'' + u.username + '\')"><td>' + u.user_id + '</td><td>' + av + eh(u.display_name || u.username) + '</td><td>' + eh(u.username) + '</td><td><button class="srch-btn" onclick="event.stopPropagation();event.preventDefault();openFriendReqModal(\'' + u.username + '\')">Add Friend</button></td></tr>';
             }
@@ -1071,7 +1075,7 @@ function loadRequestsPanel() {
         var h = '';
         for (var i = 0; i < d.pending.length; i++) {
             var p = d.pending[i],
-                av = p.avatar ? '<span class="req-av"><img src="' + p.avatar + '" alt=""></span>' : '<span class="req-av"></span>';
+                av = p.avatar ? '<span class="req-av"><img src="' + ehAttr(p.avatar) + '" alt=""></span>' : '<span class="req-av"></span>';
             h += '<div class="req-item">' + av + '<div class="req-info"><div class="req-name">' + eh(p.display_name || p.username) + '</div><div class="req-time">' + eh(p.created_at || '') + '</div><div class="req-msg">' + (p.msg ? eh(p.msg) : '') + '</div></div><div class="req-actions"><button class="ac" onclick="showNoteModal(\'' + p.username + '\')">Accept</button><button class="rj" onclick="respondRequest(\'' + p.username + '\',\'reject\')">Reject</button></div></div>';
         }
         a.innerHTML = h;
@@ -1479,7 +1483,7 @@ async function openUserDetail(username) {
     var stLabel = u.status_label;
     var dndLabel = u.dnd ? 'DND' : 'Online';
     var prof = document.getElementById('sidebarProfile');
-    prof.querySelector('.sa').innerHTML = (u.avatar ? ('<img src="' + u.avatar + '" alt="">') : '');
+    prof.querySelector('.sa').innerHTML = (u.avatar ? ('<img src="' + ehAttr(u.avatar) + '" alt="">') : '');
     prof.querySelector('.sun').textContent = eh(u.display_name || u.username) + ' (' + u.user_id + ')';
     var dndEl = prof.querySelector('.sdnd');
     dndEl.textContent = dndLabel + ' &mdash; ' + stLabel;
@@ -2695,7 +2699,7 @@ function buildDmMsgRow(m, own) {
         dc = dl ? ' dl' : '',
         rh = '';
     var av = '';
-    if (m.avatar) av = '<div class="msg-avatar" onclick="event.stopPropagation();openMyProfile(\'' + m.username + '\')"><img src="' + m.avatar + '" alt=""></div>';
+    if (m.avatar) av = '<div class="msg-avatar" onclick="event.stopPropagation();openMyProfile(\'' + m.username + '\')"><img src="' + ehAttr(m.avatar) + '" alt=""></div>';
     var md;
     if (m.msg_type === 'temp' && m.temp_upload_id) md = tempCardHtml(m);
     else if (m.msg_type === 'doodle') md = doodleCardHtml(m);
@@ -3074,7 +3078,7 @@ function addAnnouncement(m, prepend) {
         dc = dl ? ' dl' : '',
         rh = '';
     var av = '';
-    if (m.avatar) av = '<div class="msg-avatar" onclick="event.stopPropagation();openMyProfile(\'' + m.username + '\')"><img src="' + m.avatar + '" alt=""></div>';
+    if (m.avatar) av = '<div class="msg-avatar" onclick="event.stopPropagation();openMyProfile(\'' + m.username + '\')"><img src="' + ehAttr(m.avatar) + '" alt=""></div>';
     var md = (m.msg_type === 'temp' && m.temp_upload_id)
         ? tempCardHtml(m)
         : (m.msg_type === 'chatlog' ? chatlogCardHtml(m) : attachmentHtml.call({ attName: m.attachment_name || '', attSize: m.attachment_size || null }, m.attachment_url, m.msg_type));
@@ -4540,7 +4544,7 @@ function loadMyGroups() {
         for (var i = 0; i < sorted.length; i++) {
             var g = sorted[i];
             _pinnedGroup[g.group_id] = g.pinned ? 1 : 0;
-            var gav = g.avatar_url ? '<img src="' + g.avatar_url + '" alt="">' : '';
+            var gav = g.avatar_url ? '<img src="' + ehAttr(g.avatar_url) + '" alt="">' : '';
             h += '<div class="csi' + (_pinnedGroup[g.group_id] ? ' pinned' : '') + '" data-gid="' + g.group_id + '" onclick="openGroupChat(' + g.group_id + ',\'' + eh(g.name) + '\')"><div class="ca">' + (gav || '') + '</div><div class="cn">' + eh(g.name) + ' (GID: ' + g.group_id + ')</div></div>';
         }
         document.getElementById('myGroups').innerHTML = h || '<div style="color:#666;font-size:.72em;padding:4px 10px">No groups</div>';

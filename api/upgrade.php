@@ -12,6 +12,14 @@ if (!isset($_SESSION['username'])) {
     exit;
 }
 header('Content-Type: application/json');
+// 升级接口仅限 admin/root：避免普通登录用户读取 git 版本/升级进度等部署信息
+$__s = db()->prepare('SELECT user_id FROM users WHERE username = ?');
+$__s->execute([$_SESSION['username']]);
+$__role = chatapp_get_role((int)($__s->fetchColumn() ?: 0));
+if ($__role !== 'root' && $__role !== 'admin') {
+    echo json_encode(['success' => false, 'error' => 'Access denied.']);
+    exit;
+}
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 $root = dirname(__DIR__); // ChatApp 仓库根
 

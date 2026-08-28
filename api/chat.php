@@ -113,7 +113,7 @@ switch ($action) {
         $stmt->execute([$after, $myUid, $myUid]);
         $messages = $stmt->fetchAll();
         $processed = proc($messages);
-        $latestId = !empty($messages) ? end($messages)['id'] : (int)($pdo->query('SELECT MAX(id) FROM messages')->fetchColumn() ?? 0);
+        $latestId = !empty($messages) ? end($messages)['id'] : $after;
         echo json_encode(['success'=>true,'messages'=>$processed,'latest_id'=>$latestId]);
         break;
 
@@ -146,7 +146,7 @@ switch ($action) {
             }
             $messages = $stmt->fetchAll();
             $processed = proc($messages);
-            $latestId = !empty($messages) ? end($messages)['id'] : (int)($pdo->query('SELECT MAX(id) FROM messages')->fetchColumn() ?? 0);
+            $latestId = !empty($messages) ? end($messages)['id'] : $after;
             echo json_encode(['success'=>true,'messages'=>$processed,'latest_id'=>$latestId]);
         } else {
             if ($dmId) {
@@ -183,7 +183,7 @@ switch ($action) {
                 }
                 $hasMore = ((int)$cntStmt->fetchColumn()) > 0;
             }
-            $latestId = (int)($pdo->query('SELECT MAX(id) FROM messages')->fetchColumn() ?? 0);
+            $latestId = !empty($messages) ? end($messages)['id'] : ($after ?: 0);
             echo json_encode(['success'=>true,'messages'=>$processed,'latest_id'=>$latestId,'has_more'=>$hasMore,'oldest_id'=>$oldestId]);
         }
         break;
