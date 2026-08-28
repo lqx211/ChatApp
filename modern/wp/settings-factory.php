@@ -122,18 +122,22 @@ function frRun(){
   if (!conf) { showErr('Please confirm deletion'); return; }
 
   var f = new URLSearchParams();
-  f.append('action', 'factory_reset_verify');
+  f.append('action', 'start');
   f.append('password', pwd);
   f.append('maint_user', mu);
   f.append('maint_secret', ms);
   f.append('git_hash', h1);
   f.append('git_hash2', h2);
-  fetch('/api/settings.php', {
+  fetch('/api/factory_reset.php', {
     method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: f.toString()
   }).then(function(r){ return r.json(); })
     .then(function(d){
-      if (d.success) frSimulate();
-      else showErr(d.error || 'Verification failed');
+      if (d.success) {
+        // 打开独立流程窗口（Win8.1 风格，二次确认 + 多阶段重置）
+        window.open('factory-reset-flow.php', '_blank', 'width=620,height=520');
+      } else {
+        showErr(d.error || 'Verification failed');
+      }
     })
     .catch(function(){ showErr('Network error'); });
 }
