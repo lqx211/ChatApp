@@ -14,7 +14,13 @@ $wssUrl = '';
 if (is_file($__wssCfg)) {
     $__wssVal = trim((string)@include $__wssCfg);
     if ($__wssVal !== '') {
-        $wssUrl = (strpos($__wssVal, '://') !== false) ? $__wssVal : 'ws://' . $__wssVal;
+        if (strpos($__wssVal, '://') !== false) {
+            $wssUrl = $__wssVal;                                    // 已带 scheme，原样使用
+        } elseif (preg_match('/^[a-zA-Z0-9.\-\[\]:]+:\d+$/', $__wssVal)) {
+            $wssUrl = 'ws://' . $__wssVal;                          // host:port → 本地/私网 ws
+        } else {
+            $wssUrl = 'wss://' . $__wssVal;                         // 裸域名（如 wss.lqx211.com）→ 公网 TLS wss
+        }
     }
 }
 if ($wssUrl === '') {
@@ -346,10 +352,15 @@ if ($wssUrl === '') {
  <div class="panel" id="panel-wssettings">
   <div class="ch"><h2>WebSocket Settings</h2><span style="color:#e0a040;font-size:.75em;margin-left:12px">Root Only</span></div>
   <div style="padding:12px">
-   <div style="font-size:.75em;color:#888;margin-bottom:8px">前端连接 WebSocket 服务器的地址（host:port 或完整 ws:// / wss:// URL）。留空 = 自动按访问域名推断。保存后新连接立即生效。</div>
+   <div style="font-size:.75em;color:#888;margin-bottom:10px">前端连接 WebSocket 服务器的地址。点下面的通讯模式一键切换，或手动输入 host:port / ws:// / wss:// URL。保存后新连接立即生效。</div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    <button type="button" class="bsm wss-opt" data-wss="127.0.0.1:9090" onclick="setWssOption(this)" title="本地回环 127.0.0.1 / ::1">🖥 本地通讯 <span style="opacity:.75">127.0.0.1</span></button>
+    <button type="button" class="bsm wss-opt" data-wss="0.0.0.0:9090" onclick="setWssOption(this)" title="私网 / 局域网监听 0.0.0.0">🏠 私网通讯 <span style="opacity:.75">0.0.0.0</span></button>
+    <button type="button" class="bsm wss-opt" data-wss="wss://wss.lqx211.com" onclick="setWssOption(this)" title="公网 TLS wss://wss.lqx211.com">🌐 公网通讯 <span style="opacity:.75">wss.lqx211.com</span></button>
+   </div>
    <div style="display:flex;gap:8px;align-items:center">
-    <input type="text" id="wssServerInput" style="flex:1;padding:8px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:monospace;font-size:.85em" placeholder="localhost:9090">
-    <button class="bsm" onclick="saveWssSettings()" style="background:#2a4a2a;border-color:#3a6a3a">保存</button>
+    <input type="text" id="wssServerInput" style="flex:1;padding:8px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:monospace;font-size:.85em" placeholder="127.0.0.1:9090 或 wss://wss.lqx211.com">
+    <button type="button" class="bsm" onclick="saveWssSettings()" style="background:#2a4a2a;border-color:#3a6a3a">保存</button>
    </div>
    <div style="margin-top:6px;font-size:.72em;color:#aaa" id="wssSaveStatus"></div>
   </div>

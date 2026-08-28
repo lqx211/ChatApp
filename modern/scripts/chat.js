@@ -6652,7 +6652,24 @@ function loadWssSettings() {
     fetch('../../api/admin.php?action=wss_get').then(function(r) { return r.json(); }).then(function(d) {
         var el = document.getElementById('wssServerInput');
         if (el && d.success) el.value = d.wss_server || '';
+        highlightWssOption();
     }).catch(function() {});
+}
+// 一键切换通讯模式（本地/私网/公网）
+function setWssOption(btn) {
+    var el = document.getElementById('wssServerInput');
+    if (el && btn) el.value = btn.getAttribute('data-wss') || '';
+    saveWssSettings();
+    highlightWssOption();
+}
+// 根据当前值高亮匹配的模式按钮
+function highlightWssOption() {
+    var el = document.getElementById('wssServerInput');
+    var v = el ? el.value.trim() : '';
+    var btns = document.querySelectorAll('#panel-wssettings .wss-opt');
+    for (var i = 0; i < btns.length; i++) {
+        btns[i].classList.toggle('active', (btns[i].getAttribute('data-wss') || '') === v);
+    }
 }
 function saveWssSettings() {
     var el = document.getElementById('wssServerInput');
