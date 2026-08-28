@@ -1087,3 +1087,35 @@ function exp_bonus_claimed(int $uid, string $key): bool {
 }
 
 init_db();
+
+// ================= 在线升级维护模式 =================
+// data/upgrade.lock 存在 → 系统升级中：非 admin(uid 10000) / 未登录全部拦截。
+//  auth check 返回 reload 信号（前端心跳→刷新→落维护页）；其余请求 500 + 维护页。
+$__upgLock = __DIR__ . '/../data/upgrade.lock';
+if (is_file($__upgLock)) {
+    chatapp_session_start();
+    $__isAdmin = false;
+    if (!empty($_SESSION['username'])) {
+        try {
+            $__s = db()->prepare('SELECT user_id FROM users WHERE username = ?');
+            $__s->execute([$_SESSION['username']]);
+            $__isAdmin = ((int)($__s->fetchColumn() ?: 0) === 10000);
+        } catch (\Throwable $e) { $__isAdmin = false; }
+    }
+    if (!$__isAdmin) {
+        $__script = (string)($_SERVER['SCRIPT_NAME'] ?? '');
+        $__action = (string)($_GET['action'] ?? '');
+        $__isCheck = (strpos($__script, 'api/auth.php') !== false && $__action === 'check');
+        if ($__isCheck) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'upgrade_reload' => true]);
+            exit;
+        }
+        http_response_code(500);
+        header('Content-Type: text/html; charset=UTF-8');
+        $__uph = __DIR__ . '/../errors/unavailable_upgrade.html';
+        if (is_file($__uph)) { @readfile($__uph); }
+        else { echo '<html><body style="background:#1a1a1a;color:#eee;font-family:sans-serif;text-align:center;padding-top:80px"><h1>System is upgrading…</h1></body></html>'; }
+        exit;
+    }
+}

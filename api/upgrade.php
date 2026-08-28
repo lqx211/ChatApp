@@ -74,27 +74,27 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Git hash does not match current HEAD.']); exit;
         }
 
-        // —— 执行升级：fetch + checkout（排除 config/data/bkup/maintenance）——
-        [$f, $rf] = up_git('git fetch origin main', $root);
-        if ($rf !== 0) {
-            echo json_encode(['success' => false, 'error' => 'git fetch failed: ' . mb_substr($f, 0, 300)]); exit;
-        }
-        $coCmd = "git checkout --force origin/main -- . ':!config' ':!data' ':!bkup' ':!maintenance'";
-        [$co, $rc] = up_git($coCmd, $root);
-        if ($rc !== 0) {
-            echo json_encode(['success' => false, 'error' => 'git checkout failed: ' . mb_substr($co, 0, 300)]); exit;
-        }
-        // 更新 HEAD 指针（soft，保留工作区/保留目录不动）
-        up_git('git reset --soft origin/main', $root);
-        [$newHead] = up_git('git rev-parse HEAD', $root);
+        // —— 置维护锁 + 启动后台升级 worker（server 端下载，进度可轮询）——
+        $lock = $root . '/data/upgrade.lock';
+        $progressFile = $root . '/data/upgrade_progress.json';
+        @file_put_contents($lock, json_encode(['started' => time(), 'by' => $_SESSION['username']]));
+        @file_put_contents($progressFile, json_encode(['status' => 'pending', 'step' => 'Starting…', 'pct' => 0, 'from' => trim($head)]));
         if (function_exists('chatapp_log_admin')) {
-            chatapp_log_admin('upgrade', null, null, ['from' => trim($head), 'to' => trim($newHead)]);
+            chatapp_log_admin('upgrade', null, null, ['from' => trim($head), 'action' => 'armed']);
         }
-        echo json_encode([
-            'success' => true,
-            'from' => trim($head),
-            'to' => trim($newHead),
-            'note' => 'config/data/bkup/maintenance preserved',
-        ]);
+        $worker = __DIR__ . '/upgrade_worker.php';
+        $workerLog = $root . '/data/upgrade_worker.log';
+        @file_put_contents($workerLog, '');
+        exec(escapeshellarg((string)PHP_BINARY) . ' ' . escapeshellarg($worker) . ' >> ' . escapeshellarg($workerLog) . ' 2>&1 &');
+        echo json_encode(['success' => true, 'started' => true, 'maintenance' => true]);
+        break;
+
+    case 'progress':
+        // 读取后台 worker 的升级进度
+        $progressFile = $root . '/data/upgrade_progress.json';
+        $p = [];
+        if (is_file($progressFile)) { $p = json_decode((string)file_get_contents($progressFile), true) ?: []; }
+        $p['locked'] = is_file($root . '/data/upgrade.lock');
+        echo json_encode(['success' => true] + $p);
         break;
 }

@@ -74,6 +74,17 @@ chatapp_require_login();
     </div>
   </div>
 
+  <!-- 升级进度 -->
+  <div id="upProgress" style="display:none">
+    <div style="text-align:center;color:#6fa8dc;font-weight:700;margin:16px 0 6px">UPGRADING…</div>
+    <div style="text-align:center;color:#ccc;font-size:.8em;min-height:1.2em" id="upStep">Starting…</div>
+    <div style="width:80%;max-width:340px;height:16px;border:1px solid #3a6a8a;margin:12px auto;border-radius:8px;overflow:hidden">
+      <div id="upBar" style="height:100%;width:0%;background:#4a9dd8;transition:width .4s"></div>
+    </div>
+    <div style="text-align:center;color:#888;font-size:.75em" id="upPct">0%</div>
+    <div style="text-align:center;color:#666;font-size:.68em;margin-top:10px">All other users are in maintenance mode until this completes.</div>
+  </div>
+
 </div>
 
 <div class="save-toast" id="saveToast">✓</div>
@@ -133,12 +144,43 @@ function runUpgrade(){
   if (!conf) { showMsg('Please accept the risk', false); return; }
   api('perform', { password: pwd, maint_user: mu, maint_secret: ms, git_hash: h1, git_hash2: h2 }).then(function(d){
     if (d.success) {
-      showMsg('Upgraded: ' + (d.from || '').slice(0, 8) + ' → ' + (d.to || '').slice(0, 8) + ' ✓', true);
-      setTimeout(function(){ location.reload(); }, 1500);
+      // 进入后台升级：隐藏表单，显示进度
+      document.getElementById('upPanel').style.display = 'none';
+      document.getElementById('upCheckBtn').style.display = 'none';
+      var pg = document.getElementById('upProgress');
+      pg.style.display = 'block';
+      showMsg('Upgrade started — maintenance mode armed', true);
+      pollProgress();
     } else {
       showMsg(d.error || 'Upgrade failed', false);
     }
   }).catch(function(){ showMsg('Network error', false); });
+}
+
+function pollProgress(){
+  api('progress').then(function(d){
+    if (!d.success) { setTimeout(pollProgress, 1500); return; }
+    var step = document.getElementById('upStep');
+    var bar  = document.getElementById('upBar');
+    var pct  = document.getElementById('upPct');
+    if (d.step) step.textContent = d.step;
+    if (typeof d.pct === 'number') { bar.style.width = d.pct + '%'; pct.textContent = d.pct + '%'; }
+    if (d.status === 'done') {
+      step.textContent = 'Upgrade complete ✓';
+      bar.style.width = '100%'; pct.textContent = '100%';
+      showMsg('Upgrade complete — service restored', true);
+      document.getElementById('upCheckBtn').style.display = 'block';
+      setTimeout(function(){ location.reload(); }, 2500);
+      return;
+    }
+    if (d.status === 'error') {
+      step.textContent = 'Upgrade failed';
+      showMsg('Upgrade failed — maintenance released', false);
+      document.getElementById('upCheckBtn').style.display = 'block';
+      return;
+    }
+    setTimeout(pollProgress, 1000);
+  }).catch(function(){ setTimeout(pollProgress, 2000); });
 }
 
 // 进入页面自动检查一次

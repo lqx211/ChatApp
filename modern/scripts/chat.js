@@ -6781,6 +6781,7 @@ function checkSession() {
     fetch('../../api/auth.php?action=check')
         .then(function(r) { return r.json(); })
         .then(function(d) {
+            if (d.upgrade_reload) { location.reload(); return; } // 在线升级：强制刷新 → 落维护页
             if (!d.success) { location.reload(); return; }
             // 会话期间账号突然被限制 → 本地强制会话刷新（锁定客户端 + 弹刷新警告）
             if (d.restricted && !RSTR) {
