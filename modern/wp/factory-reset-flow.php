@@ -1,43 +1,81 @@
 <?php
 /**
- * ChatApp · Factory Reset 独立流程窗口（Win8.1 红色标题风格）
+ * ChatApp · Factory Reset 独立流程窗口（login.php 毛玻璃风格）
  * 由 settings-factory.php 验证通过后 window.open 打开。
  * 流程：二次确认 → 过期会话 → 断开客户端 → 新凭据 → DROP+重建 → 完成。
  */
 require_once __DIR__ . '/../../api/config.php';
 chatapp_require_login();
+// 与 login.php 共用同一壁纸（会话内保持一致）
+if (empty($_SESSION['wallpaper']) || (int)$_SESSION['wallpaper'] < 1 || (int)$_SESSION['wallpaper'] > 10) {
+    $_SESSION['wallpaper'] = rand(1, 10);
+}
+$bgWallpaper = (int)$_SESSION['wallpaper'];
 ?>
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-Hans">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=600, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Factory Reset</title>
 <style>
-  body{margin:0;font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:#ececec}
-  .win{width:560px;margin:28px auto;background:#f5f5f5;border:1px solid #8a8a8a;box-shadow:0 2px 12px rgba(0,0,0,.45)}
-  .win-title{background:linear-gradient(#d8432f,#a82a1a);color:#fff;padding:9px 14px;font-size:14px;font-weight:600;letter-spacing:.5px;display:flex;justify-content:space-between;align-items:center}
-  .win-title .x{color:#fff;opacity:.9;font-weight:700;cursor:pointer;font-size:15px}
-  .win-body{padding:22px 26px;font-size:13px;color:#222;min-height:220px}
-  .warn{color:#c00;font-weight:700;font-size:13px;line-height:1.5}
-  .hint{color:#666;font-size:12px;line-height:1.6}
-  .bar{height:18px;border:1px solid #999;background:#fff;margin:12px 0;border-radius:2px;overflow:hidden}
-  .bar div{height:100%;background:#4a9dd8;transition:width .3s}
-  .btn{padding:6px 22px;border:1px solid #8a8a8a;background:#e6e6e6;font-size:13px;cursor:pointer;min-width:84px}
-  .btn:hover{background:#fff}
-  .btn.primary{background:#4a9dd8;border-color:#2a7db8;color:#fff}
-  .btn.primary:hover{background:#5aadd8}
-  input[type=text],input[type=password]{padding:5px 7px;border:1px solid #999;font-size:13px;width:62%}
-  label.inline{display:block;margin:10px 0;font-size:12px;color:#a33}
-  .mono{font-family:Consolas,monospace;font-size:13px}
-  .foot{margin-top:16px;text-align:right}
-  .step-title{font-weight:600;font-size:13px;margin-bottom:10px}
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { height:100%; }
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;
+    color:#e0e0e0;
+    display:flex; justify-content:center; align-items:center;
+    min-height:100vh;
+    background-color:#1a1a1a;
+    background-image:
+      radial-gradient(rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 100%),
+      radial-gradient(rgba(0,0,0,0) 33%, rgba(0,0,0,0.3) 166%),
+      url('../bg/background<?php echo $bgWallpaper; ?>.jpg');
+    background-size:cover; background-position:center; background-repeat:no-repeat; background-attachment:fixed;
+  }
+  .card {
+    width:420px; max-width:calc(100vw - 32px);
+    background:rgba(42,42,42,0.9);
+    -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+    border:1px solid rgba(90,90,90,0.5);
+    box-shadow:0 8px 32px rgba(0,0,0,0.5);
+    padding:26px 30px;
+  }
+  .card h1 { text-align:center; font-size:1.5em; color:#e8a0a0; margin-bottom:4px; font-weight:600; }
+  .card .sub { text-align:center; color:#888; font-size:.8em; margin-bottom:18px; }
+  .warn { color:#e8826a; font-size:.85em; line-height:1.55; margin-bottom:6px; }
+  .hint { color:#999; font-size:.78em; line-height:1.6; margin:10px 0; }
+  .bar { height:8px; border-radius:4px; background:#2a2a2a; overflow:hidden; margin:12px 0; }
+  .bar div { height:100%; background:#4a9dd8; border-radius:4px; transition:width .3s; }
+  .fg { margin-bottom:14px; }
+  .fg label { display:block; margin-bottom:6px; color:#aaa; font-size:.82em; }
+  .fg input {
+    width:100%; padding:10px 12px; background:#1e1e1e; border:1px solid #444;
+    color:#e0e0e0; font-size:.92em; font-family:inherit; outline:none; transition:border-color .2s;
+  }
+  .fg input:focus { border-color:#888; }
+  .check { display:flex; align-items:flex-start; gap:8px; margin:12px 0; font-size:.78em; color:#c88; line-height:1.45; }
+  .check input { margin-top:2px; }
+  .actions { display:flex; gap:10px; margin-top:20px; }
+  .btn {
+    flex:1; padding:11px; background:#4a4a4a; border:1px solid #555; color:#e0e0e0;
+    font-size:.92em; font-weight:600; cursor:pointer; font-family:inherit; transition:background .2s;
+  }
+  .btn:hover { background:#5a5a5a; }
+  .btn.danger { background:#6a2a2a; border-color:#7c3434; }
+  .btn.danger:hover { background:#7c3434; }
+  .btn.primary { background:#4a6a9a; border-color:#3a5a8a; }
+  .btn.primary:hover { background:#5a7aaa; }
+  .mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.9em; background:#1e1e1e; border:1px solid #333; padding:10px 12px; margin:8px 0; line-height:1.6; word-break:break-all; }
+  .step-title { font-weight:600; font-size:.95em; color:#ddd; margin-bottom:10px; }
+  .ok { color:#7ddb9a; }
 </style>
 </head>
 <body>
-<div class="win">
-  <div class="win-title"><span>Factory Reset</span><span class="x" onclick="frAbort()">✕</span></div>
-  <div class="win-body" id="body">Loading…</div>
+<div class="card">
+  <h1>Factory Reset</h1>
+  <p class="sub" id="sub">擦除数据库并重建</p>
+  <div id="body">Loading…</div>
 </div>
 
 <script>
@@ -48,105 +86,116 @@ function frApi(action, data){
   return fetch('/api/factory_reset.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:f.toString() }).then(function(r){ return r.json(); });
 }
 function show(html){ document.getElementById('body').innerHTML = html; }
+function actions(html){ return '<div class="actions">' + html + '</div>'; }
 
 /* ---- Step 0: 二次确认 ---- */
 function stepConfirm(){
+  document.getElementById('sub').textContent = '擦除数据库并重建';
   show(
-    '<div class="warn">Are you really sure to factory reset your database? This can\'t be reverted.</div>'+
-    '<label class="inline"><input type="checkbox" id="frConfirm2"> I\'m sure to delete everything, including everyone\'s data, all logs and all configurations and understand its irreversible.</label>'+
-    '<div class="foot"><button class="btn" onclick="frAbort()">Abort</button> <button class="btn primary" onclick="frContinue()">Continue</button></div>'
+    '<div class="warn">确定要执行工厂重置吗？将删除所有人的数据、日志与配置，<b>不可撤销</b>。</div>'+
+    '<label class="check"><input type="checkbox" id="frConfirm2"> 我已确认要删除一切，包括所有用户数据、日志和配置，并明白此操作不可恢复。</label>'+
+    actions('<button class="btn danger" onclick="frAbort()">放弃</button><button class="btn primary" onclick="frContinue()">继续</button>')
   );
 }
 function frContinue(){
-  if (!document.getElementById('frConfirm2').checked){ alert('Please confirm before continuing.'); return; }
+  if (!document.getElementById('frConfirm2').checked){ alert('请先勾选确认。'); return; }
   step1();
 }
 function frAbort(){
   frApi('abort').then(function(){ window.close(); }).catch(function(){ window.close(); });
 }
 
-/* ---- Step 1: configuring deletion ---- */
+/* ---- Step 1: 准备删除 ---- */
 function step1(){
-  show('<div class="step-title">Factory Reset</div><p>Please wait while setup is configuring your deletion request.</p>'+
-       '<p class="hint" id="frStatus">Contacting server…</p>');
-  frApi('status').then(function(d){
+  document.getElementById('sub').textContent = '正在准备';
+  show('<div class="step-title">正在配置删除请求</div><p class="hint" id="frStatus">联系服务器…</p>');
+  frApi('status').then(function(){
     var s = document.getElementById('frStatus');
-    s.textContent = 'Server is preparing deletion…';
-    setTimeout(step2, 1500);
+    if (s) s.textContent = '服务器已就绪，准备删除…';
+    setTimeout(step2, 1200);
   }).catch(function(){
-    document.getElementById('frStatus').textContent = 'Server unreachable.';
+    var s = document.getElementById('frStatus');
+    if (s) s.textContent = '服务器不可达。';
   });
 }
 
-/* ---- Step 2: expire all sessions ---- */
+/* ---- Step 2: 过期所有会话 ---- */
 function step2(){
-  show('<div class="step-title">Factory Reset</div>'+
-       '<p>Please wait until all other user sessions are expired.</p>'+
+  document.getElementById('sub').textContent = '正在过期所有会话';
+  show('<div class="step-title">正在使所有其他用户会话过期</div>'+
        '<div class="bar"><div id="frBar" style="width:0%"></div></div>'+
        '<p class="hint" id="frSub">(0/0 valid tokens) …</p>');
   frApi('expire_tokens').then(function(d){
-    if (!d.success){ show('<div class="warn">'+d.error+'</div><div class="foot"><button class="btn" onclick="stepConfirm()">Back</button></div>'); return; }
+    if (!d.success){ show('<div class="warn">'+(d.error||'失败')+'</div>'+actions('<button class="btn" onclick="stepConfirm()">返回</button>')); return; }
     var pct = d.total ? Math.round(d.expired/d.total*100) : 100;
     document.getElementById('frBar').style.width = pct+'%';
     document.getElementById('frSub').textContent = '('+d.expired+'/'+d.total+' valid tokens)';
-    setTimeout(step3, 10000);   // 10 秒后自动进入下一步（不等待完成）
-  }).catch(function(){ show('<div class="warn">Network error.</div>'); });
+    setTimeout(step3, 6000);
+  }).catch(function(){ show('<div class="warn">网络错误。</div>'); });
 }
 
-/* ---- Step 3: disconnect clients（10 秒自动跳过） ---- */
+/* ---- Step 3: 断开客户端（自动跳过） ---- */
 function step3(){
-  show('<div class="step-title">Factory Reset</div>'+
-       '<p>Please wait until all other active user sessions are disconnected.</p>'+
+  document.getElementById('sub').textContent = '正在断开客户端';
+  show('<div class="step-title">正在断开其他在线客户端</div>'+
        '<div class="bar"><div id="frBar" style="width:0%"></div></div>'+
-       '<p class="hint" id="frSub">(0/0 online browsers) — forcing client reload…</p>');
+       '<p class="hint" id="frSub">(0/10 online browsers) — 正在强制客户端刷新…</p>');
   var i = 0;
   var t = setInterval(function(){
     i += 10;
-    document.getElementById('frBar').style.width = Math.min(100,i)+'%';
-    document.getElementById('frSub').textContent = '('+Math.min(10,Math.round(i/10))+'/10 online browsers)';
+    var b = document.getElementById('frBar'); if (b) b.style.width = Math.min(100,i)+'%';
+    var s = document.getElementById('frSub'); if (s) s.textContent = '('+Math.min(10,Math.round(i/10))+'/10 online browsers)';
     if (i >= 100){ clearInterval(t); }
   }, 900);
-  setTimeout(step4, 10000);    // 10 秒自动跳转，不关心进度
+  setTimeout(step4, 8000);
 }
 
-/* ---- Step 4: new admin credentials ---- */
+/* ---- Step 4: 新管理员凭据 ---- */
 function step4(){
-  show('<div class="step-title">Factory Reset</div><p>Please enter new administrator credentials:</p>'+
-       '<div style="margin:8px 0"><label>Username:</label> <input type="text" id="frNewU" autocomplete="off"></div>'+
-       '<div style="margin:8px 0"><label>Password:</label> <input type="text" id="frNewP" autocomplete="off"></div>'+
-       '<label class="inline"><input type="checkbox" id="frSkipDump"> Skip database dump (dangerous)</label>'+
-       '<div class="foot"><button class="btn" onclick="frAbort()">Abort</button> <button class="btn primary" onclick="frSetup()">Continue</button></div>');
+  document.getElementById('sub').textContent = '设置新管理员';
+  show('<div class="step-title">请输入新的管理员凭据</div>'+
+       '<div class="fg"><label>用户名</label><input type="text" id="frNewU" autocomplete="off"></div>'+
+       '<div class="fg"><label>密码</label><input type="password" id="frNewP" autocomplete="new-password"></div>'+
+       '<label class="check"><input type="checkbox" id="frSkipDump"> 跳过数据库备份（危险）</label>'+
+       actions('<button class="btn danger" onclick="frAbort()">放弃</button><button class="btn primary" onclick="frSetup()">继续</button>'));
 }
 function frSetup(){
   var u = document.getElementById('frNewU').value.trim();
   var p = document.getElementById('frNewP').value;
   var skip = document.getElementById('frSkipDump').checked;
-  if (!u || !p){ alert('Enter both username and password.'); return; }
+  if (!u || !p){ alert('请输入用户名和密码。'); return; }
   frApi('setup_creds', { username:u, password:p, skip_dump: skip?'1':'0' }).then(function(d){
     if (!d.success){ alert(d.error); return; }
     step5(skip);
   });
 }
 
-/* ---- Step 5: drop + rebuild ---- */
+/* ---- Step 5: 删除 + 重建 ---- */
 function step5(skip){
-  show('<div class="step-title">Dropping and rebuilding database, please wait.</div>'+
-       '<p class="hint" id="frStatus">'+ (skip ? 'Preparing to drop…' : 'Please wait while server is dumping database…') +'</p>');
-  setTimeout(function(){ document.getElementById('frStatus').textContent = '> Dropping…'; }, 1000);
-  setTimeout(function(){ document.getElementById('frStatus').textContent = '> Rebuilding from /schema.sql…'; }, 2600);
+  document.getElementById('sub').textContent = '正在重建数据库';
+  show('<div class="step-title">删除并重建数据库，请稍候。</div>'+
+       '<p class="hint" id="frStatus">'+(skip ? '准备删除…' : '正在备份数据库…')+'</p>');
+  setTimeout(function(){ var s=document.getElementById('frStatus'); if(s) s.textContent = '> 删除数据库…'; }, 800);
+  setTimeout(function(){ var s=document.getElementById('frStatus'); if(s) s.textContent = '> 从 schema.sql 重建…'; }, 1800);
   frApi('rebuild').then(function(d){
-    if (!d.success){ show('<div class="warn">Rebuild failed: '+d.error+'</div><div class="foot"><button class="btn" onclick="window.close()">Close</button></div>'); return; }
+    if (!d.success){ show('<div class="warn">重建失败: '+(d.error||'未知错误')+'</div>'+actions('<button class="btn" onclick="window.close()">关闭</button>')); return; }
     step6(d);
-  }).catch(function(){ show('<div class="warn">Network error.</div>'); });
+  }).catch(function(){ show('<div class="warn">网络错误。</div>'); });
 }
 
-/* ---- Step 6: success ---- */
+/* ---- Step 6: 完成 ---- */
 function step6(d){
-  show('<div class="step-title">Factory reset success.</div>'+
-       '<p>Please reload your session and login with new creds:</p>'+
-       '<p class="mono">Username: <b>'+d.username+'</b><br>Password: <b>'+d.password+'</b></p>'+
-       (d.backup ? '<p class="hint">Backup: '+d.backup+'</p>' : '')+
-       '<div class="foot"><button class="btn primary" onclick="location.href=\'/modern/wp/login.php\'">Reload</button></div>');
+  document.getElementById('sub').textContent = '重置完成';
+  show('<div class="step-title ok">✓ 工厂重置成功</div>'+
+       '<p class="hint">请重新登录，使用新的凭据：</p>'+
+       '<div class="mono">用户名: <b>'+d.username+'</b><br>密码: <b>'+d.password+'</b></div>'+
+       (d.backup ? '<p class="hint">备份文件: '+d.backup+'</p>' : '')+
+       actions('<button class="btn primary" onclick="frLogout()">重新登录</button>'));
+}
+function frLogout(){
+  fetch('/api/auth.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'action=logout' })
+    .then(function(){ location.href='/modern/wp/login.php'; })
+    .catch(function(){ location.href='/modern/wp/login.php'; });
 }
 
 stepConfirm();

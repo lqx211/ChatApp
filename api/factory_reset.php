@@ -148,7 +148,14 @@ switch ($action) {
         if ($rc !== 0) {
             echo json_encode(['success' => false, 'error' => 'admin insert failed: ' . implode(' ', $out)]); exit;
         }
-        // 5) 清锁 + state
+        // 5) 事后校验：users 应只剩新建的 root（证明 DROP+重建真的发生，而非沿用旧库）
+        $out = []; $rc = -1;
+        exec($MYSQL . ' chatapp -N -e "SELECT COUNT(*) FROM users" 2>&1', $out, $rc);
+        $cnt = (int)trim(implode('', $out));
+        if ($rc !== 0 || $cnt !== 1) {
+            echo json_encode(['success' => false, 'error' => 'Rebuild verification failed: users=' . $cnt . ' (DB was NOT fully reset).']); exit;
+        }
+        // 6) 清锁 + state
         @unlink($lock);
         @unlink($stateFile);
         if (function_exists('chatapp_log_admin')) {

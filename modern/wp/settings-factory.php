@@ -134,7 +134,7 @@ function frRun(){
     .then(function(d){
       if (d.success) {
         // 打开独立流程窗口（Win8.1 风格，二次确认 + 多阶段重置）
-        window.open('factory-reset-flow.php', '_blank', 'width=620,height=520');
+        window.open('factory-reset-flow.php', '_blank', 'width=500,height=640');
       } else {
         showErr(d.error || 'Verification failed');
       }
