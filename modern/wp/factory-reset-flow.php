@@ -156,15 +156,21 @@ function step4(){
   show('<div class="step-title">请输入新的管理员凭据</div>'+
        '<div class="fg"><label>用户名</label><input type="text" id="frNewU" autocomplete="off"></div>'+
        '<div class="fg"><label>密码</label><input type="password" id="frNewP" autocomplete="new-password"></div>'+
+       '<div style="margin:16px 0 10px;padding-top:12px;border-top:1px solid #333;font-size:.8em;color:#888">Maintenance Portal（维护门户，留空 = 保持现有）</div>'+
+       '<div class="fg"><label>维护用户名</label><input type="text" id="frMaintU" autocomplete="off" placeholder="留空保持现有"></div>'+
+       '<div class="fg"><label>维护密码</label><input type="password" id="frMaintP" autocomplete="new-password" placeholder="留空保持现有"></div>'+
        '<label class="check"><input type="checkbox" id="frSkipDump"> 跳过数据库备份（危险）</label>'+
        actions('<button class="btn danger" onclick="frAbort()">放弃</button><button class="btn primary" onclick="frSetup()">继续</button>'));
 }
 function frSetup(){
   var u = document.getElementById('frNewU').value.trim();
   var p = document.getElementById('frNewP').value;
+  var mu = document.getElementById('frMaintU').value.trim();
+  var mp = document.getElementById('frMaintP').value;
   var skip = document.getElementById('frSkipDump').checked;
-  if (!u || !p){ alert('请输入用户名和密码。'); return; }
-  frApi('setup_creds', { username:u, password:p, skip_dump: skip?'1':'0' }).then(function(d){
+  if (!u || !p){ alert('请输入管理员用户名和密码。'); return; }
+  if ((!!mu) !== (!!mp)){ alert('维护门户的用户名和密码需同时填写（或都留空）。'); return; }
+  frApi('setup_creds', { username:u, password:p, maint_user:mu, maint_pass:mp, skip_dump: skip?'1':'0' }).then(function(d){
     if (!d.success){ alert(d.error); return; }
     step5(skip);
   });
@@ -188,7 +194,8 @@ function step6(d){
   document.getElementById('sub').textContent = '重置完成';
   show('<div class="step-title ok">✓ 工厂重置成功</div>'+
        '<p class="hint">请重新登录，使用新的凭据：</p>'+
-       '<div class="mono">用户名: <b>'+d.username+'</b><br>密码: <b>'+d.password+'</b></div>'+
+       '<div class="mono">管理员 用户名: <b>'+d.username+'</b><br>密码: <b>'+d.password+'</b></div>'+
+       (d.maint_user ? '<div class="mono">维护门户 用户名: <b>'+d.maint_user+'</b><br>密码: <b>'+d.maint_pass+'</b></div>' : '')+
        (d.backup ? '<p class="hint">备份文件: '+d.backup+'</p>' : '')+
        actions('<button class="btn primary" onclick="frLogout()">重新登录</button>'));
 }

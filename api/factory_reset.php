@@ -96,6 +96,20 @@ switch ($action) {
         $st['new_username'] = $u;
         $st['new_password'] = $p;
         $st['skip_dump'] = (($_POST['skip_dump'] ?? '') === '1');
+        // 维护门户凭据（可选；留空 = 保持现有）
+        $mu = trim($_POST['maint_user'] ?? '');
+        $mp = (string)($_POST['maint_pass'] ?? '');
+        if ($mu !== '' && !preg_match('/^[a-zA-Z0-9_]{3,20}$/', $mu)) {
+            echo json_encode(['success' => false, 'error' => 'Invalid maintenance username (3-20, letters/numbers/underscore).']); exit;
+        }
+        if ($mp !== '' && strlen($mp) < 8) {
+            echo json_encode(['success' => false, 'error' => 'Maintenance password too short (min 8).']); exit;
+        }
+        if (($mu === '') !== ($mp === '')) {
+            echo json_encode(['success' => false, 'error' => 'Maintenance username and password must both be set (or both left empty).']); exit;
+        }
+        $st['maint_user'] = $mu;
+        $st['maint_pass'] = $mp;
         fr_set_state($st);
         echo json_encode(['success' => true]);
         break;
@@ -155,13 +169,30 @@ switch ($action) {
         if ($rc !== 0 || $cnt !== 1) {
             echo json_encode(['success' => false, 'error' => 'Rebuild verification failed: users=' . $cnt . ' (DB was NOT fully reset).']); exit;
         }
+        // 5.5) 维护门户凭据（若提供了新值则重写 maintenance/config.php；否则保持现状）
+        $newMu = ''; $newMp = '';
+        if (!empty($st['maint_user']) || !empty($st['maint_pass'])) {
+            $maintFile = $root . '/maintenance/config.php';
+            $oldMu = 'admin'; $oldMp = ''; $oldMs = '';
+            if (is_file($maintFile)) { include $maintFile; }
+            $newMu = !empty($st['maint_user']) ? $st['maint_user'] : $oldMu;
+            $newMp = !empty($st['maint_pass']) ? $st['maint_pass'] : ($oldMp !== '' ? $oldMp : bin2hex(random_bytes(12)));
+            $newMs = bin2hex(random_bytes(32));
+            $body = "<?php\n/**\n * ChatApp — Maintenance admin credentials\n *\n * AUTO-GENERATED during factory reset.\n * Override via MAINT_USER / MAINT_PASS / MAINT_SECRET env vars if needed.\n */\n"
+                . "\$MAINT_USER   = getenv('MAINT_USER') ?: " . var_export($newMu, true) . ";\n"
+                . "\$MAINT_PASS   = getenv('MAINT_PASS') ?: " . var_export($newMp, true) . ";\n"
+                . "\$MAINT_SECRET = getenv('MAINT_SECRET') ?: " . var_export($newMs, true) . ";\n";
+            if (@file_put_contents($maintFile, $body) === false) {
+                echo json_encode(['success' => false, 'error' => 'Could not write maintenance config.']); exit;
+            }
+        }
         // 6) 清锁 + state
         @unlink($lock);
         @unlink($stateFile);
         if (function_exists('chatapp_log_admin')) {
             chatapp_log_admin('factory_reset', null, null, ['backup' => basename($bak), 'new_root' => $u]);
         }
-        echo json_encode(['success' => true, 'username' => $u, 'password' => $p, 'backup' => basename($bak)]);
+        echo json_encode(['success' => true, 'username' => $u, 'password' => $p, 'backup' => basename($bak), 'maint_user' => $newMu, 'maint_pass' => $newMp]);
         break;
 
     // ---- 状态/阶段查询 ----
