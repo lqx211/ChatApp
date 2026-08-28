@@ -22,6 +22,15 @@ if (empty($_SESSION['wallpaper']) || (int)$_SESSION['wallpaper'] < 1 || (int)$_S
 $bgWallpaper = (int)$_SESSION['wallpaper'];
 $currentLang = $_SESSION['preferred_language'] ?? ($me['preferred_language'] ?? 'en');
 
+// WebSocket 三模式（OOBE 测试展示；空则用默认）
+$__wss = chatapp_wss_config();
+$__wssDefaults = ['local' => '127.0.0.1:9090', 'private' => '0.0.0.0:9090', 'public' => 'wss://wss.lqx211.com'];
+$__wssOut = [];
+foreach (['local', 'private', 'public'] as $__k) {
+    $__v = $__wss[$__k] !== '' ? $__wss[$__k] : $__wssDefaults[$__k];
+    $__wssOut[$__k] = chatapp_wss_url($__v);
+}
+
 // ---------- POST 后端（全部幂等） ----------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
@@ -165,6 +174,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     background:#4a9dd8; transform:scaleX(0); transition:transform .28s cubic-bezier(.4,0,.2,1); transform-origin:left;
   }
   .uinput:focus-within::after { transform:scaleX(1); }
+  .linkbtn { background:none; border:none; color:#8aa6c8; text-decoration:underline; cursor:pointer; font-size:.8em; padding:8px 4px; font-family:inherit; }
+  .linkbtn:hover { color:#b8d0e8; }
+  .wsline { display:flex; align-items:flex-end; gap:12px; margin-bottom:16px; }
+  .wsline .wstag { width:46px; font-size:.78em; color:#bbb; padding-bottom:9px; white-space:nowrap; }
+  .wsline .uinput { flex:1; margin-bottom:0; }
+  .wsline .uinput input { color:#e0e0e0; font-size:.88em; }
+  .wsline .uinput.ok::after { background:#7ddb9a; transform:scaleX(1); }
+  .wsline .uinput.fail::after { background:#e06666; transform:scaleX(1); }
+  .wsline .uinput.testing::after { background:#e0a040; transform:scaleX(1); animation:pulse 1s ease infinite; }
+  @keyframes pulse { 50% { opacity:.3; } }
+  .wsline .wsstatus { width:160px; font-size:.72em; line-height:1.4; padding-bottom:7px; color:#e06666; }
+  .wsline .wsstatus.pass { color:#7ddb9a; }
+  .wsline .wsstatus.testing { color:#e0a040; }
   .hint { color:#888; font-size:.74em; line-height:1.55; margin:8px 0 2px; }
   .check { display:flex; align-items:flex-start; gap:8px; margin:12px 0; font-size:.78em; color:#c88; line-height:1.45; }
   .check input { margin-top:2px; }
@@ -196,6 +218,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script>
 var LANG = <?php echo json_encode($currentLang); ?>;
 var ME_DISPLAY = <?php echo json_encode((string)($me['display_name'] ?? '')); ?>;
+var ME_WSS = <?php echo json_encode($__wssOut); ?>;
 function L(e, z) { return LANG === 'en' ? e : z; }
 
 var STEP = -1;         // -1 splash, 0 lang, 1 tour, 2 security, 3 done
@@ -219,8 +242,8 @@ function body(el){
 }
 function headTitle(t){ $('hTitle').textContent = t; }
 function dots(){
-  var steps = ['lang','tour','security','done'];
-  var labels = [L('Language','语言'), L('Tour','导览'), L('Security','安全'), L('Done','完成')];
+  var steps = ['lang','tour','security','ws','done'];
+  var labels = [L('Language','语言'), L('Tour','导览'), L('Security','安全'), L('WebSocket','WebSocket'), L('Done','完成')];
   var h = '';
   for (var i=0;i<steps.length;i++){
     var st = i < STEP ? 'done' : (i === STEP ? 'active' : '');
@@ -314,7 +337,7 @@ function stepSecurity(){
        '<div class="fg"><label>'+L('Maintenance portal password (optional)','维护门户密码（可选）')+'</label>'+
        '<input type="password" id="mp" autocomplete="new-password" placeholder="'+L('leave blank to keep current','留空保持现状')+'"></div>'+
        '<div class="hint">'+L('Maintenance portal is the emergency login used when the site is in maintenance mode.','维护门户是站点处于维护模式时的紧急登录入口。')+'</div>'+
-       '<div class="actions"><button class="btn ghost" onclick="finishNow()">'+L('Skip','跳过')+'</button><button class="btn primary" onclick="submitSecurity()">'+L('Save & Finish','保存并完成')+'</button></div>');
+       '<div class="actions"><button class="linkbtn" onclick="stepWS()">'+L('Skip','跳过')+'</button><button class="btn primary" onclick="submitSecurity()">'+L('Save & Continue','保存并继续')+'</button></div>');
 }
 function submitSecurity(){
   var pw = $('pw').value;
@@ -327,11 +350,91 @@ function submitSecurity(){
   qs.append('display_name', $('dn') ? $('dn').value.trim() : '');
   fetch('oobe.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:qs.toString() })
     .then(function(r){ return r.json(); }).then(function(d){
-      if (d.success) finishNow();
+      if (d.success) stepWS();
       else alert(d.error || 'Failed');
-    }).catch(function(){ finishNow(); });
+    }).catch(function(){ stepWS(); });
 }
-function finishNow(){
+/* ---- Step 3: WebSocket setup ---- */
+function stepWS(){
+  STEP = 3; dots();
+  headTitle(L('WebSocket setup','WebSocket 连接'));
+  var modes = [
+    ['local',   L('Local','本地'),  '🖥'],
+    ['private', L('Private','私网'),'🏠'],
+    ['public',  L('Public','公网'), '🌐']
+  ];
+  var h = '<div class="hint" style="margin-bottom:14px">'+L('We will test each server below. Continue sends a ping and waits for a pong reply.','将依次测试下面的服务器。点击「继续」发送 ping 并等待 pong 回包。')+'</div>';
+  for (var i=0;i<modes.length;i++){
+    var m = modes[i];
+    h += '<div class="wsline">'+
+         '<span class="wstag">'+m[2]+' '+m[1]+'</span>'+
+         '<div class="uinput" id="u_'+m[0]+'"><input type="text" readonly value="'+ME_WSS[m[0]]+'"></div>'+
+         '<span class="wsstatus" id="st_'+m[0]+'"></span>'+
+         '</div>';
+  }
+  h += '<div class="actions">'+
+       '<button class="linkbtn" onclick="skipWS()">'+L('Skip','跳过')+'</button>'+
+       '<button class="btn primary" id="wsBtn" onclick="runWSTests()">'+L('Continue & Test','继续并测试')+'</button>'+
+       '</div>';
+  body(h);
+}
+function skipWS(){ completeOobe(); }
+function setWSStatus(k, st){
+  var box = $('u_'+k), stEl = $('st_'+k);
+  if (box) box.className = 'uinput ' + st;
+  var txt = (st==='testing' ? L('Testing…','测试中…')
+    : st==='pass' ? '✓ '+L('Reachable','可达')
+    : st==='fail' ? L('Couldn\'t reach server (http response or timeout)','无法连接服务器（响应超时或连接失败）')
+    : '');
+  if (stEl){ stEl.textContent = txt; stEl.className = 'wsstatus ' + st; }
+}
+function wssTestUrl(url){
+  return new Promise(function(resolve){
+    var done=false, timer=null, ws=null;
+    function finish(ok){ if(done) return; done=true; clearTimeout(timer); try{ if(ws) ws.close(); }catch(e){} resolve(ok); }
+    fetch('../../api/ws_token.php?action=issue').then(function(r){ return r.json(); }).then(function(d){
+      if (!d || !d.success || !d.token){ finish(false); return; }
+      try { ws = new WebSocket(url + '/?token=' + d.token); }
+      catch(e){ finish(false); return; }
+      timer = setTimeout(function(){ finish(false); }, 5000);
+      ws.onopen = function(){ try { ws.send(JSON.stringify({type:'ping'})); } catch(e){ finish(false); } };
+      ws.onmessage = function(ev){ try { var m = JSON.parse(ev.data); if (m && m.type === 'pong') finish(true); } catch(e){} };
+      ws.onerror = function(){ finish(false); };
+      ws.onclose = function(){ finish(false); };
+    }).catch(function(){ finish(false); });
+  });
+}
+function runWSTests(){
+  var btn = $('wsBtn');
+  if (btn){ btn.disabled = true; btn.textContent = L('Testing…','测试中…'); }
+  var old = $('wsHint'); if (old) old.remove();
+  var order = ['local','private','public'];
+  (function next(i){
+    if (i >= order.length){ stepWSDone(); return; }
+    var k = order[i];
+    setWSStatus(k, 'testing');
+    wssTestUrl(ME_WSS[k]).then(function(ok){ setWSStatus(k, ok ? 'pass' : 'fail'); next(i+1); });
+  })(0);
+}
+function stepWSDone(){
+  var anyFail = document.querySelector('.wsline .uinput.fail') !== null;
+  var btn = $('wsBtn');
+  if (btn){ btn.disabled = false; btn.textContent = '→ ' + L('Continue','继续'); btn.onclick = completeOobe; }
+  var hint = document.createElement('div');
+  hint.className = 'hint'; hint.id = 'wsHint';
+  hint.textContent = anyFail
+    ? L('Some servers could not be reached. You can retry or continue anyway (edit them later in Settings → WebSocket).','部分服务器无法连接。可重试，或继续（之后可在 设置 → WebSocket 修改）。')
+    : L('All servers reachable.','全部服务器可达 ✓');
+  var actions = document.querySelector('#cardBody .actions');
+  if (actions) actions.parentNode.insertBefore(hint, actions);
+  if (anyFail){
+    var retry = document.createElement('button');
+    retry.className = 'linkbtn'; retry.textContent = L('Retry test','重试测试');
+    retry.onclick = runWSTests;
+    actions.insertBefore(retry, actions.firstChild);
+  }
+}
+function completeOobe(){
   var qs = new URLSearchParams(); qs.append('action','finish');
   fetch('oobe.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:qs.toString() }).catch(function(){});
   stepDone();
@@ -352,7 +455,8 @@ function stepDone(){
 function next(){
   if (STEP === 0) stepTour();
   else if (STEP === 1) stepSecurity();
-  else if (STEP === 2) finishNow();
+  else if (STEP === 2) stepWS();
+  else if (STEP === 3) completeOobe();
 }
 
 document.addEventListener('keydown', function(e){
