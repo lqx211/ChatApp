@@ -58,6 +58,12 @@ data/donation/*
 # Screenshots / screen captures
 data/sc/*
 
+# OOBE 完成标记 / 升级锁（运行时状态，不入库）
+data/oobe.done
+data/upgrade.lock
+data/upgrade_progress.json
+data/factory_reset_state.json
+
 # Temporary / cache resources (keep directory, ignore content)
 data/res/fileicon/*
 data/res/sound/*
