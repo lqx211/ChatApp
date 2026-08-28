@@ -65,8 +65,9 @@ sudo apt install mysql-server mysql-client apache2 "$PHP" "$PHP-mbstring" "$PHP-
 echo "Setup database."
 sudo service mysql start
 sudo service mysql status
-sudo mysql -e "CREATE DATABASE IF NOT EXISTS chatapp DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_unicode_ci;" 
-sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '';"
+sudo mysql -e "CREATE DATABASE IF NOT EXISTS chatapp DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_unicode_ci;"
+# MySQL 8.4 已禁用 mysql_native_password；用 caching_sha2_password（mysqlnd/PHP 完整支持）让 root 可 TCP 空密码登录
+sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY '';"
 sudo mysql -e "FLUSH PRIVILEGES;"
 sudo apt install php-mysql "$PHP-mysql" "$PHP-mbstring" "$PHP-gd" "$PHP-curl" -y
 
@@ -252,11 +253,12 @@ if [ -n "${DB_PASS}" ]; then
 fi
 
 # Create database if it doesn't exist
+# 注意：不要静默吞错——连接失败时把真实 MySQL 错误打出来，方便定位（如 auth_socket 拒绝 TCP）
 echo "  → Ensuring database '${DB_NAME}' exists ..."
-${MYSQL_CMD} -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_unicode_ci;" 2>/dev/null || {
+if ! ${MYSQL_CMD} -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_unicode_ci;"; then
     echo "  ⚠  Could not create database. Is MySQL running? Check your credentials."
     echo "     You can import schema.sql manually later."
-}
+fi
 
 # Run schema
 if [ -f schema.sql ]; then
