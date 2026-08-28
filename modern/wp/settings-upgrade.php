@@ -26,7 +26,7 @@ try {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>Upgrade System</title>
+<title><?php echo t('up_title', 'Upgrade System'); ?></title>
 <link rel="stylesheet" href="/plan/editinfo.css?v=20260809">
 <link rel="stylesheet" href="/modern/style/settings.css?v=20260828">
 <style>
@@ -51,51 +51,51 @@ try {
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title" style="color:#6fa8dc">Upgrade System</span>
+    <span class="nav-title" style="color:#6fa8dc"><?php echo t('up_title', 'Upgrade System'); ?></span>
     <span style="width:28px"></span>
   </div>
 
-  <p style="color:#bbb;font-size:.76em;margin:0 4px 6px">Check &amp; pull updates from <b style="color:#6fa8dc">github.com/lqx211/ChatApp</b>. Config, user data and maintenance credentials are preserved.</p>
+  <p style="color:#bbb;font-size:.76em;margin:0 4px 6px"><?php echo t('up_desc', 'Check &amp; pull updates from <b style="color:#6fa8dc">github.com/lqx211/ChatApp</b>. Config, user data and maintenance credentials are preserved.'); ?></p>
 
   <!-- 状态卡片 -->
   <div class="up-status" id="upStatus">
-    <div class="row"><span class="k">Branch</span><span class="v" id="upBranch">…</span></div>
-    <div class="row"><span class="k">Current version</span><span class="v" id="upLocal">…</span></div>
-    <div class="row"><span class="k">Remote latest</span><span class="v" id="upRemote">…</span></div>
-    <div class="row"><span class="k">Uncommitted changes</span><span class="v" id="upDirty">…</span></div>
+    <div class="row"><span class="k"><?php echo t('up_k_branch', 'Branch'); ?></span><span class="v" id="upBranch">…</span></div>
+    <div class="row"><span class="k"><?php echo t('up_k_cur', 'Current version'); ?></span><span class="v" id="upLocal">…</span></div>
+    <div class="row"><span class="k"><?php echo t('up_k_remote', 'Remote latest'); ?></span><span class="v" id="upRemote">…</span></div>
+    <div class="row"><span class="k"><?php echo t('up_k_dirty', 'Uncommitted changes'); ?></span><span class="v" id="upDirty">…</span></div>
   </div>
 
-  <button class="up-btn" id="upCheckBtn" onclick="checkUpgrade()">Check for updates</button>
+  <button class="up-btn" id="upCheckBtn" onclick="checkUpgrade()"><?php echo t('up_btn_check', 'Check for updates'); ?></button>
 
   <!-- 升级区块（有更新时显示） -->
   <div id="upPanel" style="display:none">
     <div class="up-warn">
-      <b>⚠ Upgrade at your own risk</b><br>
-      · Pulls from <b>github.com/lqx211/ChatApp</b> and <b>overwrites code</b>.<br>
-      · <b>config/</b>, <b>data/</b> (user data) and <b>maintenance/</b> are <b>kept</b>.<br>
-      · Any <b>uncommitted local changes</b> will be <b>overwritten</b>. Commit them first or accept the loss.<br>
-      · Verify with Administrator password, Maintenance Portal credentials and current git hash.
+      <b><?php echo t('up_warn_title', '⚠ Upgrade at your own risk'); ?></b><br>
+      · <?php echo t('up_warn_b1', 'Pulls from <b>github.com/lqx211/ChatApp</b> and <b>overwrites code</b>.'); ?><br>
+      · <?php echo t('up_warn_b2', '<b>config/</b>, <b>data/</b> (user data) and <b>maintenance/</b> are <b>kept</b>.'); ?><br>
+      · <?php echo t('up_warn_b3', 'Any <b>uncommitted local changes</b> will be <b>overwritten</b>. Commit them first or accept the loss.'); ?><br>
+      · <?php echo t('up_warn_b4', 'Verify with Administrator password, Maintenance Portal credentials and current git hash.'); ?>
     </div>
     <div class="set-block">
-      <div class="set-field"><label>Password</label><input type="password" id="upPwd" autocomplete="current-password" placeholder="Administrator <?php echo htmlspecialchars($__adminLabel); ?> (10000)"></div>
-      <div class="set-field"><label>Maintenance Mode Account</label><input type="text" id="upMUser" autocomplete="off"></div>
-      <div class="set-field"><label>Maintenance Mode Passphrase</label><input type="password" id="upMSecret" autocomplete="off"></div>
-      <div class="set-field"><label>Enter current git hash</label><input type="text" id="upHash1" autocomplete="off" spellcheck="false" placeholder="git log -1 --format=%H"></div>
-      <div class="set-field"><label>Re-enter current git hash</label><input type="text" id="upHash2" autocomplete="off" spellcheck="false" placeholder="git log -1 --format=%H"></div>
-      <label class="set-check-row"><input type="checkbox" id="upConfirm"> <span style="color:#ff8a8a">I understand and accept the risk</span></label>
-      <button class="set-btn danger" onclick="runUpgrade()">Upgrade now</button>
+      <div class="set-field"><label><?php echo t('up_lbl_pwd', 'Password'); ?></label><input type="password" id="upPwd" autocomplete="current-password" placeholder="Administrator <?php echo htmlspecialchars($__adminLabel); ?> (10000)"></div>
+      <div class="set-field"><label><?php echo t('up_lbl_maint_user', 'Maintenance Mode Account'); ?></label><input type="text" id="upMUser" autocomplete="off"></div>
+      <div class="set-field"><label><?php echo t('up_lbl_maint_secret', 'Maintenance Mode Passphrase'); ?></label><input type="password" id="upMSecret" autocomplete="off"></div>
+      <div class="set-field"><label><?php echo t('up_lbl_hash1', 'Enter current git hash'); ?></label><input type="text" id="upHash1" autocomplete="off" spellcheck="false" placeholder="git log -1 --format=%H"></div>
+      <div class="set-field"><label><?php echo t('up_lbl_hash2', 'Re-enter current git hash'); ?></label><input type="text" id="upHash2" autocomplete="off" spellcheck="false" placeholder="git log -1 --format=%H"></div>
+      <label class="set-check-row"><input type="checkbox" id="upConfirm"> <span style="color:#ff8a8a"><?php echo t('up_chk_risk', 'I understand and accept the risk'); ?></span></label>
+      <button class="set-btn danger" onclick="runUpgrade()"><?php echo t('up_btn_go', 'Upgrade now'); ?></button>
     </div>
   </div>
 
   <!-- 升级进度 -->
   <div id="upProgress" style="display:none">
-    <div style="text-align:center;color:#6fa8dc;font-weight:700;margin:16px 0 6px">UPGRADING…</div>
-    <div style="text-align:center;color:#ccc;font-size:.8em;min-height:1.2em" id="upStep">Starting…</div>
+    <div style="text-align:center;color:#6fa8dc;font-weight:700;margin:16px 0 6px"><?php echo t('up_prog_title', 'UPGRADING…'); ?></div>
+    <div style="text-align:center;color:#ccc;font-size:.8em;min-height:1.2em" id="upStep"><?php echo t('up_prog_start', 'Starting…'); ?></div>
     <div style="width:80%;max-width:340px;height:16px;border:1px solid #3a6a8a;margin:12px auto;border-radius:8px;overflow:hidden">
       <div id="upBar" style="height:100%;width:0%;background:#4a9dd8;transition:width .4s"></div>
     </div>
     <div style="text-align:center;color:#888;font-size:.75em" id="upPct">0%</div>
-    <div style="text-align:center;color:#666;font-size:.68em;margin-top:10px">All other users are in maintenance mode until this completes.</div>
+    <div style="text-align:center;color:#666;font-size:.68em;margin-top:10px"><?php echo t('up_prog_note', 'All other users are in maintenance mode until this completes.'); ?></div>
   </div>
 
 </div>
@@ -103,6 +103,22 @@ try {
 <div class="save-toast" id="saveToast">✓</div>
 
 <script>
+var UP_L = {
+  checking: <?php echo json_encode(t('up_checking', 'Checking…')); ?>,
+  btnCheck: <?php echo json_encode(t('up_btn_check', 'Check for updates')); ?>,
+  checkFail: <?php echo json_encode(t('up_check_fail', 'Check failed')); ?>,
+  available: <?php echo json_encode(t('up_available', 'Update available → %s')); ?>,
+  latest: <?php echo json_encode(t('up_latest', 'Already up to date ✓')); ?>,
+  req: <?php echo json_encode(t('up_err_req', 'All fields are required')); ?>,
+  hash: <?php echo json_encode(t('up_err_hash', 'Git hash mismatch')); ?>,
+  risk: <?php echo json_encode(t('up_err_risk', 'Please accept the risk')); ?>,
+  started: <?php echo json_encode(t('up_started', 'Upgrade started — maintenance mode armed')); ?>,
+  fail: <?php echo json_encode(t('up_fail', 'Upgrade failed')); ?>,
+  done: <?php echo json_encode(t('up_done', 'Upgrade complete ✓')); ?>,
+  doneMsg: <?php echo json_encode(t('up_done_msg', 'Upgrade complete — service restored')); ?>,
+  failReleased: <?php echo json_encode(t('up_fail_released', 'Upgrade failed — maintenance released')); ?>,
+  net: <?php echo json_encode(t('up_err_net', 'Network error')); ?>
+};
 function goBack(){
   if (window.parent && window.parent.document.getElementById('profileFrame')) window.parent.document.getElementById('profileFrame').src = 'settings.php';
   else history.back();
@@ -126,10 +142,10 @@ function api(action, extra){
 
 function checkUpgrade(){
   var btn = document.getElementById('upCheckBtn');
-  btn.disabled = true; btn.textContent = 'Checking…';
+  btn.disabled = true; btn.textContent = UP_L.checking;
   api('check').then(function(d){
-    btn.disabled = false; btn.textContent = 'Check for updates';
-    if (!d.success) { showMsg(d.error || 'Check failed', false); return; }
+    btn.disabled = false; btn.textContent = UP_L.btnCheck;
+    if (!d.success) { showMsg(d.error || UP_L.checkFail, false); return; }
     document.getElementById('upBranch').textContent = d.branch || 'main';
     document.getElementById('upLocal').textContent = (d.local || '').slice(0, 12);
     document.getElementById('upRemote').textContent = d.remote ? d.remote.slice(0, 12) : '?';
@@ -137,12 +153,12 @@ function checkUpgrade(){
     var panel = document.getElementById('upPanel');
     if (d.has_update) {
       panel.style.display = 'block';
-      showMsg('Update available → ' + (d.remote || '').slice(0, 12), true);
+      showMsg(UP_L.available.replace('%s', (d.remote || '').slice(0, 12)), true);
     } else {
       panel.style.display = 'none';
-      showMsg('Already up to date ✓', true);
+      showMsg(UP_L.latest, true);
     }
-  }).catch(function(){ btn.disabled = false; btn.textContent = 'Check for updates'; showMsg('Network error', false); });
+  }).catch(function(){ btn.disabled = false; btn.textContent = UP_L.btnCheck; showMsg(UP_L.net, false); });
 }
 
 function runUpgrade(){
@@ -152,9 +168,9 @@ function runUpgrade(){
   var h1  = document.getElementById('upHash1').value.trim().toUpperCase();
   var h2  = document.getElementById('upHash2').value.trim().toUpperCase();
   var conf = document.getElementById('upConfirm').checked;
-  if (!pwd || !mu || !ms || !h1 || !h2) { showMsg('All fields are required', false); return; }
-  if (h1 !== h2) { showMsg('Git hash mismatch', false); return; }
-  if (!conf) { showMsg('Please accept the risk', false); return; }
+  if (!pwd || !mu || !ms || !h1 || !h2) { showMsg(UP_L.req, false); return; }
+  if (h1 !== h2) { showMsg(UP_L.hash, false); return; }
+  if (!conf) { showMsg(UP_L.risk, false); return; }
   api('perform', { password: pwd, maint_user: mu, maint_secret: ms, git_hash: h1, git_hash2: h2 }).then(function(d){
     if (d.success) {
       // 进入后台升级：隐藏表单，显示进度
@@ -162,12 +178,12 @@ function runUpgrade(){
       document.getElementById('upCheckBtn').style.display = 'none';
       var pg = document.getElementById('upProgress');
       pg.style.display = 'block';
-      showMsg('Upgrade started — maintenance mode armed', true);
+      showMsg(UP_L.started, true);
       pollProgress();
     } else {
-      showMsg(d.error || 'Upgrade failed', false);
+      showMsg(d.error || UP_L.fail, false);
     }
-  }).catch(function(){ showMsg('Network error', false); });
+  }).catch(function(){ showMsg(UP_L.net, false); });
 }
 
 function pollProgress(){
@@ -179,16 +195,16 @@ function pollProgress(){
     if (d.step) step.textContent = d.step;
     if (typeof d.pct === 'number') { bar.style.width = d.pct + '%'; pct.textContent = d.pct + '%'; }
     if (d.status === 'done') {
-      step.textContent = 'Upgrade complete ✓';
+      step.textContent = UP_L.done;
       bar.style.width = '100%'; pct.textContent = '100%';
-      showMsg('Upgrade complete — service restored', true);
+      showMsg(UP_L.doneMsg, true);
       document.getElementById('upCheckBtn').style.display = 'block';
       setTimeout(function(){ location.reload(); }, 2500);
       return;
     }
     if (d.status === 'error') {
-      step.textContent = 'Upgrade failed';
-      showMsg('Upgrade failed — maintenance released', false);
+      step.textContent = UP_L.fail;
+      showMsg(UP_L.failReleased, false);
       document.getElementById('upCheckBtn').style.display = 'block';
       return;
     }
