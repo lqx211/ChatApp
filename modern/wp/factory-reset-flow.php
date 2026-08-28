@@ -30,10 +30,12 @@ $bgWallpaper = (int)$_SESSION['wallpaper'];
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Factory Reset</title>
 <style>
+  @font-face{font-family:'Roboto';src:url('../../css/fonts/Roboto-Regular.ttf') format('truetype');font-weight:400;font-style:normal}
+  @font-face{font-family:'Chinese';src:url('../../css/fonts/chinese.otf') format('opentype');font-weight:400;font-style:normal}
   * { margin:0; padding:0; box-sizing:border-box; }
   html,body { height:100%; }
   body {
-    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;
+    font-family:'Roboto','Chinese',-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',sans-serif;
     color:#e0e0e0;
     display:flex; justify-content:center; align-items:center;
     min-height:100vh;
@@ -229,5 +231,6 @@ function frLogout(){
 
 stepConfirm();
 </script>
+<?php include __DIR__ . '/../partials/footer.php'; ?>
 </body>
 </html>

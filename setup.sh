@@ -252,7 +252,12 @@ else
 fi
 ADMIN_HASH="$(php -r 'echo password_hash($argv[1], PASSWORD_BCRYPT), "\n";' "$ADMIN_PASS_S" 2>/dev/null || true)"
 if [ -n "$ADMIN_HASH" ]; then
-    ${MYSQL_CMD} "${DB_NAME}" -e "INSERT INTO users (user_id, username, password, role, enabled, cache_key, created_at) VALUES (10000, '${ADMIN_USER_S}', '${ADMIN_HASH}', 'admin', 1, '$(openssl rand -hex 32)', NOW()) ON DUPLICATE KEY UPDATE username = username;" 2>/dev/null || echo "  ⚠  Could not seed admin (table may not exist yet)."
+    # 用临时 SQL 文件走 stdin，避免 $ADMIN_HASH（bcrypt 含 $）被 shell 二次展开导致密码损坏
+    cat > /tmp/chatapp_seed_admin.sql <<EOF
+INSERT INTO users (user_id, username, password, role, enabled, cache_key, created_at) VALUES (10000, '${ADMIN_USER_S}', '${ADMIN_HASH}', 'admin', 1, '$(openssl rand -hex 32)', NOW()) ON DUPLICATE KEY UPDATE username = username;
+EOF
+    ${MYSQL_CMD} "${DB_NAME}" < /tmp/chatapp_seed_admin.sql 2>/dev/null || echo "  ⚠  Could not seed admin (table may not exist yet)."
+    rm -f /tmp/chatapp_seed_admin.sql
     echo "  → Seeded root admin: username='${ADMIN_USER_S}'"
     echo "    ⚠ Password: '${ADMIN_PASS_S}' — SAVE THIS NOW, change after first login."
 else

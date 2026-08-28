@@ -159,11 +159,14 @@ switch ($action) {
         } else {
             echo json_encode(['success' => false, 'error' => 'schema.sql not found']); exit;
         }
-        // 4) 插入 root admin（uid 10000）
+        // 4) 插入 root admin（uid 10000）——用临时 SQL 文件走 stdin，避免 bcrypt hash 里的 $ 被 shell 二次展开导致密码损坏
         $hash = password_hash($p, PASSWORD_BCRYPT);
         $cacheKey = bin2hex(random_bytes(32));
-        $uEsc = addslashes($u); $hEsc = addslashes($hash);
-        exec($MYSQL . " chatapp -e \"INSERT INTO users (user_id, username, password, role, enabled, cache_key, created_at) VALUES (10000, '$uEsc', '$hEsc', 'root', 1, '$cacheKey', NOW())\" 2>&1", $out, $rc);
+        $uEsc = addslashes($u); $hEsc = addslashes($hash); $kEsc = addslashes($cacheKey);
+        $sqlFile = tempnam(sys_get_temp_dir(), 'cafr_');
+        @file_put_contents($sqlFile, "INSERT INTO users (user_id, username, password, role, enabled, cache_key, created_at) VALUES (10000, '$uEsc', '$hEsc', 'root', 1, '$kEsc', NOW());\n");
+        exec($MYSQL . ' chatapp < ' . escapeshellarg($sqlFile) . ' 2>&1', $out, $rc);
+        @unlink($sqlFile);
         if ($rc !== 0) {
             echo json_encode(['success' => false, 'error' => 'admin insert failed: ' . implode(' ', $out)]); exit;
         }

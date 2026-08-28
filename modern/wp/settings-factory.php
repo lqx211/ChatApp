@@ -29,6 +29,9 @@ try {
 <link rel="stylesheet" href="/plan/editinfo.css?v=20260809">
 <link rel="stylesheet" href="/modern/style/settings.css?v=20260828">
 <style>
+  @font-face{font-family:'Roboto';src:url('../../css/fonts/Roboto-Regular.ttf') format('truetype');font-weight:400;font-style:normal}
+  @font-face{font-family:'Chinese';src:url('../../css/fonts/chinese.otf') format('opentype');font-weight:400;font-style:normal}
+  body{font-family:'Roboto','Chinese',-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',sans-serif}
   .fr-title{color:#ff6b6b;font-size:1.05em;font-weight:700;margin:14px 0 6px;text-align:center}
   .fr-desc{color:#bbb;font-size:.76em;line-height:1.6;margin:0 4px 8px;word-break:break-word}
   .fr-desc b{color:#ff8a8a}
@@ -44,7 +47,7 @@ try {
   /* 内嵌 iframe 流程层（替代新开窗口） */
   #frFrameWrap{position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:10000;display:none;align-items:center;justify-content:center;padding:16px}
   #frFrameWrap.active{display:flex}
-  #frFrame{width:500px;max-width:100%;height:640px;max-height:100%;border:1px solid #444;border-radius:10px;background:#1a1a1a;box-shadow:0 12px 40px rgba(0,0,0,0.6)}
+  #frFrame{width:90vw;height:90vh;border:1px solid #444;border-radius:10px;background:#1a1a1a;box-shadow:0 12px 40px rgba(0,0,0,0.6)}
   #frFrameClose{position:fixed;top:14px;right:18px;background:rgba(60,60,60,0.9);color:#ddd;border:1px solid #555;border-radius:50%;width:34px;height:34px;font-size:16px;line-height:1;cursor:pointer;z-index:10001}
   #frFrameClose:hover{background:#7c3434;color:#fff}
 </style>
@@ -158,7 +161,7 @@ function ensureFrOverlay(){
     var frame = topWin.document.createElement('iframe');
     frame.id = 'frFrame';
     frame.src = 'about:blank';
-    frame.style.cssText = 'width:500px;max-width:100%;height:640px;max-height:100%;border:1px solid #444;border-radius:10px;background:#1a1a1a;box-shadow:0 12px 40px rgba(0,0,0,0.6);';
+    frame.style.cssText = 'width:90vw;height:90vh;border:1px solid #444;border-radius:10px;background:#1a1a1a;box-shadow:0 12px 40px rgba(0,0,0,0.6);';
     wrap.appendChild(close);
     wrap.appendChild(frame);
     topWin.document.body.appendChild(wrap);
