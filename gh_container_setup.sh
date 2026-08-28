@@ -172,8 +172,11 @@ done
 # ----------------------------------------------------------------------
 echo "[3/4] Creating config templates ..."
 
-if [ ! -f maintenance/config.php ]; then
-    # 自动生成复杂凭据（不再用 __CHANGE_ME__ 占位符）
+if [ ! -f maintenance/config.php ] || grep -q "__CHANGE_ME__" maintenance/config.php; then
+    # 自动生成复杂凭据（文件不存在，或仍是 __CHANGE_ME__ 占位符）
+    if [ -f maintenance/config.php ]; then
+        cp maintenance/config.php maintenance/config.php.placeholder-bak
+    fi
     MAINT_GEN_PASS="$(openssl rand -base64 18 | tr -dc 'A-Za-z0-9' | cut -c1-24)"
     MAINT_GEN_SECRET="$(openssl rand -hex 32)"
     cat > maintenance/config.php << PHPEOF
