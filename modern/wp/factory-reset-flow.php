@@ -1,7 +1,7 @@
 <?php
 /**
- * ChatApp · Factory Reset 独立流程窗口（login.php 毛玻璃风格）
- * 由 settings-factory.php 验证通过后 window.open 打开。
+ * ChatApp · Factory Reset 流程（login.php 毛玻璃风格）
+ * 由 settings-factory.php 验证通过后以 iframe 内嵌打开（也可独立窗口打开）。
  * 流程：二次确认 → 过期会话 → 断开客户端 → 新凭据 → DROP+重建 → 完成。
  */
 require_once __DIR__ . '/../../api/config.php';
@@ -101,8 +101,18 @@ function frContinue(){
   if (!document.getElementById('frConfirm2').checked){ alert('请先勾选确认。'); return; }
   step1();
 }
+/* 嵌入 iframe 时告知父页面关闭；独立窗口则 window.close() */
+function frClose(){
+  try {
+    if (window.parent && window.parent !== window && typeof window.parent.closeFactoryReset === 'function') {
+      window.parent.closeFactoryReset();
+      return;
+    }
+  } catch (e) {}
+  window.close();
+}
 function frAbort(){
-  frApi('abort').then(function(){ window.close(); }).catch(function(){ window.close(); });
+  frApi('abort').then(frClose).catch(frClose);
 }
 
 /* ---- Step 1: 准备删除 ---- */
@@ -184,7 +194,7 @@ function step5(skip){
   setTimeout(function(){ var s=document.getElementById('frStatus'); if(s) s.textContent = '> 删除数据库…'; }, 800);
   setTimeout(function(){ var s=document.getElementById('frStatus'); if(s) s.textContent = '> 从 schema.sql 重建…'; }, 1800);
   frApi('rebuild').then(function(d){
-    if (!d.success){ show('<div class="warn">重建失败: '+(d.error||'未知错误')+'</div>'+actions('<button class="btn" onclick="window.close()">关闭</button>')); return; }
+    if (!d.success){ show('<div class="warn">重建失败: '+(d.error||'未知错误')+'</div>'+actions('<button class="btn" onclick="frClose()">关闭</button>')); return; }
     step6(d);
   }).catch(function(){ show('<div class="warn">网络错误。</div>'); });
 }
@@ -200,9 +210,10 @@ function step6(d){
        actions('<button class="btn primary" onclick="frLogout()">重新登录</button>'));
 }
 function frLogout(){
+  var topWin = (window.top || window);
   fetch('/api/auth.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'action=logout' })
-    .then(function(){ location.href='/modern/wp/login.php'; })
-    .catch(function(){ location.href='/modern/wp/login.php'; });
+    .then(function(){ topWin.location.href='/modern/wp/login.php'; })
+    .catch(function(){ topWin.location.href='/modern/wp/login.php'; });
 }
 
 stepConfirm();

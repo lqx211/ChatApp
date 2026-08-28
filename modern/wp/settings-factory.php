@@ -41,6 +41,12 @@ try {
   #frOverlayBarWrap{width:70%;max-width:320px;height:14px;border:1px solid #ff3b3b;margin-top:14px;border-radius:7px;overflow:hidden}
   #frOverlayBar{height:100%;width:0%;background:#ff3b3b;transition:width .22s}
   #frOverlayPct{margin-top:8px;font-size:.75em;color:#aaa}
+  /* 内嵌 iframe 流程层（替代新开窗口） */
+  #frFrameWrap{position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:10000;display:none;align-items:center;justify-content:center;padding:16px}
+  #frFrameWrap.active{display:flex}
+  #frFrame{width:500px;max-width:100%;height:640px;max-height:100%;border:1px solid #444;border-radius:10px;background:#1a1a1a;box-shadow:0 12px 40px rgba(0,0,0,0.6)}
+  #frFrameClose{position:fixed;top:14px;right:18px;background:rgba(60,60,60,0.9);color:#ddd;border:1px solid #555;border-radius:50%;width:34px;height:34px;font-size:16px;line-height:1;cursor:pointer;z-index:10001}
+  #frFrameClose:hover{background:#7c3434;color:#fff}
 </style>
 </head>
 <body>
@@ -94,6 +100,12 @@ try {
   <div id="frOverlayPct">0%</div>
 </div>
 
+<!-- 内嵌工厂重置流程（iframe，替代新开窗口） -->
+<div id="frFrameWrap">
+  <button id="frFrameClose" onclick="closeFactoryReset()" title="关闭">✕</button>
+  <iframe id="frFrame" src="about:blank"></iframe>
+</div>
+
 <script>
 function goBack(){
   if (window.parent && window.parent.document.getElementById('profileFrame')) window.parent.document.getElementById('profileFrame').src = 'settings.php';
@@ -108,6 +120,25 @@ function showErr(msg){
     t.classList.remove('show'); t.textContent = '✓';
     t.style.background = '#2a4a2a'; t.style.borderColor = '#3a6a3a'; t.style.color = '#e0e0e0';
   }, 3000);
+}
+/* 内嵌 iframe 显示/关闭工厂重置流程 */
+function showFactoryResetFlow(){
+  var w = document.getElementById('frFrameWrap');
+  if (!w) return;
+  document.getElementById('frFrame').src = 'factory-reset-flow.php';
+  w.classList.add('active');
+}
+function closeFactoryReset(){
+  var w = document.getElementById('frFrameWrap');
+  if (!w) return;
+  w.classList.remove('active');
+  document.getElementById('frFrame').src = 'about:blank'; // 清空，停止 iframe 内动画/计时器
+  // 若流程中途关闭，同步 abort 以释放 upgrade.lock（幂等）
+  try {
+    var f = new URLSearchParams();
+    f.append('action', 'abort');
+    fetch('/api/factory_reset.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:f.toString() });
+  } catch (e) {}
 }
 function frRun(){
   var pwd = document.getElementById('frPwd').value;
@@ -133,8 +164,8 @@ function frRun(){
   }).then(function(r){ return r.json(); })
     .then(function(d){
       if (d.success) {
-        // 打开独立流程窗口（Win8.1 风格，二次确认 + 多阶段重置）
-        window.open('factory-reset-flow.php', '_blank', 'width=500,height=640');
+        // 在当前页面内嵌 iframe 显示流程（二次确认 + 多阶段重置）
+        showFactoryResetFlow();
       } else {
         showErr(d.error || 'Verification failed');
       }
