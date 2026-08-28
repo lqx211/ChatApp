@@ -1,0 +1,445 @@
+/* ================================================================
+   QQ 编辑资料 · 暗色版 · 428px 基准
+   字体：抄 global.css 的 Roboto + Chinese
+   ================================================================ */
+
+/* === 字体（抄 css/global.css）=== */
+@font-face {
+  font-family: 'Roboto';
+  src: url('../css/fonts/Roboto-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Chinese';
+  src: url('../css/fonts/chinese.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+/* === 全局重置 === */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html {
+  overflow-y: scroll;
+  -webkit-overflow-scrolling: touch;
+}
+
+body {
+  font-family: 'Roboto', 'Chinese', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0f1117;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  color: #e0e0e0;
+}
+
+.card {
+  width: 428px;
+  max-width: 100%;
+  margin: 0 auto;
+  background: #1a1d27;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* ---- 导航栏 ---- */
+.nav-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  height: 60px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 12px 8px 8px;
+  background: linear-gradient(to bottom, rgba(26,29,39,.96) 0%, rgba(26,29,39,.5) 60%, rgba(26,29,39,0) 100%);
+}
+.nav-btn {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.12);
+  border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; color: #e0e0e0;
+  line-height: 1;
+}
+.nav-title {
+  font-size: 17px; font-weight: 600;
+  color: #e8eaed;
+  text-align: center;
+  flex: 1;
+  padding-bottom: 2px;
+}
+.nav-save {
+  width: auto; height: 28px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.12);
+  border: none; cursor: pointer;
+  font-size: 14px; color: #e0e0e0;
+  padding: 0 13px;
+  line-height: 28px;
+  white-space: nowrap;
+}
+
+/* ---- 提示文字 ---- */
+.hint-text {
+  padding: 14px 16px 8px;
+  font-size: 12px;
+  color: #8b93a1;
+  line-height: 1.6;
+}
+
+/* ---- 表单行 ---- */
+.form-row {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 0.5px solid #262c38;
+  cursor: pointer;
+  min-height: 56px;
+}
+.form-row:active {
+  background: rgba(255,255,255,.04);
+}
+
+.row-label {
+  font-size: 15px;
+  color: #e0e3ea;
+  flex-shrink: 0;
+  white-space: nowrap;
+  margin-right: 8px;
+}
+.row-value {
+  flex: 1;
+  font-size: 14px;
+  color: #9aa0b0;
+  text-align: right;
+  margin-left: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row-value.placeholder {
+  color: #5a6270;
+}
+.row-arrow {
+  margin-left: 8px;
+  color: #4a5260;
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* ---- 编辑框（昵称/公司）---- */
+.row-input {
+  flex: 1;
+  font-size: 14px;
+  color: #e0e3ea;
+  text-align: right;
+  margin-left: 12px;
+  background: none;
+  border: none;
+  outline: none;
+  font-family: inherit;
+}
+.row-input::placeholder {
+  color: #5a6270;
+}
+
+/* ---- 分隔线 ---- */
+.section-divider {
+  height: 6px;
+  background: #10141b;
+}
+
+/* ---- 选区标题 ---- */
+.section-title {
+  padding: 14px 16px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #8b93a1;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ---- 保存成功提示 ---- */
+.save-toast {
+  position: fixed;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #2a4a2a;
+  border: 1px solid #3a6a3a;
+  color: #e0e0e0;
+  padding: 8px 20px;
+  border-radius: 6px;
+  font-size: 13px;
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s;
+}
+.save-toast.show {
+  opacity: 1;
+}
+
+/* ================================================================
+   日期选择器 - 底部滑入面板 + 过渡动画
+   ================================================================ */
+
+/* 遮罩层 */
+.picker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s ease;
+}
+.picker-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 底部面板 */
+.picker-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 428px;
+  max-width: 100%;
+  margin: 0 auto;
+  background: #1a1d27;
+  border-radius: 12px 12px 0 0;
+  z-index: 110;
+  transform: translateY(100%);
+  transition: transform .3s cubic-bezier(.4,0,.2,1);
+  box-shadow: 0 -4px 20px rgba(0,0,0,.5);
+}
+.picker-panel.active {
+  transform: translateY(0);
+}
+
+/* 头部：取消/标题/确定 */
+.picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 0.5px solid #262c38;
+}
+.picker-cancel, .picker-confirm {
+  background: none;
+  border: none;
+  color: #6a9fd8;
+  font-size: 15px;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+}
+.picker-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #e0e3ea;
+}
+
+/* 内容区：三列滚动 */
+.picker-body {
+  display: flex;
+  position: relative;
+  height: 200px;   /* 5 items visible × 40px */
+  overflow: hidden;
+  padding: 0 16px;
+}
+
+/* 高亮条（中间选中区域） */
+.picker-highlight {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 40px;
+  border-top: 0.5px solid #3a3f4a;
+  border-bottom: 0.5px solid #3a3f4a;
+  pointer-events: none;
+  z-index: 1;
+}
+/* 中间列稍微加亮 */
+.picker-highlight {
+  --highlight-bg: rgba(255,255,255,.04);
+  background: var(--highlight-bg);
+}
+
+/* 单列 */
+.picker-col {
+  flex: 1;
+  position: relative;
+  z-index: 2;
+}
+
+/* 滚动区域 */
+.picker-scroll {
+  height: 100%;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding: 80px 0;  /* top & bottom padding so items can center */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.picker-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* 每个选项 */
+.picker-item {
+  height: 40px;
+  line-height: 40px;
+  text-align: center;
+  font-size: 16px;
+  color: #5a6270;
+  scroll-snap-align: center;
+  cursor: pointer;
+  user-select: none;
+  transition: color .15s;
+  font-family: inherit;
+}
+.picker-item.selected {
+  color: #e0e3ea;
+  font-weight: 600;
+}
+
+/* ================================================================
+   性别选择 - 男/女 + 谁可见（QQ 风格底部弹层）
+   ================================================================ */
+.gender-options {
+  padding: 4px 0;
+}
+.picker-option {
+  padding: 20px 0;
+  text-align: center;
+  font-size: 18px;
+  color: #e0e3ea;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  transition: background .15s;
+}
+.picker-option::after {
+  content: '';
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 0;
+  height: 0.5px;
+  background: #262c38;
+}
+.picker-option:last-child::after {
+  display: none;
+}
+.picker-option:active {
+  background: rgba(255,255,255,.04);
+}
+.picker-option.selected {
+  color: #6a9fd8;
+  font-weight: 600;
+  background: rgba(106,159,216,.06);
+}
+
+/* 谁可见区块 */
+.privacy-block {
+  border-top: 6px solid #10141b;   /* 与生日选择器分隔线风格一致 */
+}
+.privacy-head {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  color: #e0e3ea;
+  font-size: 15px;
+  cursor: pointer;
+}
+.privacy-head:active {
+  background: rgba(255,255,255,.04);
+}
+.privacy-val {
+  margin-left: auto;
+  color: #9aa0b0;
+  font-size: 14px;
+  margin-right: 6px;
+}
+.privacy-arrow {
+  color: #4a5260;
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 300;
+  transition: transform .2s;
+}
+.privacy-arrow.open {
+  transform: rotate(90deg);
+}
+/* 可见性三选一列表（默认收起） */
+.privacy-list {
+  display: none;
+  padding: 4px 0;
+  border-top: 0.5px solid #262c38;
+}
+.privacy-list.open {
+  display: block;
+}
+.privacy-option {
+  padding: 15px 16px;
+  color: #9aa0b0;
+  font-size: 15px;
+  cursor: pointer;
+  user-select: none;
+}
+.privacy-option:active {
+  background: rgba(255,255,255,.04);
+}
+.privacy-option.selected {
+  color: #e0e3ea;
+  font-weight: 600;
+}
+
+/* ================================================================
+   页面切换动画 - 左右滑动
+   ================================================================ */
+.card.slide-in {
+  animation: slideInFromRight .3s cubic-bezier(.4,0,.2,1) forwards;
+}
+
+.card.slide-in-back {
+  animation: slideInFromLeft .3s cubic-bezier(.4,0,.2,1) forwards;
+}
+
+@keyframes slideInFromRight {
+  from { transform: translateX(80px); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideInFromLeft {
+  from { transform: translateX(-80px); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+.card.slide-out-right {
+  animation: slideOutToRight .28s cubic-bezier(.4,0,.2,1) forwards;
+}
+
+.card.slide-out-left {
+  animation: slideOutToLeft .28s cubic-bezier(.4,0,.2,1) forwards;
+}
+
+@keyframes slideOutToRight {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(80px); opacity: 0; }
+}
+
+@keyframes slideOutToLeft {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(-80px); opacity: 0; }
+}
