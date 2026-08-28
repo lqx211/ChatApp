@@ -25,7 +25,7 @@ try {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>Factory Reset</title>
+<title><?php echo t('fr_title', 'Factory Reset'); ?></title>
 <link rel="stylesheet" href="/plan/editinfo.css?v=20260809">
 <link rel="stylesheet" href="/modern/style/settings.css?v=20260828">
 <style>
@@ -58,37 +58,37 @@ try {
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title" style="color:#ff6b6b">Factory Reset</span>
+    <span class="nav-title" style="color:#ff6b6b"><?php echo t('fr_title', 'Factory Reset'); ?></span>
     <span style="width:28px"></span>
   </div>
 
-  <p class="fr-desc">This will <b>reset the database</b>, delete <b>all user data</b> and go back to the factory setup.</p>
-  <p class="fr-desc">Please enter the current ChatApp git version in uppercase, the current password of Administrator <?php echo htmlspecialchars($__adminLabel); ?> (10000) and credentials of Maintenance Portal to perform this operation.</p>
+  <p class="fr-desc"><?php echo t('fr_desc1', 'This will <b>reset the database</b>, delete <b>all user data</b> and go back to the factory setup.'); ?></p>
+  <p class="fr-desc"><?php echo t('fr_desc2', 'Please enter the current ChatApp git version in uppercase, the current password of Administrator %s (10000) and credentials of Maintenance Portal to perform this operation.', $__adminLabel); ?></p>
 
   <div class="set-block">
     <div class="set-field">
-      <label>Password</label>
+      <label><?php echo t('fr_lbl_pwd', 'Password'); ?></label>
       <input type="password" id="frPwd" autocomplete="current-password" placeholder="Administrator (10000)">
     </div>
     <div class="set-field">
-      <label>Maintenance Mode Account</label>
+      <label><?php echo t('fr_lbl_maint_user', 'Maintenance Mode Account'); ?></label>
       <input type="text" id="frMUser" autocomplete="off">
     </div>
     <div class="set-field">
-      <label>Maintenance Mode Passphrase</label>
+      <label><?php echo t('fr_lbl_maint_secret', 'Maintenance Mode Passphrase'); ?></label>
       <input type="password" id="frMSecret" autocomplete="off">
     </div>
     <div class="set-field">
-      <label>Enter current git hash</label>
+      <label><?php echo t('fr_lbl_hash1', 'Enter current git hash'); ?></label>
       <input type="text" id="frHash1" autocomplete="off" spellcheck="false" placeholder="git log -1 --format=%H">
     </div>
     <div class="set-field">
-      <label>Re-enter current git hash</label>
+      <label><?php echo t('fr_lbl_hash2', 'Re-enter current git hash'); ?></label>
       <input type="text" id="frHash2" autocomplete="off" spellcheck="false" placeholder="git log -1 --format=%H">
     </div>
-    <label class="set-check-row"><input type="checkbox" id="frConfirm"> <span style="color:#ff8a8a">Confirm deletion</span></label>
-    <button class="set-btn danger" onclick="frRun()">Confirm deletion</button>
-    <button class="set-btn" style="margin-top:8px" onclick="goBack()">Abort</button>
+    <label class="set-check-row"><input type="checkbox" id="frConfirm"> <span style="color:#ff8a8a"><?php echo t('fr_chk_confirm', 'Confirm deletion'); ?></span></label>
+    <button class="set-btn danger" onclick="frRun()"><?php echo t('fr_btn_reset', 'Confirm deletion'); ?></button>
+    <button class="set-btn" style="margin-top:8px" onclick="goBack()"><?php echo t('fr_btn_abort', 'Abort'); ?></button>
   </div>
 
 </div>
@@ -110,6 +110,13 @@ try {
 </div>
 
 <script>
+var FR_L = {
+  req: <?php echo json_encode(t('fr_err_req', 'All fields are required')); ?>,
+  hash: <?php echo json_encode(t('fr_err_hash', 'Git hash mismatch')); ?>,
+  conf: <?php echo json_encode(t('fr_err_conf', 'Please confirm deletion')); ?>,
+  verify: <?php echo json_encode(t('fr_err_verify', 'Verification failed')); ?>,
+  net: <?php echo json_encode(t('fr_err_net', 'Network error')); ?>
+};
 function goBack(){
   if (window.parent && window.parent.document.getElementById('profileFrame')) window.parent.document.getElementById('profileFrame').src = 'settings.php';
   else history.back();
@@ -189,9 +196,9 @@ function frRun(){
   var h2  = document.getElementById('frHash2').value.trim().toUpperCase();
   var conf = document.getElementById('frConfirm').checked;
 
-  if (!pwd || !mu || !ms || !h1 || !h2) { showErr('All fields are required'); return; }
-  if (h1 !== h2) { showErr('Git hash mismatch'); return; }
-  if (!conf) { showErr('Please confirm deletion'); return; }
+  if (!pwd || !mu || !ms || !h1 || !h2) { showErr(FR_L.req); return; }
+  if (h1 !== h2) { showErr(FR_L.hash); return; }
+  if (!conf) { showErr(FR_L.conf); return; }
 
   var f = new URLSearchParams();
   f.append('action', 'start');
@@ -208,10 +215,10 @@ function frRun(){
         // 在当前页面内嵌 iframe 显示流程（二次确认 + 多阶段重置）
         showFactoryResetFlow();
       } else {
-        showErr(d.error || 'Verification failed');
+        showErr(d.error || FR_L.verify);
       }
     })
-    .catch(function(){ showErr('Network error'); });
+    .catch(function(){ showErr(FR_L.net); });
 }
 
 var FR_STEPS = ['Deleting user accounts…','Deleting messages…','Deleting uploads…','Deleting database…','Restoring factory state…'];
