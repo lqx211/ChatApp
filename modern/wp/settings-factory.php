@@ -121,25 +121,63 @@ function showErr(msg){
     t.style.background = '#2a4a2a'; t.style.borderColor = '#3a6a3a'; t.style.color = '#e0e0e0';
   }, 3000);
 }
-/* 内嵌 iframe 显示/关闭工厂重置流程 */
-function showFactoryResetFlow(){
-  var w = document.getElementById('frFrameWrap');
-  if (!w) return;
-  document.getElementById('frFrame').src = 'factory-reset-flow.php';
-  w.classList.add('active');
-}
-function closeFactoryReset(){
-  var w = document.getElementById('frFrameWrap');
-  if (!w) return;
-  w.classList.remove('active');
-  document.getElementById('frFrame').src = 'about:blank'; // 清空，停止 iframe 内动画/计时器
-  // 若流程中途关闭，同步 abort 以释放 upgrade.lock（幂等）
+/* 工厂重置流程：iframe 显示在顶层窗口（chat.php）全屏，而不是嵌在 settings 内层 */
+function frAbortApi(){
   try {
     var f = new URLSearchParams();
     f.append('action', 'abort');
     fetch('/api/factory_reset.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:f.toString() });
   } catch (e) {}
 }
+function frCloseTop(){
+  var topWin = window.top || window;
+  var wrap = topWin.document.getElementById('frFrameWrap');
+  if (wrap) {
+    if (wrap.classList) wrap.classList.remove('active'); // 本页静态版本
+    wrap.style.display = 'none';                          // 顶层动态版本
+  }
+  var f = topWin.document.getElementById('frFrame');
+  if (f) f.src = 'about:blank'; // 清空，停止 iframe 内动画/计时器
+  frAbortApi(); // 中途关闭 → 释放 upgrade.lock（幂等）
+}
+/* 在顶层窗口注入全屏覆盖层（settings 内嵌时，套在 profileFrame 外面） */
+function ensureFrOverlay(){
+  var topWin = window.top || window;
+  if (topWin !== window) {
+    var wrap = topWin.document.getElementById('frFrameWrap');
+    if (wrap) { topWin.closeFactoryReset = frCloseTop; return wrap; }
+    wrap = topWin.document.createElement('div');
+    wrap.id = 'frFrameWrap';
+    wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2147483000;display:none;align-items:center;justify-content:center;padding:16px;';
+    var close = topWin.document.createElement('button');
+    close.id = 'frFrameClose';
+    close.textContent = '✕';
+    close.title = 'Close';
+    close.style.cssText = 'position:fixed;top:14px;right:18px;background:rgba(60,60,60,0.9);color:#ddd;border:1px solid #555;border-radius:50%;width:34px;height:34px;font-size:16px;line-height:1;cursor:pointer;z-index:2147483001;';
+    close.onclick = frCloseTop;
+    var frame = topWin.document.createElement('iframe');
+    frame.id = 'frFrame';
+    frame.src = 'about:blank';
+    frame.style.cssText = 'width:500px;max-width:100%;height:640px;max-height:100%;border:1px solid #444;border-radius:10px;background:#1a1a1a;box-shadow:0 12px 40px rgba(0,0,0,0.6);';
+    wrap.appendChild(close);
+    wrap.appendChild(frame);
+    topWin.document.body.appendChild(wrap);
+    topWin.closeFactoryReset = frCloseTop; // 让流程页的 frClose() 能回调
+    return wrap;
+  }
+  // 独立打开（顶层即本页）：用本页静态覆盖层
+  return document.getElementById('frFrameWrap');
+}
+function showFactoryResetFlow(){
+  var topWin = window.top || window;
+  var wrap = ensureFrOverlay();
+  if (!wrap) return;
+  var frame = topWin.document.getElementById('frFrame');
+  if (frame) frame.src = '/modern/wp/factory-reset-flow.php';
+  if (topWin !== window) { wrap.style.display = 'flex'; }
+  else if (wrap.classList) { wrap.classList.add('active'); }
+}
+function closeFactoryReset(){ frCloseTop(); }
 function frRun(){
   var pwd = document.getElementById('frPwd').value;
   var mu  = document.getElementById('frMUser').value.trim();
