@@ -39,10 +39,28 @@ echo ""
 
 echo "Prepare container environemnt."
 sudo apt update -y
-sudo apt install php8.3 php8.3-mbstring php8.3-gd php8.3-curl apache2 mysql-server mysql-client php8.3-mysql php-mysql -y
+
+# --- PHP 源：sury.org（= ondrej/php PPA 的官方仓库，keyring 方式，不依赖 add-apt-repository）---
+# Ubuntu 26.04 (resolute) 默认仓库无 php8.3，需添加 sury/ondrej 源
+sudo apt install -y curl ca-certificates
+sudo curl -sSLo /tmp/debsuryorg-archive-keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb
+sudo dpkg -i /tmp/debsuryorg-archive-keyring.deb
+CODENAME="$(. /etc/os-release && echo "$VERSION_CODENAME")"
+echo "deb [signed-by=/usr/share/keyrings/debsuryorg-archive-keyring.gpg] https://packages.sury.org/php/ $CODENAME main" | sudo tee /etc/apt/sources.list.d/php.list >/dev/null
+sudo apt update -y || true
+
+# 自动检测可用的 PHP 主版本（优先 8.3 —— 应用已验证版本；找不到退回 php 元包）
+PHP=""
+for v in 8.3 8.4 8.5; do
+    if apt-cache show "php$v" >/dev/null 2>&1; then PHP="php$v"; break; fi
+done
+[ -z "$PHP" ] && PHP="php"
+echo ">>> 检测到 PHP 包: $PHP"
+
+sudo apt install "$PHP" "$PHP-mbstring" "$PHP-gd" "$PHP-curl" apache2 mysql-server mysql-client "$PHP-mysql" php-mysql -y
 
 echo "Install required packages."
-sudo apt install mysql-server mysql-client apache2 php8.3 php8.3-mbstring php8.3-gd php8.3-curl -y
+sudo apt install mysql-server mysql-client apache2 "$PHP" "$PHP-mbstring" "$PHP-gd" "$PHP-curl" -y
 
 echo "Setup database."
 sudo service mysql start
@@ -50,7 +68,7 @@ sudo service mysql status
 sudo mysql -e "CREATE DATABASE IF NOT EXISTS chatapp DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_unicode_ci;" 
 sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '';"
 sudo mysql -e "FLUSH PRIVILEGES;"
-sudo apt install php-mysql php8.3-mysql php8.3-mbstring php8.3-gd php8.3-curl -y
+sudo apt install php-mysql "$PHP-mysql" "$PHP-mbstring" "$PHP-gd" "$PHP-curl" -y
 
 echo "Setup server."
 # 清空站点内容（保留 /var/www/html 目录本身，避免删除运行脚本的 cwd）
