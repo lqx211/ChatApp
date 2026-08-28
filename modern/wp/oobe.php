@@ -85,9 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       radial-gradient(rgba(0,0,0,0) 33%, rgba(0,0,0,0.3) 166%),
       url('../bg/background<?php echo $bgWallpaper; ?>.jpg');
     background-size:cover; background-position:center; background-repeat:no-repeat; background-attachment:fixed;
-    animation:bgZoom 26s ease-in-out infinite alternate;
   }
-  @keyframes bgZoom { from { background-size:100% 100%; } to { background-size:110% 110%; } }
   .card {
     width:440px; max-width:calc(100vw - 32px); padding:30px 32px 22px;
     background:rgba(42,42,42,0.9);
