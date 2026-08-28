@@ -157,7 +157,8 @@ $bgWallpaper = (int)$_SESSION['wallpaper'];
             transform: translateY(0);
         }
         .form-group {
-            margin-bottom: 16px;
+            position: relative;
+            margin-bottom: 20px;
         }
         .form-group label {
             display: block;
@@ -167,17 +168,29 @@ $bgWallpaper = (int)$_SESSION['wallpaper'];
         }
         .form-group input {
             width: 100%;
-            padding: 11px 14px;
-            background: #1e1e1e;
-            border: 1px solid #444;
+            padding: 11px 2px;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid #555;
+            border-radius: 0;
             color: #e0e0e0;
             font-size: 0.95em;
             outline: none;
-            transition: border-color 0.2s;
             font-family: inherit;
         }
-        .form-group input:focus {
-            border-color: #888;
+        /* Google-style animated underline */
+        .form-group::after {
+            content: '';
+            position: absolute;
+            left: 0; right: 0; bottom: 0;
+            height: 2px;
+            background: #4a9dd8;
+            transform: scaleX(0);
+            transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-origin: left;
+        }
+        .form-group:focus-within::after {
+            transform: scaleX(1);
         }
         /* 浏览器自动填充会盖一层黄色：用同色内阴影遮住 + 保持文字/光标颜色（毛玻璃质感不破） */
         .form-group input:-webkit-autofill,

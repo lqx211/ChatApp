@@ -1022,3 +1022,30 @@ body.doodle-lock * {
 .pmg-name { color: #e0e0e0; font-size: .85em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pmg-meta { color: #888; font-size: .72em; margin-top: 3px; }
 .pmg-revoke { flex: 0 0 auto; }
+
+/* ===== Google-style underline inputs（OOBE 风格，2026-08-28，可一键撤销） ===== */
+.sbox input,
+.fg input[type="password"],
+.fg input[type="text"],
+.cd-input,
+.srch-toolbar input[type="text"],
+.adm-toolbar input[type="text"],
+.support-bar input,
+.ld-custom-row input {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid #555 !important;
+  border-radius: 0 !important;
+  padding-left: 2px !important;
+  padding-right: 2px !important;
+}
+.sbox input:focus,
+.fg input[type="password"]:focus,
+.fg input[type="text"]:focus,
+.cd-input:focus,
+.srch-toolbar input[type="text"]:focus,
+.adm-toolbar input[type="text"]:focus,
+.support-bar input:focus,
+.ld-custom-row input:focus {
+  border-bottom-color: #4a9dd8 !important;
+}
