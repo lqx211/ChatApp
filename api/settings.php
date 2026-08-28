@@ -120,6 +120,10 @@ switch ($action) {
         $ext = strtolower($m[1]);
         if ($ext === 'jpeg') $ext = 'jpg';
         $raw = base64_decode($m[2]);
+        // 内容校验：字节必须真的是图片（防 HTML/JS polyglot 伪装成 .png 上传）
+        if ($raw === false || @getimagesizefromstring($raw) === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid image']); exit;
+        }
         $dir = __DIR__ . '/../data/pp';
         if (!is_dir($dir)) mkdir($dir, 0755, true);
         // Remove old avatar files

@@ -143,8 +143,13 @@ switch ($action) {
         $streakBonusExp = (int)_get_lvconfig_value('exp_streak_bonus');
         $baseExp = (int)_get_lvconfig_value('exp_streak_base');
         $exp = min($maxStreakExp, $baseExp + ($streak - 1) * $streakBonusExp);
-        $upd = $pdo->prepare("UPDATE users SET last_sign_date = ?, sign_streak = ? WHERE user_id = ?");
-        $upd->execute([$today, $streak, $myUid]);
+        // 原子化：条件更新防止并发 double-sign（TOCTOU）重复领 EXP
+        $upd = $pdo->prepare("UPDATE users SET last_sign_date = ?, sign_streak = ? WHERE user_id = ? AND (last_sign_date IS NULL OR last_sign_date <> ?)");
+        $upd->execute([$today, $streak, $myUid, $today]);
+        if ($upd->rowCount() === 0) {
+            echo json_encode(['success' => false, 'error' => 'Already signed today']);
+            exit;
+        }
         exp_add($myUid, $exp, 'sign', true, 'streak:' . $streak);
         echo json_encode([
             'success' => true,

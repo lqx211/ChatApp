@@ -85,6 +85,13 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'not_accepting']);
             exit;
         }
+        // 好友申请节流：每 10 分钟最多 20 条 pending 请求（防批量骚扰）
+        $rateStmt = $pdo->prepare("SELECT COUNT(*) FROM contacts WHERE user_from = ? AND status='pending' AND created_at > DATE_SUB(NOW(), INTERVAL 10 MINUTE)");
+        $rateStmt->execute([$myUid]);
+        if ((int)$rateStmt->fetchColumn() >= 20) {
+            echo json_encode(['success' => false, 'error' => 'Too many friend requests. Please try again later.']);
+            exit;
+        }
 
         $st = $pdo->prepare("SELECT id, status FROM contacts WHERE (user_from = ? AND user_to = ?) OR (user_from = ? AND user_to = ?)");
         $st->execute([$myUid, $toUid, $toUid, $myUid]);

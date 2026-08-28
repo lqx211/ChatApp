@@ -224,6 +224,9 @@ switch ($action) {
         $username = trim($_POST['username'] ?? '');
         $uid = _uid($pdo, $username);
         if ($uid === 10000 || empty($username)) { echo json_encode(['success'=>false]); exit; }
+        // 修改其他 admin 需要 root
+        $targetRole = chatapp_get_role($uid);
+        if (($targetRole === 'admin' || $targetRole === 'root') && chatapp_get_role($myUid) !== 'root') { echo json_encode(['success'=>false]); exit; }
         $dn = trim(mb_substr($_POST['display_name'] ?? '', 0, 256));
         $pdo->prepare("UPDATE users SET display_name = ? WHERE username = ?")->execute([$dn ?: null, $username]);
         echo json_encode(['success'=>true]);
@@ -231,11 +234,16 @@ switch ($action) {
         break;
 
     case 'toggle_dnd_adm':
+        if (!chatapp_has_permission($myUid, 'users.edit_role')) { echo json_encode(['success'=>false]); exit; }
         $username = trim($_POST['username'] ?? '');
-        if (empty($username)) { echo json_encode(['success'=>false]); exit; }
+        $uid = _uid($pdo, $username);
+        if ($uid === 10000 || empty($username) || $uid === $myUid) { echo json_encode(['success'=>false]); exit; }
+        // 修改其他 admin 需要 root
+        $targetRole = chatapp_get_role($uid);
+        if (($targetRole === 'admin' || $targetRole === 'root') && chatapp_get_role($myUid) !== 'root') { echo json_encode(['success'=>false]); exit; }
         $pdo->prepare("UPDATE users SET dnd = NOT dnd WHERE username = ?")->execute([$username]);
         echo json_encode(['success'=>true]);
-        chatapp_log_admin('toggle_dnd', _uid($pdo, $username), $username);
+        chatapp_log_admin('toggle_dnd', $uid, $username);
         break;
 
     case 'change_status':
@@ -243,6 +251,9 @@ switch ($action) {
         $username = trim($_POST['username'] ?? '');
         $uid = _uid($pdo, $username);
         if ($uid === 10000 || empty($username)) { echo json_encode(['success'=>false]); exit; }
+        // 修改其他 admin 需要 root
+        $targetRole = chatapp_get_role($uid);
+        if (($targetRole === 'admin' || $targetRole === 'root') && chatapp_get_role($myUid) !== 'root') { echo json_encode(['success'=>false]); exit; }
         $status = trim($_POST['status'] ?? '');
         if (!in_array($status, ['enabled','disabled','restricted','placeholder'])) { echo json_encode(['success'=>false]); exit; }
         $pdo->prepare("UPDATE users SET enabled=?, restricted=?, placeholder=? WHERE username=?")
@@ -323,15 +334,22 @@ switch ($action) {
         $username = trim($_POST['username'] ?? '');
         $uid = _uid($pdo, $username);
         if ($uid === 10000 || empty($username) || $uid === $myUid) { echo json_encode(['success'=>false]); exit; }
+        // 清除其他 admin 的 duress 密码需要 root
+        $targetRole = chatapp_get_role($uid);
+        if (($targetRole === 'admin' || $targetRole === 'root') && chatapp_get_role($myUid) !== 'root') { echo json_encode(['success'=>false]); exit; }
         $pdo->prepare("UPDATE users SET duress_password = NULL WHERE username = ?")->execute([$username]);
         echo json_encode(['success'=>true]);
         chatapp_log_admin('clear_duress', $uid, $username);
         break;
 
     case 'expire_tokens':
+        if (!chatapp_has_permission($myUid, 'users.edit_role')) { echo json_encode(['success'=>false]); exit; }
         $username = trim($_POST['username'] ?? '');
         $uid = _uid($pdo, $username);
         if ($uid === 10000 || empty($username)) { echo json_encode(['success'=>false]); exit; }
+        // 强制下线其他 admin 需要 root
+        $targetRole = chatapp_get_role($uid);
+        if (($targetRole === 'admin' || $targetRole === 'root') && chatapp_get_role($myUid) !== 'root') { echo json_encode(['success'=>false]); exit; }
         $pdo->prepare("UPDATE users SET token_reset = NOW() WHERE username = ?")->execute([$username]);
         // Also revoke active WebSocket tokens for the user.
         $pdo->prepare("DELETE FROM ws_tokens WHERE username = ?")->execute([$username]);
