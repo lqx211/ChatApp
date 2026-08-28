@@ -86,12 +86,63 @@ $bgWallpaper = (int)$_SESSION['wallpaper'];
 </head>
 <body>
 <div class="card">
-  <h1>Factory Reset</h1>
-  <p class="sub" id="sub">擦除数据库并重建</p>
-  <div id="body">Loading…</div>
+  <h1><?php echo t('frf_h1', 'Factory Reset'); ?></h1>
+  <p class="sub" id="sub"><?php echo t('frf_sub0', 'Erase database and rebuild'); ?></p>
+  <div id="body"><?php echo t('frf_loading', 'Loading…'); ?></div>
 </div>
 
 <script>
+var FRF_L = {
+  sub0: <?php echo json_encode(t('frf_sub0', 'Erase database and rebuild')); ?>,
+  confirmWarn: <?php echo json_encode(t('frf_confirm_warn', 'Are you sure you want to factory reset? This will delete <b>all</b> user data, logs and configuration. <b>Irreversible</b>.')); ?>,
+  confirmChk: <?php echo json_encode(t('frf_confirm_chk', 'I have confirmed: delete everything including all user data, logs and configuration, and understand this cannot be undone.')); ?>,
+  btnAbort: <?php echo json_encode(t('frf_btn_abort', 'Abort')); ?>,
+  btnContinue: <?php echo json_encode(t('frf_btn_continue', 'Continue')); ?>,
+  alertConfirm: <?php echo json_encode(t('frf_alert_confirm', 'Please tick the confirmation first.')); ?>,
+  s1Title: <?php echo json_encode(t('frf_s1_title', 'Preparing')); ?>,
+  s1Step: <?php echo json_encode(t('frf_s1_step', 'Configuring deletion request')); ?>,
+  s1Contacting: <?php echo json_encode(t('frf_s1_contacting', 'Contacting server…')); ?>,
+  s1Ready: <?php echo json_encode(t('frf_s1_ready', 'Server ready, preparing to delete…')); ?>,
+  s1Unreachable: <?php echo json_encode(t('frf_s1_unreachable', 'Server unreachable.')); ?>,
+  s2Title: <?php echo json_encode(t('frf_s2_title', 'Expiring all sessions')); ?>,
+  s2Step: <?php echo json_encode(t('frf_s2_step', 'Expiring all other user sessions')); ?>,
+  s2Tokens: <?php echo json_encode(t('frf_s2_tokens', '(0/0 valid tokens) …')); ?>,
+  s2Failed: <?php echo json_encode(t('frf_s2_failed', 'Failed')); ?>,
+  s2Back: <?php echo json_encode(t('frf_s2_back', 'Back')); ?>,
+  net: <?php echo json_encode(t('frf_net', 'Network error.')); ?>,
+  s3Title: <?php echo json_encode(t('frf_s3_title', 'Disconnecting clients')); ?>,
+  s3Step: <?php echo json_encode(t('frf_s3_step', 'Disconnecting other online clients')); ?>,
+  s3Note: <?php echo json_encode(t('frf_s3_note', '(0/10 online browsers) — forcing clients to refresh…')); ?>,
+  s4Title: <?php echo json_encode(t('frf_s4_title', 'Set new administrator')); ?>,
+  s4Step: <?php echo json_encode(t('frf_s4_step', 'Enter the new administrator credentials')); ?>,
+  s4User: <?php echo json_encode(t('frf_s4_user', 'Username')); ?>,
+  s4Pass: <?php echo json_encode(t('frf_s4_pass', 'Password')); ?>,
+  s4MaintHdr: <?php echo json_encode(t('frf_s4_maint_hdr', 'Maintenance Portal (leave blank = keep current)')); ?>,
+  s4MaintUser: <?php echo json_encode(t('frf_s4_maint_user', 'Maintenance username')); ?>,
+  s4MaintPass: <?php echo json_encode(t('frf_s4_maint_pass', 'Maintenance password')); ?>,
+  s4Blank: <?php echo json_encode(t('frf_s4_blank', 'leave blank to keep current')); ?>,
+  s4SkipDump: <?php echo json_encode(t('frf_s4_skip_dump', 'Skip database backup (dangerous)')); ?>,
+  alertCreds: <?php echo json_encode(t('frf_alert_creds', 'Please enter administrator username and password.')); ?>,
+  alertMaint: <?php echo json_encode(t('frf_alert_maint', 'Maintenance username and password must both be set (or both empty).')); ?>,
+  s5Title: <?php echo json_encode(t('frf_s5_title', 'Rebuilding database')); ?>,
+  s5Step: <?php echo json_encode(t('frf_s5_step', 'Deleting and rebuilding the database, please wait.')); ?>,
+  s5Prep: <?php echo json_encode(t('frf_s5_prep', 'Preparing to delete…')); ?>,
+  s5Backup: <?php echo json_encode(t('frf_s5_backup', 'Backing up database…')); ?>,
+  s5Del: <?php echo json_encode(t('frf_s5_del', '> Deleting database…')); ?>,
+  s5Schema: <?php echo json_encode(t('frf_s5_schema', '> Rebuilding from schema.sql…')); ?>,
+  s5Fail: <?php echo json_encode(t('frf_s5_fail', 'Rebuild failed: ')); ?>,
+  s5Unknown: <?php echo json_encode(t('frf_s5_unknown', 'Unknown error')); ?>,
+  s5Close: <?php echo json_encode(t('frf_s5_close', 'Close')); ?>,
+  s6Title: <?php echo json_encode(t('frf_s6_title', 'Reset complete')); ?>,
+  s6Ok: <?php echo json_encode(t('frf_s6_ok', '✓ Factory reset successful')); ?>,
+  s6Login: <?php echo json_encode(t('frf_s6_login', 'Please log in again with the new credentials:')); ?>,
+  s6AdminUser: <?php echo json_encode(t('frf_s6_admin_user', 'Administrator username: ')); ?>,
+  s6Pass: <?php echo json_encode(t('frf_s6_pass', 'Password: ')); ?>,
+  s6MaintUser: <?php echo json_encode(t('frf_s6_maint_user', 'Maintenance username: ')); ?>,
+  s6MaintPass: <?php echo json_encode(t('frf_s6_maint_pass', 'Maintenance password: ')); ?>,
+  s6Backup: <?php echo json_encode(t('frf_s6_backup', 'Backup file: ')); ?>,
+  s6Relogin: <?php echo json_encode(t('frf_s6_relogin', 'Log in again')) ?>
+};
 function frApi(action, data){
   var f = new URLSearchParams();
   f.append('action', action);
@@ -103,15 +154,15 @@ function actions(html){ return '<div class="actions">' + html + '</div>'; }
 
 /* ---- Step 0: 二次确认 ---- */
 function stepConfirm(){
-  document.getElementById('sub').textContent = '擦除数据库并重建';
+  document.getElementById('sub').textContent = FRF_L.sub0;
   show(
-    '<div class="warn">确定要执行工厂重置吗？将删除所有人的数据、日志与配置，<b>不可撤销</b>。</div>'+
-    '<label class="check"><input type="checkbox" id="frConfirm2"> 我已确认要删除一切，包括所有用户数据、日志和配置，并明白此操作不可恢复。</label>'+
-    actions('<button class="btn danger" onclick="frAbort()">放弃</button><button class="btn primary" onclick="frContinue()">继续</button>')
+    '<div class="warn">' + FRF_L.confirmWarn + '</div>'+
+    '<label class="check"><input type="checkbox" id="frConfirm2"> ' + FRF_L.confirmChk + '</label>'+
+    actions('<button class="btn danger" onclick="frAbort()">' + FRF_L.btnAbort + '</button><button class="btn primary" onclick="frContinue()">' + FRF_L.btnContinue + '</button>')
   );
 }
 function frContinue(){
-  if (!document.getElementById('frConfirm2').checked){ alert('请先勾选确认。'); return; }
+  if (!document.getElementById('frConfirm2').checked){ alert(FRF_L.alertConfirm); return; }
   step1();
 }
 /* 嵌入 iframe 时告知父页面关闭；独立窗口则 window.close() */
@@ -130,39 +181,39 @@ function frAbort(){
 
 /* ---- Step 1: 准备删除 ---- */
 function step1(){
-  document.getElementById('sub').textContent = '正在准备';
-  show('<div class="step-title">正在配置删除请求</div><p class="hint" id="frStatus">联系服务器…</p>');
+  document.getElementById('sub').textContent = FRF_L.s1Title;
+  show('<div class="step-title">' + FRF_L.s1Step + '</div><p class="hint" id="frStatus">' + FRF_L.s1Contacting + '</p>');
   frApi('status').then(function(){
     var s = document.getElementById('frStatus');
-    if (s) s.textContent = '服务器已就绪，准备删除…';
+    if (s) s.textContent = FRF_L.s1Ready;
     setTimeout(step2, 1200);
   }).catch(function(){
     var s = document.getElementById('frStatus');
-    if (s) s.textContent = '服务器不可达。';
+    if (s) s.textContent = FRF_L.s1Unreachable;
   });
 }
 
 /* ---- Step 2: 过期所有会话 ---- */
 function step2(){
-  document.getElementById('sub').textContent = '正在过期所有会话';
-  show('<div class="step-title">正在使所有其他用户会话过期</div>'+
+  document.getElementById('sub').textContent = FRF_L.s2Title;
+  show('<div class="step-title">' + FRF_L.s2Step + '</div>'+
        '<div class="bar"><div id="frBar" style="width:0%"></div></div>'+
-       '<p class="hint" id="frSub">(0/0 valid tokens) …</p>');
+       '<p class="hint" id="frSub">' + FRF_L.s2Tokens + '</p>');
   frApi('expire_tokens').then(function(d){
-    if (!d.success){ show('<div class="warn">'+(d.error||'失败')+'</div>'+actions('<button class="btn" onclick="stepConfirm()">返回</button>')); return; }
+    if (!d.success){ show('<div class="warn">'+(d.error||FRF_L.s2Failed)+'</div>'+actions('<button class="btn" onclick="stepConfirm()">' + FRF_L.s2Back + '</button>')); return; }
     var pct = d.total ? Math.round(d.expired/d.total*100) : 100;
     document.getElementById('frBar').style.width = pct+'%';
     document.getElementById('frSub').textContent = '('+d.expired+'/'+d.total+' valid tokens)';
     setTimeout(step3, 6000);
-  }).catch(function(){ show('<div class="warn">网络错误。</div>'); });
+  }).catch(function(){ show('<div class="warn">' + FRF_L.net + '</div>'); });
 }
 
 /* ---- Step 3: 断开客户端（自动跳过） ---- */
 function step3(){
-  document.getElementById('sub').textContent = '正在断开客户端';
-  show('<div class="step-title">正在断开其他在线客户端</div>'+
+  document.getElementById('sub').textContent = FRF_L.s3Title;
+  show('<div class="step-title">' + FRF_L.s3Step + '</div>'+
        '<div class="bar"><div id="frBar" style="width:0%"></div></div>'+
-       '<p class="hint" id="frSub">(0/10 online browsers) — 正在强制客户端刷新…</p>');
+       '<p class="hint" id="frSub">' + FRF_L.s3Note + '</p>');
   var i = 0;
   var t = setInterval(function(){
     i += 10;
@@ -175,15 +226,15 @@ function step3(){
 
 /* ---- Step 4: 新管理员凭据 ---- */
 function step4(){
-  document.getElementById('sub').textContent = '设置新管理员';
-  show('<div class="step-title">请输入新的管理员凭据</div>'+
-       '<div class="fg"><label>用户名</label><input type="text" id="frNewU" autocomplete="off"></div>'+
-       '<div class="fg"><label>密码</label><input type="password" id="frNewP" autocomplete="new-password"></div>'+
-       '<div style="margin:16px 0 10px;padding-top:12px;border-top:1px solid #333;font-size:.8em;color:#888">Maintenance Portal（维护门户，留空 = 保持现有）</div>'+
-       '<div class="fg"><label>维护用户名</label><input type="text" id="frMaintU" autocomplete="off" placeholder="留空保持现有"></div>'+
-       '<div class="fg"><label>维护密码</label><input type="password" id="frMaintP" autocomplete="new-password" placeholder="留空保持现有"></div>'+
-       '<label class="check"><input type="checkbox" id="frSkipDump"> 跳过数据库备份（危险）</label>'+
-       actions('<button class="btn danger" onclick="frAbort()">放弃</button><button class="btn primary" onclick="frSetup()">继续</button>'));
+  document.getElementById('sub').textContent = FRF_L.s4Title;
+  show('<div class="step-title">' + FRF_L.s4Step + '</div>'+
+       '<div class="fg"><label>' + FRF_L.s4User + '</label><input type="text" id="frNewU" autocomplete="off"></div>'+
+       '<div class="fg"><label>' + FRF_L.s4Pass + '</label><input type="password" id="frNewP" autocomplete="new-password"></div>'+
+       '<div style="margin:16px 0 10px;padding-top:12px;border-top:1px solid #333;font-size:.8em;color:#888">' + FRF_L.s4MaintHdr + '</div>'+
+       '<div class="fg"><label>' + FRF_L.s4MaintUser + '</label><input type="text" id="frMaintU" autocomplete="off" placeholder="' + FRF_L.s4Blank + '"></div>'+
+       '<div class="fg"><label>' + FRF_L.s4MaintPass + '</label><input type="password" id="frMaintP" autocomplete="new-password" placeholder="' + FRF_L.s4Blank + '"></div>'+
+       '<label class="check"><input type="checkbox" id="frSkipDump"> ' + FRF_L.s4SkipDump + '</label>'+
+       actions('<button class="btn danger" onclick="frAbort()">' + FRF_L.btnAbort + '</button><button class="btn primary" onclick="frSetup()">' + FRF_L.btnContinue + '</button>'));
 }
 function frSetup(){
   var u = document.getElementById('frNewU').value.trim();
@@ -191,8 +242,8 @@ function frSetup(){
   var mu = document.getElementById('frMaintU').value.trim();
   var mp = document.getElementById('frMaintP').value;
   var skip = document.getElementById('frSkipDump').checked;
-  if (!u || !p){ alert('请输入管理员用户名和密码。'); return; }
-  if ((!!mu) !== (!!mp)){ alert('维护门户的用户名和密码需同时填写（或都留空）。'); return; }
+  if (!u || !p){ alert(FRF_L.alertCreds); return; }
+  if ((!!mu) !== (!!mp)){ alert(FRF_L.alertMaint); return; }
   frApi('setup_creds', { username:u, password:p, maint_user:mu, maint_pass:mp, skip_dump: skip?'1':'0' }).then(function(d){
     if (!d.success){ alert(d.error); return; }
     step5(skip);
@@ -201,26 +252,26 @@ function frSetup(){
 
 /* ---- Step 5: 删除 + 重建 ---- */
 function step5(skip){
-  document.getElementById('sub').textContent = '正在重建数据库';
-  show('<div class="step-title">删除并重建数据库，请稍候。</div>'+
-       '<p class="hint" id="frStatus">'+(skip ? '准备删除…' : '正在备份数据库…')+'</p>');
-  setTimeout(function(){ var s=document.getElementById('frStatus'); if(s) s.textContent = '> 删除数据库…'; }, 800);
-  setTimeout(function(){ var s=document.getElementById('frStatus'); if(s) s.textContent = '> 从 schema.sql 重建…'; }, 1800);
+  document.getElementById('sub').textContent = FRF_L.s5Title;
+  show('<div class="step-title">' + FRF_L.s5Step + '</div>'+
+       '<p class="hint" id="frStatus">'+(skip ? FRF_L.s5Prep : FRF_L.s5Backup)+'</p>');
+  setTimeout(function(){ var s=document.getElementById('frStatus'); if(s) s.textContent = FRF_L.s5Del; }, 800);
+  setTimeout(function(){ var s=document.getElementById('frStatus'); if(s) s.textContent = FRF_L.s5Schema; }, 1800);
   frApi('rebuild').then(function(d){
-    if (!d.success){ show('<div class="warn">重建失败: '+(d.error||'未知错误')+'</div>'+actions('<button class="btn" onclick="frClose()">关闭</button>')); return; }
+    if (!d.success){ show('<div class="warn">' + FRF_L.s5Fail + (d.error||FRF_L.s5Unknown) + '</div>'+actions('<button class="btn" onclick="frClose()">' + FRF_L.s5Close + '</button>')); return; }
     step6(d);
-  }).catch(function(){ show('<div class="warn">网络错误。</div>'); });
+  }).catch(function(){ show('<div class="warn">' + FRF_L.net + '</div>'); });
 }
 
 /* ---- Step 6: 完成 ---- */
 function step6(d){
-  document.getElementById('sub').textContent = '重置完成';
-  show('<div class="step-title ok">✓ 工厂重置成功</div>'+
-       '<p class="hint">请重新登录，使用新的凭据：</p>'+
-       '<div class="mono">管理员 用户名: <b>'+d.username+'</b><br>密码: <b>'+d.password+'</b></div>'+
-       (d.maint_user ? '<div class="mono">维护门户 用户名: <b>'+d.maint_user+'</b><br>密码: <b>'+d.maint_pass+'</b></div>' : '')+
-       (d.backup ? '<p class="hint">备份文件: '+d.backup+'</p>' : '')+
-       actions('<button class="btn primary" onclick="frLogout()">重新登录</button>'));
+  document.getElementById('sub').textContent = FRF_L.s6Title;
+  show('<div class="step-title ok">' + FRF_L.s6Ok + '</div>'+
+       '<p class="hint">' + FRF_L.s6Login + '</p>'+
+       '<div class="mono">' + FRF_L.s6AdminUser + ' <b>'+d.username+'</b><br>' + FRF_L.s6Pass + ' <b>'+d.password+'</b></div>'+
+       (d.maint_user ? '<div class="mono">' + FRF_L.s6MaintUser + ' <b>'+d.maint_user+'</b><br>' + FRF_L.s6MaintPass + ' <b>'+d.maint_pass+'</b></div>' : '')+
+       (d.backup ? '<p class="hint">' + FRF_L.s6Backup + d.backup+'</p>' : '')+
+       actions('<button class="btn primary" onclick="frLogout()">' + FRF_L.s6Relogin + '</button>'));
 }
 function frLogout(){
   var topWin = (window.top || window);
