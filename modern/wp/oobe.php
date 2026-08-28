@@ -335,6 +335,23 @@ function stepSecurity(){
        '<input type="password" id="mp" autocomplete="new-password" placeholder="'+L('leave blank to keep current','留空保持现状')+'"></div>'+
        '<div class="hint">'+L('Maintenance portal is the emergency login used when the site is in maintenance mode.','维护门户是站点处于维护模式时的紧急登录入口。')+'</div>'+
        '<div class="actions"><button class="linkbtn" onclick="stepWS()">'+L('Skip','跳过')+'</button><button class="btn primary" onclick="submitSecurity()">'+L('Save & Continue','保存并继续')+'</button></div>');
+  wireEnterNav();
+}
+/* Security 表单：Enter 依次跳下一个输入框，最后一个（维护门户密码）触发保存 */
+function wireEnterNav(){
+  var ids = ['dn','pw','mu','mp'];
+  for (var i=0;i<ids.length;i++){
+    var el = document.getElementById(ids[i]);
+    if (!el) continue;
+    el.addEventListener('keydown', function(ev){
+      if (ev.key !== 'Enter') return;
+      if (ev.isComposing || ev.keyCode === 229) return; // 中文输入法选字回车不触发
+      ev.preventDefault();
+      if (ev.target.id === 'mp') { submitSecurity(); return; }
+      var next = document.getElementById(ids[ids.indexOf(ev.target.id)+1]);
+      if (next) next.focus();
+    });
+  }
 }
 function submitSecurity(){
   var pw = $('pw').value;
