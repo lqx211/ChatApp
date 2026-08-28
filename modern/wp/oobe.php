@@ -155,13 +155,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   .slide h2 { font-size:1.15em; color:#ddd; margin-bottom:12px; min-height:1.4em; }
   .slide p { color:#999; font-size:.86em; line-height:1.7; min-height:4.2em; }
   .slide .cnt { margin-top:14px; color:#666; font-size:.75em; letter-spacing:2px; }
-  .fg { margin-bottom:14px; }
-  .fg label { display:block; margin-bottom:6px; color:#aaa; font-size:.82em; }
-  .fg input {
-    width:100%; padding:10px 12px; background:#1e1e1e; border:1px solid #444;
-    color:#e0e0e0; font-size:.92em; font-family:inherit; outline:none; border-radius:0; transition:border-color .2s;
-  }
-  .fg input:focus { border-color:#888; }
   .uinput { position:relative; margin-bottom:20px; }
   .uinput label { display:block; margin-bottom:3px; color:#888; font-size:.74em; }
   .uinput input {
@@ -327,11 +320,11 @@ function stepSecurity(){
     : L('Set your display name (optional)','设置你的显示名称（可选）');
   body('<div class="uinput"><label>'+L('Display name','显示名称')+'</label>'+
        '<input type="text" id="dn" autocomplete="off" placeholder="'+dnPh+'"></div>'+
-       '<div class="fg"><label>'+L('New admin password (optional)','新管理员密码（可选）')+'</label>'+
+       '<div class="uinput"><label>'+L('New admin password (optional)','新管理员密码（可选）')+'</label>'+
        '<input type="password" id="pw" autocomplete="new-password" placeholder="'+L('leave blank to keep current','留空保持现状')+'"></div>'+
-       '<div class="fg"><label>'+L('Maintenance portal username (optional)','维护门户用户名（可选）')+'</label>'+
+       '<div class="uinput"><label>'+L('Maintenance portal username (optional)','维护门户用户名（可选）')+'</label>'+
        '<input type="text" id="mu" autocomplete="off" placeholder="'+L('leave blank to keep current','留空保持现状')+'"></div>'+
-       '<div class="fg"><label>'+L('Maintenance portal password (optional)','维护门户密码（可选）')+'</label>'+
+       '<div class="uinput"><label>'+L('Maintenance portal password (optional)','维护门户密码（可选）')+'</label>'+
        '<input type="password" id="mp" autocomplete="new-password" placeholder="'+L('leave blank to keep current','留空保持现状')+'"></div>'+
        '<div class="hint">'+L('Maintenance portal is the emergency login used when the site is in maintenance mode.','维护门户是站点处于维护模式时的紧急登录入口。')+'</div>'+
        '<div class="actions"><button class="linkbtn" onclick="stepWS()">'+L('Skip','跳过')+'</button><button class="btn primary" onclick="submitSecurity()">'+L('Save & Continue','保存并继续')+'</button></div>');
