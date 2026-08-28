@@ -106,8 +106,38 @@ switch ($action) {
 
     case 'upload_avatar':
         $b64 = $_POST['avatar'] ?? '';
-        if (empty($b64) || !preg_match('/^data:image\/(png|jpeg|jpg|gif|webp);base64,(.+)$/', $b64, $m) || strlen($b64) > 3 * 1024 * 1024) {
+        // 接受任意 image/* 的 data URL（浏览器 MIME 五花八门：png/jpeg/gif/webp/heic/avif/bmp…）
+        if (empty($b64) || !preg_match('#^data:image/[a-zA-Z0-9.+-]+;base64,(.+)$#', $b64, $m) || strlen($b64) > 3 * 1024 * 1024) {
             echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit;
+        }
+        $raw = base64_decode($m[1], true);
+        if ($raw === false || $raw === '') { echo json_encode(['success' => false, 'error' => 'Invalid image']); exit; }
+        $ext = null;
+        // 1) 优先 GD 重编码为 PNG：兼容任意 GD 可解码格式（HEIC/AVIF/BMP…），同时彻底剥离非图像内容
+        if (function_exists('imagecreatefromstring')) {
+            $img = @imagecreatefromstring($raw);
+            if ($img) {
+                $w = imagesx($img); $h = imagesy($img);
+                if ($w > 512 || $h > 512) { // 限制最大边长，防超大 PNG
+                    $scale = 512 / max($w, $h);
+                    $tmp = imagecreatetruecolor(max(1, (int)round($w * $scale)), max(1, (int)round($h * $scale)));
+                    imagealphablending($tmp, false); imagesavealpha($tmp, true);
+                    imagecopyresampled($tmp, $img, 0, 0, 0, 0, imagesx($tmp), imagesy($tmp), $w, $h);
+                    imagedestroy($img); $img = $tmp;
+                }
+                if (function_exists('imageistruecolor') && !imageistruecolor($img)) imagepalettetotruecolor($img);
+                imagealphablending($img, false); imagesavealpha($img, true);
+                ob_start(); imagepng($img); $png = ob_get_clean(); imagedestroy($img);
+                if ($png !== false && $png !== '') { $raw = $png; $ext = 'png'; }
+            }
+        }
+        // 2) GD 路径未成功 → 仅接受白名单格式直存 + getimagesize 内容校验
+        if ($ext === null) {
+            if (!preg_match('#^data:image/(png|jpeg|jpg|gif|webp);base64,#', $b64, $mm) || @getimagesizefromstring($raw) === false) {
+                echo json_encode(['success' => false, 'error' => 'Invalid image']); exit;
+            }
+            $ext = strtolower($mm[1]);
+            if ($ext === 'jpeg') $ext = 'jpg';
         }
         $pdo = db();
         $stmt = $pdo->prepare('SELECT user_id, avatar FROM users WHERE username = ?');
@@ -116,14 +146,6 @@ switch ($action) {
         if (!$row) { echo json_encode(['success' => false]); exit; }
         $uid = (int)$row['user_id'];
         $wasEmpty = empty($row['avatar']);
-
-        $ext = strtolower($m[1]);
-        if ($ext === 'jpeg') $ext = 'jpg';
-        $raw = base64_decode($m[2]);
-        // 内容校验：字节必须真的是图片（防 HTML/JS polyglot 伪装成 .png 上传）
-        if ($raw === false || @getimagesizefromstring($raw) === false) {
-            echo json_encode(['success' => false, 'error' => 'Invalid image']); exit;
-        }
         $dir = __DIR__ . '/../data/pp';
         if (!is_dir($dir)) mkdir($dir, 0755, true);
         // Remove old avatar files

@@ -290,17 +290,33 @@ function onAvatarChange(input) {
     if (!f) return;
     var reader = new FileReader();
     reader.onload = function(e) {
-        var b64 = e.target.result;
-        var form = new URLSearchParams();
-        form.append('action', 'upload_avatar');
-        form.append('avatar', b64);
-        fetch('../../api/settings.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: form.toString()
-        }).then(function(r) { return r.json(); }).then(function(d) {
-            if (d.success) { showToast(); location.reload(); }
-        });
+        var img = new Image();
+        img.onload = function() {
+            // 统一重编码：限 512px、转 PNG（解决 HEIC/超大图导致后端拒绝的问题）
+            var MAX = 512;
+            var w = img.width, h = img.height;
+            if (w > MAX || h > MAX) {
+                var s = MAX / Math.max(w, h);
+                w = Math.max(1, Math.round(w * s));
+                h = Math.max(1, Math.round(h * s));
+            }
+            var c = document.createElement('canvas');
+            c.width = w; c.height = h;
+            c.getContext('2d').drawImage(img, 0, 0, w, h);
+            var form = new URLSearchParams();
+            form.append('action', 'upload_avatar');
+            form.append('avatar', c.toDataURL('image/png'));
+            fetch('../../api/settings.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: form.toString()
+            }).then(function(r) { return r.json(); }).then(function(d) {
+                if (d.success) { showToast(); location.reload(); }
+                else { alert(d.error || 'Something went wrong.'); }
+            }).catch(function() { alert('Something went wrong.'); });
+        };
+        img.onerror = function() { alert('无法读取该图片'); };
+        img.src = e.target.result;
     };
     reader.readAsDataURL(f);
 }
