@@ -61,11 +61,12 @@ switch ($action) {
         if (!$admin || !password_verify($pwd, $admin['password'])) {
             echo json_encode(['success' => false, 'error' => 'Administrator password incorrect.']); exit;
         }
-        // 2) Maintenance Portal 凭据
-        $MAINT_USER = ''; $MAINT_SECRET = '';
+        // 2) Maintenance Portal 凭据（Passphrase = 明文密码 $MAINT_PASS，兼容旧 secret）
+        $MAINT_USER = ''; $MAINT_PASS = ''; $MAINT_SECRET = '';
         $maintCfg = __DIR__ . '/../maintenance/config.php';
         if (is_file($maintCfg)) { include $maintCfg; }
-        if ($mu !== $MAINT_USER || $ms !== $MAINT_SECRET) {
+        $msOk = ($ms !== '' && ($ms === $MAINT_PASS || ($MAINT_SECRET !== '' && $ms === $MAINT_SECRET)));
+        if ($mu !== $MAINT_USER || !$msOk) {
             echo json_encode(['success' => false, 'error' => 'Maintenance credentials incorrect.']); exit;
         }
         // 3) git hash 必须等于当前 HEAD

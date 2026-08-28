@@ -128,19 +128,22 @@ done
 echo "[3/4] Creating config templates ..."
 
 if [ ! -f maintenance/config.php ]; then
-    cat > maintenance/config.php << 'PHPEOF'
+    # 自动生成复杂凭据（不再用 __CHANGE_ME__ 占位符）
+    MAINT_GEN_PASS="$(openssl rand -base64 18 | tr -dc 'A-Za-z0-9' | cut -c1-24)"
+    MAINT_GEN_SECRET="$(openssl rand -hex 32)"
+    cat > maintenance/config.php << PHPEOF
 <?php
 /**
  * ChatApp — Maintenance admin credentials
  *
- * Copy this file to config.php and fill in your own values.
- * NEVER commit config.php to version control!
+ * AUTO-GENERATED during setup.
+ * Override via MAINT_USER / MAINT_PASS / MAINT_SECRET env vars if needed.
  */
-$MAINT_USER   = 'admin';
-$MAINT_PASS   = '__CHANGE_ME__';
-$MAINT_SECRET = '__CHANGE_ME_32_HEX__';
+\$MAINT_USER   = getenv('MAINT_USER') ?: 'admin';
+\$MAINT_PASS   = getenv('MAINT_PASS') ?: '${MAINT_GEN_PASS}';
+\$MAINT_SECRET = getenv('MAINT_SECRET') ?: '${MAINT_GEN_SECRET}';
 PHPEOF
-    echo "  → maintenance/config.php created (change the placeholders!)"
+    echo "  → maintenance/config.php created (user: admin, pass: ${MAINT_GEN_PASS})"
 else
     echo "  → maintenance/config.php already exists — skipping"
 fi
