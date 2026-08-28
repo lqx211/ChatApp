@@ -29,6 +29,26 @@ function up_git(string $cmd, string $root): array {
     return [implode("\n", $out), $ret];
 }
 
+/**
+ * 解析可用的 CLI php 二进制。
+ * ⚠️ mod_php(Apache) 下 PHP_BINARY 指向 apache 而非 php，直接拿去 exec 会把 worker 跑成 apache，导致升级卡 0%。
+ */
+function up_php_binary(): string {
+    $cands = [];
+    if (defined('PHP_BINARY') && PHP_BINARY) $cands[] = PHP_BINARY;
+    if (defined('PHP_BINDIR') && PHP_BINDIR) $cands[] = PHP_BINDIR . '/php';
+    $cands[] = '/usr/bin/php8.3';
+    $cands[] = '/usr/bin/php8.2';
+    $cands[] = '/usr/bin/php8.1';
+    $cands[] = '/usr/bin/php';
+    $cands[] = '/usr/local/bin/php';
+    $cands[] = '/opt/homebrew/bin/php'; // macOS
+    foreach ($cands as $c) {
+        if ($c !== '' && is_executable($c)) return $c;
+    }
+    return (string)(defined('PHP_BINARY') && PHP_BINARY ? PHP_BINARY : 'php');
+}
+
 switch ($action) {
 
     case 'check':
@@ -94,7 +114,9 @@ switch ($action) {
         $worker = __DIR__ . '/upgrade_worker.php';
         $workerLog = $root . '/data/upgrade_worker.log';
         @file_put_contents($workerLog, '');
-        exec(escapeshellarg((string)PHP_BINARY) . ' ' . escapeshellarg($worker) . ' >> ' . escapeshellarg($workerLog) . ' 2>&1 &');
+        // mod_php 下 PHP_BINARY 指向 apache——显式解析 CLI php；nohup 防请求结束后 SIGHUP 杀掉 worker
+        $phpBin = up_php_binary();
+        exec('cd ' . escapeshellarg($root) . ' && nohup ' . escapeshellarg($phpBin) . ' ' . escapeshellarg($worker) . ' >> ' . escapeshellarg($workerLog) . ' 2>&1 &');
         echo json_encode(['success' => true, 'started' => true, 'maintenance' => true]);
         break;
 
