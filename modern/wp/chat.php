@@ -347,10 +347,10 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
   <div class="ch"><h2>WebSocket Settings</h2><span style="color:#e0a040;font-size:.75em;margin-left:12px">Root Only</span></div>
   <div style="padding:12px">
    <div style="font-size:.75em;color:#888;margin-bottom:10px">三个通讯模式分别填地址（host:port 或完整 ws:// / wss:// URL）。前端按当前访问来源自动选择：localhost 走「本地」，私网 IP 走「私网」，公网域名走「公网」。留空 = 该模式不启用。</div>
-   <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px">
-    <div style="display:flex;gap:8px;align-items:center"><span style="width:64px;font-size:.78em;color:#ccc">🖥 本地</span><input type="text" id="wssLocalInput" style="flex:1;padding:8px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:monospace;font-size:.85em" placeholder="127.0.0.1:9090"></div>
-    <div style="display:flex;gap:8px;align-items:center"><span style="width:64px;font-size:.78em;color:#ccc">🏠 私网</span><input type="text" id="wssPrivateInput" style="flex:1;padding:8px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:monospace;font-size:.85em" placeholder="0.0.0.0:9090"></div>
-    <div style="display:flex;gap:8px;align-items:center"><span style="width:64px;font-size:.78em;color:#ccc">🌐 公网</span><input type="text" id="wssPublicInput" style="flex:1;padding:8px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:monospace;font-size:.85em" placeholder="wss://wss.lqx211.com"></div>
+   <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px">
+    <div style="display:flex;gap:8px;align-items:flex-end"><span style="width:64px;font-size:.78em;color:#ccc;padding-bottom:8px;white-space:nowrap">🖥 本地</span><div class="uinput" style="flex:1;min-width:0"><input type="text" id="wssLocalInput" placeholder="127.0.0.1:9090"></div></div>
+    <div style="display:flex;gap:8px;align-items:flex-end"><span style="width:64px;font-size:.78em;color:#ccc;padding-bottom:8px;white-space:nowrap">🏠 私网</span><div class="uinput" style="flex:1;min-width:0"><input type="text" id="wssPrivateInput" placeholder="0.0.0.0:9090"></div></div>
+    <div style="display:flex;gap:8px;align-items:flex-end"><span style="width:64px;font-size:.78em;color:#ccc;padding-bottom:8px;white-space:nowrap">🌐 公网</span><div class="uinput" style="flex:1;min-width:0"><input type="text" id="wssPublicInput" placeholder="wss://wss.lqx211.com"></div></div>
    </div>
    <div style="display:flex;gap:8px;align-items:center">
     <button type="button" class="bsm" onclick="saveWssSettings()" style="background:#2a4a2a;border-color:#3a6a3a">保存</button>

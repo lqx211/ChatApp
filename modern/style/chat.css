@@ -1046,3 +1046,17 @@ input[type="number"]:focus,
 input[type="date"]:focus {
   border-bottom-color: #4a9dd8 !important;
 }
+/* OOBE 风格：带动画蓝线的下划线输入（wrapper 版，同 OOBE .uinput） */
+.uinput { position: relative; }
+.uinput input {
+  width: 100%; padding: 9px 2px 7px; background: transparent; border: none;
+  border-bottom: 1px solid #555; border-radius: 0; color: #e0e0e0;
+  font-family: inherit; outline: none;
+}
+.uinput input::placeholder { color: #777; opacity: 1; }
+.uinput::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+  background: #4a9dd8; transform: scaleX(0);
+  transition: transform .28s cubic-bezier(.4,0,.2,1); transform-origin: left;
+}
+.uinput:focus-within::after { transform: scaleX(1); }
