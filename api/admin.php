@@ -509,6 +509,14 @@ switch ($action) {
         echo json_encode(['success' => true] + $newCfg);
         break;
 
+    case 'oobe_rerun':
+        if (chatapp_get_role($myUid) !== 'root') {
+            echo json_encode(['success' => false, 'error' => 'Access denied']); exit;
+        }
+        @unlink(__DIR__ . '/../data/oobe.done');
+        echo json_encode(['success' => true]);
+        break;
+
     case 'db_tables':
         if (chatapp_get_role($myUid) !== 'root') {
             echo json_encode(['success' => false, 'error' => 'Access denied']); exit;

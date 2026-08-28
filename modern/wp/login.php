@@ -770,7 +770,7 @@ $bgWallpaper = (int)$_SESSION['wallpaper'];
                     fd.append('password', password);
                 });
                 if (data.success) {
-                    window.location.href = 'chat.php';
+                    window.location.href = data.oobe ? 'oobe.php' : 'chat.php';
                 } else if (data.restricted) {
                     resetButton(btn, origLabel);
                     showRestricted(data);

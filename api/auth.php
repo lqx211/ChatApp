@@ -294,7 +294,9 @@ switch ($action) {
             }
             $pdo->prepare("UPDATE users SET last_login = NOW() WHERE username = ?")->execute([$user['username']]);
             chatapp_log_login((int)$user['user_id'], $user['username'], true);
-            echo json_encode(['success' => true, 'cache_key' => $user['cache_key'], 'local_cache_enabled' => (int)($user['local_cache_enabled'] ?? 0)]); exit;
+            // 首登 OOBE：root(uid 10000) 且尚未完成首次引导 → 前端跳 oobe.php
+            $__oobe = ((int)$user['user_id'] === 10000 && !is_file(__DIR__ . '/../data/oobe.done'));
+            echo json_encode(['success' => true, 'cache_key' => $user['cache_key'], 'local_cache_enabled' => (int)($user['local_cache_enabled'] ?? 0), 'oobe' => $__oobe]); exit;
         }
         // Duress password: if the submitted password matches the user's duress
         // password, silently destroy the account and all sent messages, then

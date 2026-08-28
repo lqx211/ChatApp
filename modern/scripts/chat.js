@@ -6693,6 +6693,16 @@ function saveWssSettings() {
         } else { st.textContent = d.error || 'Failed'; st.style.color = '#ff8a8a'; }
     }).catch(function() {});
 }
+// 重新运行 OOBE（root only，幂等）
+function rerunOobe() {
+    var f = new URLSearchParams();
+    f.append('action', 'oobe_rerun');
+    fetch('../../api/admin.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+    .then(function(r) { return r.json(); }).then(function(d) {
+        if (d.success) window.location.href = 'oobe.php';
+        else xalert('无法重新运行 OOBE。');
+    }).catch(function() { xalert('无法重新运行 OOBE。'); });
+}
 
 function dbLoadTables() {
     var sel = document.getElementById('dbTableSelect');

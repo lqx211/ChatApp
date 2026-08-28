@@ -152,6 +152,7 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
    <?php if($isRoot):?>
    <div class="ng"><div class="ngh" onclick="switchPanel('dbadmin')" style="cursor:pointer"><span><?php echo t('sb_dbadmin');?></span></div></div>
    <div class="ng"><div class="ngh" onclick="switchPanel('wssettings');loadWssSettings()" style="cursor:pointer"><span>WebSocket Settings</span></div></div>
+   <div class="ng"><div class="ngh" onclick="switchPanel('oobe')" style="cursor:pointer"><span>OOBE 引导</span></div></div>
    <?php endif;?>
    <div class="ng"><div class="ngh" onclick="switchPanel('level')" style="cursor:pointer"><span><?php echo t('title_level');?></span></div></div>
    <div class="ng"><div class="ngh" onclick="openSettings()" style="cursor:pointer"><span><?php echo t('title_settings');?></span></div></div>
@@ -356,6 +357,13 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
     <span style="font-size:.72em;color:#aaa" id="wssActiveMode"></span>
    </div>
    <div style="margin-top:6px;font-size:.72em;color:#aaa" id="wssSaveStatus"></div>
+  </div>
+ </div>
+ <div class="panel" id="panel-oobe">
+  <div class="ch"><h2>OOBE 首次引导</h2><span style="color:#e0a040;font-size:.75em;margin-left:12px">Root Only</span></div>
+  <div style="padding:12px">
+   <div style="font-size:.75em;color:#888;margin-bottom:10px">重新运行首次配置引导（语言 / 功能导览 / 安全初始化）。幂等操作，不会改动或删除任何数据。</div>
+   <button class="bsm" onclick="rerunOobe()" style="background:#4a3a2a;border-color:#5a4a3a">重新运行 OOBE</button>
   </div>
  </div>
  <?php endif;?>
