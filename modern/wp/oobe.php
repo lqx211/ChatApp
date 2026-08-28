@@ -176,17 +176,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   .uinput:focus-within::after { transform:scaleX(1); }
   .linkbtn { background:none; border:none; color:#8aa6c8; text-decoration:underline; cursor:pointer; font-size:.8em; padding:8px 4px; font-family:inherit; }
   .linkbtn:hover { color:#b8d0e8; }
-  .wsline { display:flex; align-items:flex-end; gap:12px; margin-bottom:16px; }
-  .wsline .wstag { width:46px; font-size:.78em; color:#bbb; padding-bottom:9px; white-space:nowrap; }
-  .wsline .uinput { flex:1; margin-bottom:0; }
-  .wsline .uinput input { color:#e0e0e0; font-size:.88em; }
+  .wsline { display:flex; align-items:flex-end; gap:10px; margin-bottom:18px; }
+  .wsline .wstag { width:56px; font-size:.8em; color:#bbb; padding-bottom:8px; white-space:nowrap; }
+  .wsline .uinput { flex:1; min-width:0; margin-bottom:0; }
+  .wsline .uinput input { color:#e0e0e0; font-size:.9em; }
   .wsline .uinput.ok::after { background:#7ddb9a; transform:scaleX(1); }
   .wsline .uinput.fail::after { background:#e06666; transform:scaleX(1); }
   .wsline .uinput.testing::after { background:#e0a040; transform:scaleX(1); animation:pulse 1s ease infinite; }
   @keyframes pulse { 50% { opacity:.3; } }
-  .wsline .wsstatus { width:160px; font-size:.72em; line-height:1.4; padding-bottom:7px; color:#e06666; }
-  .wsline .wsstatus.pass { color:#7ddb9a; }
-  .wsline .wsstatus.testing { color:#e0a040; }
   .hint { color:#888; font-size:.74em; line-height:1.55; margin:8px 0 2px; }
   .check { display:flex; align-items:flex-start; gap:8px; margin:12px 0; font-size:.78em; color:#c88; line-height:1.45; }
   .check input { margin-top:2px; }
@@ -359,17 +356,16 @@ function stepWS(){
   STEP = 3; dots();
   headTitle(L('WebSocket setup','WebSocket 连接'));
   var modes = [
-    ['local',   L('Local','本地'),  '🖥'],
-    ['private', L('Private','私网'),'🏠'],
-    ['public',  L('Public','公网'), '🌐']
+    ['local',   L('Local','本地')],
+    ['private', L('Private','私网')],
+    ['public',  L('Public','公网')]
   ];
   var h = '<div class="hint" style="margin-bottom:14px">'+L('We will test each server below. Continue sends a ping and waits for a pong reply.','将依次测试下面的服务器。点击「继续」发送 ping 并等待 pong 回包。')+'</div>';
   for (var i=0;i<modes.length;i++){
     var m = modes[i];
     h += '<div class="wsline">'+
-         '<span class="wstag">'+m[2]+' '+m[1]+'</span>'+
+         '<span class="wstag">'+m[1]+'</span>'+
          '<div class="uinput" id="u_'+m[0]+'"><input type="text" readonly value="'+ME_WSS[m[0]]+'"></div>'+
-         '<span class="wsstatus" id="st_'+m[0]+'"></span>'+
          '</div>';
   }
   h += '<div class="actions">'+
@@ -380,13 +376,8 @@ function stepWS(){
 }
 function skipWS(){ completeOobe(); }
 function setWSStatus(k, st){
-  var box = $('u_'+k), stEl = $('st_'+k);
+  var box = $('u_'+k);
   if (box) box.className = 'uinput ' + st;
-  var txt = (st==='testing' ? L('Testing…','测试中…')
-    : st==='pass' ? '✓ '+L('Reachable','可达')
-    : st==='fail' ? L('Couldn\'t reach server (http response or timeout)','无法连接服务器（响应超时或连接失败）')
-    : '');
-  if (stEl){ stEl.textContent = txt; stEl.className = 'wsstatus ' + st; }
 }
 function wssTestUrl(url){
   return new Promise(function(resolve){
