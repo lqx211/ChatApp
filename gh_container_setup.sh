@@ -27,6 +27,12 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT_DIR"
 
+# 防止在部署目标（/var/www/html）内运行：脚本应在源码目录运行
+if [ "$ROOT_DIR" = "/var/www/html" ]; then
+    echo "错误：请勿在 /var/www/html 内运行本脚本。请在源码目录（如 /workspaces/ChatApp）运行，脚本会自动部署到 /var/www/html。"
+    exit 1
+fi
+
 echo "===== ChatApp Setup ====="
 echo ""
 
@@ -47,10 +53,10 @@ sudo mysql -e "FLUSH PRIVILEGES;"
 sudo apt install php-mysql php8.3-mysql php8.3-mbstring php8.3-gd php8.3-curl -y
 
 echo "Setup server."
-# 清空默认站点，完整复制仓库（含 .git，供 Upgrade System 使用）
-sudo rm -rf /var/www/html
-sudo mkdir -p /var/www/html
-sudo cp -R . /var/www/html/
+# 清空站点内容（保留 /var/www/html 目录本身，避免删除运行脚本的 cwd）
+sudo find /var/www/html -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null
+# 完整复制仓库（含 .git，供 Upgrade System 使用；用 ROOT_DIR 绝对源，避免相对路径递归自身）
+sudo cp -R "$ROOT_DIR"/. /var/www/html/
 # 运行用户写权限（Upgrade System 的 git checkout / 上传需要；容器测试环境）
 sudo chown -R www-data:www-data /var/www/html
 sudo chmod -R 777 /tmp
