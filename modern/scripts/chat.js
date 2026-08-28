@@ -8496,6 +8496,7 @@ var ChatShare = (function () {
     var ringing = false, ringTimer = null, iceBuffer = [], pendingOffer = null, viewerAccepted = false, minimized = false;
     var mySid = null, shareAccepted = false, pendingSid = null, inviteTimer = null; // 一次性 key：每次邀请唯一 sid
     var shareAudioTrack = null, shareAudioSender = null, shareReneg = false, remoteShareStream = null; // 系统声音共享
+    var shareMuted = false; // 观看端本地静音
     function makeSid() {
         return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12) + '-' + Math.random().toString(36).slice(2, 8);
     }
@@ -8543,6 +8544,7 @@ var ChatShare = (function () {
         if (cl) cl.style.display = viewerMode ? 'inline-block' : 'none';
         if (t) t.textContent = viewerMode ? T('share_viewing').replace('%s', peer || '') : T('share_sharing');
         updateShareAudioBtn();
+        updateShareMuteBtn();
         initDrag();
     }
     // 等待窗口（邀请发出等接受 / 已接受等屏幕流），非全屏小窗
@@ -8559,6 +8561,7 @@ var ChatShare = (function () {
         if (cl) cl.style.display = viewerMode ? 'inline-block' : 'none';
         if (t) t.textContent = viewerMode ? T('share_connecting') : T('share_waiting');
         updateShareAudioBtn();
+        updateShareMuteBtn();
         initDrag();
     }
     // 窗口拖动：按住标题栏可移动
@@ -8619,6 +8622,7 @@ var ChatShare = (function () {
         if (cl) cl.style.display = 'none';
         if (t) t.textContent = T('share_sharing');
         updateShareAudioBtn();
+        updateShareMuteBtn();
         initDrag();
     }
     function hideOverlay() {
@@ -8630,7 +8634,10 @@ var ChatShare = (function () {
         var wm = byId('shareWaitMsg');
         if (wm) wm.style.display = 'none';
         var sv = byId('shareVideo');
-        if (sv) { sv.style.display = 'none'; sv.srcObject = null; }
+        if (sv) { sv.style.display = 'none'; sv.srcObject = null; sv.muted = false; }
+        shareMuted = false;
+        var muteBtn = byId('shareMuteBtn');
+        if (muteBtn) { muteBtn.style.display = 'none'; muteBtn.innerHTML = '🔊'; }
     }
 
     /* ---------- 发起（共享方）：先邀请，对方接受后才采集屏幕 ---------- */
@@ -8780,6 +8787,21 @@ var ChatShare = (function () {
         updateShareAudioBtn();
         renegotiateShare();
     }
+    // 观看端：本地静音/恢复对方屏幕声音（不影响共享方发送）
+    function updateShareMuteBtn() {
+        var b = byId('shareMuteBtn');
+        if (!b) return;
+        if (role !== 'viewer') { b.style.display = 'none'; return; }
+        b.style.display = 'inline-block';
+        b.innerHTML = shareMuted ? '🔇' : '🔊';
+        b.title = shareMuted ? T('share_unmute', '取消静音') : T('share_mute', '静音');
+    }
+    function toggleMute() {
+        shareMuted = !shareMuted;
+        var sv = byId('shareVideo');
+        if (sv) sv.muted = shareMuted;
+        updateShareMuteBtn();
+    }
     function renegotiateShare() {
         if (!pc || shareReneg) return;
         shareReneg = true;
@@ -8869,7 +8891,7 @@ var ChatShare = (function () {
         }
     };
 
-    return { startShare: startShare, accept: accept, reject: reject, stopShare: stopShare, closeViewer: closeViewer, minimize: minimize, restore: restore, toggleAudio: toggleAudio, isActive: function () { return !!pc; } };
+    return { startShare: startShare, accept: accept, reject: reject, stopShare: stopShare, closeViewer: closeViewer, minimize: minimize, restore: restore, toggleAudio: toggleAudio, toggleMute: toggleMute, isActive: function () { return !!pc; } };
 })();
 function startStandaloneShare(u) { if (ChatShare) ChatShare.startShare(u || D); }
 function acceptShare() { if (ChatShare) ChatShare.accept(); }

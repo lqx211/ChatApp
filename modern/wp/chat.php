@@ -944,6 +944,7 @@ try {
   <div class="share-top">
     <span class="share-title" id="shareTitle"><?php echo t('share_sharing');?></span>
     <button class="bsm share-audio-btn" id="shareAudioBtn" onclick="ChatShare.toggleAudio()" style="display:none">🔊</button>
+    <button class="bsm share-audio-btn" id="shareMuteBtn" onclick="ChatShare.toggleMute()" style="display:none" title="静音对方屏幕声音">🔊</button>
     <button class="bsm share-min-btn" id="shareMinBtn" onclick="ChatShare.minimize()" title="<?php echo t('share_minimize');?>">－</button>
     <button class="bsm danger" id="shareStopBtn" onclick="ChatShare.stopShare()" style="display:none"><?php echo t('share_stop');?></button>
     <button class="bsm" id="shareCloseBtn" onclick="ChatShare.closeViewer()" style="display:none"><?php echo t('share_exit');?></button>
