@@ -1024,14 +1024,13 @@ body.doodle-lock * {
 .pmg-revoke { flex: 0 0 auto; }
 
 /* ===== Google-style underline inputs（OOBE 风格，2026-08-28，可一键撤销） ===== */
-.sbox input,
-.fg input[type="password"],
-.fg input[type="text"],
-.cd-input,
-.srch-toolbar input[type="text"],
-.adm-toolbar input[type="text"],
-.support-bar input,
-.ld-custom-row input {
+/* 覆盖所有单行文本输入（含内联样式），textarea / select / checkbox / range 保持原样 */
+input[type="text"],
+input[type="password"],
+input[type="search"],
+input[type="email"],
+input[type="number"],
+input[type="date"] {
   background: transparent !important;
   border: none !important;
   border-bottom: 1px solid #555 !important;
@@ -1039,13 +1038,11 @@ body.doodle-lock * {
   padding-left: 2px !important;
   padding-right: 2px !important;
 }
-.sbox input:focus,
-.fg input[type="password"]:focus,
-.fg input[type="text"]:focus,
-.cd-input:focus,
-.srch-toolbar input[type="text"]:focus,
-.adm-toolbar input[type="text"]:focus,
-.support-bar input:focus,
-.ld-custom-row input:focus {
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="search"]:focus,
+input[type="email"]:focus,
+input[type="number"]:focus,
+input[type="date"]:focus {
   border-bottom-color: #4a9dd8 !important;
 }
