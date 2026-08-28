@@ -46,19 +46,23 @@ if ($gid !== '') {
 $user = trim($_GET['u'] ?? '');
 if (empty($user)) { http_response_code(404); exit; }
 
-// Allow both username (alphanumeric+underscore) and raw numeric uid
-$isUid = is_numeric($user);
-
 $pdo = db();
-if ($isUid) {
-    $stmt = $pdo->prepare('SELECT user_id, avatar FROM users WHERE user_id = ?');
-    $stmt->execute([(int)$user]);
-} else {
-    if (!preg_match('/^[a-zA-Z0-9_]+$/', $user)) { http_response_code(404); exit; }
+$row = false;
+$isUid = false;
+// 所有调用方传的都是 username（chatapp_avatar_url / wss_client）。先按用户名解析，
+// 纯数字用户名（如 "6666"）也走这里，避免被误当成 user_id 查空导致头像不显示。
+if (preg_match('/^[a-zA-Z0-9_]+$/', $user)) {
     $stmt = $pdo->prepare('SELECT user_id, avatar FROM users WHERE username = ?');
     $stmt->execute([$user]);
+    $row = $stmt->fetch();
 }
-$row = $stmt->fetch();
+// 用户名未命中 → 回退：按数字 uid 解析
+if (!$row && is_numeric($user)) {
+    $isUid = true;
+    $stmt = $pdo->prepare('SELECT user_id, avatar FROM users WHERE user_id = ?');
+    $stmt->execute([(int)$user]);
+    $row = $stmt->fetch();
+}
 
 $hasAvatar = false;
 $avFile = null;
