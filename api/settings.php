@@ -14,7 +14,7 @@ header('Content-Type: application/json');
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
 // Every settings action except the read-only lookups is state-changing → POST only.
-chatapp_read_actions(['discover', 'get_blocks', 'get_background', 'get_bg_privacy', 'get_profile_bg'], $action);
+chatapp_read_actions(['discover', 'get_blocks', 'get_background', 'get_bg_privacy', 'get_profile_bg', 'get_sig_privacy'], $action);
 
 /**
  * 设置页通用 0/1 开关：读取并翻转 users 表中指定列。
@@ -822,6 +822,68 @@ switch ($action) {
         $json = $clean ? json_encode($clean) : null;
         db()->prepare('UPDATE users SET bg_whitelist = ? WHERE username = ?')->execute([$json, $_SESSION['username']]);
         echo json_encode(['success' => true, 'whitelist' => $clean]);
+        break;
+
+    // ================= Signature privacy (mirrors background) =================
+
+    case 'get_sig_privacy':
+        $stmt = db()->prepare('SELECT sig_blacklist, sig_whitelist, sig_privacy, sig_no_friend, sig_hidden_text FROM users WHERE username = ?');
+        $stmt->execute([$_SESSION['username']]);
+        $row = $stmt->fetch();
+        if (!$row) { echo json_encode(['success' => false]); exit; }
+        $black = $row['sig_blacklist'] ? json_decode($row['sig_blacklist'], true) : [];
+        $white = $row['sig_whitelist'] ? json_decode($row['sig_whitelist'], true) : [];
+        if (!is_array($black)) $black = [];
+        if (!is_array($white)) $white = [];
+        echo json_encode([
+            'success' => true,
+            'privacy' => (int)$row['sig_privacy'],
+            'no_friend' => (int)$row['sig_no_friend'],
+            'blacklist' => array_values($black),
+            'whitelist' => array_values($white),
+            'hidden_text' => $row['sig_hidden_text'] ?? '',
+        ]);
+        break;
+
+    case 'set_sig_privacy':
+        $p = $_POST['privacy'] ?? '';
+        if ($p !== '0' && $p !== '1' && $p !== '2') { echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit; }
+        db()->prepare('UPDATE users SET sig_privacy = ? WHERE username = ?')->execute([(int)$p, $_SESSION['username']]);
+        echo json_encode(['success' => true]);
+        break;
+
+    case 'set_sig_blacklist':
+        $raw = $_POST['blacklist'] ?? '';
+        $list = $raw === '' ? [] : json_decode($raw, true);
+        if (!is_array($list)) { echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit; }
+        $clean = [];
+        foreach ($list as $v) { if (is_numeric($v)) $clean[] = (int)$v; else { echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit; } }
+        $clean = array_values(array_unique($clean));
+        db()->prepare('UPDATE users SET sig_blacklist = ? WHERE username = ?')->execute([$clean ? json_encode($clean) : null, $_SESSION['username']]);
+        echo json_encode(['success' => true, 'blacklist' => $clean]);
+        break;
+
+    case 'set_sig_whitelist':
+        $raw = $_POST['whitelist'] ?? '';
+        $list = $raw === '' ? [] : json_decode($raw, true);
+        if (!is_array($list)) { echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit; }
+        $clean = [];
+        foreach ($list as $v) { if (is_numeric($v)) $clean[] = (int)$v; else { echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit; } }
+        $clean = array_values(array_unique($clean));
+        db()->prepare('UPDATE users SET sig_whitelist = ? WHERE username = ?')->execute([$clean ? json_encode($clean) : null, $_SESSION['username']]);
+        echo json_encode(['success' => true, 'whitelist' => $clean]);
+        break;
+
+    case 'set_sig_no_friend':
+        $nf = $_POST['no_friend'] ?? '';
+        db()->prepare('UPDATE users SET sig_no_friend = ? WHERE username = ?')->execute([($nf === '1' || $nf === 'true') ? 1 : 0, $_SESSION['username']]);
+        echo json_encode(['success' => true]);
+        break;
+
+    case 'set_sig_hidden_text':
+        $ht = trim(mb_substr($_POST['hidden_text'] ?? '', 0, 100));
+        db()->prepare('UPDATE users SET sig_hidden_text = ? WHERE username = ?')->execute([$ht, $_SESSION['username']]);
+        echo json_encode(['success' => true, 'hidden_text' => $ht]);
         break;
 
     // ================= 个人主页封面背景（独立 profile_bg_image 字段，与聊天壁纸 bg_image 分开） =================

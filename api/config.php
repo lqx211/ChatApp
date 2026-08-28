@@ -238,6 +238,36 @@ function chatapp_avatar_url(?string $avatar, ?string $username, int $uid = 0): s
 }
 
 /**
+ * 通用可见性判断（背景图/签名共用）：0=黑名单 1=白名单 2=仅自己；noFriend 要求是好友。
+ */
+function chatapp_privacy_allowed(int $viewerUid, int $ownerUid, int $mode, bool $noFriend, array $black, array $white): bool {
+    if ($viewerUid === $ownerUid) return true;
+    if ($mode === 0) $allow = !in_array($viewerUid, $black, true);
+    elseif ($mode === 1) $allow = in_array($viewerUid, $white, true);
+    else $allow = false; // 2 = only owner
+    if ($allow && $noFriend && $viewerUid > 0) {
+        $c = db()->prepare("SELECT COUNT(*) FROM contacts WHERE status='accepted' AND ((user_from=? AND user_to=?) OR (user_from=? AND user_to=?))");
+        $c->execute([$viewerUid, $ownerUid, $ownerUid, $viewerUid]);
+        $allow = (int)$c->fetchColumn() > 0;
+    }
+    return $allow;
+}
+
+/**
+ * 返回观众应看到的签名文本：本人/有权限 → 真实签名；无权限 → 不可见时签名（可为空）。
+ */
+function chatapp_sig_for_viewer(int $viewerUid, int $ownerUid, string $realSig): string {
+    $s = db()->prepare('SELECT sig_privacy, sig_blacklist, sig_whitelist, sig_no_friend, sig_hidden_text FROM users WHERE user_id = ?');
+    $s->execute([$ownerUid]);
+    $row = $s->fetch();
+    if (!$row) return $realSig;
+    $black = json_decode((string)$row['sig_blacklist'], true); $black = is_array($black) ? $black : [];
+    $white = json_decode((string)$row['sig_whitelist'], true); $white = is_array($white) ? $white : [];
+    $allowed = chatapp_privacy_allowed($viewerUid, $ownerUid, (int)$row['sig_privacy'], (int)$row['sig_no_friend'] === 1, $black, $white);
+    return $allowed ? $realSig : (string)($row['sig_hidden_text'] ?? '');
+}
+
+/**
  * 群头像 URL：文件名格式 → ../api/avatar.php?g=<group_id>；data URI 原样返回。
  */
 function chatapp_group_avatar_url(?string $avatar, int $groupId): string {
@@ -703,6 +733,12 @@ function init_db(): void {
     db_add_column_if_missing('users', 'bg_whitelist', "TEXT DEFAULT NULL");
     db_add_column_if_missing('users', 'bg_no_friend', "TINYINT(1) NOT NULL DEFAULT 0");
     db_add_column_if_missing('users', 'bg_private_image', "VARCHAR(255) DEFAULT NULL");
+    // ---- Signature privacy (mirrors background privacy) ----
+    db_add_column_if_missing('users', 'sig_privacy', "TINYINT(1) NOT NULL DEFAULT 0");
+    db_add_column_if_missing('users', 'sig_blacklist', "TEXT DEFAULT NULL");
+    db_add_column_if_missing('users', 'sig_whitelist', "TEXT DEFAULT NULL");
+    db_add_column_if_missing('users', 'sig_no_friend', "TINYINT(1) NOT NULL DEFAULT 0");
+    db_add_column_if_missing('users', 'sig_hidden_text', "VARCHAR(100) DEFAULT ''");
     // ---- Profile cover background (personal page, independent from chat wallpaper bg_image) ----
     db_add_column_if_missing('users', 'profile_bg_image', "VARCHAR(255) DEFAULT NULL");
     db_add_column_if_missing('users', 'profile_bg_updated_at', "DATETIME DEFAULT NULL");

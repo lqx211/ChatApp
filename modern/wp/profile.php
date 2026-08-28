@@ -49,7 +49,13 @@ $avatar = chatapp_avatar_url($profileUser['avatar'] ?? '', $profileUser['usernam
 $bg = $profileUser['bg_image'] ?? '';
 $dnd = (int)($profileUser['dnd'] ?? 0);
 $restricted = (int)($profileUser['restricted'] ?? 0);
-$statusText = htmlspecialchars($profileUser['custom_title'] ?? '……');
+// 个性签名按隐私过滤：本人看真实签名；他人按 sig_privacy（黑/白/仅自己 + 禁非好友），无权限显示「不可见时签名」
+$viewerUid = (int)($currentUser['user_id'] ?? 0);
+$ownerUid = (int)($profileUser['user_id'] ?? 0);
+$visibleSig = $isSelf
+    ? (string)($profileUser['custom_title'] ?? '')
+    : chatapp_sig_for_viewer($viewerUid, $ownerUid, (string)($profileUser['custom_title'] ?? ''));
+$statusText = htmlspecialchars($visibleSig !== '' ? $visibleSig : '……');
 
 // ---- 性别可见性过滤（0=所有人可见 1=仅好友可见 2=所有人不可见）----
 $genderVal = $profileUser['gender'] ?? '';
@@ -239,11 +245,11 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
   <!-- 4. 个人信息行（仅自己可点击跳转编辑） -->
   <div class="info-line"<?php if($isSelf):?> onclick="openEditInfo()"<?php endif;?>><?php echo $genderDisplay ? $genderDisplay . ' | ' : '';?><?php echo $ageDisplay ? $ageDisplay . ' | ' : '';?><?php echo $monthDayDisplay ? $monthDayDisplay . ' ' . $zodiacDisplay . ' | ' : '';?><?php echo t('p_location_demo');?></div>
 
-  <!-- 5. 个性签名（签名为空则不显示；有签名点击进入签名编辑页） -->
+  <!-- 5. 个性签名（签名/可见文本为空则不显示；仅自己可点击进入签名编辑页） -->
   <?php
-  $rawSig = trim((string)($profileUser['custom_title'] ?? ''));
+  $rawSig = trim((string)$visibleSig);
   if ($rawSig !== ''):?>
-  <div class="sig-row" onclick="openEditSig()">
+  <div class="sig-row"<?php echo $isSelf ? ' onclick="openEditSig()"' : '';?>>
     <span class="sig-text"><?php echo $statusText;?></span>
     <span class="arrow">›</span>
   </div>

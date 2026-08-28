@@ -5,28 +5,31 @@ $currentUser = chatapp_get_user();
 $meUid = (int)($currentUser['user_id'] ?? 0);
 $meName = $currentUser['username'] ?? '';
 
-// 类型：black / white
+// 类型：black / white；kind：bg（背景图）/ sig（签名）
 $type = $_GET['type'] ?? '';
 if ($type !== 'black' && $type !== 'white') $type = 'black';
+$kind = $_GET['kind'] ?? '';
+if ($kind !== 'bg' && $kind !== 'sig') $kind = 'bg';
+$p = $kind === 'sig' ? 'sig' : 'bg'; // 字段/接口前缀
 
-$bgPrivacy = (int)($currentUser['bg_privacy'] ?? 0);
+$privacy = (int)($currentUser[$p . '_privacy'] ?? 0);
 // PHP 端模式校验：非对应模式 → 显示提示不可编辑
 $modeMismatch = false;
-if ($type === 'black' && $bgPrivacy !== 0) $modeMismatch = true;
-if ($type === 'white' && $bgPrivacy !== 1) $modeMismatch = true;
+if ($type === 'black' && $privacy !== 0) $modeMismatch = true;
+if ($type === 'white' && $privacy !== 1) $modeMismatch = true;
 $listLabel = $type === 'black' ? '黑名单' : '白名单';
 
 $rawList = '';
 if ($type === 'black') {
-    $rawList = $currentUser['bg_blacklist'] ?? '';
+    $rawList = $currentUser[$p . '_blacklist'] ?? '';
 } else {
-    $rawList = $currentUser['bg_whitelist'] ?? '';
+    $rawList = $currentUser[$p . '_whitelist'] ?? '';
 }
 $curList = $rawList ? json_decode($rawList, true) : [];
 if (!is_array($curList)) $curList = [];
 $curList = array_values(array_unique(array_map('intval', $curList)));
 
-$bgNoFriend = (int)($currentUser['bg_no_friend'] ?? 0);
+$noFriend = (int)($currentUser[$p . '_no_friend'] ?? 0);
 
 // 拉取名单中用户信息（头像/昵称），好友状态一并判断
 $uidInfo = [];
@@ -174,11 +177,11 @@ if ($friendList) {
     <?php endif;?>
   </div>
 
-  <!-- 禁止非朋友关系查看背景图 -->
+  <!-- 禁止非朋友关系查看（bg=背景图 / sig=签名） -->
   <div class="section-divider"></div>
   <div class="form-row" onclick="toggleNoFriend()">
-    <span class="row-label">禁止非朋友关系查看</span>
-    <span class="row-value" id="noFriendVal"><?php echo $bgNoFriend ? '已开启' : '已关闭';?></span>
+    <span class="row-label"><?php echo $kind === 'sig' ? '禁止非朋友关系查看签名' : '禁止非朋友关系查看';?></span>
+    <span class="row-value" id="noFriendVal"><?php echo $noFriend ? '已开启' : '已关闭';?></span>
     <span class="row-arrow">›</span>
   </div>
 
@@ -190,8 +193,9 @@ if ($friendList) {
 
 <script>
 var _type = <?php echo json_encode($type);?>;
+var _kind = <?php echo json_encode($kind);?>;
 var _curUids = <?php echo json_encode($curList);?>;
-var _noFriend = <?php echo (int)$bgNoFriend;?>;
+var _noFriend = <?php echo (int)$noFriend;?>;
 
 function goBack() {
     var card = document.querySelector('.card');
@@ -199,7 +203,7 @@ function goBack() {
     card.classList.add('slide-out-right');
     setTimeout(function() {
         if (window.parent && window.parent.document.getElementById('profileFrame')) {
-            window.parent.document.getElementById('profileFrame').src = 'editbgprivacy.php';
+            window.parent.document.getElementById('profileFrame').src = _kind === 'sig' ? 'editsigprivacy.php' : 'editbgprivacy.php';
         }
     }, 260);
 }
@@ -212,7 +216,7 @@ function showToast() {
 
 function saveList() {
     var key = _type === 'black' ? 'blacklist' : 'whitelist';
-    var action = _type === 'black' ? 'set_bg_blacklist' : 'set_bg_whitelist';
+    var action = _type === 'black' ? 'set_' + _kind + '_blacklist' : 'set_' + _kind + '_whitelist';
     var f = new URLSearchParams();
     f.append('action', action);
     f.append(key, JSON.stringify(_curUids));
@@ -266,7 +270,7 @@ function toggleNoFriend() {
     _noFriend = _noFriend ? 0 : 1;
     document.getElementById('noFriendVal').textContent = _noFriend ? '已开启' : '已关闭';
     var f = new URLSearchParams();
-    f.append('action', 'set_bg_no_friend');
+    f.append('action', 'set_' + _kind + '_no_friend');
     f.append('no_friend', String(_noFriend));
     fetch('../../api/settings.php', {
         method: 'POST',

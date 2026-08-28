@@ -46,6 +46,12 @@ $sig = $currentUser['custom_title'] ?? '';
     <textarea id="sigInput" maxlength="100" placeholder="写点东西吧，爱你爱你！"><?php echo htmlspecialchars($sig);?></textarea>
   </div>
   <div class="sig-count"><span id="countVal"><?php echo mb_strlen($sig);?></span>/100</div>
+
+  <div class="section-divider"></div>
+  <div class="form-row" onclick="openSigPrivacy()">
+    <span class="row-label">签名隐私设置</span>
+    <span class="row-arrow">›</span>
+  </div>
 </div>
 
 <div class="save-toast" id="saveToast">已保存</div>
@@ -66,6 +72,12 @@ function goBack() {
       window.parent.document.getElementById('profileFrame').src = 'profile.php';
     }
   }, 260);
+}
+
+function openSigPrivacy() {
+  if (window.parent && window.parent.document.getElementById('profileFrame')) {
+    window.parent.document.getElementById('profileFrame').src = 'editsigprivacy.php';
+  }
 }
 
 function showToast() {
