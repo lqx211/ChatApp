@@ -337,7 +337,12 @@ function db_add_column_if_missing(string $table, string $column, string $definit
     // 会把已存在的列误判为缺失 → 重复 ALTER → "Duplicate column" 500。
     $result = $pdo->query("SHOW COLUMNS FROM `$table` LIKE '$column'");
     if ($result && $result->fetch() === false) {
-        $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
+        try {
+            $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
+        } catch (\PDOException $e) {
+            // 并发 init_db 竞态：列可能刚被别的进程加上 → 忽略 Duplicate column (1060)
+            if (!in_array((int)$e->getCode(), [1060, 1061], true)) { throw $e; }
+        }
     }
 }
 

@@ -109,25 +109,46 @@ switch ($action) {
         }
         $u = $st['new_username'] ?? 'admin';
         $p = $st['new_password'];
+        // mysql 用 TCP(127.0.0.1) 绕过 www-data 的 unix socket 权限；每个命令检查结果，不静默吞错
+        $MYSQL = 'mysql -h127.0.0.1 -uroot';
+        $out = []; $rc = -1;
         // 1) 备份（可跳过）：ca-db-bkup-YYYYMMDDHHMMSS.sql（ChatApp 根目录）
         $bak = '';
         if (empty($st['skip_dump'])) {
             $bak = $root . '/ca-db-bkup-' . date('YmdHis') . '.sql';
-            @exec('mysqldump -uroot chatapp > ' . escapeshellarg($bak) . ' 2>/dev/null');
+            exec('mysqldump -h127.0.0.1 -uroot chatapp > ' . escapeshellarg($bak) . ' 2>&1', $out, $rc);
+            if ($rc !== 0) {
+                echo json_encode(['success' => false, 'error' => 'mysqldump failed: ' . implode(' ', $out)]); exit;
+            }
         }
-        // 2) Drop + 重建（用 mysql CLI，避免 PDO 连接被 DROP 打断）
-        @exec('mysql -uroot -e "DROP DATABASE IF EXISTS chatapp" 2>/dev/null');
-        @exec('mysql -uroot -e "CREATE DATABASE chatapp DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_unicode_ci" 2>/dev/null');
+        // 2) DROP + CREATE
+        exec($MYSQL . ' -e "DROP DATABASE IF EXISTS chatapp" 2>&1', $out, $rc);
+        if ($rc !== 0) {
+            echo json_encode(['success' => false, 'error' => 'DROP failed: ' . implode(' ', $out)]); exit;
+        }
+        exec($MYSQL . ' -e "CREATE DATABASE chatapp DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_unicode_ci" 2>&1', $out, $rc);
+        if ($rc !== 0) {
+            echo json_encode(['success' => false, 'error' => 'CREATE failed: ' . implode(' ', $out)]); exit;
+        }
+        // 3) 从 schema.sql 重建
         $schema = $root . '/schema.sql';
         if (is_file($schema)) {
-            @exec('mysql -uroot chatapp < ' . escapeshellarg($schema) . ' 2>/dev/null');
+            exec($MYSQL . ' chatapp < ' . escapeshellarg($schema) . ' 2>&1', $out, $rc);
+            if ($rc !== 0) {
+                echo json_encode(['success' => false, 'error' => 'schema import failed: ' . implode(' ', $out)]); exit;
+            }
+        } else {
+            echo json_encode(['success' => false, 'error' => 'schema.sql not found']); exit;
         }
-        // 3) 插入 root admin（uid 10000）
+        // 4) 插入 root admin（uid 10000）
         $hash = password_hash($p, PASSWORD_BCRYPT);
         $cacheKey = bin2hex(random_bytes(32));
         $uEsc = addslashes($u); $hEsc = addslashes($hash);
-        @exec("mysql -uroot chatapp -e \"INSERT INTO users (user_id, username, password, role, enabled, cache_key, created_at) VALUES (10000, '$uEsc', '$hEsc', 'root', 1, '$cacheKey', NOW())\" 2>/dev/null");
-        // 4) 清锁 + state
+        exec($MYSQL . " chatapp -e \"INSERT INTO users (user_id, username, password, role, enabled, cache_key, created_at) VALUES (10000, '$uEsc', '$hEsc', 'root', 1, '$cacheKey', NOW())\" 2>&1", $out, $rc);
+        if ($rc !== 0) {
+            echo json_encode(['success' => false, 'error' => 'admin insert failed: ' . implode(' ', $out)]); exit;
+        }
+        // 5) 清锁 + state
         @unlink($lock);
         @unlink($stateFile);
         if (function_exists('chatapp_log_admin')) {
