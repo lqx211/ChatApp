@@ -20,17 +20,9 @@
   padding: 9px 2px;
   color: #8b93a1;
 }
-.set-search-inner::after {
-  content: '';
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  height: 2px;
-  background: #4c8dff;
-  transform: scaleX(0);
-  transition: transform .28s cubic-bezier(.4,0,.2,1);
-  transform-origin: left;
+.set-search-inner:focus-within {
+  border-bottom-color: #6a7285;
 }
-.set-search-inner:focus-within::after { transform: scaleX(1); }
 .set-search-ico {
   flex-shrink: 0;
 }
