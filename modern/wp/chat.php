@@ -71,6 +71,13 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
 </style>
 </head>
 <body>
+ <!-- 消息多选操作栏（转发/汇出） -->
+ <div id="msgSelectBar" style="display:none">
+   <span class="msel-count" id="msgSelectCount"><?php echo t('msel_count','已选 0 条');?></span>
+   <button class="bsm" id="msgSelectForwardBtn" onclick="forwardSelected()"><?php echo t('menu_forward');?></button>
+   <button class="bsm" id="msgSelectExportBtn" onclick="exportSelected()"><?php echo t('msel_export');?></button>
+   <button class="bsm" onclick="cancelMsgSelect()"><?php echo t('btn_cancel');?></button>
+ </div>
  <!-- 加载动画 -->
  <div id="loader-wrapper">
    <div class="loader">
@@ -119,6 +126,7 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
      <div class="na" onclick="switchPanel('midi')"><?php echo t('sb_midi');?></div>
      <div class="na" onclick="switchPanel('proxy')"><?php echo t('sb_proxy');?></div>
      <?php if($isRoot):?><div class="na" onclick="switchPanel('filemgr')"><?php echo t('sb_filemgr');?></div><?php endif;?>
+     <div class="na" onclick="switchPanel('spessasynth')"><?php echo t('sb_spessasynth');?></div>
      <div class="na" onclick="confirmExternal('https://sites.google.com/wingkwong.edu.hk/eng/lesson-materials')"><?php echo t('sb_school_res');?></div>
      <div class="na" onclick="confirmExternal('https://www.hkeaa.edu.hk/en/')"><?php echo t('sb_hkeaa');?></div>
     </div>
@@ -171,7 +179,7 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
   <div class="md-preview" id="mdPreviewDm"></div>
   <div class="reply-bar" id="replyBar" style="display:none"><span id="replyBarText"></span><button class="bsm" onclick="cancelReply()">&#x2715;</button></div>
   <div class="rec-bar" id="dmRecBar" style="display:none"><span class="rec-dot"></span><span>录音中</span><span id="dmRecTimer">0:00</span><button class="bsm" onclick="cancelVoiceRec()">&#x2715; 取消</button></div>
-  <div class="cia"><textarea id="dmMessageInput" oninput="autoResize(this);onDmInput();onMdInput('mdPreviewDm','dmMessageInput','mdCheckDm')" placeholder="<?php echo t('label_type_message');?>" maxlength="32767" rows="1" style="resize:none;overflow-y:auto;line-height:1.4;max-height:20em"></textarea><input type="file" id="dmMediaFile" style="display:none" onchange="previewAttachment(this, sendDmMessage, 'dmSendBtn')"><button class="bsm nine-hide" onclick="toggleEmojiPicker(event,'dmMessageInput')" title="Emoji"><img src="../../data/res/svg/expression_24.svg" width="16" style="vertical-align:-2px"></button><button class="bsm nine-hide" onclick="toggleFlashMenu(event,this)" title="Attach"><img src="../../data/res/svg/folder_24.svg" width="16" style="vertical-align:-2px"></button><button class="bsm nine-hide" onclick="togglePenMenu(event,this)" title="Doodle / Live Draw"><img src="../../data/res/svg/brush_24.svg" width="16" style="vertical-align:-2px"></button><button class="bsm" id="dmNineBtn" onclick="toggleDmNineMenu(event,this)" title="更多"><svg width="16" height="16" viewBox="0 0 24 24" fill="#ccc"><circle cx="5" cy="5" r="1.8"/><circle cx="12" cy="5" r="1.8"/><circle cx="19" cy="5" r="1.8"/><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/><circle cx="5" cy="19" r="1.8"/><circle cx="12" cy="19" r="1.8"/><circle cx="19" cy="19" r="1.8"/></svg></button><button class="bsm ime-toggle" id="imeToggle" type="button" title="拼音输入开关">EN</button><button class="bsm nine-hide" id="dmMicBtn" onclick="toggleVoiceRec()" title="语音消息"><img src="../../data/res/svg/microphone_on_24.svg" width="16" style="vertical-align:-2px"></button><input type="file" id="flashMediaFileDm" style="display:none" onchange="flashFileChosen(this,'dm')"><label class="md-check"><input type="checkbox" id="mdCheckDm" onchange="onMdInput('mdPreviewDm','dmMessageInput','mdCheckDm')"> Markdown</label><button class="bs" id="dmSendBtn" onclick="sendDmMessage()"><?php echo t('btn_send');?></button></div>
+  <div class="cia"><textarea id="dmMessageInput" oninput="autoResize(this);onDmInput();onMdInput('mdPreviewDm','dmMessageInput','mdCheckDm')" placeholder="<?php echo t('label_type_message');?>" maxlength="32767" rows="1" style="resize:none;overflow-y:auto;line-height:1.4;max-height:20em"></textarea><input type="file" id="dmMediaFile" style="display:none" onchange="previewAttachment(this, sendDmMessage, 'dmSendBtn')"><button class="bsm" id="dmEmojiBtn" onclick="toggleEmojiPicker(event,'dmMessageInput')" title="Emoji"><img src="../../data/res/svg/expression_24.svg" width="16" style="vertical-align:-2px"></button><button class="bsm nine-hide" onclick="toggleFlashMenu(event,this)" title="Attach"><img src="../../data/res/svg/folder_24.svg" width="16" style="vertical-align:-2px"></button><button class="bsm nine-hide" onclick="togglePenMenu(event,this)" title="Doodle / Live Draw"><img src="../../data/res/svg/brush_24.svg" width="16" style="vertical-align:-2px"></button><button class="bsm" id="dmNineBtn" onclick="toggleDmNineMenu(event,this)" title="更多"><svg width="16" height="16" viewBox="0 0 24 24" fill="#ccc"><circle cx="5" cy="5" r="1.8"/><circle cx="12" cy="5" r="1.8"/><circle cx="19" cy="5" r="1.8"/><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/><circle cx="5" cy="19" r="1.8"/><circle cx="12" cy="19" r="1.8"/><circle cx="19" cy="19" r="1.8"/></svg></button><button class="bsm ime-toggle" id="imeToggle" type="button" title="拼音输入开关">EN</button><button class="bsm nine-hide" id="dmMicBtn" onclick="toggleVoiceRec()" title="语音消息"><img src="../../data/res/svg/microphone_on_24.svg" width="16" style="vertical-align:-2px"></button><input type="file" id="flashMediaFileDm" style="display:none" onchange="flashFileChosen(this,'dm')"><label class="md-check"><input type="checkbox" id="mdCheckDm" onchange="onMdInput('mdPreviewDm','dmMessageInput','mdCheckDm')"> Markdown</label><button class="bs" id="dmSendBtn" onclick="sendDmMessage()"><?php echo t('btn_send');?></button></div>
   <div class="nine-menu" id="dmNineMenu" style="display:none">
     <div class="nine-cell" onclick="nineEmoji()"><img src="../../data/res/svg/expression_24.svg" alt=""><span><?php echo t('nine_emoji');?></span></div>
     <div class="nine-cell" onclick="nineFlash()"><img src="../../data/res/svg/fast_folder_16.svg" alt=""><span><?php echo t('nine_flash');?></span></div>
@@ -274,6 +282,11 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
 
  <div class="panel" id="panel-proxy">
   <div class="music-frame"><iframe data-src="../../apps/proxy/index.php"></iframe></div>
+ </div>
+
+ <!-- SpessaSynth 官方在线 MIDI 播放器（iframe 嵌入，允许 Web MIDI） -->
+ <div class="panel" id="panel-spessasynth">
+  <div class="music-frame"><iframe data-src="https://spessasus.github.io/SpessaSynth/" allow="midi"></iframe></div>
  </div>
 
  <?php if($isRoot):?>
@@ -476,7 +489,7 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
     </div>
     <div class="fg">
      <label><?php echo t('label_bg_opacity', '透明度');?>: <span id="bgOpacityVal">100%</span></label>
-     <input type="range" id="bgOpacity" min="20" max="100" value="100" oninput="onBgOpacity(this.value)" style="width:100%;max-width:300px;accent-color:#6a9fd8">
+     <input type="range" id="bgOpacity" min="0" max="70" value="30" oninput="onBgOpacity(this.value)" style="width:100%;max-width:300px;accent-color:#6a9fd8">
     </div>
    </div>
   </div>
@@ -515,6 +528,7 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
 <div class="crop-overlay" id="cropOverlay"><div class="crop-container"><canvas id="cropCanvas"></canvas></div><div class="crop-controls"><button onclick="doCrop()">Crop & Save</button><button onclick="cancelCrop()">Cancel</button></div></div>
 <div class="img-fullscreen" id="imgFullscreen" onclick="this.classList.remove('active')"><img id="fullscreenImg" src=""></div>
 <div class="modal-overlay" id="forwardModal"><div class="modal-box"><h3><?php echo t('menu_forward');?></h3><div class="fwd-list" id="forwardTargetList"></div><div class="modal-actions"><button class="bsm" onclick="closeForwardModal()"><?php echo t('btn_cancel');?></button></div></div></div>
+<div class="modal-overlay" id="chatlogModal"><div class="modal-box" style="max-width:460px"><h3 id="chatlogModalTitle"><?php echo t('cl_footer');?></h3><div id="chatlogModalBody" style="max-height:62vh;overflow-y:auto;margin:10px 0;border:1px solid #333;border-radius:8px;background:#1e1e1e"></div><div class="modal-actions"><button class="bsm" onclick="closeChatlogDetail()"><?php echo t('btn_cancel');?></button></div></div></div>
 <div class="modal-overlay" id="duressModal"><div class="modal-box"><h3><?php echo t('title_duress');?></h3><p style="color:#e06060;font-size:.85em;margin-bottom:10px"><?php echo t('duress_desc');?></p><p style="color:#ff8080;font-size:.9em;font-weight:bold;margin-bottom:10px"><?php echo t('duress_warning');?></p><div class="fg" style="text-align:left"><label><?php echo t('label_current_password');?></label><input type="password" id="duressCurrent" style="width:100%"></div><div class="fg" style="text-align:left"><label><?php echo t('label_duress_new');?></label><input type="password" id="duressNew" style="width:100%"></div><div class="fg" style="text-align:left"><label><?php echo t('label_duress_confirm');?></label><input type="password" id="duressNew2" style="width:100%"></div><button class="bsm" onclick="clearDuress()" style="background:#3a3a3a;color:#aaa;margin-top:4px"><?php echo t('btn_clear_duress');?></button><div class="modal-actions"><button class="bsm" onclick="closeDuressModal()"><?php echo t('btn_cancel');?></button><button class="bsm" onclick="saveDuress()" style="background:#4a2020;border-color:#5c2a2a;color:#e06060"><?php echo t('btn_save_duress');?></button></div></div></div>
 <div class="modal-overlay" id="deleteModal"><div class="modal-box"><h3><?php echo t('title_delete_account');?></h3><p><?php echo t('msg_delete_warning');?></p><div class="fg" style="text-align:left"><label><input type="radio" name="delMode" value="delete" checked> <?php echo t('set_del_mode_delete');?></label></div><div class="fg" style="text-align:left"><label><input type="radio" name="delMode" value="revoke"> <?php echo t('set_del_mode_revoke');?></label></div><div class="fg" style="text-align:left"><label><input type="radio" name="delMode" value="delete_all"> <?php echo t('set_del_mode_all');?></label></div><div class="fg" style="text-align:left"><label><?php echo t('msg_enter_password_confirm');?></label><input type="password" id="deletePassword" style="width:100%"></div><div class="fg" style="text-align:left"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="deleteConfirm" style="width:18px;height:18px"> <?php echo t('set_del_confirm_label');?></label></div><div class="modal-actions"><button class="bsm" onclick="hideDeleteModal()"><?php echo t('btn_cancel');?></button><button class="bsm danger" onclick="confirmDeleteAccount()"><?php echo t('btn_confirm');?></button></div></div></div>
 <div class="modal-overlay" id="friendReqModal"><div class="modal-box"><h3 id="friendReqTitle"><?php echo t('btn_add_friend');?></h3><div class="fg" style="text-align:left"><label><?php echo t('label_friend_message');?></label><input type="text" id="friendReqMsg" maxlength="200" style="width:100%;padding:8px 12px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:inherit;outline:none"></div><div class="modal-actions"><button class="bsm" onclick="closeFriendReqModal()"><?php echo t('btn_cancel');?></button><button class="bsm" id="friendReqSendBtn" style="background:#2a4a2a;border-color:#3a6a3a"><?php echo t('btn_send');?></button></div></div></div>
@@ -837,8 +851,12 @@ try {
   </div>
 </div>
 
-<!-- WebRTC 通话：通话窗口（语音/视频共用） -->
+<!-- WebRTC 通话：通话窗口（语音/视频共用，非全屏可拖动/最小化） -->
 <div id="callOverlay">
+  <div class="call-top">
+    <span class="call-top-title" id="callTopName">…</span>
+    <button class="bsm call-min-btn" id="callMinBtn" onclick="ChatCall.minimize()" title="<?php echo t('call_minimize');?>">－</button>
+  </div>
   <div class="call-video-wrap" id="callVideoWrap" style="display:none">
     <video id="callRemoteVideo" autoplay playsinline style="display:none"></video>
     <video id="callLocalVideo" autoplay playsinline muted style="display:none"></video>
@@ -848,6 +866,7 @@ try {
     <div class="call-name" id="callPeerName">…</div>
     <div class="call-dur" id="callDur">0:00</div>
     <div class="call-status" id="callStatus"></div>
+    <div class="call-stats" id="callStats" style="display:none"></div>
   </div>
   <div class="call-waves">
     <div class="call-wave-row">
@@ -863,6 +882,12 @@ try {
     <button class="bsm" id="callMuteBtn" onclick="toggleCallMute()"><img src="../../data/res/svg/microphone_on_24.svg" width="16" style="vertical-align:-3px"> <?php echo t('call_mute');?></button>
     <button class="bsm call-hangup" onclick="hangupCall()"><img src="../../data/res/svg/hangup_filled_24.svg" width="16" style="vertical-align:-3px"> <?php echo t('call_hangup');?></button>
   </div>
+</div>
+<!-- 通话最小化后的悬浮条 -->
+<div id="callMinimized" style="display:none">
+  <span class="call-min-title" id="callMinTitle">…</span>
+  <button class="bsm call-min-hangup" id="callMinHangupBtn" onclick="hangupCall()"><img src="../../data/res/svg/hangup_filled_24.svg" width="14" style="vertical-align:-2px;margin-right:4px"> <?php echo t('call_hangup');?></button>
+  <button class="bsm" id="callMinRestoreBtn" onclick="ChatCall.restore()"><?php echo t('call_restore');?></button>
 </div>
 
 <!-- 独立屏幕共享（非通话）：收到屏幕共享邀请提示 -->
@@ -882,15 +907,21 @@ try {
 <div id="shareOverlay" style="display:none">
   <div class="share-top">
     <span class="share-title" id="shareTitle"><?php echo t('share_sharing');?></span>
+    <button class="bsm share-audio-btn" id="shareAudioBtn" onclick="ChatShare.toggleAudio()" style="display:none">🔊</button>
+    <button class="bsm share-min-btn" id="shareMinBtn" onclick="ChatShare.minimize()" title="<?php echo t('share_minimize');?>">－</button>
     <button class="bsm danger" id="shareStopBtn" onclick="ChatShare.stopShare()" style="display:none"><?php echo t('share_stop');?></button>
     <button class="bsm" id="shareCloseBtn" onclick="ChatShare.closeViewer()" style="display:none"><?php echo t('share_exit');?></button>
   </div>
   <div class="share-wait" id="shareWaitMsg" style="display:none"><?php echo t('share_waiting');?></div>
   <video id="shareVideo" autoplay playsinline style="display:none"></video>
 </div>
+<div id="shareMinimized" style="display:none">
+  <span class="share-min-title" id="shareMinTitle">…</span>
+  <button class="bsm" id="shareMinRestoreBtn" onclick="ChatShare.restore()"><?php echo t('share_restore');?></button>
+</div>
 
 <!-- 端到端加密安全码验证（WhatsApp 式 60 位比对） -->
-<div class="modal-overlay" id="safetyVerifyModal" style="display:none">
+<div class="modal-overlay" id="safetyVerifyModal">
   <div class="modal-box">
     <h3><?php echo t('sv_title');?></h3>
     <p id="safetyVerifySub" style="color:#aaa">…</p>

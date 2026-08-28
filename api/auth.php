@@ -331,10 +331,10 @@ switch ($action) {
 
     case 'check':
         if (isset($_SESSION['username'])) {
-            $stmt = db()->prepare('SELECT username, display_name FROM users WHERE username = ?');
+            $stmt = db()->prepare('SELECT username, display_name, restricted FROM users WHERE username = ?');
             $stmt->execute([$_SESSION['username']]);
             $user = $stmt->fetch();
-            echo json_encode(['success' => true, 'username' => $user['username'], 'display_name' => $user['display_name']]);
+            echo json_encode(['success' => true, 'username' => $user['username'], 'display_name' => $user['display_name'], 'restricted' => (int)($user['restricted'] ?? 0)]);
         } else { echo json_encode(['success' => false]); }
         break;
 

@@ -292,6 +292,14 @@ return [
     // Message context menu / JS (i18n)
     'menu_reply' => '覆',
     'menu_forward' => '轉發',
+    'menu_multiselect' => '多選',
+    'msel_export' => '匯出',
+    'msel_count' => '已選 %s 條',
+    'msel_empty' => '請先選取消息',
+    'cl_title' => '%s 之聊天紀錄',
+    'cl_footer' => '聊天紀錄',
+    'cl_group' => '群聊',
+    'cl_ann' => '公告',
     'btn_download' => '下載',
     'menu_add_emoji' => '添表情',
     'title_local_cache' => '本地存档聊天录',
@@ -692,6 +700,14 @@ return [
     'g_mute_confirm' => '果欲禁其言乎？',
     'g_transfer_confirm' => '禪讓後君將為執事，果決乎？',
     'g_kick_confirm' => '果欲逐此人出群乎？',
+    'g_invite' => '邀人入群',
+    'g_invite_prompt' => '請輸入欲邀之用户名',
+    'g_invite_done' => '已邀',
+    'g_invite_forbidden' => '惟群主/執事可邀人',
+    'g_invite_not_found' => '查無此人',
+    'g_invite_already' => '此人已在群中',
+    'g_invite_placeholder' => '此帳號不可邀',
+    'g_invite_empty' => '請輸入用户名',
 
     // DM 選項菜單
     'd_search_history' => '搜尋舊札',
@@ -710,6 +726,7 @@ return [
     'sb_filemgr' => '檔案管理',
     'sb_school_res' => '某校英文學習資源',
     'sb_hkeaa' => 'HKEAA',
+    'sb_spessasynth' => 'SpessaSynth 合成器',
     'sb_logs' => '日誌',
     'sb_dbadmin' => '資料庫管理',
     'sb_donations' => '捐獻',
@@ -760,6 +777,9 @@ return [
     'share_sharing' => '共享螢幕中…',
     'share_waiting' => '正待彼方應允…',
     'share_connecting' => '正在連線…',
+    'share_sharing_msg' => '正在共享汝之螢幕…',
+    'share_minimize' => '收小',
+    'share_restore' => '復原',
     'share_viewing' => '%s 正在共享螢幕',
     'share_stop' => '停止共享',
     'share_exit' => '退離查看',
@@ -774,6 +794,8 @@ return [
     'share_busy' => '彼方辭之或正忙',
     'share_connect_fail' => '連線失敗',
     'share_no_dm' => '請先開啟一私聊',
+    'share_audio_on' => '發聲',
+    'share_audio_off' => '靜音',
 
     // ---- Call ----
     'call_calling' => '呼叫中…',
@@ -790,6 +812,9 @@ return [
     'call_accept_fail' => '接聽失敗',
     'call_no_dm' => '請先開啟一私聊',
     'call_need_wss' => '需 WebSocket 連線方能通話',
+    'call_minimize' => '最小化',
+    'call_restore' => '還原',
+    'call_min_title' => '通話中：%s',
 
     // ---- Flash async upload ----
     'flash_uploading' => '正在上傳',

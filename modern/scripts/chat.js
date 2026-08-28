@@ -556,7 +556,7 @@ function switchPanel(n) {
     if (n === 'users') adminList(1);
     if (n === 'reports') loadReports();
     if (n === 'roles') loadRoleList();
-    if (n === 'music' || n === 'dscview' || n === 'midi' || n === 'proxy' || n === 'filemgr') loadAppPanel(n);
+    if (n === 'music' || n === 'dscview' || n === 'midi' || n === 'proxy' || n === 'filemgr' || n === 'spessasynth') loadAppPanel(n);
     if (n === 'donations') loadDonations(1);
     if (n === 'profile-mgmt') loadPm();
     if (n === 'logs') loadAdminLogs(1);
@@ -2094,7 +2094,7 @@ function closeSafetyVerify() {
 function copySafetyNumber() {
     if (!_safetyNumberText) { xalert(T('sv_not_ready')); return; }
     try {
-        navigator.clipboard.writeText(_safetyNumberText.replace(/ /g, ''));
+        navigator.clipboard.writeText(_safetyNumberText.replace(/\s/g, ''));
         xalert(T('sv_copied'));
     } catch (e) { xalert(T('sv_copy_fail')); }
 }
@@ -2631,6 +2631,59 @@ function addDmMessage(m, prepend) {
     appendDmMsgRow(a, d, m, prepend);
 }
 
+/** 聊天记录卡片（QQ 式）：attachment = JSON {peer, msgs:[{n,t,time}]} */
+function chatlogCardHtml(m) {
+    var data = {};
+    try { data = JSON.parse(m.attachment || '{}'); } catch(e) {}
+    var msgs = Array.isArray(data.msgs) ? data.msgs : [];
+    var peer = data.peer || '';
+    // eh() 不转义双引号（文本上下文），存属性值需手动把 " 转成 &quot;
+    var clJson = eh(m.attachment || '').replace(/"/g, '&quot;');
+    var h = '<div class="chatlog-card" onclick="openChatlogDetail(this)" data-cl="' + clJson + '">';
+    h += '<div class="cl-head">' + eh(T('cl_title').replace('%s', peer || '…')) + '</div>';
+    h += '<div class="cl-body">';
+    for (var i = 0; i < msgs.length; i++) {
+        var mm = msgs[i] || {};
+        var t = mm.t != null ? String(mm.t) : '';
+        var nm = mm.n != null ? String(mm.n) : '';
+        h += '<div class="cl-line"><span class="cl-name">' + eh(nm) + '</span>' + (t !== '' ? ': ' + eh(t) : '') + '</div>';
+    }
+    h += '</div>';
+    h += '<div class="cl-foot">' + T('cl_footer') + '</div>';
+    h += '</div>';
+    return h;
+}
+/** 点卡片打开聊天记录详情弹层（QQ 式） */
+function openChatlogDetail(el) {
+    var raw = el && el.dataset ? (el.dataset.cl || '') : ''; // dataset 会自动解码 HTML 实体
+    var data = {};
+    try { data = JSON.parse(raw || '{}'); } catch(e) {}
+    var msgs = Array.isArray(data.msgs) ? data.msgs : [];
+    var peer = data.peer || '';
+    var title = document.getElementById('chatlogModalTitle');
+    if (title) title.textContent = T('cl_title').replace('%s', peer || '…');
+    var body = document.getElementById('chatlogModalBody');
+    if (body) {
+        if (!msgs.length) {
+            body.innerHTML = '<div style="padding:20px;text-align:center;color:#666">…</div>';
+        } else {
+            var h = '';
+            for (var i = 0; i < msgs.length; i++) {
+                var mm = msgs[i] || {};
+                var t = mm.t != null ? String(mm.t) : '';
+                var nm = mm.n != null ? String(mm.n) : '';
+                var time = mm.time || '';
+                h += '<div class="cl-detail-line"><span class="cl-d-name">' + eh(nm) + '</span>' + (time ? '<span class="cl-d-time">' + eh(time) + '</span>' : '') + '<div class="cl-d-text">' + eh(t) + '</div></div>';
+            }
+            body.innerHTML = h;
+        }
+    }
+    document.getElementById('chatlogModal').classList.add('active');
+}
+function closeChatlogDetail() {
+    document.getElementById('chatlogModal').classList.remove('active');
+}
+
 /** 构建普通 DM 消息行（E2EE 解密后也复用）。 */
 function buildDmMsgRow(m, own) {
     var d = document.createElement('div');
@@ -2646,6 +2699,7 @@ function buildDmMsgRow(m, own) {
     var md;
     if (m.msg_type === 'temp' && m.temp_upload_id) md = tempCardHtml(m);
     else if (m.msg_type === 'doodle') md = doodleCardHtml(m);
+    else if (m.msg_type === 'chatlog') md = chatlogCardHtml(m);
     else md = attachmentHtml.call({ attName: m.attachment_name || '', attSize: m.attachment_size || null }, m.attachment_url, m.msg_type);
     var rq = '';
     if (m.reply_data) {
@@ -2668,11 +2722,11 @@ function buildDmMsgRow(m, own) {
                 ? '<div style="color:#555;cursor:not-allowed">' + T('menu_forward') + '</div>'
                 : '<div class="msg-fwd" onclick="flashForward(this,' + m.temp_upload_id + ');closeAllMsgMenus()">' + T('menu_forward') + '</div>';
             var revokeItem = '<div class="flash-revoke" onclick="flashInterrupt(this,' + m.temp_upload_id + ');closeAllMsgMenus()" style="color:#e06060">' + (isTempOwner ? T('flash_revoke_interrupt', '撤回并中断') : T('menu_revoke')) + '</div>';
-            tempMenu = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu">' + dlItem + fwdItem + '<div onclick="replyDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + revokeItem + reportMenuItem + '</div>';
+            tempMenu = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-multi" onclick="enterMsgSelectMode(this);closeAllMsgMenus()">' + T('menu_multiselect') + '</div>' + dlItem + fwdItem + '<div onclick="replyDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + revokeItem + reportMenuItem + '</div>';
         }
         rh = (own && !dl) ? tempMenu : ((!dl) ? tempMenu : '');
-    } else if (own && !dl) rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-fwd" onclick="openForwardModal(this);closeAllMsgMenus()">' + T('menu_forward') + '</div><div onclick="replyDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + emojiMenuItem + reportMenuItem + '<div onclick="revokeDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_revoke') + '</div></div>';
-    else if (!dl) rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-fwd" onclick="openForwardModal(this);closeAllMsgMenus()">' + T('menu_forward') + '</div><div onclick="replyDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + emojiMenuItem + reportMenuItem + '<div style="color:#555;cursor:not-allowed">' + T('menu_revoke') + '</div></div>';
+    } else if (own && !dl) rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-multi" onclick="enterMsgSelectMode(this);closeAllMsgMenus()">' + T('menu_multiselect') + '</div><div class="msg-fwd" onclick="openForwardModal(this);closeAllMsgMenus()">' + T('menu_forward') + '</div><div onclick="replyDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + emojiMenuItem + reportMenuItem + '<div onclick="revokeDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_revoke') + '</div></div>';
+    else if (!dl) rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-multi" onclick="enterMsgSelectMode(this);closeAllMsgMenus()">' + T('menu_multiselect') + '</div><div class="msg-fwd" onclick="openForwardModal(this);closeAllMsgMenus()">' + T('menu_forward') + '</div><div onclick="replyDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + emojiMenuItem + reportMenuItem + '<div style="color:#555;cursor:not-allowed">' + T('menu_revoke') + '</div></div>';
     d.innerHTML = av + '<div class="mc"><div class="mb"><div class="mu">' + eh(_contactNotes[m.username] || m.display_name || m.username) + '</div>' + rq + '<div class="mt' + dc + '">' + msgContent + '</div>' + md + '<div class="mti">' + fmtTime(m.time) + '</div></div>' + rh + '</div>';
     return d;
 }
@@ -3023,7 +3077,7 @@ function addAnnouncement(m, prepend) {
     if (m.avatar) av = '<div class="msg-avatar" onclick="event.stopPropagation();openMyProfile(\'' + m.username + '\')"><img src="' + m.avatar + '" alt=""></div>';
     var md = (m.msg_type === 'temp' && m.temp_upload_id)
         ? tempCardHtml(m)
-        : attachmentHtml.call({ attName: m.attachment_name || '', attSize: m.attachment_size || null }, m.attachment_url, m.msg_type);
+        : (m.msg_type === 'chatlog' ? chatlogCardHtml(m) : attachmentHtml.call({ attName: m.attachment_name || '', attSize: m.attachment_size || null }, m.attachment_url, m.msg_type));
     var rq = '';
     if (m.reply_data) {
         rq = '<div class="msg-reply-quote"><strong>' + eh(m.reply_data.display_name) + '</strong>: ' + m.reply_data.message + '</div>';
@@ -3043,10 +3097,10 @@ function addAnnouncement(m, prepend) {
                 ? '<div style="color:#555;cursor:not-allowed">' + T('menu_forward') + '</div>'
                 : '<div class="msg-fwd" onclick="flashForward(this,' + m.temp_upload_id + ');closeAllMsgMenus()">' + T('menu_forward') + '</div>';
             var revokeItem = '<div class="flash-revoke" onclick="flashInterrupt(this,' + m.temp_upload_id + ');closeAllMsgMenus()" style="color:#e06060">' + (isTempOwner ? T('flash_revoke_interrupt', '撤回并中断') : T('menu_revoke')) + '</div>';
-            rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu">' + dlItem + fwdItem + '<div onclick="replyAnnouncement(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + revokeItem + reportMenuItem + '</div>';
+            rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-multi" onclick="enterMsgSelectMode(this);closeAllMsgMenus()">' + T('menu_multiselect') + '</div>' + dlItem + fwdItem + '<div onclick="replyAnnouncement(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + revokeItem + reportMenuItem + '</div>';
         }
-    } else if (own && !dl) rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-fwd" onclick="openForwardModal(this);closeAllMsgMenus()">' + T('menu_forward') + '</div><div onclick="replyAnnouncement(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + emojiMenuItem + reportMenuItem + '<div onclick="revokeAnnouncement(' + m.id + ');closeAllMsgMenus()">' + T('menu_revoke') + '</div></div>';
-    else if (!dl) rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-fwd" onclick="openForwardModal(this);closeAllMsgMenus()">' + T('menu_forward') + '</div><div onclick="replyAnnouncement(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + emojiMenuItem + reportMenuItem + '<div style="color:#555;cursor:not-allowed">' + T('menu_revoke') + '</div></div>';
+    } else if (own && !dl) rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-multi" onclick="enterMsgSelectMode(this);closeAllMsgMenus()">' + T('menu_multiselect') + '</div><div class="msg-fwd" onclick="openForwardModal(this);closeAllMsgMenus()">' + T('menu_forward') + '</div><div onclick="replyAnnouncement(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + emojiMenuItem + reportMenuItem + '<div onclick="revokeAnnouncement(' + m.id + ');closeAllMsgMenus()">' + T('menu_revoke') + '</div></div>';
+    else if (!dl) rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-multi" onclick="enterMsgSelectMode(this);closeAllMsgMenus()">' + T('menu_multiselect') + '</div><div class="msg-fwd" onclick="openForwardModal(this);closeAllMsgMenus()">' + T('menu_forward') + '</div><div onclick="replyAnnouncement(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + emojiMenuItem + reportMenuItem + '<div style="color:#555;cursor:not-allowed">' + T('menu_revoke') + '</div></div>';
     d.innerHTML = av + '<div class="mc"><div class="mb"><div class="mu">' + eh(_contactNotes[m.username] || m.display_name || m.username) + '</div>' + rq + '<div class="mt' + dc + '">' + msgContent + '</div>' + md + '<div class="mti">' + fmtTime(m.time) + '</div></div>' + rh + '</div>';
     if (m.msg_type === 'temp' && m.temp_upload_id) {
         startTempPoll(d);
@@ -4918,8 +4972,10 @@ function addAllSelectedPublicEmoji() {
 function openForwardModal(el) {
     var bubble = el && el.closest ? el.closest('.mr') : null;
     if (!bubble) return;
-    var rawMsg = bubble.getAttribute('data-raw') || '';
-    _fwdRaw = rawMsg;
+    _fwdRaw = bubble.getAttribute('data-raw') || '';
+    openForwardPicker();
+}
+function openForwardPicker() {
     var list = document.getElementById('forwardTargetList');
     if (!list) return;
     list.innerHTML = '<div class="es"><p>' + T('msg_loading', '加载中...') + '</p></div>';
@@ -4938,17 +4994,96 @@ function openForwardModal(el) {
     });
 }
 var _fwdRaw = '';
+var _fwdChatlog = null;
 function forwardTo(username) {
-    if (!_fwdRaw || !username) return;
-    apiRequest('send', { message: _fwdRaw, recipient: username }).then(function(d) {
+    if (!username) return;
+    var p;
+    if (_fwdChatlog) p = { message: '', recipient: username, msg_type: 'chatlog', chatlog: _fwdChatlog };
+    else if (_fwdRaw) p = { message: _fwdRaw, recipient: username };
+    else return;
+    apiRequest('send', p).then(function(d) {
         if (d.success) {
             closeForwardModal();
+            cancelMsgSelect(); // 多选发送完成后退出选择模式
+            refreshAfterSend(username); // 及时刷新显示
         } else xalert(d.error || 'Failed.');
     });
 }
 function closeForwardModal() {
     document.getElementById('forwardModal').classList.remove('active');
     _fwdRaw = '';
+    _fwdChatlog = null;
+}
+// 发送后即时刷新：若目标就是当前打开的聊天，重新加载显示
+function refreshAfterSend(username) {
+    if (username && D === username && typeof loadDmMessages === 'function') {
+        loadDmMessages();
+    }
+}
+
+/* ================= 消息多选 / 聊天记录汇出（QQ 式） ================= */
+var _msgSelectMode = false, _msgSelected = {};
+function enterMsgSelectMode(el) {
+    _msgSelectMode = true;
+    var bar = document.getElementById('msgSelectBar');
+    if (bar) bar.style.display = 'flex';
+    var mr = el && el.closest ? el.closest('.mr') : null;
+    if (mr) toggleMsgSelect(mr, true);
+}
+function toggleMsgSelect(mr, forceOn) {
+    if (!mr || !mr.classList) return;
+    var id = mr.getAttribute('data-msgid') || '';
+    var on = forceOn ? true : !mr.classList.contains('msg-selected');
+    mr.classList.toggle('msg-selected', on);
+    if (on) _msgSelected[id] = 1; else delete _msgSelected[id];
+    updateMsgSelectBar();
+}
+function updateMsgSelectBar() {
+    var c = document.getElementById('msgSelectCount');
+    var n = Object.keys(_msgSelected).length;
+    if (c) c.textContent = T('msel_count').replace('%s', n);
+    var fb = document.getElementById('msgSelectForwardBtn'), eb = document.getElementById('msgSelectExportBtn');
+    if (fb) fb.disabled = n === 0;
+    if (eb) eb.disabled = n === 0;
+}
+function cancelMsgSelect() {
+    _msgSelectMode = false;
+    _msgSelected = {};
+    document.querySelectorAll('.mr.msg-selected').forEach(function(el) { el.classList.remove('msg-selected'); });
+    var bar = document.getElementById('msgSelectBar');
+    if (bar) bar.style.display = 'none';
+}
+function collectSelectedMsgs(withTime) {
+    var msgs = [];
+    document.querySelectorAll('.mr.msg-selected').forEach(function(mr) {
+        var mu = mr.querySelector('.mu');
+        var name = (mu ? mu.textContent : '') || mr.getAttribute('data-msguser') || '';
+        var raw = mr.getAttribute('data-raw') || '';
+        var time = '';
+        if (withTime) { var mti = mr.querySelector('.mti'); time = mti ? mti.textContent : ''; }
+        msgs.push({ n: name, t: raw, time: time });
+    });
+    return msgs;
+}
+function buildChatlogData(withTime) {
+    var msgs = collectSelectedMsgs(withTime);
+    if (!msgs.length) return null;
+    var peer = D ? (_contactNotes[D] || D) : (G ? T('cl_group', '群聊') : T('cl_ann', '公告'));
+    return JSON.stringify({ peer: peer, msgs: msgs });
+}
+function forwardSelected() {
+    var data = buildChatlogData(false);
+    if (!data) { xalert(T('msel_empty', '请先选择消息')); return; }
+    _fwdChatlog = data;
+    _fwdRaw = '';
+    openForwardPicker();
+}
+function exportSelected() {
+    var data = buildChatlogData(true);
+    if (!data) { xalert(T('msel_empty', '请先选择消息')); return; }
+    _fwdChatlog = data;
+    _fwdRaw = '';
+    openForwardPicker();
 }
 
 function getComposerTarget() {
@@ -5054,6 +5189,16 @@ document.addEventListener('click', function(e) {
     if (popup && popup.style.display === 'flex' && e.target && e.target.closest && !e.target.closest('#emojiPopup') && !e.target.closest('button[title=Emoji]') && !e.target.closest('#dmNineMenu') && !e.target.closest('#dmNineBtn')) {
         popup.style.display = 'none';
         emojiUndockMobile();
+    }
+    // 多选模式：点击聊天框 = 选中/取消（QQ 式），优先于其它气泡行为
+    if (_msgSelectMode && e.target && e.target.closest) {
+        var selMr = e.target.closest('.mr');
+        if (selMr && !e.target.closest('.msg-more-btn') && !e.target.closest('.msg-menu') && !e.target.closest('.file-dl-btn')) {
+            toggleMsgSelect(selMr);
+            e.stopPropagation();
+            e.preventDefault();
+            return;
+        }
     }
     // Mobile touch: tapping a message bubble opens the context menu; desktop keeps current behavior.
     var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0);
@@ -6300,24 +6445,40 @@ function bgEnable(url, version) {
 function bgApply(blur, opacity) {
     var bg = document.getElementById('app-bg');
     var ov = document.getElementById('app-bg-overlay');
+    var v = parseInt(opacity, 10);
+    if (isNaN(v)) v = 100;
+    v = Math.max(0, Math.min(v, 70)); // 背景透出上限 70%
+    var alpha = Math.max(0.25, 1 - v / 100); // 界面不透明度
+    var hasBg = !!(bg && bg.style.backgroundImage && bg.style.backgroundImage !== 'none');
     if (bg) {
         bg.style.filter = 'blur(' + (parseInt(blur,10)||0) + 'px)';
-        bg.style.opacity = (parseInt(opacity,10)||100)/100;
+        bg.style.opacity = '1'; // 背景图始终全显（透明度由界面半透明控制）
     }
-    if (ov) {
-        ov.style.opacity = (100 - (parseInt(opacity,10)||100))/100 * 0.5;
-    }
+    if (ov) ov.style.opacity = '0'; // 覆盖遮罩恒为 0
+    // 界面（sidebar/main/头/输入栏）半透明随滑块：滑块值 = 背景透出 %
+    var a = hasBg ? alpha : 1; // 无背景时界面不透明
+    var sb = document.querySelector('.sidebar');
+    var mc = document.querySelector('.main-content');
+    if (sb) sb.style.background = 'rgba(30,30,30,' + a + ')';
+    if (mc) mc.style.background = 'rgba(34,34,34,' + a + ')';
+    var i;
+    var ch = document.querySelectorAll('.ch');
+    for (i = 0; i < ch.length; i++) ch[i].style.background = 'rgba(42,42,42,' + a + ')';
+    var cia = document.querySelectorAll('.cia');
+    for (i = 0; i < cia.length; i++) cia[i].style.background = 'rgba(42,42,42,' + a + ')';
 }
 function bgSyncUI() {
     var c = {};
     try { c = JSON.parse(localStorage.getItem(BG_CACHE_KEY) || '{}'); } catch(e) {}
     var blurEl = document.getElementById('bgBlur');
     var opEl = document.getElementById('bgOpacity');
+    var op = parseInt(c.opacity, 10);
+    if (isNaN(op) || op < 0 || op >= 100) op = 30; // 首次登录/旧默认 100 → 30（界面保持可读）
     if (blurEl) blurEl.value = c.blur || 0;
-    if (opEl) opEl.value = c.opacity || 100;
+    if (opEl) opEl.value = Math.min(op, 70);
     if (document.getElementById('bgBlurVal')) document.getElementById('bgBlurVal').textContent = (c.blur||0) + 'px';
-    if (document.getElementById('bgOpacityVal')) document.getElementById('bgOpacityVal').textContent = (c.opacity||100) + '%';
-    bgApply(c.blur || 0, c.opacity || 100);
+    if (document.getElementById('bgOpacityVal')) document.getElementById('bgOpacityVal').textContent = Math.min(op, 70) + '%';
+    bgApply(c.blur || 0, op);
 }
 function loadBg(skipCache) {
     fetch('../../api/settings.php?action=get_background').then(function(r) { return r.json(); }).then(function(d) {
@@ -6375,7 +6536,7 @@ function uploadBg() {
         }).then(function(r) { return r.json(); }).then(function(d) {
             if (d.success) {
                 bgEnable(d.url, 'force-' + Date.now());
-                var cached = { url: d.url, version: 'force-' + Date.now(), blur: 0, opacity: 100 };
+                var cached = { url: d.url, version: 'force-' + Date.now(), blur: 0, opacity: 30 };
                 try { localStorage.setItem(BG_CACHE_KEY, JSON.stringify(cached)); } catch(e) {}
                 document.getElementById('bgFile').value = '';
                 loadBg(true);
@@ -6414,7 +6575,7 @@ function setPresetBg(name) {
         method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: frm.toString()
     }).then(function(r) { return r.json(); }).then(function(d) {
         if (d.success) {
-            var cached = { url: d.url, version: 'preset-' + Date.now(), blur: 0, opacity: 100 };
+            var cached = { url: d.url, version: 'preset-' + Date.now(), blur: 0, opacity: 30 };
             try { localStorage.setItem(BG_CACHE_KEY, JSON.stringify(cached)); } catch(e) {}
             bgEnable(d.url, 'preset-' + Date.now());
             loadBg(true);
@@ -6620,7 +6781,13 @@ function checkSession() {
     fetch('../../api/auth.php?action=check')
         .then(function(r) { return r.json(); })
         .then(function(d) {
-            if (!d.success) location.reload();
+            if (!d.success) { location.reload(); return; }
+            // 会话期间账号突然被限制 → 本地强制会话刷新（锁定客户端 + 弹刷新警告）
+            if (d.restricted && !RSTR) {
+                RSTR = 1;
+                if (typeof updateDndUI === 'function') updateDndUI();
+                if (typeof lockClient === 'function') lockClient();
+            }
         })
         .catch(function() {});
 }
@@ -7831,7 +7998,8 @@ var ChatCall = (function () {
     var pendingOffer = null;      // callee 收到的 offer（sdp + kind）
     var iceBuffer = [];
     var startTs = 0, timerInt = null, ringTimer = null;
-    var muted = false;
+    var statsInt = null, _statsPrevBytes = 0, _statsPrevTime = 0;
+    var muted = false, minimized = false;
 
     function byId(id) { return document.getElementById(id); }
 
@@ -7955,19 +8123,26 @@ var ChatCall = (function () {
     function showCallUI(state) {
         var ov = byId('callOverlay');
         if (!ov) return;
-        ov.style.display = 'flex';
         var st = byId('callStatus');
         if (st) st.textContent = state === 'ringing' ? T('call_calling') : T('call_active');
         var nm = byId('callPeerName');
         if (nm) nm.textContent = peer || '';
+        var tn = byId('callTopName');
+        if (tn) tn.textContent = peer || '';
         var vw = byId('callVideoWrap'), aw = byId('callAudioWrap');
         if (vw) vw.style.display = kind === 'video' ? 'block' : 'none';
-        if (aw) aw.style.display = kind === 'video' ? 'none' : 'block';
+        if (aw) aw.style.display = kind === 'video' ? 'none' : 'flex';
         if (state === 'active') { startTimer(); startWaves(); } else { stopTimer(); stopWaves(); }
+        if (minimized) { updateCallChip(); return; } // 最小化中：保持悬浮条，不弹主窗口
+        ov.style.display = 'flex';
+        initCallDrag();
     }
     function hideCallUI() {
         var ov = byId('callOverlay');
         if (ov) ov.style.display = 'none';
+        minimized = false;
+        var cm = byId('callMinimized');
+        if (cm) cm.style.display = 'none';
         stopTimer();
     }
     function showIncoming(from, k) {
@@ -7989,9 +8164,93 @@ var ChatCall = (function () {
             if (!el) return;
             var t = Math.floor((Date.now() - startTs) / 1000);
             el.textContent = Math.floor(t / 60) + ':' + ('0' + (t % 60)).slice(-2);
+            if (minimized) updateCallChip();
         }, 500);
+        if (!statsInt) { statsInt = setInterval(collectStats, 2000); collectStats(); }
     }
-    function stopTimer() { if (timerInt) { clearInterval(timerInt); timerInt = null; } }
+    function stopTimer() {
+        if (timerInt) { clearInterval(timerInt); timerInt = null; }
+        if (statsInt) { clearInterval(statsInt); statsInt = null; _statsPrevBytes = 0; _statsPrevTime = 0; }
+        var cs = byId('callStats');
+        if (cs) { cs.style.display = 'none'; cs.textContent = ''; }
+    }
+    /* ---------- 通话窗口拖动 / 最小化 ---------- */
+    function initCallDrag() {
+        var top = document.querySelector('#callOverlay .call-top');
+        if (!top || top.getAttribute('data-drag')) return;
+        top.setAttribute('data-drag', '1');
+        top.addEventListener('mousedown', function (e) {
+            if (e.target.closest && e.target.closest('button')) return;
+            var ov = byId('callOverlay');
+            if (!ov || ov.style.display !== 'flex') return;
+            var rect = ov.getBoundingClientRect();
+            ov.style.left = rect.left + 'px';
+            ov.style.top = rect.top + 'px';
+            ov.style.transform = 'none';
+            var sx = e.clientX, sy = e.clientY, l0 = rect.left, t0 = rect.top;
+            function move(ev) {
+                ov.style.left = Math.max(-120, Math.min(window.innerWidth - 60, l0 + (ev.clientX - sx))) + 'px';
+                ov.style.top = Math.max(0, Math.min(window.innerHeight - 36, t0 + (ev.clientY - sy))) + 'px';
+            }
+            function up() {
+                document.removeEventListener('mousemove', move);
+                document.removeEventListener('mouseup', up);
+            }
+            document.addEventListener('mousemove', move);
+            document.addEventListener('mouseup', up);
+        });
+    }
+    function updateCallChip() {
+        var t = byId('callMinTitle');
+        if (!t) return;
+        var dur = byId('callDur');
+        var durText = dur && dur.textContent ? dur.textContent : '0:00';
+        t.textContent = T('call_min_title').replace('%s', (peer || '') + ' · ' + durText);
+    }
+    function minimize() {
+        if (!pc) return;
+        minimized = true;
+        var ov = byId('callOverlay');
+        if (ov) ov.style.display = 'none';
+        var cm = byId('callMinimized');
+        if (cm) cm.style.display = 'flex';
+        updateCallChip();
+    }
+    function restore() {
+        minimized = false;
+        var cm = byId('callMinimized');
+        if (cm) cm.style.display = 'none';
+        var ov = byId('callOverlay');
+        if (ov) ov.style.display = 'flex';
+    }
+    // 通话实时网络状态：ping（ICE candidate-pair RTT）+ 对方接收网速（inbound-rtp bytes 差分）
+    function collectStats() {
+        if (!pc) return;
+        pc.getStats(null).then(function (report) {
+            var ping = null, bytes = 0;
+            report.forEach(function (st) {
+                if (st.type === 'candidate-pair' && st.state === 'succeeded' && typeof st.currentRoundTripTime === 'number' && st.currentRoundTripTime >= 0) {
+                    ping = st.currentRoundTripTime * 1000;
+                }
+                if (st.type === 'inbound-rtp' && typeof st.bytesReceived === 'number') {
+                    bytes += st.bytesReceived;
+                }
+            });
+            var el = byId('callStats');
+            if (!el) return;
+            var now = Date.now(), speed = 0;
+            if (_statsPrevTime > 0 && bytes >= _statsPrevBytes) {
+                speed = (bytes - _statsPrevBytes) / Math.max(1, (now - _statsPrevTime) / 1000);
+            }
+            _statsPrevBytes = bytes;
+            _statsPrevTime = now;
+            var parts = [];
+            if (ping !== null) parts.push('ping ' + Math.round(ping) + 'ms');
+            if (speed > 0) parts.push('recv ' + fmtSpeed(speed));
+            el.textContent = parts.join(' · ');
+            el.style.display = parts.length ? 'block' : 'none';
+        }).catch(function () {});
+    }
 
     /* ---------- 发起 ---------- */
     function startCall(username, video) {
@@ -8162,7 +8421,7 @@ var ChatCall = (function () {
         }
     };
 
-    return { startCall: startCall, accept: accept, reject: reject, hangup: hangup, toggleMute: toggleMute, isInCall: function () { return !!pc; } };
+    return { startCall: startCall, accept: accept, reject: reject, hangup: hangup, toggleMute: toggleMute, minimize: minimize, restore: restore, isInCall: function () { return !!pc; } };
 })();
 function startVoiceCall(u) { if (ChatCall) ChatCall.startCall(u || D, false); }
 function startVideoCall(u) { if (ChatCall) ChatCall.startCall(u || D, true); }
@@ -8177,7 +8436,12 @@ function toggleCallMute() { if (ChatCall) ChatCall.toggleMute(); }
    ============================================================ */
 var ChatShare = (function () {
     var pc = null, screenStream = null, peer = null, role = null; // 'sharer' | 'viewer'
-    var ringing = false, ringTimer = null, iceBuffer = [], pendingOffer = null, viewerAccepted = false;
+    var ringing = false, ringTimer = null, iceBuffer = [], pendingOffer = null, viewerAccepted = false, minimized = false;
+    var mySid = null, shareAccepted = false, pendingSid = null, inviteTimer = null; // 一次性 key：每次邀请唯一 sid
+    var shareAudioTrack = null, shareAudioSender = null, shareReneg = false, remoteShareStream = null; // 系统声音共享
+    function makeSid() {
+        return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12) + '-' + Math.random().toString(36).slice(2, 8);
+    }
 
     function byId(id) { return document.getElementById(id); }
 
@@ -8191,12 +8455,20 @@ var ChatShare = (function () {
         var p = new RTCPeerConnection(cfg);
         p.onicecandidate = function (e) { if (e.candidate) send('share_ice', { candidate: e.candidate }); };
         p.ontrack = function (e) {
-            // 查看方：对方屏幕流显示到全屏窗口
-            if (isViewer && e.streams && e.streams[0]) {
-                var sv = byId('shareVideo');
-                if (sv) sv.srcObject = e.streams[0];
-                showOverlay(true);
+            // 查看方：对方屏幕流（视频+可选系统声音）累积到同一个 stream 再显示
+            if (!isViewer || !e.streams || !e.streams[0]) return;
+            if (!remoteShareStream) {
+                remoteShareStream = e.streams[0];
+            } else {
+                e.streams[0].getTracks().forEach(function (nt) {
+                    var dup = false;
+                    remoteShareStream.getTracks().forEach(function (ot) { if (ot.id === nt.id) dup = true; });
+                    if (!dup) remoteShareStream.addTrack(nt);
+                });
             }
+            var sv = byId('shareVideo');
+            if (sv) { sv.srcObject = remoteShareStream; sv.play(); }
+            showOverlay(true);
         };
         return p;
     }
@@ -8213,6 +8485,8 @@ var ChatShare = (function () {
         if (st) st.style.display = viewerMode ? 'none' : 'inline-block';
         if (cl) cl.style.display = viewerMode ? 'inline-block' : 'none';
         if (t) t.textContent = viewerMode ? T('share_viewing').replace('%s', peer || '') : T('share_sharing');
+        updateShareAudioBtn();
+        initDrag();
     }
     // 等待窗口（邀请发出等接受 / 已接受等屏幕流），非全屏小窗
     function showWaiting(msg, viewerMode) {
@@ -8227,10 +8501,75 @@ var ChatShare = (function () {
         if (st) st.style.display = viewerMode ? 'none' : 'inline-block';
         if (cl) cl.style.display = viewerMode ? 'inline-block' : 'none';
         if (t) t.textContent = viewerMode ? T('share_connecting') : T('share_waiting');
+        updateShareAudioBtn();
+        initDrag();
+    }
+    // 窗口拖动：按住标题栏可移动
+    function initDrag() {
+        var top = document.querySelector('#shareOverlay .share-top');
+        if (!top || top.getAttribute('data-drag')) return;
+        top.setAttribute('data-drag', '1');
+        top.addEventListener('mousedown', function (e) {
+            if (e.target.closest && e.target.closest('button')) return;
+            var ov = byId('shareOverlay');
+            if (!ov || ov.style.display !== 'flex') return;
+            var rect = ov.getBoundingClientRect();
+            ov.style.left = rect.left + 'px';
+            ov.style.top = rect.top + 'px';
+            ov.style.transform = 'none';
+            var sx = e.clientX, sy = e.clientY, l0 = rect.left, t0 = rect.top;
+            function move(ev) {
+                ov.style.left = Math.max(-120, Math.min(window.innerWidth - 60, l0 + (ev.clientX - sx))) + 'px';
+                ov.style.top = Math.max(0, Math.min(window.innerHeight - 36, t0 + (ev.clientY - sy))) + 'px';
+            }
+            function up() {
+                document.removeEventListener('mousemove', move);
+                document.removeEventListener('mouseup', up);
+            }
+            document.addEventListener('mousemove', move);
+            document.addEventListener('mouseup', up);
+        });
+    }
+    function minimize() {
+        var ov = byId('shareOverlay');
+        if (!ov) return;
+        minimized = true;
+        ov.style.display = 'none';
+        var chip = byId('shareMinimized');
+        if (chip) chip.style.display = 'flex';
+        var t = byId('shareMinTitle');
+        if (t) t.textContent = (role === 'viewer') ? T('share_viewing').replace('%s', peer || '') : T('share_sharing');
+    }
+    function restore() {
+        minimized = false;
+        var chip = byId('shareMinimized');
+        if (chip) chip.style.display = 'none';
+        if (role === 'viewer') showOverlay(true);
+        else if (pc) showSharingState();
+        else showWaiting(T('share_waiting'), false);
+    }
+    // 共享方：不显示自己的共享输出，只显示状态文字 + 停止按钮
+    function showSharingState() {
+        var ov = byId('shareOverlay');
+        if (!ov) return;
+        ov.style.display = 'flex';
+        var wm = byId('shareWaitMsg');
+        if (wm) { wm.style.display = 'flex'; wm.textContent = T('share_sharing_msg'); }
+        var vv = byId('shareVideo');
+        if (vv) vv.style.display = 'none';
+        var st = byId('shareStopBtn'), cl = byId('shareCloseBtn'), t = byId('shareTitle');
+        if (st) st.style.display = 'inline-block';
+        if (cl) cl.style.display = 'none';
+        if (t) t.textContent = T('share_sharing');
+        updateShareAudioBtn();
+        initDrag();
     }
     function hideOverlay() {
         var ov = byId('shareOverlay');
         if (ov) ov.style.display = 'none';
+        minimized = false;
+        var chip = byId('shareMinimized');
+        if (chip) chip.style.display = 'none';
         var wm = byId('shareWaitMsg');
         if (wm) wm.style.display = 'none';
         var sv = byId('shareVideo');
@@ -8244,53 +8583,75 @@ var ChatShare = (function () {
         if (!window.wssSendCall) { xalert(T('share_need_wss')); return; }
         if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) { xalert(T('share_unsupported')); return; }
         peer = username; role = 'sharer'; ringing = true; viewerAccepted = false;
-        send('share_offer', { invite: true });
+        mySid = makeSid(); shareAccepted = false; // 一次性邀请 key
+        send('share_offer', { invite: true, sid: mySid });
         showWaiting(T('share_waiting'), false);
         ringTimer = setTimeout(function () {
             if (ringing) { stopShare(); xalert(T('share_no_response')); }
         }, 30000);
     }
     // 对方接受后：现在才采集屏幕 + 建连 + 发真实 offer
+    // 系统声音：audio:true 采集（仅"共享标签页"时浏览器会提供系统音频；整屏/窗口大多没有）
     function captureAndOffer() {
-        navigator.mediaDevices.getDisplayMedia({ video: true, audio: false }).then(function (stream) {
+        navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }).then(function (stream) {
             var t = stream.getVideoTracks()[0];
             if (!t) { stream.getTracks().forEach(function (x) { x.stop(); }); stopShare(); return; }
             screenStream = stream;
             t.onended = function () { stopShare(); }; // 浏览器「停止共享」栏
             pc = makePc(false);
             if (!pc) { cleanup(); return; }
-            var sv = byId('shareVideo');
-            if (sv) sv.srcObject = stream; // 共享方先看自己预览
             pc.addTrack(t, stream);
-            showOverlay(false);
+            shareAudioTrack = stream.getAudioTracks()[0] || null; // 系统声音轨道（可能没有）
+            if (shareAudioTrack) shareAudioSender = pc.addTrack(shareAudioTrack, stream); // 默认共享声音
+            showSharingState(); // 共享方不看自己的输出，只显示状态 + 停止按钮
             pc.createOffer().then(function (offer) {
                 pc.setLocalDescription(offer);
-                send('share_offer', { sdp: offer });
+                send('share_offer', { sdp: offer, sid: mySid });
             });
         }).catch(function () { stopShare(); }); // 用户取消授权
     }
 
     /* ---------- 接收方 ---------- */
     function onOffer(from, data) {
-        if (pc) { send('share_busy', {}); return; }
+        // 共享中的重协商（共享方开关系统声音 → 加/去音频轨道）
+        if (data && data.reneg && pc && from === peer) {
+            if (data.sid && pendingSid && data.sid !== pendingSid) return;
+            pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function () {
+                return pc.createAnswer();
+            }).then(function (answer) {
+                pc.setLocalDescription(answer);
+                send('share_answer', { sdp: answer, sid: pendingSid, reneg: true });
+            }).catch(function () {});
+            return;
+        }
+        if (pc) { send('share_busy', { sid: data && data.sid }); return; }
         if (data && data.invite) {
-            // 阶段1：邀请（还没有 SDP/媒体）
+            // 阶段1：邀请（还没有 SDP/媒体）——记住一次性 key
             peer = from; role = 'viewer'; ringing = false; viewerAccepted = false; pendingOffer = null;
+            pendingSid = data.sid || null;
+            if (inviteTimer) { clearTimeout(inviteTimer); inviteTimer = null; }
+            inviteTimer = setTimeout(function () {
+                // 邀请超时兜底：30s 无人应答自动清理，避免多端残留
+                if (role === 'viewer' && !viewerAccepted && !pc) {
+                    cleanup(); hideOverlay(); xalert(T('share_no_response'));
+                }
+            }, 30000);
             var nm = byId('shareIncomingName');
             if (nm) nm.textContent = from;
             var ov = byId('shareIncomingOverlay');
             if (ov) ov.style.display = 'flex';
             return;
         }
-        // 阶段2：已接受后对方发来的真实 SDP offer
-        if (role !== 'viewer' || !viewerAccepted) { send('share_busy', {}); return; }
+        // 阶段2：已接受后对方发来的真实 SDP offer（校验一次性 key）
+        if (role !== 'viewer' || !viewerAccepted) { send('share_busy', { sid: data && data.sid }); return; }
+        if (pendingSid && data.sid && data.sid !== pendingSid) { send('share_busy', { sid: data.sid }); return; }
         pc = makePc(true);
         if (!pc) { cleanup(); return; }
         pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function () {
             return pc.createAnswer();
         }).then(function (answer) {
             pc.setLocalDescription(answer);
-            send('share_answer', { sdp: answer });
+            send('share_answer', { sdp: answer, sid: pendingSid });
             flushIce();
             showOverlay(true);
         }).catch(function () { xalert(T('share_connect_fail')); cleanup(); });
@@ -8299,31 +8660,79 @@ var ChatShare = (function () {
         var ov = byId('shareIncomingOverlay');
         if (ov) ov.style.display = 'none';
         if (!peer || role !== 'viewer') return;
+        if (inviteTimer) { clearTimeout(inviteTimer); inviteTimer = null; }
         viewerAccepted = true;
-        send('share_answer', { accept: true });
+        send('share_answer', { accept: true, sid: pendingSid }); // 带回一次性 key
         showWaiting(T('share_connecting'), true); // 查看方等待对方开始共享
     }
     function reject() {
-        send('share_busy', {});
+        send('share_busy', { sid: pendingSid });
         var ov = byId('shareIncomingOverlay');
         if (ov) ov.style.display = 'none';
-        peer = null; role = null; viewerAccepted = false; pendingOffer = null;
+        if (inviteTimer) { clearTimeout(inviteTimer); inviteTimer = null; }
+        peer = null; role = null; viewerAccepted = false; pendingOffer = null; pendingSid = null;
     }
 
     /* ---------- 共享方收到 answer ---------- */
     function onAnswer(from, data) {
         if (role !== 'sharer' || from !== peer) return;
         if (data && data.accept) {
-            // 对方接受 → 现在才采集屏幕并建连
+            // 一次性 key 校验：只接受当前邀请，且只能被接受一次（防多端重放/劫持）
+            if (!data.sid || data.sid !== mySid) return;
+            if (shareAccepted) { send('share_busy', { sid: data.sid }); return; }
+            shareAccepted = true;
             ringing = false;
             if (ringTimer) { clearTimeout(ringTimer); ringTimer = null; }
             captureAndOffer();
             return;
         }
+        if (data && data.reneg) { // 重协商应答（声音开关）
+            if (data.sid && mySid && data.sid !== mySid) return;
+            shareReneg = false;
+            if (pc) pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function () {
+                flushIce();
+            }).catch(function () {});
+            return;
+        }
+        if (data.sid && mySid && data.sid !== mySid) return; // answer 阶段同样校验
         if (!pc) return;
         pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function () {
             flushIce();
         }).catch(function () { xalert(T('share_connect_fail')); });
+    }
+
+    /* ---------- 系统声音：共享中可随时开关 ---------- */
+    function updateShareAudioBtn() {
+        var b = byId('shareAudioBtn');
+        if (!b) return;
+        if (role !== 'sharer' || !shareAudioTrack) { b.style.display = 'none'; return; }
+        b.style.display = 'inline-block';
+        b.classList.toggle('off', !shareAudioSender);
+        b.innerHTML = shareAudioSender ? '🔊 ' + T('share_audio_on') : '🔇 ' + T('share_audio_off');
+        b.title = T(shareAudioSender ? 'share_audio_on' : 'share_audio_off');
+    }
+    // 切换是否把系统声音发给查看方（加/去音频轨道 + 重协商）
+    function toggleAudio() {
+        if (!pc || !shareAudioTrack) return;
+        if (shareAudioSender) {
+            try { pc.removeTrack(shareAudioSender); } catch (e) {}
+            shareAudioSender = null;
+        } else {
+            shareAudioSender = pc.addTrack(shareAudioTrack, screenStream);
+        }
+        updateShareAudioBtn();
+        renegotiateShare();
+    }
+    function renegotiateShare() {
+        if (!pc || shareReneg) return;
+        shareReneg = true;
+        pc.createOffer().then(function (offer) {
+            return pc.setLocalDescription(offer).then(function () {
+                send('share_offer', { sdp: offer, sid: mySid, reneg: true });
+                // 兜底：对端未回 reneg answer 时 3s 后解除阻塞，防止无法再次切换声音
+                setTimeout(function () { shareReneg = false; }, 3000);
+            });
+        }).catch(function () { shareReneg = false; });
     }
 
     /* ---------- ICE ---------- */
@@ -8338,12 +8747,22 @@ var ChatShare = (function () {
         iceBuffer = [];
     }
 
-    function onBusy(from) {
+    function onBusy(from, data) {
+        // sharer 端：等待响应时对方忙
         if (role === 'sharer' && ringing && from === peer) {
             ringing = false;
             if (ringTimer) { clearTimeout(ringTimer); ringTimer = null; }
             stopShare();
             xalert(T('share_busy') + ': ' + from);
+            return;
+        }
+        // viewer 端：邀请被对方拒绝 / 重复接受被拒（一次性 key 不匹配或已消费）
+        // 只清理「还没接受」的邀请弹窗，不影响已接受正在观看的连接
+        if (role === 'viewer' && !pc && !viewerAccepted && from === peer
+            && (!data.sid || data.sid === pendingSid)) {
+            cleanup();
+            hideOverlay();
+            xalert(T('share_busy'));
         }
     }
 
@@ -8373,7 +8792,12 @@ var ChatShare = (function () {
         if (screenStream) { screenStream.getTracks().forEach(function (t) { t.stop(); }); }
         screenStream = null;
         peer = null; role = null; ringing = false; viewerAccepted = false; iceBuffer = []; pendingOffer = null;
+        mySid = null; shareAccepted = false; pendingSid = null;
+        shareAudioTrack = null; shareAudioSender = null; shareReneg = false; remoteShareStream = null;
         if (ringTimer) { clearTimeout(ringTimer); ringTimer = null; }
+        if (inviteTimer) { clearTimeout(inviteTimer); inviteTimer = null; }
+        var io = byId('shareIncomingOverlay');
+        if (io) io.style.display = 'none';
     }
 
     /* ---------- wss 事件分发（只处理 share_*） ---------- */
@@ -8383,12 +8807,12 @@ var ChatShare = (function () {
             case 'share_offer': if (from) onOffer(from, data); break;
             case 'share_answer': if (from) onAnswer(from, data); break;
             case 'share_ice': if (from) onIce(from, data); break;
-            case 'share_busy': if (from) onBusy(from); break;
+            case 'share_busy': if (from) onBusy(from, data); break;
             case 'share_stop': if (from) onStop(from); break;
         }
     };
 
-    return { startShare: startShare, accept: accept, reject: reject, stopShare: stopShare, closeViewer: closeViewer, isActive: function () { return !!pc; } };
+    return { startShare: startShare, accept: accept, reject: reject, stopShare: stopShare, closeViewer: closeViewer, minimize: minimize, restore: restore, toggleAudio: toggleAudio, isActive: function () { return !!pc; } };
 })();
 function startStandaloneShare(u) { if (ChatShare) ChatShare.startShare(u || D); }
 function acceptShare() { if (ChatShare) ChatShare.accept(); }
@@ -8494,6 +8918,9 @@ function _lockBlock(e) {
 function lockClient() {
     if (CLIENT_LOCKED) return;
     CLIENT_LOCKED = true;
+    // 收到强制刷新：自动结束通话与屏幕共享（含等待/邀请中状态），避免残留窗口盖住警告
+    try { if (window.ChatCall) ChatCall.hangup(); } catch (e) {}
+    try { if (window.ChatShare) ChatShare.stopShare(); } catch (e) {}
     var evts = ['mousedown', 'mouseup', 'click', 'dblclick', 'pointerdown', 'pointerup', 'contextmenu', 'touchstart', 'touchend'];
     for (var i = 0; i < evts.length; i++) document.addEventListener(evts[i], _lockBlock, true);
     document.addEventListener('wheel', _lockBlock, { capture: true, passive: false });

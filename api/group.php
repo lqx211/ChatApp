@@ -115,6 +115,29 @@ switch ($action) {
         echo json_encode(['success' => true]);
         break;
 
+    case 'invite':
+        // 群主/管理员邀请非成员进群（直接加为 member）
+        $gid = (int)($_POST['group_id'] ?? 0);
+        if ($gid <= 0) { echo json_encode(['success' => false]); exit; }
+        $myRole = $pdo->query("SELECT role FROM group_members WHERE group_id=$gid AND user_id=$myUid")->fetchColumn();
+        if ($myRole !== 'owner' && $myRole !== 'admin') {
+            echo json_encode(['success' => false, 'error' => 'Forbidden']); exit;
+        }
+        $uname = trim(mb_substr($_POST['username'] ?? '', 0, 20));
+        if ($uname === '') { echo json_encode(['success' => false, 'error' => 'Empty username']); exit; }
+        $ustmt = $pdo->prepare("SELECT user_id, placeholder FROM users WHERE username = ?");
+        $ustmt->execute([$uname]);
+        $tu = $ustmt->fetch();
+        if (!$tu) { echo json_encode(['success' => false, 'error' => 'User not found']); exit; }
+        $tuId = (int)$tu['user_id'];
+        if ((int)$tu['placeholder']) { echo json_encode(['success' => false, 'error' => 'Placeholder user']); exit; }
+        if ($pdo->query("SELECT 1 FROM group_members WHERE group_id=$gid AND user_id=$tuId")->fetch()) {
+            echo json_encode(['success' => false, 'error' => 'Already a member']); exit;
+        }
+        $pdo->prepare("INSERT INTO group_members (group_id, user_id, role) VALUES (?, ?, 'member')")->execute([$gid, $tuId]);
+        echo json_encode(['success' => true]);
+        break;
+
     case 'search':
         $q = trim($_GET['q'] ?? '');
         $page = max(1, (int)($_GET['page'] ?? 1));

@@ -190,6 +190,7 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
     $tempUploadId = (int)($p['temp_upload_id'] ?? 0);
     $recipientName = trim((string)($p['recipient'] ?? ''));
     $doodle      = trim((string)($p['doodle'] ?? ''));
+    $isChatlog   = (($p['msg_type'] ?? '') === 'chatlog');
     // 幂等键：客户端在 WSS 超时降级 HTTP 重试时共用同一键，服务端据此去重，
     // 避免同一条消息被插入两次（对方看到两条相同消息）
     $clientMsgId = trim((string)($p['client_msg_id'] ?? ''));
@@ -200,7 +201,7 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
         return ['success' => false, 'error' => 'FORCE_HTTP'];
     }
 
-    if (empty($message) && empty($attachmentB64) && $tempUploadId <= 0 && empty($doodle)) {
+    if (empty($message) && empty($attachmentB64) && $tempUploadId <= 0 && empty($doodle) && !$isChatlog) {
         return ['success' => false, 'error' => 'Empty'];
     }
     if (mb_strlen($message) > 32767) { // 2^15 - 1
@@ -292,6 +293,18 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
     } else {
         $msg = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
         $msgType = $msgType ?? null;
+    }
+
+    // ---- 聊天记录卡片（chatlog）：attachment 存 JSON 消息列表，message 留空 ----
+    if ($isChatlog) {
+        $cl = (string)($p['chatlog'] ?? '');
+        $clArr = json_decode($cl, true);
+        if (!is_array($clArr) || !isset($clArr['msgs']) || !is_array($clArr['msgs']) || count($clArr['msgs']) > 100 || strlen($cl) > 300000) {
+            return ['success' => false, 'error' => 'Invalid chatlog'];
+        }
+        $msg = '';
+        $msgType = 'chatlog';
+        $attachmentFilename = $cl;
     }
 
     // ---- Doodle 涂鸦消息（矢量笔迹，存 JSON 点数据，不是文件） ----

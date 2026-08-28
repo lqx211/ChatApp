@@ -304,6 +304,55 @@ switch ($action) {
         echo json_encode(['success' => true]);
         break;
 
+    case 'factory_reset_verify':
+        // Factory Reset —— 当前为【模拟模式】：完整验证，但不执行任何删除。
+        $pwd = $_POST['password'] ?? '';
+        $mu = trim($_POST['maint_user'] ?? '');
+        $ms = $_POST['maint_secret'] ?? '';
+        $h1 = strtoupper(trim($_POST['git_hash'] ?? ''));
+        $h2 = strtoupper(trim($_POST['git_hash2'] ?? ''));
+        if ($pwd === '' || $mu === '' || $ms === '' || $h1 === '' || $h2 === '') {
+            echo json_encode(['success' => false, 'error' => 'All fields are required.']); exit;
+        }
+        if ($h1 !== $h2) {
+            echo json_encode(['success' => false, 'error' => 'Git hash mismatch.']); exit;
+        }
+        // 1) Administrator 密码（10000）
+        $pdo = db();
+        $stmt = $pdo->prepare('SELECT password FROM users WHERE user_id = 10000');
+        $stmt->execute();
+        $admin = $stmt->fetch();
+        if (!$admin || !password_verify($pwd, $admin['password'])) {
+            echo json_encode(['success' => false, 'error' => 'Administrator password incorrect.']); exit;
+        }
+        // 2) Maintenance Portal 凭据
+        $MAINT_USER = ''; $MAINT_SECRET = '';
+        $maintCfg = __DIR__ . '/../maintenance/config.php';
+        if (is_file($maintCfg)) { include $maintCfg; }
+        if ($mu !== $MAINT_USER || $ms !== $MAINT_SECRET) {
+            echo json_encode(['success' => false, 'error' => 'Maintenance credentials incorrect.']); exit;
+        }
+        // 3) Git hash（读 .git/HEAD）
+        $root = dirname(__DIR__);
+        $head = @file_get_contents($root . '/.git/HEAD');
+        $real = '';
+        if ($head) {
+            $head = trim($head);
+            if (strpos($head, 'ref: ') === 0) {
+                $ref = trim(substr($head, 5));
+                $real = trim((string)@file_get_contents($root . '/.git/' . $ref));
+            } else { $real = $head; }
+        }
+        if ($real !== '' && strtoupper($real) !== $h1) {
+            echo json_encode(['success' => false, 'error' => 'Git hash does not match current HEAD.']); exit;
+        }
+        // 全部通过 → 模拟模式（不执行删除）
+        if (function_exists('chatapp_log_admin')) {
+            chatapp_log_admin('factory_reset_verify', null, null, ['note' => 'simulated reset verified']);
+        }
+        echo json_encode(['success' => true, 'simulated' => true]);
+        break;
+
     case 'save_privacy':
         $s = (int)($_POST['searchable'] ?? 1);
         $u = (int)($_POST['searchable_by_uid'] ?? 1);
@@ -510,22 +559,15 @@ switch ($action) {
         }
         $fmt = strtolower($m[2]);
         if ($fmt === 'jpeg') $fmt = 'jpg';
-        // Reject disguised content (check base64 string, not binary data — binary JPEG/GIF/PNG data may contain bytes that accidentally match text patterns)
-        $danger = ['PD9waHA=', 'PD89', 'Pz4=', 'PHNjcmlwdA==', 'PC9zY3JpcHQ+', 'amF2YXNjcmlwdDo=', 'ZXZhbCg=', 'c2hlbGxfZXhlYw==', 'c3lzdGVtKA==', 'cGFzc3RocnU=', 'ZXhlYyg='];
-        $b64Body = $m[3];
-        foreach ($danger as $d) {
-            if (strpos($b64Body, $d) !== false) { echo json_encode(['success' => false, 'error' => 'Suspicious content']); exit; }
-        }
-        $raw = base64_decode($b64Body);
+        $raw = base64_decode($m[3]);
         if ($raw === false || $raw === '') { echo json_encode(['success' => false, 'error' => 'Empty image']); exit; }
         // 32MB cap
         if (strlen($raw) > 32 * 1024 * 1024) { echo json_encode(['success' => false, 'error' => 'Image too large (max 32MB)']); exit; }
-        // Validate real image via GD
+        // Validate real image via GD（必须是有效位图，杜绝伪装内容）
         $img = @imagecreatefromstring($raw);
         if (!$img) { echo json_encode(['success' => false, 'error' => 'Invalid image']); exit; }
-        imagedestroy($img);
 
-        // Save to data/user/<uid>/bg.<fmt>
+        // Save to data/user/<uid>/bg.<fmt> —— GD 重新编码保存，剔除任何附加 payload
         $stmt = $pdo->prepare('SELECT user_id FROM users WHERE username = ?');
         $stmt->execute([$_SESSION['username']]);
         $uid = (int)$stmt->fetchColumn();
@@ -535,7 +577,10 @@ switch ($action) {
         // Remove old bg files
         foreach (glob($dir . '/bg.*') as $old) @unlink($old);
         $file = $dir . '/bg.' . $fmt;
-        file_put_contents($file, $raw);
+        if ($fmt === 'png') { imagepng($img, $file); }
+        elseif ($fmt === 'webp') { imagewebp($img, $file, 92); }
+        else { imagejpeg($img, $file, 92); }
+        imagedestroy($img);
         $pdo->prepare("UPDATE users SET bg_image = ?, bg_updated_at = NOW() WHERE user_id = ?")
             ->execute(['user/' . $uid . '/bg.' . $fmt, $uid]);
         $url = '../../api/file.php?u=' . $uid . '&f=bg.' . $fmt . '&v=' . time();
@@ -634,11 +679,6 @@ switch ($action) {
                 elseif (strlen($raw) > 4 && substr($raw, 0, 4) === "\x1A\x45\xDF\xA3") { $type = 'video/webm'; $fmt = 'webm'; }
                 else { echo json_encode(['success' => false, 'error' => 'Invalid media']); exit; }
             }
-            $b64Body = base64_encode($raw);
-            $danger = ['PD9waHA=', 'PD89', 'Pz4=', 'PHNjcmlwdA==', 'PC9zY3JpcHQ+', 'amF2YXNjcmlwdDo=', 'ZXZhbCg=', 'c2hlbGxfZXhlYw==', 'c3lzdGVtKA==', 'cGFzc3RocnU=', 'ZXhlYyg='];
-            foreach ($danger as $d) {
-                if (strpos($b64Body, $d) !== false) { echo json_encode(['success' => false, 'error' => 'Suspicious content']); exit; }
-            }
             if (strlen($raw) > 64 * 1024 * 1024) { echo json_encode(['success' => false, 'error' => 'File too large (max 64MB)']); exit; }
             $isVideo = ($type !== 'image/png');
             goto bg_private_save;
@@ -651,12 +691,7 @@ switch ($action) {
         }
         $type = $m[1]; $fmt = strtolower($m[2]);
         if ($fmt === 'jpeg') $fmt = 'jpg';
-        $b64Body = $m[3];
-        $danger = ['PD9waHA=', 'PD89', 'Pz4=', 'PHNjcmlwdA==', 'PC9zY3JpcHQ+', 'amF2YXNjcmlwdDo=', 'ZXZhbCg=', 'c2hlbGxfZXhlYw==', 'c3lzdGVtKA==', 'cGFzc3RocnU=', 'ZXhlYyg='];
-        foreach ($danger as $d) {
-            if (strpos($b64Body, $d) !== false) { echo json_encode(['success' => false, 'error' => 'Suspicious content']); exit; }
-        }
-        $raw = base64_decode($b64Body);
+        $raw = base64_decode($m[3]);
         if ($raw === false || $raw === '') { echo json_encode(['success' => false, 'error' => 'Empty media']); exit; }
         if (strlen($raw) > 64 * 1024 * 1024) { echo json_encode(['success' => false, 'error' => 'File too large (max 64MB)']); exit; }
 
@@ -791,10 +826,6 @@ switch ($action) {
         }
         if ($raw === false || $raw === '') { echo json_encode(['success' => false, 'error' => 'Empty media']); exit; }
         if (strlen($raw) > 64 * 1024 * 1024) { echo json_encode(['success' => false, 'error' => 'File too large (max 64MB)']); exit; }
-        // 危险串检查
-        $b64Body = base64_encode($raw);
-        $danger = ['PD9waHA=', 'PD89', 'Pz4=', 'PHNjcmlwdA==', 'PC9zY3JpcHQ+', 'amF2YXNjcmlwdDo=', 'ZXZhbCg=', 'c2hlbGxfZXhlYw==', 'c3lzdGVtKA==', 'cGFzc3RocnU=', 'ZXhlYyg='];
-        foreach ($danger as $d) { if (strpos($b64Body, $d) !== false) { echo json_encode(['success' => false, 'error' => 'Suspicious content']); exit; } }
 
         $stmt = $pdo->prepare('SELECT user_id FROM users WHERE username = ?');
         $stmt->execute([$_SESSION['username']]);

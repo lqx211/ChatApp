@@ -48,8 +48,8 @@ if ($tab !== 'profile') $tab = 'chat';
     </div>
     <div class="set-group"><?php echo t('set_opacity', 'Opacity');?></div>
     <div class="set-slider-row">
-      <div class="lab"><span><?php echo t('set_opacity', 'Opacity');?></span><span class="val" id="opacityVal">100%</span></div>
-      <input type="range" class="set-slider" id="opacityRange" min="20" max="100" value="100" oninput="onOpacity(this.value)">
+      <div class="lab"><span><?php echo t('set_opacity', 'Opacity');?></span><span class="val" id="opacityVal">30%</span></div>
+      <input type="range" class="set-slider" id="opacityRange" min="0" max="70" value="30" oninput="onOpacity(this.value)">
     </div>
   </div>
 
@@ -116,9 +116,11 @@ function loadChatBg() {
         var c = {};
         try { c = JSON.parse(localStorage.getItem(BG_CACHE_KEY) || '{}'); } catch(e) {}
         document.getElementById('blurRange').value = c.blur || 0;
-        document.getElementById('opacityRange').value = c.opacity || 100;
+        var _op = parseInt(c.opacity, 10);
+        if (isNaN(_op) || _op < 0 || _op >= 100) _op = 30; // 首次登录/旧默认 100 → 30
+        document.getElementById('opacityRange').value = Math.min(_op, 70);
         document.getElementById('blurVal').textContent = (c.blur || 0) + 'px';
-        document.getElementById('opacityVal').textContent = (c.opacity || 100) + '%';
+        document.getElementById('opacityVal').textContent = Math.min(_op, 70) + '%';
     });
 }
 function onChatUpload(input) {

@@ -292,6 +292,14 @@ return [
     // Message context menu / JS (i18n)
     'menu_reply' => '回复',
     'menu_forward' => '转发',
+    'menu_multiselect' => '多选',
+    'msel_export' => '汇出',
+    'msel_count' => '已选 %s 条',
+    'msel_empty' => '请先选择消息',
+    'cl_title' => '%s 的聊天记录',
+    'cl_footer' => '聊天记录',
+    'cl_group' => '群聊',
+    'cl_ann' => '公告',
     'btn_download' => '下载',
     'menu_add_emoji' => '添加表情',
     'title_local_cache' => '本地缓存聊天记录',
@@ -692,6 +700,14 @@ return [
     'g_mute_confirm' => '确定禁言该成员吗？',
     'g_transfer_confirm' => '转让后你将成为管理员，确定吗？',
     'g_kick_confirm' => '确定将该成员移出群聊吗？',
+    'g_invite' => '邀请成员',
+    'g_invite_prompt' => '输入要邀请的用户名',
+    'g_invite_done' => '已邀请',
+    'g_invite_forbidden' => '仅群主/管理员可邀请',
+    'g_invite_not_found' => '用户不存在',
+    'g_invite_already' => '该用户已在群中',
+    'g_invite_placeholder' => '该账号无法被邀请',
+    'g_invite_empty' => '请输入用户名',
 
     // DM 选项菜单
     'd_search_history' => '搜索记录',
@@ -710,6 +726,7 @@ return [
     'sb_filemgr' => '文件管理器',
     'sb_school_res' => '某校英文学习资源',
     'sb_hkeaa' => 'HKEAA',
+    'sb_spessasynth' => 'SpessaSynth 合成器',
     'sb_logs' => '日志',
     'sb_dbadmin' => '数据库管理',
     'sb_donations' => '捐赠',
@@ -760,6 +777,9 @@ return [
     'share_sharing' => '共享屏幕中…',
     'share_waiting' => '正在等待对方接受…',
     'share_connecting' => '正在连接…',
+    'share_sharing_msg' => '正在共享你的屏幕…',
+    'share_minimize' => '最小化',
+    'share_restore' => '恢复',
     'share_viewing' => '%s 正在共享屏幕',
     'share_stop' => '停止共享',
     'share_exit' => '退出查看',
@@ -774,6 +794,8 @@ return [
     'share_busy' => '对方拒绝查看或正忙',
     'share_connect_fail' => '连接失败',
     'share_no_dm' => '请先打开一个私聊对话',
+    'share_audio_on' => '声音开',
+    'share_audio_off' => '声音关',
 
     // ---- Call ----
     'call_calling' => '呼叫中…',
@@ -790,6 +812,9 @@ return [
     'call_accept_fail' => '接听失败',
     'call_no_dm' => '请先打开一个私聊对话',
     'call_need_wss' => '需要 WebSocket 连接才能通话',
+    'call_minimize' => '最小化',
+    'call_restore' => '恢复',
+    'call_min_title' => '通话中：%s',
 
     // ---- Flash async upload ----
     'flash_uploading' => '正在上传',

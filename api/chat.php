@@ -335,6 +335,9 @@ function proc(array $msgs): array {
             } elseif ($m['msg_type'] === 'doodle') {
                 // 涂鸦消息：attachment 存的是笔迹 JSON（矢量点），不是文件
                 $m['attachment_url'] = null;
+            } elseif ($m['msg_type'] === 'chatlog') {
+                // 聊天记录卡片：attachment 存 JSON 消息列表，不是文件
+                $m['attachment_url'] = null;
             } else {
                 $m['attachment_url'] = '../../api/file.php?u=' . ((int)$m['user_id']) . '&f=' . $m['attachment'];
             }

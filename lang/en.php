@@ -292,6 +292,14 @@ return [
     // Message context menu / JS (i18n)
     'menu_reply' => 'Reply',
     'menu_forward' => 'Forward',
+    'menu_multiselect' => 'Multi-select',
+    'msel_export' => 'Export',
+    'msel_count' => 'N selected',
+    'msel_empty' => 'Select messages first',
+    'cl_title' => '%s\'s chat history',
+    'cl_footer' => 'Chat History',
+    'cl_group' => 'Group chat',
+    'cl_ann' => 'Announcement',
     'btn_download' => 'Download',
     'menu_add_emoji' => 'Add emoji',
     'title_local_cache' => 'Local chat cache',
@@ -692,6 +700,14 @@ return [
     'g_mute_confirm' => 'Mute this member?',
     'g_transfer_confirm' => 'You will become an admin after transferring. Continue?',
     'g_kick_confirm' => 'Remove this member from the group?',
+    'g_invite' => 'Invite Member',
+    'g_invite_prompt' => 'Enter the username to invite',
+    'g_invite_done' => 'Invited',
+    'g_invite_forbidden' => 'Only the owner/admin can invite',
+    'g_invite_not_found' => 'User not found',
+    'g_invite_already' => 'Already a member',
+    'g_invite_placeholder' => 'This account cannot be invited',
+    'g_invite_empty' => 'Please enter a username',
 
     // DM options menu
     'd_search_history' => 'Search history',
@@ -710,6 +726,7 @@ return [
     'sb_filemgr' => 'File Manager',
     'sb_school_res' => 'School English Resources',
     'sb_hkeaa' => 'HKEAA',
+    'sb_spessasynth' => 'SpessaSynth MIDI Player',
     'sb_logs' => 'Logs',
     'sb_dbadmin' => 'Database Admin',
     'sb_donations' => 'Donations',
@@ -760,6 +777,9 @@ return [
     'share_sharing' => 'Sharing screen…',
     'share_waiting' => 'Waiting for the other side to accept…',
     'share_connecting' => 'Connecting…',
+    'share_sharing_msg' => 'Sharing your screen…',
+    'share_minimize' => 'Minimize',
+    'share_restore' => 'Restore',
     'share_viewing' => '%s is sharing screen',
     'share_stop' => 'Stop Sharing',
     'share_exit' => 'Exit Viewing',
@@ -774,6 +794,8 @@ return [
     'share_busy' => 'The other side declined or is busy',
     'share_connect_fail' => 'Connection failed',
     'share_no_dm' => 'Open a private chat first',
+    'share_audio_on' => 'Sound On',
+    'share_audio_off' => 'Sound Off',
 
     // ---- Voice / video call ----
     'call_calling' => 'Calling…',
@@ -790,6 +812,9 @@ return [
     'call_accept_fail' => 'Failed to answer',
     'call_no_dm' => 'Open a private chat first',
     'call_need_wss' => 'A WebSocket connection is required to call',
+    'call_minimize' => 'Minimize',
+    'call_restore' => 'Restore',
+    'call_min_title' => 'In call: %s',
 
     // ---- Flash async upload progress ----
     'flash_uploading' => 'Uploading',

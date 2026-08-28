@@ -94,6 +94,17 @@ $avatar      = chatapp_avatar_url($u['avatar'] ?? '', $u['username'] ?? '');
     <span class="row-arrow">›</span>
   </div>
 
+  <!-- ============ 危险操作 ============ -->
+  <div class="set-group" data-search="危险 重置 恢复出厂 factory reset">Danger Zone</div>
+  <div class="set-row" data-search="危险 重置 恢复出厂 factory reset" onclick="navTo('settings-factory.php')">
+    <span class="row-label set-danger-text">Factory Reset</span>
+    <span class="row-arrow">›</span>
+  </div>
+  <div class="set-row" data-search="危险 升级 更新 upgrade system" onclick="navTo('settings-upgrade.php')">
+    <span class="row-label set-danger-text">Upgrade System</span>
+    <span class="row-arrow">›</span>
+  </div>
+
   <!-- 退出当前账号（红色） -->
   <button class="set-logout" data-search="退出 注销 登出" onclick="doLogout()"><?php echo t('btn_log_out', 'Log out');?></button>
 

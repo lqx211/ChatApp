@@ -247,6 +247,8 @@ function _f_attachment_allowed(PDO $pdo, int $viewerUid, string $filename): bool
     foreach ($rows as $row) {
         if ((int)$row['sender_id'] === $viewerUid || (int)$row['recipient_id'] === $viewerUid) return true;
         if ((int)$row['group_id'] > 0 && _f_is_group_member($pdo, $viewerUid, (int)$row['group_id'])) return true;
+        // 全局公告（recipient_id 与 group_id 均为 NULL）：广播给所有用户，其附件所有人可读
+        if ((int)$row['recipient_id'] === 0 && (int)$row['group_id'] === 0) return true;
     }
     return false;
 }

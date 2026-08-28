@@ -200,7 +200,20 @@ img[src*="data/res/svg"],img[src*="data/res/cil"]{filter:brightness(0) invert(1)
 .modal-backdrop.wide .modal{min-width:min(86vw,1120px)}
 .txt-preview{max-height:55vh;overflow:auto;background:#101010;border:1px solid #333;border-radius:4px;padding:10px;font:12px/1.5 Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;color:#d5d5d5;margin-top:4px}
 .modal .mbtns a.btn{display:inline-flex;align-items:center;text-decoration:none}
+/* ---- iframe 内嵌（ChatApp 应用面板）透明适配：让聊天背景图透出；独立打开（非 iframe）不适用 ---- */
+html.in-frame, html.in-frame body{background:rgba(27,27,27,0.72)}
+html.in-frame .frame-left{background:rgba(22,22,22,0.72);border-right-color:rgba(44,44,44,.4)}
+html.in-frame .frame-resize{background:rgba(31,31,31,.45)}
+html.in-frame .frame-header{background:rgba(31,31,31,0.72);border-bottom-color:rgba(44,44,44,.4)}
+html.in-frame .tools{background:rgba(28,28,28,0.72);border-bottom-color:rgba(44,44,44,.4)}
+html.in-frame .list-header{background:rgba(31,31,31,0.72);border-bottom-color:rgba(44,44,44,.4)}
+html.in-frame .breadcrumb{background:rgba(20,20,20,0.6);border-color:rgba(51,51,51,.5)}
+html.in-frame #searchBox{background:rgba(20,20,20,0.6);border-color:rgba(51,51,51,.5)}
+html.in-frame .tree-node:hover{background:rgba(38,38,38,0.6)}
+html.in-frame .tree-node.sel{background:rgba(43,58,74,0.7)}
 </style>
+<script>/* 在 ChatApp 应用面板（iframe）内 → 加 in-frame 类启用透明适配；独立打开则不加 */
+if (window.self !== window.top) document.documentElement.classList.add('in-frame');</script>
 </head>
 <body>
 <div id="app">

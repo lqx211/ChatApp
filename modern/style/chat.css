@@ -1,6 +1,6 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;background:transparent;color:#e0e0e0;height:100vh;display:flex}
-.sidebar{width:200px;min-width:200px;background:#1e1e1e;border-right:1px solid #3a3a3a;display:flex;flex-direction:column;height:100vh;user-select:none}
+.sidebar{width:200px;min-width:200px;background:rgba(30,30,30,0.85);border-right:1px solid rgba(58,58,58,0.6);display:flex;flex-direction:column;height:100vh;user-select:none}
 .sidebar-profile{padding:14px;border-bottom:1px solid #3a3a3a;text-align:center}
 .sa{width:44px;height:44px;border:1px solid #555;margin:0 auto 6px;overflow:hidden;background:#2a2a2a}
 .sa img{width:100%;height:100%;object-fit:cover}
@@ -29,7 +29,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .e2ee-undecryptable{color:#c06060;text-align:center}
 .e2ee-undecryptable a{color:#c06060;text-decoration:underline;cursor:pointer}
 /* E2EE 安全码（WhatsApp 式 60 位） */
-.safety-number{font-family:'SFMono-Regular',Consolas,Menlo,monospace;font-size:1.05em;letter-spacing:.02em;line-height:1.8;color:#4da3ff;background:#12141a;border:1px solid #333;border-radius:8px;padding:12px 14px;margin:10px 0 14px;text-align:center;user-select:all;word-break:break-all}
+.safety-number{font-family:'SFMono-Regular',Consolas,Menlo,monospace;font-size:1.05em;letter-spacing:.02em;line-height:1.8;color:#4da3ff;background:#12141a;border:1px solid #333;border-radius:8px;padding:12px 14px;margin:10px 0 14px;text-align:center;user-select:all;white-space:pre-line}
 .csi:hover{background:#2a2a2a;color:#ccc}
 .csi.pinned{background:#22313c}
 .csi.pinned:hover,.csi.pinned.active{background:#2b3b46}
@@ -56,10 +56,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .pi .bt.rj{background:#4a2a2a;border-color:#6a3a3a}
 .sidebar-footer{padding:8px 14px;border-top:1px solid #3a3a3a}
 .sidebar-footer .ngh{padding:6px 0;font-size:.75em}
-.main-content{flex:1;display:flex;flex-direction:column;height:100vh;background:#222}
+.main-content{flex:1;display:flex;flex-direction:column;height:100vh;background:rgba(34,34,34,0.85)}
 .panel{display:none;flex-direction:column;height:100%}
 .panel.active{display:flex}
-.ch{background:#2a2a2a;padding:10px 20px;border-bottom:1px solid #3a3a3a;flex-shrink:0;display:flex;align-items:center}
+.ch{background:rgba(42,42,42,0.85);padding:10px 20px;border-bottom:1px solid #3a3a3a;flex-shrink:0;display:flex;align-items:center}
 .ch h2{font-size:1.05em;font-weight:600;color:#c0c0c0;flex:1}
 .dm-e2ee-badge{font-size:.68em;font-weight:600;margin-left:8px;padding:2px 8px;border-radius:10px;white-space:nowrap;flex-shrink:0;vertical-align:middle}
 .dm-e2ee-badge.on{background:#1e3a2a;border:1px solid #2a5c3a;color:#60e080}
@@ -89,7 +89,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .mti{font-size:.65em;color:#666;margin-top:3px;text-align:right}
 .mrv{font-size:.65em;color:#888;cursor:pointer;text-decoration:underline;margin-top:2px;text-align:right}
 .mrv:hover{color:#e06060}
-.cia{background:#2a2a2a;border-top:1px solid #3a3a3a;padding:12px 20px;display:flex;gap:10px;flex-shrink:0;flex-wrap:wrap}
+.cia{background:rgba(42,42,42,0.85);border-top:1px solid #3a3a3a;padding:12px 20px;display:flex;gap:10px;flex-shrink:0;flex-wrap:wrap}
 .cia textarea{flex:1;padding:11px 14px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-size:.95em;outline:none;font-family:inherit}
 .bs{background:#4a4a4a;border:1px solid #555;color:#e0e0e0;font-size:.9em;font-weight:600;cursor:pointer;padding:11px 22px;font-family:inherit}
 .bs:hover{background:#5a5a5a}
@@ -132,6 +132,8 @@ img[src*="data/res/svg/"],img[src*="data/res/cil/"],img[src*="data/res/brand/"]{
 .er.show,.su.show{display:block}
 .crop-overlay,.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:1000;justify-content:center;align-items:center;flex-direction:column}
 .crop-overlay.active,.modal-overlay.active{display:flex}
+/* 强制刷新警告必须盖住一切（通话 1200 / 共享 9998 / 最小化条 10001 / toast 90000+） */
+#customDialog{z-index:200000}
 #cropCanvas{border:1px solid #555;max-width:90vw;max-height:60vh;cursor:crosshair}
 .crop-controls{margin-top:14px;display:flex;gap:12px}
 .crop-controls button{padding:8px 22px;background:#4a4a4a;border:1px solid #555;color:#e0e0e0;cursor:pointer;font-family:inherit}
@@ -167,27 +169,35 @@ img[src*="data/res/svg/"],img[src*="data/res/cil/"],img[src*="data/res/brand/"]{
 .call-incoming .call-avatar{font-size:52px;margin-bottom:10px}
 .call-incoming .call-title{color:#aaa;font-size:.9em;margin-bottom:4px}
 .call-incoming .call-name{color:#e0e0e0;font-size:1.2em;font-weight:600;margin-bottom:18px}
+.call-stats{color:#7f8fa8;font-size:.7em;margin-top:6px;font-variant-numeric:tabular-nums}
 .call-btn{border-radius:0;padding:10px 22px;font-size:.9em}
 .call-decline{background:#4a2020;border-color:#6a2a2a;color:#e06060}
 .call-answer{background:#1e4a2a;border-color:#2a6a3a;color:#8e8}
-#callOverlay{position:fixed;inset:0;z-index:1200;background:#111;display:none;flex-direction:column;align-items:center;justify-content:center}
-.call-video-wrap{position:relative;width:100%;height:100%}
+#callOverlay{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(92vw,720px);height:min(80vh,560px);min-width:320px;min-height:240px;z-index:9997;background:#111;display:none;flex-direction:column;border:1px solid #444;border-radius:8px;box-shadow:0 12px 40px rgba(0,0,0,.6);overflow:hidden;resize:both}
+#callOverlay .call-top{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(20,22,30,.95);z-index:6;flex:0 0 auto;user-select:none;cursor:move}
+#callOverlay .call-top-title{color:#fff;font-size:.9em;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#callOverlay .call-min-btn{min-width:26px;padding:2px 6px;font-size:.9em;line-height:1}
+.call-video-wrap{position:relative;flex:1;min-height:0}
 #callRemoteVideo{width:100%;height:100%;object-fit:contain;background:#000}
-#callLocalVideo{position:absolute;right:16px;bottom:96px;width:220px;border:1px solid #444;border-radius:8px;background:#000}
-.call-audio-wrap{text-align:center;color:#e0e0e0}
+#callLocalVideo{position:absolute;right:12px;bottom:76px;width:180px;border:1px solid #444;border-radius:8px;background:#000;z-index:3}
+.call-audio-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#e0e0e0;min-height:0;padding:16px}
 .call-audio-wrap .call-avatar.big{font-size:72px;margin-bottom:14px}
 .call-audio-wrap .call-name{font-size:1.4em;font-weight:600;margin-bottom:6px}
 .call-dur{font-size:2em;color:#aaa;margin:8px 0}
 .call-status{color:#888;font-size:.9em;margin-bottom:20px}
-.call-controls{position:absolute;bottom:24px;display:flex;gap:14px;z-index:5}
+.call-controls{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:14px;z-index:5}
 .call-controls .bsm{padding:12px 26px;font-size:1em}
-.call-waves{position:absolute;left:50%;transform:translateX(-50%);bottom:86px;width:min(560px,82vw);display:flex;flex-direction:column;gap:6px;padding:10px 14px;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.12);border-radius:10px;z-index:4;opacity:0;transition:opacity .25s;pointer-events:none}
+.call-waves{position:absolute;left:50%;transform:translateX(-50%);bottom:78px;width:min(560px,86%);display:flex;flex-direction:column;gap:6px;padding:10px 14px;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.12);border-radius:10px;z-index:4;opacity:0;transition:opacity .25s;pointer-events:none}
 .call-waves.on{opacity:1}
 .call-wave-row{display:flex;align-items:center;gap:10px}
 .call-wave-label{flex:none;width:36px;text-align:right;font-size:.75em;color:#8ab8d8}
 .call-wave{flex:1;width:100%;height:48px;background:rgba(0,0,0,.3);border-radius:6px}
 .call-hangup{background:#7a2020;border-color:#a03a3a;color:#fff}
 #callMuteBtn.muted{background:#7a7a20;border-color:#a0a03a;color:#fff}
+/* 通话最小化后的悬浮条 */
+#callMinimized{position:fixed;right:16px;bottom:16px;z-index:10002;display:none;align-items:center;gap:10px;background:#1c1e26;border:1px solid #444;border-radius:8px;padding:8px 12px;color:#ccc;font-size:.8em;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+#callMinimized .call-min-title{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#callMinimized .call-min-hangup{background:#7a2020;border-color:#a03a3a;color:#fff;padding:4px 10px;font-size:.78em}
 /* 语音消息：录音按钮 + 录音条 */
 #dmMicBtn.recording{background:#7a2020;border-color:#a03a3a;color:#fff;animation:micPulse 1s infinite}
 @keyframes micPulse{0%,100%{box-shadow:0 0 0 0 rgba(224,64,64,.5)}50%{box-shadow:0 0 0 6px rgba(224,64,64,0)}}
@@ -491,6 +501,24 @@ img[src*="data/res/svg/"],img[src*="data/res/cil/"],img[src*="data/res/brand/"]{
 .pes-stats{color:#888;font-size:.76em;margin-right:16px;font-weight:normal}
 
 .msg-fwd{color:#c0a020}
+/* ---- 消息多选（QQ 式转发/汇出） ---- */
+#msgSelectBar{position:fixed;top:0;left:0;right:0;z-index:2100;background:rgba(30,32,40,.96);border-bottom:1px solid #444;display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 12px;color:#ccc;font-size:.85em;box-shadow:0 2px 10px rgba(0,0,0,.4)}
+#msgSelectBar .msel-count{color:#8fb6d9;font-weight:600;margin-right:6px;min-width:80px;text-align:center}
+#msgSelectBar button:disabled{opacity:.4;cursor:not-allowed}
+.mr.msg-selected .mb{background:#4a4a4a !important;border-color:#5a5a5a !important}
+/* ---- 聊天记录卡片（QQ 式） ---- */
+.chatlog-card{background:#262626;border:1px solid #3a3a3a;border-radius:10px;max-width:320px;overflow:hidden;margin-top:4px;cursor:pointer}
+.chatlog-card:hover{border-color:#4a6a8a}
+.chatlog-card .cl-head{background:#2e2e2e;padding:8px 12px;font-size:.8em;color:#ccc;border-bottom:1px solid #3a3a3a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chatlog-card .cl-body{padding:8px 12px;max-height:200px;overflow-y:auto}
+.chatlog-card .cl-line{font-size:.78em;color:#bbb;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.chatlog-card .cl-line .cl-name{color:#6a9fd8}
+.chatlog-card .cl-foot{background:#2e2e2e;padding:6px 12px;font-size:.72em;color:#888;text-align:center;border-top:1px solid #3a3a3a}
+/* ---- 聊天记录详情弹层（点卡片打开） ---- */
+#chatlogModal .cl-detail-line{padding:9px 12px;border-bottom:1px solid #2e2e2e}
+#chatlogModal .cl-d-name{color:#6a9fd8;font-size:.78em;font-weight:600}
+#chatlogModal .cl-d-time{color:#666;font-size:.68em;margin-left:8px}
+#chatlogModal .cl-d-text{color:#ddd;font-size:.85em;line-height:1.5;white-space:pre-wrap;word-break:break-word;margin-top:2px}
 .fwd-list{max-height:300px;overflow-y:auto;text-align:left;margin-bottom:12px}
 .fwd-item{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid #333;cursor:pointer}
 .fwd-item:hover{background:#2f2f2f}
@@ -582,11 +610,19 @@ img[src*="data/res/svg/"],img[src*="data/res/cil/"],img[src*="data/res/brand/"]{
 
 /* ---- 独立屏幕共享（不走通话）：全屏显示窗口 + 邀请弹窗 ---- */
 #shareOverlay{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(92vw,880px);height:min(78vh,560px);min-width:320px;min-height:220px;z-index:9998;display:none;flex-direction:column;background:#000;border:1px solid #444;border-radius:8px;box-shadow:0 12px 40px rgba(0,0,0,.6);overflow:hidden;resize:both}
-#shareOverlay .share-top{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(20,22,30,.95);z-index:2;flex:0 0 auto;user-select:none}
+#shareOverlay .share-top{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(20,22,30,.95);z-index:2;flex:0 0 auto;user-select:none;cursor:move}
 #shareOverlay .share-title{color:#fff;font-size:.9em;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #shareOverlay .share-wait{flex:1;display:flex;align-items:center;justify-content:center;color:#9ab8d8;font-size:.9em;padding:20px;text-align:center}
+#shareOverlay .share-min-btn{min-width:26px;padding:2px 6px;font-size:.9em;line-height:1}
+#shareOverlay .share-audio-btn{min-width:26px;padding:2px 8px;font-size:.75em;line-height:1}
+#shareOverlay .share-audio-btn.off{background:#5a4a2a;border-color:#7a6a3a}
 #shareVideo{width:100%;flex:1;min-height:0;object-fit:contain;background:#000}
+/* 共享最小化后的悬浮条 */
+#shareMinimized{position:fixed;right:16px;bottom:16px;z-index:10001;display:none;align-items:center;gap:10px;background:#1c1e26;border:1px solid #444;border-radius:8px;padding:8px 12px;color:#ccc;font-size:.8em;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+#shareMinimized .share-min-title{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media (max-width:768px){
+  /* 桌面端输入栏的表情按钮：手机端收进 9 点菜单 */
+  #dmEmojiBtn{display:none !important}
   /* 手机端表情选择器：停靠在输入栏下面的底部面板（把聊天/输入栏抬上去） */
   #emojiPopup{left:0 !important;right:0 !important;width:100% !important;top:auto !important;bottom:0 !important;height:44vh;max-height:44vh;border-radius:12px 12px 0 0;border-left:none;border-right:none;border-bottom:none}
   #emojiPopup .emoji-grid{grid-template-columns:repeat(8,minmax(0,1fr));max-height:none;flex:1}

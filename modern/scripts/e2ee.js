@@ -510,9 +510,14 @@
                 var hex = '';
                 for (var i = 0; i < h.length; i++) hex += h[i].toString(16).padStart(2, '0');
                 var digits = (BigInt('0x' + hex) % (10n ** 60n)).toString().padStart(60, '0');
-                var parts = [];
-                for (var j = 0; j < 12; j++) parts.push(digits.substr(j * 5, 5));
-                return parts.join(' ');
+                // 20 位一行（每行 4 组 × 5 位），共 3 行
+                var lines = [];
+                for (var j = 0; j < 60; j += 20) {
+                    var line = [];
+                    for (var k = 0; k < 20; k += 5) line.push(digits.substr(j + k, 5));
+                    lines.push(line.join(' '));
+                }
+                return lines.join('\n');
             });
         });
     }

@@ -3,6 +3,39 @@
  * ChatApp - Configuration
  */
 
+// ---- 全局 PHP 错误处理：任何致命/语法错误 → 显示友好 500 页，不暴露原始错误 ----
+if (!defined('CHATAPP_ERR_HANDLER')) {
+    define('CHATAPP_ERR_HANDLER', 1);
+    @ini_set('display_errors', '0');
+    @ini_set('log_errors', '1');
+    register_shutdown_function(function () {
+        $e = error_get_last();
+        if (!$e) return;
+        static $fatalTypes = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR, E_RECOVERABLE_ERROR];
+        if (!in_array($e['type'], $fatalTypes, true)) return;
+        // 清空已输出的内容，防止半渲染页面 / 原始错误泄漏
+        while (ob_get_level() > 0) { @ob_end_clean(); }
+        @http_response_code(500);
+        // 记录日志（尽力而为；config 中途出错时 chatapp_log 可能未定义）
+        try {
+            if (function_exists('chatapp_log')) {
+                $f = (string)($e['file'] ?? '');
+                $m = (string)($e['message'] ?? '');
+                if (function_exists('mb_substr')) { $f = mb_substr($f, 0, 500); $m = mb_substr($m, 0, 1000); }
+                chatapp_log('security_logs', [
+                    'event_type' => 'php_fatal',
+                    'target_path' => $f,
+                    'details' => 'line:' . (int)($e['line'] ?? 0) . ' ' . $m,
+                ]);
+            }
+        } catch (\Throwable $x) {}
+        // 输出友好 500 页（自包含，零依赖）
+        $f500 = __DIR__ . '/../errors/500.php';
+        if (is_file($f500)) { @include $f500; }
+        else { echo '<h1 style="font-family:sans-serif;color:#eee;background:#1a1a1a;padding:40px;text-align:center">500 Internal Server Error</h1>'; }
+    });
+}
+
 // ---- mbstring 兜底 ----
 // 极简 / 容器 PHP 可能未安装 mbstring 扩展，而本应用大量使用 mb_* 函数。
 // 若缺失则提供 UTF-8 安全的降级实现，避免「Call to undefined function」500。

@@ -99,6 +99,7 @@ $roleLabels = ['owner' => t('g_role_owner'), 'admin' => t('g_role_admin'), 'memb
     <div class="section-divider"></div>
     <div class="g-actions">
       <div class="g-action" onclick="document.getElementById('gAvatarInput').click()"><span><?php echo t('g_upload_avatar');?></span><span class="arrow">›</span></div>
+      <div class="g-action" onclick="inviteMember()"><span><?php echo t('g_invite');?></span><span class="arrow">›</span></div>
       <?php if($isOwner):?>
       <div class="g-action" onclick="renameGroup()"><span><?php echo t('g_rename');?></span><span class="arrow">›</span></div>
       <?php endif;?>
@@ -271,6 +272,26 @@ function onGAvatarChange(input) {
     reader.readAsDataURL(f);
 }
 
+function inviteMember() {
+    var v = prompt(<?php echo json_encode(t('g_invite_prompt'));?> + ':');
+    if (v === null) return;
+    v = v.trim();
+    if (!v) return;
+    groupApi('invite', { username: v }).then(function(d) {
+        if (d.success) { showToast(<?php echo json_encode(t('g_invite_done'));?>); setTimeout(function() { location.reload(); }, 600); }
+        else showErr(inviteErrText(d.error) || d.error || GI_FAIL);
+    });
+}
+function inviteErrText(code) {
+    var map = {
+        'Forbidden': <?php echo json_encode(t('g_invite_forbidden'));?>,
+        'User not found': <?php echo json_encode(t('g_invite_not_found'));?>,
+        'Already a member': <?php echo json_encode(t('g_invite_already'));?>,
+        'Placeholder user': <?php echo json_encode(t('g_invite_placeholder'));?>,
+        'Empty username': <?php echo json_encode(t('g_invite_empty'));?>
+    };
+    return map[code] || '';
+}
 function renameGroup() {
     var v = prompt(<?php echo json_encode(t('g_rename_prompt'));?> + ':', GCUR_NAME);
     if (v === null) return;

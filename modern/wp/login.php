@@ -179,6 +179,16 @@ $bgWallpaper = (int)$_SESSION['wallpaper'];
         .form-group input:focus {
             border-color: #888;
         }
+        /* 浏览器自动填充会盖一层黄色：用同色内阴影遮住 + 保持文字/光标颜色（毛玻璃质感不破） */
+        .form-group input:-webkit-autofill,
+        .form-group input:-webkit-autofill:hover,
+        .form-group input:-webkit-autofill:focus {
+            -webkit-box-shadow: 0 0 0 1000px #1e1e1e inset;
+            box-shadow: 0 0 0 1000px #1e1e1e inset;
+            -webkit-text-fill-color: #e0e0e0;
+            caret-color: #e0e0e0;
+            transition: background-color 9999s ease-out 0s;
+        }
         .form-group select {
             width: 100%;
             padding: 11px 14px;
