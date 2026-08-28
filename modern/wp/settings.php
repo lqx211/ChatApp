@@ -108,6 +108,10 @@ $avatar      = chatapp_avatar_url($u['avatar'] ?? '', $u['username'] ?? '');
     <span class="row-label set-danger-text">Upgrade System</span>
     <span class="row-arrow">›</span>
   </div>
+  <div class="set-row" data-search="危险 降级 回退 downgrade" onclick="navTo('settings-downgrade.php')">
+    <span class="row-label set-danger-text">Downgrade System</span>
+    <span class="row-arrow">›</span>
+  </div>
 
   <!-- 退出当前账号（红色） -->
   <button class="set-logout" data-search="退出 注销 登出" onclick="doLogout()"><?php echo t('btn_log_out', 'Log out');?></button>
