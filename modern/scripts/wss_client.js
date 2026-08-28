@@ -3,7 +3,7 @@
  *
  * 功能:
  *   1. 从 api/ws_token.php 获取一次性 token
- *   2. 建立 wss 连接（WSS_URL 由 chat.php 注入）
+ *   2. 建立 wss 连接（WSS_URLS = {local,private,public} 由 chat.php 注入，前端按访问来源自动选择）
  *   3. 60s 心跳 + 游标上报（l/glast/groups）
  *   4. 接收服务端推送:
  *      - msg       → 公告/私聊消息渲染
@@ -278,10 +278,24 @@
         wslog('Reconnecting in ' + delay + 'ms (next delay will be ' + reconnectDelay + 'ms)');
     }
 
+    // 根据当前访问来源自动选择通讯模式（与 chat.js wssDetectMode 一致）
+    function wssTargetUrl() {
+        var map = window.WSS_URLS || {};
+        var h = String(location.hostname || '').toLowerCase();
+        var mode = 'public';
+        if (h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '[::1]') mode = 'local';
+        else if (/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(h)) mode = 'private';
+        var u = map[mode];
+        if (u) return u;
+        // 该模式未配置 → 回退到其他已配置模式
+        return map.public || map.local || map.private || '';
+    }
+
     function connect() {
         if (WS_STATE === 'connecting' || WS_STATE === 'open') return;
         if (!window.WebSocket) { wslog('failed: 浏览器不支持 WebSocket'); return; }
-        if (!window.WSS_URL) { wslog('failed: 无 WSS_URL'); return; }
+        var WSS_URL = wssTargetUrl();
+        if (!WSS_URL) { wslog('failed: 无 WSS_URL'); return; }
         _connectAttempts++;
         WS_STATE = 'connecting';
         wslog('Connecting... (attempt #' + _connectAttempts + ') → ' + WSS_URL);
@@ -335,7 +349,7 @@
 
     /* ---------------- 对外入口 ---------------- */
     window.wssInit = function() {
-        if (!window.WebSocket || !window.WSS_URL) return;
+        if (!window.WebSocket || !wssTargetUrl()) return;
         // 等 initialLoad 完成（L 游标就绪）再连接，3s 兜底
         setTimeout(function() {
             connect();

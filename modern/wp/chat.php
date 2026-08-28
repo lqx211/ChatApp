@@ -7,30 +7,23 @@ $isAdmin = chatapp_has_permission($currentUser['user_id'] ?? 0, 'users.view');
 $isRoot = chatapp_get_role((int)($currentUser['user_id'] ?? 0)) === 'root';
 $customTitle = $currentUser['custom_title'] ?? '';
 
-// WebSocket 地址：优先用 root 在「WebSocket Settings」配置的值（config/wss_server.php），
-// 留空则按访问 Host 自动推断（localhost 直连 9090 / 公网走 Tunnel）。
-$__wssCfg = __DIR__ . '/../../config/wss_server.php';
-$wssUrl = '';
-if (is_file($__wssCfg)) {
-    $__wssVal = trim((string)@include $__wssCfg);
-    if ($__wssVal !== '') {
-        if (strpos($__wssVal, '://') !== false) {
-            $wssUrl = $__wssVal;                                    // 已带 scheme，原样使用
-        } elseif (preg_match('/^[a-zA-Z0-9.\-\[\]:]+:\d+$/', $__wssVal)) {
-            $wssUrl = 'ws://' . $__wssVal;                          // host:port → 本地/私网 ws
-        } else {
-            $wssUrl = 'wss://' . $__wssVal;                         // 裸域名（如 wss.lqx211.com）→ 公网 TLS wss
-        }
-    }
-}
-if ($wssUrl === '') {
+// WebSocket 通讯模式：本地/私网/公网 三个地址（config/wss_server.php，root 可改）。
+// 前端根据当前访问来源自动选择对应地址（见 wss_client.js 的 wssTargetUrl）。
+$__wssCfg = chatapp_wss_config();
+$__wssUrls = [
+    'local'   => chatapp_wss_url($__wssCfg['local']),
+    'private' => chatapp_wss_url($__wssCfg['private']),
+    'public'  => chatapp_wss_url($__wssCfg['public']),
+];
+// 全空兜底：按访问 Host 自动推断（localhost 直连 9090 / 其余走公网 Tunnel）。
+if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['public'] === '') {
     $__host = $_SERVER['HTTP_HOST'] ?? '';
     // HTTP_HOST 可能带端口（如 localhost:8080），去掉端口再拼 ws 地址，避免 ws://host:8080:9090 这种错误
     $__hostNoPort = preg_replace('/:\d+$/', '', $__host);
     if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !== false) {
-        $wssUrl = 'ws://' . $__hostNoPort . ':9090';
+        $__wssUrls['local'] = 'ws://' . $__hostNoPort . ':9090';
     } else {
-        $wssUrl = 'wss://wss.lqx211.com';
+        $__wssUrls['public'] = 'wss://wss.lqx211.com';
     }
 }
 ?><!DOCTYPE html>
@@ -352,15 +345,15 @@ if ($wssUrl === '') {
  <div class="panel" id="panel-wssettings">
   <div class="ch"><h2>WebSocket Settings</h2><span style="color:#e0a040;font-size:.75em;margin-left:12px">Root Only</span></div>
   <div style="padding:12px">
-   <div style="font-size:.75em;color:#888;margin-bottom:10px">前端连接 WebSocket 服务器的地址。点下面的通讯模式一键切换，或手动输入 host:port / ws:// / wss:// URL。保存后新连接立即生效。</div>
-   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-    <button type="button" class="bsm wss-opt" data-wss="127.0.0.1:9090" onclick="setWssOption(this)" title="本地回环 127.0.0.1 / ::1">🖥 本地通讯 <span style="opacity:.75">127.0.0.1</span></button>
-    <button type="button" class="bsm wss-opt" data-wss="0.0.0.0:9090" onclick="setWssOption(this)" title="私网 / 局域网监听 0.0.0.0">🏠 私网通讯 <span style="opacity:.75">0.0.0.0</span></button>
-    <button type="button" class="bsm wss-opt" data-wss="wss://wss.lqx211.com" onclick="setWssOption(this)" title="公网 TLS wss://wss.lqx211.com">🌐 公网通讯 <span style="opacity:.75">wss.lqx211.com</span></button>
+   <div style="font-size:.75em;color:#888;margin-bottom:10px">三个通讯模式分别填地址（host:port 或完整 ws:// / wss:// URL）。前端按当前访问来源自动选择：localhost 走「本地」，私网 IP 走「私网」，公网域名走「公网」。留空 = 该模式不启用。</div>
+   <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px">
+    <div style="display:flex;gap:8px;align-items:center"><span style="width:64px;font-size:.78em;color:#ccc">🖥 本地</span><input type="text" id="wssLocalInput" style="flex:1;padding:8px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:monospace;font-size:.85em" placeholder="127.0.0.1:9090"></div>
+    <div style="display:flex;gap:8px;align-items:center"><span style="width:64px;font-size:.78em;color:#ccc">🏠 私网</span><input type="text" id="wssPrivateInput" style="flex:1;padding:8px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:monospace;font-size:.85em" placeholder="0.0.0.0:9090"></div>
+    <div style="display:flex;gap:8px;align-items:center"><span style="width:64px;font-size:.78em;color:#ccc">🌐 公网</span><input type="text" id="wssPublicInput" style="flex:1;padding:8px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:monospace;font-size:.85em" placeholder="wss://wss.lqx211.com"></div>
    </div>
    <div style="display:flex;gap:8px;align-items:center">
-    <input type="text" id="wssServerInput" style="flex:1;padding:8px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:monospace;font-size:.85em" placeholder="127.0.0.1:9090 或 wss://wss.lqx211.com">
     <button type="button" class="bsm" onclick="saveWssSettings()" style="background:#2a4a2a;border-color:#3a6a3a">保存</button>
+    <span style="font-size:.72em;color:#aaa" id="wssActiveMode"></span>
    </div>
    <div style="margin-top:6px;font-size:.72em;color:#aaa" id="wssSaveStatus"></div>
   </div>
@@ -604,7 +597,7 @@ var EMOJI_PANEL='<?php echo $currentUser['emoji_panel_mode'] ?? 'dynamic';?>';
 var EMOJI_CHAT='<?php echo $currentUser['emoji_chat_mode'] ?? 'dynamic';?>';
 var MYLV=<?php echo (int)($currentUser['level'] ?? 1);?>;
 var MYEXP=<?php echo (int)($currentUser['exp'] ?? 0);?>;
-var WSS_URL=<?php echo json_encode($wssUrl);?>;
+var WSS_URLS=<?php echo json_encode($__wssUrls);?>;
 // 服务器数据库本地时区偏移（PHP date_default_timezone_set 决定，如 +08:00）
 // fmtTime/relTime 用它把 "YYYY-MM-DD HH:MM:SS" 字符串精确换算成时间戳
 var SERVER_TZ='<?php echo date('P');?>';

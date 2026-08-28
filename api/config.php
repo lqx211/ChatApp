@@ -236,6 +236,37 @@ function chatapp_group_avatar_url(?string $avatar, int $groupId): string {
 /**
  * Detect phone/tablet user agents (used to serve the QQ-style mobile UI).
  */
+/**
+ * WebSocket 通讯模式配置（3 字段：本地/私网/公网）。
+ * 读取 config/wss_server.php（root 在「WebSocket Settings」维护）。
+ * 兼容旧版单值字符串：视为公网地址，本地/私网给默认值。
+ */
+function chatapp_wss_config(): array {
+    $file = __DIR__ . '/../config/wss_server.php';
+    $raw = '';
+    if (is_file($file)) { $raw = @include $file; }
+    $cfg = ['local' => '', 'private' => '', 'public' => ''];
+    if (is_array($raw)) {
+        foreach (array_keys($cfg) as $k) {
+            $cfg[$k] = trim((string)($raw[$k] ?? ''));
+        }
+    } elseif (is_string($raw) && trim((string)$raw) !== '') {
+        $cfg['public'] = trim((string)$raw);
+        $cfg['local'] = '127.0.0.1:9090';
+        $cfg['private'] = '0.0.0.0:9090';
+    }
+    return $cfg;
+}
+
+/** 把配置值归一化为完整 ws:// / wss:// URL：host:port → ws://，裸域名 → wss://。 */
+function chatapp_wss_url(?string $v): string {
+    $v = trim((string)$v);
+    if ($v === '') return '';
+    if (strpos($v, '://') !== false) return $v;
+    if (preg_match('/^[a-zA-Z0-9.\-\[\]:]+:\d+$/', $v)) return 'ws://' . $v;
+    return 'wss://' . $v;
+}
+
 function chatapp_is_mobile_ua(): bool {
     $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
     return (bool)preg_match('/iPhone|iPod|iPad|Android|Mobile|Mobi|Opera Mini|IEMobile|Windows Phone/i', $ua);

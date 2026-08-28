@@ -6652,41 +6652,45 @@ function clearDuress() {
 }
 
 // ================= Database admin (root only) =================
+// 判断当前访问来源属于哪种通讯模式（与 wss_client.js 的 wssTargetUrl 一致）
+function wssDetectMode() {
+    var h = String(location.hostname || '').toLowerCase();
+    if (h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '[::1]') return 'local';
+    if (/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(h)) return 'private';
+    return 'public';
+}
 function loadWssSettings() {
     fetch('../../api/admin.php?action=wss_get').then(function(r) { return r.json(); }).then(function(d) {
-        var el = document.getElementById('wssServerInput');
-        if (el && d.success) el.value = d.wss_server || '';
-        highlightWssOption();
+        if (!d.success) return;
+        var ids = { local: 'wssLocalInput', private: 'wssPrivateInput', public: 'wssPublicInput' };
+        for (var k in ids) {
+            var el = document.getElementById(ids[k]);
+            if (el) el.value = d[k] || '';
+        }
+        var mode = wssDetectMode();
+        var am = document.getElementById('wssActiveMode');
+        if (am) am.textContent = '当前检测: ' + ({local:'🖥 本地', private:'🏠 私网', public:'🌐 公网'})[mode] + ' → ' + (d[mode] || '(未配置)');
     }).catch(function() {});
 }
-// 一键切换通讯模式（本地/私网/公网）
-function setWssOption(btn) {
-    var el = document.getElementById('wssServerInput');
-    if (el && btn) el.value = btn.getAttribute('data-wss') || '';
-    saveWssSettings();
-    highlightWssOption();
-}
-// 根据当前值高亮匹配的模式按钮
-function highlightWssOption() {
-    var el = document.getElementById('wssServerInput');
-    var v = el ? el.value.trim() : '';
-    var btns = document.querySelectorAll('#panel-wssettings .wss-opt');
-    for (var i = 0; i < btns.length; i++) {
-        btns[i].classList.toggle('active', (btns[i].getAttribute('data-wss') || '') === v);
-    }
-}
 function saveWssSettings() {
-    var el = document.getElementById('wssServerInput');
-    var v = (el ? el.value : '').trim();
+    var ids = { local: 'wssLocalInput', private: 'wssPrivateInput', public: 'wssPublicInput' };
     var f = new URLSearchParams();
     f.append('action', 'wss_set');
-    f.append('wss_server', v);
+    for (var k in ids) {
+        var el = document.getElementById(ids[k]);
+        f.append(k, (el ? el.value : '').trim());
+    }
     fetch('../../api/admin.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
     .then(function(r) { return r.json(); }).then(function(d) {
         var st = document.getElementById('wssSaveStatus');
         if (!st) return;
-        if (d.success) { st.textContent = '✓ Saved — new clients connect to ' + (d.wss_server || '(auto)'); st.style.color = '#7ddb9a'; }
-        else { st.textContent = d.error || 'Failed'; st.style.color = '#ff8a8a'; }
+        if (d.success) {
+            st.textContent = '✓ Saved — 前端按来源自动选择 local/private/public';
+            st.style.color = '#7ddb9a';
+            var mode = wssDetectMode();
+            var am = document.getElementById('wssActiveMode');
+            if (am) am.textContent = '当前检测: ' + ({local:'🖥 本地', private:'🏠 私网', public:'🌐 公网'})[mode] + ' → ' + (d[mode] || '(未配置)');
+        } else { st.textContent = d.error || 'Failed'; st.style.color = '#ff8a8a'; }
     }).catch(function() {});
 }
 

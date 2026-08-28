@@ -105,7 +105,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .fg input[type="password"],.fg input[type="text"]{width:100%;max-width:300px;padding:8px 12px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-size:.85em;font-family:inherit;outline:none}
 .bsm{background:#3a3a3a;border:1px solid #555;color:#ccc;padding:5px 12px;cursor:pointer;font-size:.78em;font-family:inherit;text-decoration:none}
 .bsm:hover{background:#4a4a4a}
-.bsm.wss-opt.active{background:#2a4a6a;border-color:#3a6a9a;color:#fff}
 .bsm.danger{background:#4a2020;border-color:#5c2a2a}
 .bsm.danger:hover{background:#5a2a2a}
 /* 黑色 SVG 图标反白：data/res/svg 图标库默认为黑色，本站为深色主题，强制转白。
