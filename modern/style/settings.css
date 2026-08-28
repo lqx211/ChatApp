@@ -9,18 +9,28 @@
   padding: 10px 16px 4px;
 }
 .set-search-inner {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #232733;
-  border: 1px solid #333a4a;
-  border-radius: 10px;
-  padding: 9px 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #555;
+  border-radius: 0;
+  padding: 9px 2px;
   color: #8b93a1;
 }
-.set-search-inner:focus-within {
-  border-color: #4c8dff;
+.set-search-inner::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 2px;
+  background: #4c8dff;
+  transform: scaleX(0);
+  transition: transform .28s cubic-bezier(.4,0,.2,1);
+  transform-origin: left;
 }
+.set-search-inner:focus-within::after { transform: scaleX(1); }
 .set-search-ico {
   flex-shrink: 0;
 }
@@ -471,6 +481,7 @@
   padding: 4px 0 10px;
 }
 .set-field {
+  position: relative;
   padding: 12px 16px 2px;
 }
 .set-field label {
@@ -481,17 +492,61 @@
 }
 .set-field input {
   width: 100%;
-  padding: 12px 14px;
-  background: #14161d;
-  border: 1px solid #2c3240;
-  border-radius: 10px;
+  padding: 9px 2px 7px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #555;
+  border-radius: 0;
   color: #e0e3ea;
   font-size: 15px;
   font-family: inherit;
   outline: none;
 }
-.set-field input:focus {
-  border-color: #4c8dff;
+.set-field input::placeholder { color: #5a6270; opacity: 1; }
+.set-field::after {
+  content: '';
+  position: absolute;
+  left: 16px; right: 16px; bottom: 0;
+  height: 2px;
+  background: #4c8dff;
+  transform: scaleX(0);
+  transition: transform .28s cubic-bezier(.4,0,.2,1);
+  transform-origin: left;
+}
+.set-field:focus-within::after { transform: scaleX(1); }
+/* OOBE 风格通用下划线（wrapper 版，用于非 .set-field 的个别输入） */
+.uinput { position: relative; }
+.uinput input {
+  width: 100%; padding: 9px 2px 7px; background: transparent; border: none;
+  border-bottom: 1px solid #555; border-radius: 0; color: #e0e3ea;
+  font-size: 15px; font-family: inherit; outline: none;
+}
+.uinput input::placeholder { color: #5a6270; opacity: 1; }
+.uinput::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+  background: #4c8dff; transform: scaleX(0);
+  transition: transform .28s cubic-bezier(.4,0,.2,1); transform-origin: left;
+}
+.uinput:focus-within::after { transform: scaleX(1); }
+/* 兜底：任何漏网的单行文本输入也改为下划线 */
+input[type="text"],
+input[type="password"],
+input[type="number"],
+input[type="search"],
+input[type="email"] {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid #555 !important;
+  border-radius: 0 !important;
+  padding-left: 2px !important;
+  padding-right: 2px !important;
+}
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="number"]:focus,
+input[type="search"]:focus,
+input[type="email"]:focus {
+  border-bottom-color: #4c8dff !important;
 }
 .set-check-row {
   display: flex;

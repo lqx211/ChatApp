@@ -28,7 +28,7 @@ try {
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
 <title>Upgrade System</title>
 <link rel="stylesheet" href="/plan/editinfo.css?v=20260809">
-<link rel="stylesheet" href="/modern/style/settings.css?v=20260810">
+<link rel="stylesheet" href="/modern/style/settings.css?v=20260828">
 <style>
   .up-title{color:#6fa8dc;font-size:1.05em;font-weight:700;margin:14px 0 6px;text-align:center}
   .up-status{background:#1e1e1e;border:1px solid #333;border-radius:10px;padding:12px;margin:10px 4px;font-size:.78em}

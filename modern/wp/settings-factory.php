@@ -27,7 +27,7 @@ try {
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
 <title>Factory Reset</title>
 <link rel="stylesheet" href="/plan/editinfo.css?v=20260809">
-<link rel="stylesheet" href="/modern/style/settings.css?v=20260810">
+<link rel="stylesheet" href="/modern/style/settings.css?v=20260828">
 <style>
   .fr-title{color:#ff6b6b;font-size:1.05em;font-weight:700;margin:14px 0 6px;text-align:center}
   .fr-desc{color:#bbb;font-size:.76em;line-height:1.6;margin:0 4px 8px;word-break:break-word}

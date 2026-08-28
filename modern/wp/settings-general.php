@@ -41,7 +41,7 @@ $tzPresetNames = [
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
 <title><?php echo t('set_general');?></title>
 <link rel="stylesheet" href="/plan/editinfo.css?v=20260809">
-<link rel="stylesheet" href="/modern/style/settings.css?v=20260810">
+<link rel="stylesheet" href="/modern/style/settings.css?v=20260828">
 </head>
 <body>
 
@@ -131,7 +131,7 @@ $tzPresetNames = [
 <div class="set-dialog" id="titleDialog">
   <h3><?php echo t('set_custom_title', 'Custom Title');?></h3>
   <p><?php echo t('msg_custom_title_hint', 'Shown at the top of the chat page, up to 100 characters.');?></p>
-  <input type="text" id="titleInput" maxlength="100" placeholder="<?php echo t('label_custom_title_placeholder', 'Enter custom title name');?>" value="<?php echo $customTitle;?>">
+  <div class="uinput"><input type="text" id="titleInput" maxlength="100" placeholder="<?php echo t('label_custom_title_placeholder', 'Enter custom title name');?>" value="<?php echo $customTitle;?>"></div>
   <div class="set-dialog-actions">
     <button class="cancel" onclick="closeTitleDialog()"><?php echo t('btn_cancel', 'Cancel');?></button>
     <button class="ok" onclick="saveTitle()"><?php echo t('btn_save', 'Save');?></button>

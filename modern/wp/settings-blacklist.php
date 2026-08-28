@@ -9,7 +9,7 @@ chatapp_require_login();
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
 <title><?php echo t('set_blacklist');?></title>
 <link rel="stylesheet" href="/plan/editinfo.css?v=20260809">
-<link rel="stylesheet" href="/modern/style/settings.css?v=20260810">
+<link rel="stylesheet" href="/modern/style/settings.css?v=20260828">
 </head>
 <body>
 
@@ -25,7 +25,7 @@ chatapp_require_login();
 
   <div class="set-group"><?php echo t('set_blacklist_add', 'Add to block list');?></div>
   <div class="set-block" style="display:flex;gap:8px;padding:12px 16px">
-    <input type="number" id="blockUid" placeholder="<?php echo t('set_blacklist_uid', 'Enter user UID');?>" style="flex:1;padding:10px 12px;background:#14161d;border:1px solid #2c3240;border-radius:10px;color:#e0e3ea;font-size:14px;font-family:inherit;outline:none">
+    <div class="uinput" style="flex:1;min-width:0"><input type="number" id="blockUid" placeholder="<?php echo t('set_blacklist_uid', 'Enter user UID');?>"></div>
     <button class="set-btn" style="width:auto;margin:0;padding:10px 16px" onclick="addBlock()"><?php echo t('set_blacklist_add_btn', 'Add');?></button>
   </div>
 
