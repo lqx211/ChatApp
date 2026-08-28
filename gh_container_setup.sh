@@ -202,6 +202,14 @@ else
     echo "  → maintenance/config.php already exists — skipping"
 fi
 
+# 同步到部署目录：运行时 Apache 从 /var/www/html 读取 maintenance/config.php
+# （上面的 cp -R 在生成之前已执行，必须在此补一次部署同步，否则全新容器里该文件缺失）
+if [ -f maintenance/config.php ]; then
+    sudo cp maintenance/config.php /var/www/html/maintenance/config.php
+    sudo chown www-data:www-data /var/www/html/maintenance/config.php
+    echo "  → maintenance/config.php synced to /var/www/html"
+fi
+
 # Copy api/config.php as a template if it doesn't exist
 if [ ! -f api/config.example.php ]; then
     cp api/config.php api/config.example.php
