@@ -6,6 +6,17 @@
  */
 require_once __DIR__ . '/../../api/config.php';
 chatapp_require_login();
+
+// 🔒 工厂重置页仅开放给 root(uid 10000) 且已从 settings-factory.php 通过三重验证（armed）的用户；
+// 直接 URL 访问（绕过 settings-factory.php）→ 403。
+$__frSt = db()->prepare('SELECT user_id FROM users WHERE username = ?');
+$__frSt->execute([$_SESSION['username']]);
+$__frUid = (int)($__frSt->fetchColumn() ?: 0);
+if ($__frUid !== 10000 || empty($_SESSION['fr_flow_armed'])) {
+    http_response_code(403);
+    require __DIR__ . '/../../errors/403.php';
+    exit;
+}
 // 与 login.php 共用同一壁纸（会话内保持一致）
 if (empty($_SESSION['wallpaper']) || (int)$_SESSION['wallpaper'] < 1 || (int)$_SESSION['wallpaper'] > 10) {
     $_SESSION['wallpaper'] = rand(1, 10);

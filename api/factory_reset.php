@@ -33,6 +33,10 @@ function fr_set_state(array $st): void {
 function fr_deny() {
     echo json_encode(['success' => false, 'error' => 'Access denied.']); exit;
 }
+/** 是否已从 settings-factory.php 通过三重验证（armed）：仅靠 URL 直开工厂重置流程会被拒 */
+function fr_armed(): bool {
+    return !empty($_SESSION['fr_flow_armed']);
+}
 
 switch ($action) {
 
@@ -65,15 +69,16 @@ switch ($action) {
         if (strtoupper($head) !== $h1) {
             echo json_encode(['success' => false, 'error' => 'Git hash does not match current HEAD.']); exit;
         }
-        // 置维护锁 + state
+        // 置维护锁 + state + armed 会话标记（factory-reset-flow.php 仅凭该标记 + uid10000 开放）
         @file_put_contents($lock, json_encode(['type' => 'factory_reset', 'started' => time(), 'by' => $_SESSION['username']]));
         fr_set_state(['verified' => true, 'started' => time(), 'phase' => 'armed']);
+        $_SESSION['fr_flow_armed'] = true;
         echo json_encode(['success' => true, 'preparing' => true]);
         break;
 
     // ---- 2) 使所有非 root 会话 token 过期 ----
     case 'expire_tokens':
-        if (fr_root_uid() !== 10000) fr_deny();
+        if (fr_root_uid() !== 10000 || !fr_armed()) fr_deny();
         $total = (int)db()->query("SELECT COUNT(*) FROM ws_tokens WHERE user_id != 10000")->fetchColumn();
         $expired = db()->exec("DELETE FROM ws_tokens WHERE user_id != 10000");
         $st = fr_state(); $st['phase'] = 'tokens_expired'; fr_set_state($st);
@@ -82,7 +87,7 @@ switch ($action) {
 
     // ---- 3) 暂存新 admin 凭据（含是否跳过备份）----
     case 'setup_creds':
-        if (fr_root_uid() !== 10000) fr_deny();
+        if (fr_root_uid() !== 10000 || !fr_armed()) fr_deny();
         $u = trim($_POST['username'] ?? '');
         $p = (string)($_POST['password'] ?? '');
         if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $u)) {
@@ -116,7 +121,7 @@ switch ($action) {
 
     // ---- 4) 备份 → DROP → 重建 → 建新 root ----
     case 'rebuild':
-        if (fr_root_uid() !== 10000) fr_deny();
+        if (fr_root_uid() !== 10000 || !fr_armed()) fr_deny();
         $st = fr_state();
         if (empty($st['verified']) || empty($st['new_password'])) {
             echo json_encode(['success' => false, 'error' => 'Flow not fully verified.']); exit;
@@ -186,9 +191,10 @@ switch ($action) {
                 echo json_encode(['success' => false, 'error' => 'Could not write maintenance config.']); exit;
             }
         }
-        // 6) 清锁 + state
+        // 6) 清锁 + state + armed
         @unlink($lock);
         @unlink($stateFile);
+        unset($_SESSION['fr_flow_armed']);
         if (function_exists('chatapp_log_admin')) {
             chatapp_log_admin('factory_reset', null, null, ['backup' => basename($bak), 'new_root' => $u]);
         }
@@ -206,6 +212,7 @@ switch ($action) {
         if (fr_root_uid() !== 10000) fr_deny();
         @unlink($lock);
         @unlink($stateFile);
+        unset($_SESSION['fr_flow_armed']);
         echo json_encode(['success' => true]);
         break;
 }
