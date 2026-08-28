@@ -358,6 +358,19 @@ else
     echo "  ⚠  php-cli unavailable; cannot hash admin password. Seed admin manually."
 fi
 
+# --- 卸载功能：给 www-data 最小 sudoers（systemd 停/禁 chatapp-wss、停 apache、删配置） ---
+sudo tee /etc/sudoers.d/chatapp > /dev/null <<'EOF'
+www-data ALL=(root) NOPASSWD: /usr/bin/systemctl stop chatapp-wss.service
+www-data ALL=(root) NOPASSWD: /usr/bin/systemctl disable chatapp-wss.service
+www-data ALL=(root) NOPASSWD: /usr/bin/systemctl daemon-reload
+www-data ALL=(root) NOPASSWD: /usr/sbin/service apache2 stop
+www-data ALL=(root) NOPASSWD: /bin/rm -f /etc/systemd/system/chatapp-wss.service
+www-data ALL=(root) NOPASSWD: /bin/rm -f /etc/apache2/conf-enabled/chatapp-security.conf
+www-data ALL=(root) NOPASSWD: /bin/rm -f /etc/apache2/conf-available/chatapp-security.conf
+EOF
+sudo chmod 440 /etc/sudoers.d/chatapp
+sudo visudo -c >/dev/null 2>&1 && echo "  → sudoers(chatapp) 已配置：www-data 最小卸载权限" || echo "  ⚠ sudoers 校验失败，请检查 /etc/sudoers.d/chatapp"
+
 # --- WSS systemd 服务：杀掉游离进程，交给 systemd 统一管理 ---
 echo "Setup WSS systemd service."
 # 先清掉所有游离 wss_server.php（避免和 systemd 抢 9090 端口 → EADDRINUSE 无限重启）

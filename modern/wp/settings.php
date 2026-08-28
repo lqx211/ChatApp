@@ -100,6 +100,10 @@ $avatar      = chatapp_avatar_url($u['avatar'] ?? '', $u['username'] ?? '');
     <span class="row-label set-danger-text">Factory Reset</span>
     <span class="row-arrow">›</span>
   </div>
+  <div class="set-row" data-search="危险 卸载 删除 uninstall remove" onclick="navTo('settings-uninstall.php')">
+    <span class="row-label set-danger-text">Uninstall ChatApp</span>
+    <span class="row-arrow">›</span>
+  </div>
   <div class="set-row" data-search="危险 升级 更新 upgrade system" onclick="navTo('settings-upgrade.php')">
     <span class="row-label set-danger-text">Upgrade System</span>
     <span class="row-arrow">›</span>
