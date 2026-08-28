@@ -251,6 +251,21 @@ if [ -n "${ADMIN_USER:-}" ] && [ -n "${ADMIN_PASS:-}" ]; then
 else
     ADMIN_USER_S="${ADMIN_USER:-admin}"
     ADMIN_PASS_S="$(openssl rand -base64 18 | tr -dc 'A-Za-z0-9' | cut -c1-24)"
+    # 交互式：允许在 CLI 直接输入自定义 admin 密码（仅当终端 TTY；直接回车则保留随机密码）
+    if [ -t 0 ] && [ -z "${ADMIN_PASS:-}" ]; then
+        printf "Set your own admin password for '%s' (Enter to keep the random one): " "${ADMIN_USER_S}"
+        read -r _custom_pass || true
+        if [ -n "$_custom_pass" ]; then
+            printf "Confirm password: "
+            read -r _custom_confirm || true
+            if [ -n "$_custom_confirm" ] && [ "$_custom_confirm" = "$_custom_pass" ]; then
+                ADMIN_PASS_S="$_custom_pass"
+                echo "  ✓ Using your custom admin password."
+            else
+                echo "  ⚠  Passwords did not match — keeping the random password."
+            fi
+        fi
+    fi
 fi
 ADMIN_HASH="$(php -r 'echo password_hash($argv[1], PASSWORD_BCRYPT), "\n";' "$ADMIN_PASS_S" 2>/dev/null || true)"
 if [ -n "$ADMIN_HASH" ]; then
