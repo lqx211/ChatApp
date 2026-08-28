@@ -26,13 +26,14 @@ $action = $_POST['action'] ?? $_GET['action'] ?? '';
 switch ($action) {
 
     case 'list':
-        [$log] = dg_git('git log --pretty=format:%H|%s|%ai -n 200', $root);
+        // %x09 = tab 分隔：不能用 |（exec 里会被 shell 当管道符，导致 command not found、列表为空）
+        [$log] = dg_git('git log --pretty=format:%H%x09%s%x09%ai -n 200', $root);
         [$head] = dg_git('git rev-parse HEAD', $root);
         $head = strtolower(trim($head));
         $commits = [];
         foreach (explode("\n", trim($log)) as $line) {
             if ($line === '') continue;
-            $parts = explode('|', $line, 3);
+            $parts = explode("\t", $line, 3);
             if (count($parts) === 3) {
                 $commits[] = [
                     'hash' => $parts[0],
