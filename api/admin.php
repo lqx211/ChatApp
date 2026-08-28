@@ -464,6 +464,32 @@ switch ($action) {
 
     // ================= Database admin (root only) =================
 
+    case 'wss_get':
+        if (chatapp_get_role($myUid) !== 'root') {
+            echo json_encode(['success' => false, 'error' => 'Access denied']); exit;
+        }
+        $wssCfg = __DIR__ . '/../config/wss_server.php';
+        $wssVal = '';
+        if (is_file($wssCfg)) { $wssVal = trim((string)@include $wssCfg); }
+        echo json_encode(['success' => true, 'wss_server' => $wssVal]);
+        break;
+
+    case 'wss_set':
+        if (chatapp_get_role($myUid) !== 'root') {
+            echo json_encode(['success' => false, 'error' => 'Access denied']); exit;
+        }
+        $wssVal = trim($_POST['wss_server'] ?? '');
+        if ($wssVal !== '' && !preg_match('#^(ws://|wss://)?[a-zA-Z0-9.\-\[\]:]+(:\d+)?(/\S*)?$#', $wssVal)) {
+            echo json_encode(['success' => false, 'error' => 'Invalid WebSocket address']); exit;
+        }
+        $wssCfg = __DIR__ . '/../config/wss_server.php';
+        $phpBody = "<?php\n/** ChatApp · WebSocket 服务器地址（可在 WebSocket Settings 修改） */\nreturn " . var_export($wssVal, true) . ";\n";
+        if (@file_put_contents($wssCfg, $phpBody) === false) {
+            echo json_encode(['success' => false, 'error' => 'Write failed (permission?)']); exit;
+        }
+        echo json_encode(['success' => true, 'wss_server' => $wssVal]);
+        break;
+
     case 'db_tables':
         if (chatapp_get_role($myUid) !== 'root') {
             echo json_encode(['success' => false, 'error' => 'Access denied']); exit;

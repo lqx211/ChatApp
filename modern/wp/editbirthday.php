@@ -35,7 +35,7 @@ $displayBirthday = $birthday ? htmlspecialchars($birthday) : '';
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
 <title>选择出生日期</title>
-<link rel="stylesheet" href="../../plan/editinfo.css?v=20260809">
+<link rel="stylesheet" href="/plan/editinfo.css?v=20260809">
 </head>
 <body>
 

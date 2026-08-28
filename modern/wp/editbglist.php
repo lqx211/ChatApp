@@ -75,7 +75,7 @@ if ($friendList) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
 <title><?php echo htmlspecialchars($listLabel);?>配置</title>
-<link rel="stylesheet" href="../../plan/editinfo.css?v=20260809">
+<link rel="stylesheet" href="/plan/editinfo.css?v=20260809">
 <style>
 .uid-list { padding: 0 16px; }
 .uid-item {

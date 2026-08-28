@@ -6,6 +6,19 @@
  */
 require_once __DIR__ . '/../../api/config.php';
 chatapp_require_login();
+
+// 动态读取管理员（uid 10000）显示名，不写死
+$__adminLabel = 'Administrator';
+try {
+    $__s = db()->prepare('SELECT display_name, username FROM users WHERE user_id = 10000');
+    $__s->execute();
+    $__adm = $__s->fetch();
+    if ($__adm) {
+        $__n = trim((string)($__adm['display_name'] ?? ''));
+        if ($__n === '') $__n = trim((string)$__adm['username']);
+        $__adminLabel = $__n;
+    }
+} catch (\Throwable $e) {}
 ?>
 <!DOCTYPE html>
 <html lang="zh">
@@ -13,8 +26,8 @@ chatapp_require_login();
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
 <title>Factory Reset</title>
-<link rel="stylesheet" href="../../plan/editinfo.css?v=20260809">
-<link rel="stylesheet" href="../style/settings.css?v=20260810">
+<link rel="stylesheet" href="/plan/editinfo.css?v=20260809">
+<link rel="stylesheet" href="/modern/style/settings.css?v=20260810">
 <style>
   .fr-title{color:#ff6b6b;font-size:1.05em;font-weight:700;margin:14px 0 6px;text-align:center}
   .fr-desc{color:#bbb;font-size:.76em;line-height:1.6;margin:0 4px 8px;word-break:break-word}
@@ -41,7 +54,7 @@ chatapp_require_login();
   </div>
 
   <p class="fr-desc">This will <b>reset the database</b>, delete <b>all user data</b> and go back to the factory setup.</p>
-  <p class="fr-desc">Please enter the current ChatApp git version in uppercase, the current password of Administrator Jaden😴 (10000) and credentials of Maintenance Portal to perform this operation.</p>
+  <p class="fr-desc">Please enter the current ChatApp git version in uppercase, the current password of Administrator <?php echo htmlspecialchars($__adminLabel); ?> (10000) and credentials of Maintenance Portal to perform this operation.</p>
 
   <div class="set-block">
     <div class="set-field">
@@ -115,7 +128,7 @@ function frRun(){
   f.append('maint_secret', ms);
   f.append('git_hash', h1);
   f.append('git_hash2', h2);
-  fetch('../../api/settings.php', {
+  fetch('/api/settings.php', {
     method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: f.toString()
   }).then(function(r){ return r.json(); })
     .then(function(d){

@@ -7,16 +7,25 @@ $isAdmin = chatapp_has_permission($currentUser['user_id'] ?? 0, 'users.view');
 $isRoot = chatapp_get_role((int)($currentUser['user_id'] ?? 0)) === 'root';
 $customTitle = $currentUser['custom_title'] ?? '';
 
-// 根据访问 Host 决定 WebSocket 地址:
-//   localhost/127.0.0.1 调试 -> 直连本机 9090 (不走 Tunnel)
-//   公网域名               -> 经 Cloudflare Tunnel 走 wss.lqx211.com
-$__host = $_SERVER['HTTP_HOST'] ?? '';
-// HTTP_HOST 可能带端口（如 localhost:8080），去掉端口再拼 ws 地址，避免 ws://host:8080:9090 这种错误
-$__hostNoPort = preg_replace('/:\d+$/', '', $__host);
-if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !== false) {
-    $wssUrl = 'ws://' . $__hostNoPort . ':9090';
-} else {
-    $wssUrl = 'wss://wss.lqx211.com';
+// WebSocket 地址：优先用 root 在「WebSocket Settings」配置的值（config/wss_server.php），
+// 留空则按访问 Host 自动推断（localhost 直连 9090 / 公网走 Tunnel）。
+$__wssCfg = __DIR__ . '/../../config/wss_server.php';
+$wssUrl = '';
+if (is_file($__wssCfg)) {
+    $__wssVal = trim((string)@include $__wssCfg);
+    if ($__wssVal !== '') {
+        $wssUrl = (strpos($__wssVal, '://') !== false) ? $__wssVal : 'ws://' . $__wssVal;
+    }
+}
+if ($wssUrl === '') {
+    $__host = $_SERVER['HTTP_HOST'] ?? '';
+    // HTTP_HOST 可能带端口（如 localhost:8080），去掉端口再拼 ws 地址，避免 ws://host:8080:9090 这种错误
+    $__hostNoPort = preg_replace('/:\d+$/', '', $__host);
+    if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !== false) {
+        $wssUrl = 'ws://' . $__hostNoPort . ':9090';
+    } else {
+        $wssUrl = 'wss://wss.lqx211.com';
+    }
 }
 ?><!DOCTYPE html>
 <html lang="en">
@@ -143,6 +152,7 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
    <?php endif;?>
    <?php if($isRoot):?>
    <div class="ng"><div class="ngh" onclick="switchPanel('dbadmin')" style="cursor:pointer"><span><?php echo t('sb_dbadmin');?></span></div></div>
+   <div class="ng"><div class="ngh" onclick="switchPanel('wssettings');loadWssSettings()" style="cursor:pointer"><span>WebSocket Settings</span></div></div>
    <?php endif;?>
    <div class="ng"><div class="ngh" onclick="switchPanel('level')" style="cursor:pointer"><span><?php echo t('title_level');?></span></div></div>
    <div class="ng"><div class="ngh" onclick="openSettings()" style="cursor:pointer"><span><?php echo t('title_settings');?></span></div></div>
@@ -328,6 +338,20 @@ if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !==
     <thead id="dbResultHead"></thead>
     <tbody id="dbResultBody"></tbody>
    </table>
+  </div>
+ </div>
+ <?php endif;?>
+
+ <?php if($isRoot):?>
+ <div class="panel" id="panel-wssettings">
+  <div class="ch"><h2>WebSocket Settings</h2><span style="color:#e0a040;font-size:.75em;margin-left:12px">Root Only</span></div>
+  <div style="padding:12px">
+   <div style="font-size:.75em;color:#888;margin-bottom:8px">前端连接 WebSocket 服务器的地址（host:port 或完整 ws:// / wss:// URL）。留空 = 自动按访问域名推断。保存后新连接立即生效。</div>
+   <div style="display:flex;gap:8px;align-items:center">
+    <input type="text" id="wssServerInput" style="flex:1;padding:8px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:monospace;font-size:.85em" placeholder="localhost:9090">
+    <button class="bsm" onclick="saveWssSettings()" style="background:#2a4a2a;border-color:#3a6a3a">保存</button>
+   </div>
+   <div style="margin-top:6px;font-size:.72em;color:#aaa" id="wssSaveStatus"></div>
   </div>
  </div>
  <?php endif;?>

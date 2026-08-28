@@ -6648,6 +6648,27 @@ function clearDuress() {
 }
 
 // ================= Database admin (root only) =================
+function loadWssSettings() {
+    fetch('../../api/admin.php?action=wss_get').then(function(r) { return r.json(); }).then(function(d) {
+        var el = document.getElementById('wssServerInput');
+        if (el && d.success) el.value = d.wss_server || '';
+    }).catch(function() {});
+}
+function saveWssSettings() {
+    var el = document.getElementById('wssServerInput');
+    var v = (el ? el.value : '').trim();
+    var f = new URLSearchParams();
+    f.append('action', 'wss_set');
+    f.append('wss_server', v);
+    fetch('../../api/admin.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+    .then(function(r) { return r.json(); }).then(function(d) {
+        var st = document.getElementById('wssSaveStatus');
+        if (!st) return;
+        if (d.success) { st.textContent = '✓ Saved — new clients connect to ' + (d.wss_server || '(auto)'); st.style.color = '#7ddb9a'; }
+        else { st.textContent = d.error || 'Failed'; st.style.color = '#ff8a8a'; }
+    }).catch(function() {});
+}
+
 function dbLoadTables() {
     var sel = document.getElementById('dbTableSelect');
     fetch('../../api/admin.php?action=db_tables').then(function(r) { return r.json(); }).then(function(d) {

@@ -10,7 +10,7 @@ $sig = $currentUser['custom_title'] ?? '';
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
 <title>编辑签名</title>
-<link rel="stylesheet" href="../../plan/editinfo.css?v=20260809">
+<link rel="stylesheet" href="/plan/editinfo.css?v=20260809">
 <style>
 .sig-area { padding: 14px 16px; }
 .sig-area textarea {

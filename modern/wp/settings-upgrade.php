@@ -7,6 +7,19 @@
  */
 require_once __DIR__ . '/../../api/config.php';
 chatapp_require_login();
+
+// 动态读取管理员（uid 10000）显示名，不写死
+$__adminLabel = 'Administrator';
+try {
+    $__s = db()->prepare('SELECT display_name, username FROM users WHERE user_id = 10000');
+    $__s->execute();
+    $__adm = $__s->fetch();
+    if ($__adm) {
+        $__n = trim((string)($__adm['display_name'] ?? ''));
+        if ($__n === '') $__n = trim((string)$__adm['username']);
+        $__adminLabel = $__n;
+    }
+} catch (\Throwable $e) {}
 ?>
 <!DOCTYPE html>
 <html lang="zh">
@@ -14,8 +27,8 @@ chatapp_require_login();
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
 <title>Upgrade System</title>
-<link rel="stylesheet" href="../../plan/editinfo.css?v=20260809">
-<link rel="stylesheet" href="../style/settings.css?v=20260810">
+<link rel="stylesheet" href="/plan/editinfo.css?v=20260809">
+<link rel="stylesheet" href="/modern/style/settings.css?v=20260810">
 <style>
   .up-title{color:#6fa8dc;font-size:1.05em;font-weight:700;margin:14px 0 6px;text-align:center}
   .up-status{background:#1e1e1e;border:1px solid #333;border-radius:10px;padding:12px;margin:10px 4px;font-size:.78em}
@@ -64,7 +77,7 @@ chatapp_require_login();
       · Verify with Administrator password, Maintenance Portal credentials and current git hash.
     </div>
     <div class="set-block">
-      <div class="set-field"><label>Password</label><input type="password" id="upPwd" autocomplete="current-password" placeholder="Administrator (10000)"></div>
+      <div class="set-field"><label>Password</label><input type="password" id="upPwd" autocomplete="current-password" placeholder="Administrator <?php echo htmlspecialchars($__adminLabel); ?> (10000)"></div>
       <div class="set-field"><label>Maintenance Mode Account</label><input type="text" id="upMUser" autocomplete="off"></div>
       <div class="set-field"><label>Maintenance Mode Passphrase</label><input type="password" id="upMSecret" autocomplete="off"></div>
       <div class="set-field"><label>Enter current git hash</label><input type="text" id="upHash1" autocomplete="off" spellcheck="false" placeholder="git log -1 --format=%H"></div>
@@ -106,7 +119,7 @@ function api(action, extra){
   var f = new URLSearchParams();
   f.append('action', action);
   for (var k in (extra || {})) f.append(k, extra[k]);
-  return fetch('../../api/upgrade.php', {
+  return fetch('/api/upgrade.php', {
     method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: f.toString()
   }).then(function(r){ return r.json(); });
 }

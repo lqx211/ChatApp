@@ -20,8 +20,8 @@ if ($uid > 0) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
 <title><?php echo t('set_oneway');?></title>
-<link rel="stylesheet" href="../../plan/editinfo.css?v=20260809">
-<link rel="stylesheet" href="../style/settings.css?v=20260810">
+<link rel="stylesheet" href="/plan/editinfo.css?v=20260809">
+<link rel="stylesheet" href="/modern/style/settings.css?v=20260810">
 </head>
 <body>
 
