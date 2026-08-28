@@ -447,11 +447,9 @@ switch ($action) {
             FROM users u $where ORDER BY u.user_id ASC LIMIT $perPage OFFSET $offset");
         $stmt->execute($params);
         $users = $stmt->fetchAll();
-        // 文件名 avatar → ../api/avatar.php URL（与 contacts/chat 接口一致）
+        // 头像 URL：data/pp 优先 + mtime 版本号防缓存旧图
         foreach ($users as &$du) {
-            if (!empty($du['avatar']) && strpos($du['avatar'], 'data:') !== 0 && preg_match('/^[0-9a-zA-Z_]+\.(png|jpg|jpeg|gif|webp)$/i', $du['avatar'])) {
-                $du['avatar'] = '../../api/avatar.php?u=' . urlencode($du['username']);
-            }
+            $du['avatar'] = chatapp_avatar_url($du['avatar'] ?? null, $du['username'] ?? '', (int)($du['user_id'] ?? 0));
         }
         unset($du);
 
@@ -523,11 +521,9 @@ switch ($action) {
             WHERE b.user_id = ? ORDER BY b.created_at DESC");
         $list->execute([$myUid]);
         $blocks = $list->fetchAll();
-        // 文件名 avatar → ../api/avatar.php URL
+        // 头像 URL：data/pp 优先 + mtime 版本号防缓存旧图
         foreach ($blocks as &$b) {
-            if (!empty($b['avatar']) && strpos($b['avatar'], 'data:') !== 0 && preg_match('/^[0-9a-zA-Z_]+\.(png|jpg|jpeg|gif|webp)$/i', $b['avatar'])) {
-                $b['avatar'] = '../../api/avatar.php?u=' . urlencode($b['username']);
-            }
+            $b['avatar'] = chatapp_avatar_url($b['avatar'] ?? null, $b['username'] ?? '', (int)($b['uid'] ?? 0));
         }
         unset($b);
         echo json_encode(['success' => true, 'blocks' => $blocks]);

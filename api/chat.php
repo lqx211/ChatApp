@@ -282,11 +282,8 @@ function proc(array $msgs): array {
         $m['display_name'] = $m['display_name'] ?? $m['username'];
         // Keep recipient as username string for JS compatibility
         $m['recipient'] = $m['recipient_name'] ?: null;
-        // 新格式 avatar 存文件名（如 10077.png），转成 /api/avatar.php 可访问 URL；data URI 保留原样
-        if (!empty($m['avatar']) && strpos($m['avatar'], 'data:') !== 0 && preg_match('/^[0-9a-zA-Z_]+\.(png|jpg|jpeg|gif|webp)$/i', $m['avatar'])) {
-            $m['avatar'] = '../../api/avatar.php?u=' . urlencode($m['username'] ?? '');
-        }
-        $m['avatar'] = $m['avatar'] ?? null;
+        // 头像 URL：data/pp 优先（磁盘权威）+ mtime 版本号防浏览器缓存旧图；data URI 兜底
+        $m['avatar'] = chatapp_avatar_url($m['avatar'] ?? null, $m['username'] ?? '', (int)($m['user_id'] ?? 0));
         $m['msg_type'] = $m['msg_type'] ?? null;
         $m['is_markdown'] = ($m['msg_type'] === 'md');
         if ($m['is_markdown']) {

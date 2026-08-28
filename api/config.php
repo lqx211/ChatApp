@@ -212,8 +212,24 @@ function chatapp_require_login(): void {
  * Bare filenames must be routed through api/avatar.php; data URIs are kept
  * as-is. Returns '' for empty avatars so `if ($avatar):` guards still work.
  */
-function chatapp_avatar_url(?string $avatar, ?string $username): string {
-    if (empty($avatar) || empty($username)) return '';
+function chatapp_avatar_url(?string $avatar, ?string $username, int $uid = 0): string {
+    static $ppCache = [];
+    if (empty($username)) return '';
+    // data/pp/{uid}.{ext} 优先（磁盘真实文件，权威）——即使 DB 存的是旧值/data URI 也以磁盘为准
+    if ($uid > 0) {
+        if (!array_key_exists($uid, $ppCache)) {
+            $ppCache[$uid] = '';
+            foreach (['png', 'jpg', 'jpeg', 'gif', 'webp'] as $ext) {
+                $f = __DIR__ . '/../data/pp/' . $uid . '.' . $ext;
+                if (is_file($f)) { $ppCache[$uid] = (string)@filemtime($f); break; }
+            }
+        }
+        if ($ppCache[$uid] !== '') {
+            // 带文件 mtime 版本号：换头像后 URL 变化，浏览器不会命中旧缓存（否则两个头像并存）
+            return '../../api/avatar.php?u=' . urlencode($username) . '&v=' . $ppCache[$uid];
+        }
+    }
+    if (empty($avatar)) return '';
     if (strpos($avatar, 'data:') === 0) return $avatar;
     if (preg_match('/^[0-9a-zA-Z_]+\.(png|jpg|jpeg|gif|webp)$/i', $avatar)) {
         return '../../api/avatar.php?u=' . urlencode($username);

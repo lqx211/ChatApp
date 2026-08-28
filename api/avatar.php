@@ -67,21 +67,32 @@ if (!$row && is_numeric($user)) {
 $hasAvatar = false;
 $avFile = null;
 $fallbackName = $user;
+$uid = $row ? (int)$row['user_id'] : 0;
 
-if ($row && !empty($row['avatar'])) {
-    $uid = (int)$row['user_id'];
+// ① data/pp/{uid}.{ext} 优先（磁盘真实文件，权威）——即使 DB avatar 是旧值/data URI 也以磁盘为准
+$ppBase = realpath(__DIR__ . '/../data/pp');
+if ($ppBase !== false && $uid > 0) {
+    foreach (['png', 'jpg', 'jpeg', 'gif', 'webp'] as $ext) {
+        $ppFile = __DIR__ . '/../data/pp/' . $uid . '.' . $ext;
+        $ppReal = realpath($ppFile);
+        if ($ppReal !== false && strpos($ppReal . '/', $ppBase . '/') === 0 && is_file($ppReal)) {
+            $avFile = $ppReal;
+            $hasAvatar = true;
+            break;
+        }
+    }
+}
+
+// ② 兜底：数据库 avatar 值（新格式文件名 → data/pp；旧格式 → data/user/{uid}/）
+if (!$hasAvatar && $row && !empty($row['avatar'])) {
     $fallbackName = $isUid ? 'uid:' . $uid : $user;
-
-    // Check new format first: data/pp/{uid}.{ext} (with realpath containment)
-    $ppBase = realpath(__DIR__ . '/../data/pp');
     $ppFile = __DIR__ . '/../data/pp/' . $row['avatar'];
     $ppReal = realpath($ppFile);
     if ($ppBase !== false && $ppReal !== false && strpos($ppReal . '/', $ppBase . '/') === 0 && is_file($ppReal)) {
         $avFile = $ppReal;
         $hasAvatar = true;
     }
-    // Fallback: legacy data/user/{uid}/{filename} (with realpath containment)
-    if (!$hasAvatar) {
+    if (!$hasAvatar && $uid > 0) {
         $legacyBase = realpath(__DIR__ . '/../data/user/' . $uid);
         $legacyFile = __DIR__ . '/../data/user/' . $uid . '/' . $row['avatar'];
         $legacyReal = realpath($legacyFile);
