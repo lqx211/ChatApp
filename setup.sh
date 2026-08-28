@@ -158,9 +158,40 @@ if [ ! -f api/config.example.php ]; then
 fi
 
 # ----------------------------------------------------------------------
+# MySQL root TCP 认证自愈（Ubuntu auth_socket / MySQL 8.4 禁用 mysql_native_password 兼容）
+#   应用需要 root 空密码经 TCP 127.0.0.1 连接；失败时自动切换 caching_sha2_password 并验证
+# ----------------------------------------------------------------------
+ensure_mysql_tcp_root() {
+    if mysql -h127.0.0.1 -P3306 -uroot -e "SELECT 1" >/dev/null 2>&1; then
+        echo "  ✓ MySQL root TCP 空密码连接正常"
+        return 0
+    fi
+    echo "  ⚠ MySQL root 无法经 TCP 连接，自动修复认证方式…"
+    local plugin=""
+    plugin="$(sudo mysql -N -e "SELECT plugin FROM mysql.user WHERE user='root' AND host='localhost'" 2>/dev/null | head -1)" || true
+    if [ -z "$plugin" ]; then
+        echo "  ✗ 无法读取 root 认证插件（MySQL 未运行？请先启动 MySQL）"
+        echo "    手动修复：sudo mysql -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY ''; FLUSH PRIVILEGES;\""
+        return 1
+    fi
+    sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY ''; FLUSH PRIVILEGES;" >/dev/null 2>&1 \
+        || sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY ''; FLUSH PRIVILEGES;" >/dev/null 2>&1
+    if mysql -h127.0.0.1 -P3306 -uroot -e "SELECT 1" >/dev/null 2>&1; then
+        echo "  ✓ 已修复：root 认证 ${plugin} → 现可经 TCP 空密码连接"
+        return 0
+    fi
+    echo "  ✗ 自动修复失败（原插件 ${plugin}）。请手动执行："
+    echo "      sudo mysql -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY ''; FLUSH PRIVILEGES;\""
+    return 1
+}
+
+# ----------------------------------------------------------------------
 # 4.  MySQL database setup
 # ----------------------------------------------------------------------
 echo "[4/4] Setting up MySQL database ..."
+
+# 确保 root 可经 TCP 空密码连接（幂等；已可连则直接通过）
+ensure_mysql_tcp_root
 
 DB_HOST="${DB_HOST:-127.0.0.1}"
 DB_PORT="${DB_PORT:-3306}"
@@ -194,9 +225,7 @@ fi
 # if you are on mac, remove sudo below
 sudo apt install mysql-server mysql-client apache2 php8.3 php8.3-mbstring php8.3-gd php8.3-curl -y # its going to be brew and without sudo in mac
 sudo mysql -e "CREATE DATABASE IF NOT EXISTS chatapp DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_unicode_ci;"
-# MySQL 8.4 已禁用 mysql_native_password；用 caching_sha2_password（mysqlnd/PHP 完整支持）让 root 可 TCP 空密码登录
-sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY '';"
-sudo mysql -e "FLUSH PRIVILEGES;"
+ensure_mysql_tcp_root
 sudo apt install php-mysql php8.3-mysql php8.3-mbstring php8.3-gd php8.3-curl -y
 
 # --- Security hardening: honor .htaccess (so data/*.htaccess rules apply)

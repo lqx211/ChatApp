@@ -57,6 +57,36 @@ done
 [ -z "$PHP" ] && PHP="php"
 echo ">>> 检测到 PHP 包: $PHP"
 
+# ----------------------------------------------------------------------
+# MySQL root TCP 认证自愈
+#   症状：应用经 TCP 127.0.0.1 以 root 空密码连接被拒（ERROR 1698）
+#   原因：Ubuntu root 默认 auth_socket（仅 socket、拒绝 TCP）；MySQL 8.4 又禁用 mysql_native_password
+#   修复：自动切换到 caching_sha2_password + 空密码，并验证 TCP 可连（8.0/8.4 均可用，PHP mysqlnd 支持）
+# ----------------------------------------------------------------------
+ensure_mysql_tcp_root() {
+    if mysql -h127.0.0.1 -P3306 -uroot -e "SELECT 1" >/dev/null 2>&1; then
+        echo "  ✓ MySQL root TCP 空密码连接正常"
+        return 0
+    fi
+    echo "  ⚠ MySQL root 无法经 TCP 连接，自动修复认证方式…"
+    local plugin=""
+    plugin="$(sudo mysql -N -e "SELECT plugin FROM mysql.user WHERE user='root' AND host='localhost'" 2>/dev/null | head -1)" || true
+    if [ -z "$plugin" ]; then
+        echo "  ✗ 无法读取 root 认证插件（MySQL 未运行？请先启动 MySQL）"
+        echo "    手动修复：sudo mysql -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY ''; FLUSH PRIVILEGES;\""
+        return 1
+    fi
+    sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY ''; FLUSH PRIVILEGES;" >/dev/null 2>&1 \
+        || sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY ''; FLUSH PRIVILEGES;" >/dev/null 2>&1
+    if mysql -h127.0.0.1 -P3306 -uroot -e "SELECT 1" >/dev/null 2>&1; then
+        echo "  ✓ 已修复：root 认证 ${plugin} → 现可经 TCP 空密码连接"
+        return 0
+    fi
+    echo "  ✗ 自动修复失败（原插件 ${plugin}）。请手动执行："
+    echo "      sudo mysql -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY ''; FLUSH PRIVILEGES;\""
+    return 1
+}
+
 sudo apt install "$PHP" "$PHP-mbstring" "$PHP-gd" "$PHP-curl" apache2 mysql-server mysql-client "$PHP-mysql" php-mysql -y
 
 echo "Install required packages."
@@ -65,10 +95,10 @@ sudo apt install mysql-server mysql-client apache2 "$PHP" "$PHP-mbstring" "$PHP-
 echo "Setup database."
 sudo service mysql start
 sudo service mysql status
-sudo mysql -e "CREATE DATABASE IF NOT EXISTS chatapp DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_unicode_ci;"
-# MySQL 8.4 已禁用 mysql_native_password；用 caching_sha2_password（mysqlnd/PHP 完整支持）让 root 可 TCP 空密码登录
-sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY '';"
-sudo mysql -e "FLUSH PRIVILEGES;"
+
+# 确保 root 可经 TCP 空密码连接（auth_socket / 8.4 自动修复），否则后续建库/导入/种子全会被拒
+ensure_mysql_tcp_root
+
 sudo apt install php-mysql "$PHP-mysql" "$PHP-mbstring" "$PHP-gd" "$PHP-curl" -y
 
 echo "Setup server."
@@ -239,6 +269,9 @@ fi
 # 4.  MySQL database setup
 # ----------------------------------------------------------------------
 echo "[4/4] Setting up MySQL database ..."
+
+# 防御性再确保一次（幂等、秒级）——若中途 MySQL 重启/认证回退，这里兜底
+ensure_mysql_tcp_root
 
 DB_HOST="${DB_HOST:-127.0.0.1}"
 DB_PORT="${DB_PORT:-3306}"
