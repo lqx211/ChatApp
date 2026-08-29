@@ -21,7 +21,7 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
     // HTTP_HOST 可能带端口（如 localhost:8080），去掉端口再拼 ws 地址，避免 ws://host:8080:9090 这种错误
     $__hostNoPort = preg_replace('/:\d+$/', '', $__host);
     if (stripos($__host, 'localhost') !== false || stripos($__host, '127.0.0.1') !== false) {
-        $__wssUrls['local'] = 'ws://' . $__hostNoPort . ':9090';
+        $__wssUrls['local'] = (defined('FORCE_HTTPS') && FORCE_HTTPS ? 'wss://' : 'ws://') . $__hostNoPort . ':9090';
     } else {
         $__wssUrls['public'] = 'wss://wss.lqx211.com';
     }

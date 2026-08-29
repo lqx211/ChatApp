@@ -88,6 +88,42 @@ header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');
 header('Referrer-Policy: same-origin');
 
+// ---- 强制 HTTPS（生产环境可选开启；本地开发保持 false） ----
+// FORCE_HTTPS=true 时：
+//   * 页面 HTTP 请求 → 301 跳转 HTTPS；API 请求 → 403 JSON（避免破坏 fetch）
+//   * 会话 cookie 强制 Secure（只在 HTTPS 下发送）
+//   * HTTPS 响应附带 HSTS 头（max-age=1年）
+// 开启方式二选一：① 服务器环境变量 CHATAPP_FORCE_HTTPS=1（Apache SetEnv /
+//   Nginx fastcgi_param / systemd / shell export），② 直接改下面常量改为 true。
+// 本地（127.0.0.1:8080、VM 内网 IP）没有证书，保持 false 即可照常走 HTTP。
+define('FORCE_HTTPS', ((string)getenv('CHATAPP_FORCE_HTTPS') === '1' || false));
+
+/** 当前请求是否为 HTTPS（含反向代理 X-Forwarded-Proto 透传）。 */
+function chatapp_is_https(): bool {
+    if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') return true;
+    if ((int)($_SERVER['SERVER_PORT'] ?? 0) === 443) return true;
+    if (strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https') return true;
+    return false;
+}
+
+if (FORCE_HTTPS) {
+    if (chatapp_is_https()) {
+        header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+    } else {
+        $__isApi = (strpos($_SERVER['REQUEST_URI'] ?? '', '/api/') !== false);
+        if ($__isApi) {
+            http_response_code(403);
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => 'HTTPS required']);
+            exit;
+        }
+        $__hHost = (string)($_SERVER['HTTP_HOST'] ?? 'localhost');
+        $__hUri = (string)($_SERVER['REQUEST_URI'] ?? '/');
+        header('Location: https://' . $__hHost . $__hUri, true, 301);
+        exit;
+    }
+}
+
 define('DB_HOST', '127.0.0.1');
 define('DB_NAME', 'chatapp');
 define('DB_USER', 'root');
@@ -114,7 +150,7 @@ function chatapp_session_start(): void {
             'path'     => '/',
             'httponly' => true,
             'samesite' => 'Lax',
-            'secure'   => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || ($_SERVER['SERVER_PORT'] ?? 80) == 443,
+            'secure'   => FORCE_HTTPS || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || ($_SERVER['SERVER_PORT'] ?? 80) == 443,
         ]);
         session_start();
     }
@@ -309,7 +345,7 @@ function chatapp_wss_url(?string $v): string {
     $v = trim((string)$v);
     if ($v === '') return '';
     if (strpos($v, '://') !== false) return $v;
-    if (preg_match('/^[a-zA-Z0-9.\-\[\]:]+:\d+$/', $v)) return 'ws://' . $v;
+    if (preg_match('/^[a-zA-Z0-9.\-\[\]:]+:\d+$/', $v)) return (FORCE_HTTPS ? 'wss://' : 'ws://') . $v;
     return 'wss://' . $v;
 }
 
