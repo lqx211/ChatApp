@@ -827,6 +827,7 @@ switch ($action) {
     // ================= Signature privacy (mirrors background) =================
 
     case 'get_sig_privacy':
+        chatapp_ensure_sig_columns();
         $stmt = db()->prepare('SELECT sig_blacklist, sig_whitelist, sig_privacy, sig_no_friend, sig_hidden_text FROM users WHERE username = ?');
         $stmt->execute([$_SESSION['username']]);
         $row = $stmt->fetch();
@@ -846,6 +847,7 @@ switch ($action) {
         break;
 
     case 'set_sig_privacy':
+        chatapp_ensure_sig_columns();
         $p = $_POST['privacy'] ?? '';
         if ($p !== '0' && $p !== '1' && $p !== '2') { echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit; }
         db()->prepare('UPDATE users SET sig_privacy = ? WHERE username = ?')->execute([(int)$p, $_SESSION['username']]);
@@ -853,6 +855,7 @@ switch ($action) {
         break;
 
     case 'set_sig_blacklist':
+        chatapp_ensure_sig_columns();
         $raw = $_POST['blacklist'] ?? '';
         $list = $raw === '' ? [] : json_decode($raw, true);
         if (!is_array($list)) { echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit; }
@@ -864,6 +867,7 @@ switch ($action) {
         break;
 
     case 'set_sig_whitelist':
+        chatapp_ensure_sig_columns();
         $raw = $_POST['whitelist'] ?? '';
         $list = $raw === '' ? [] : json_decode($raw, true);
         if (!is_array($list)) { echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit; }
@@ -875,12 +879,14 @@ switch ($action) {
         break;
 
     case 'set_sig_no_friend':
+        chatapp_ensure_sig_columns();
         $nf = $_POST['no_friend'] ?? '';
         db()->prepare('UPDATE users SET sig_no_friend = ? WHERE username = ?')->execute([($nf === '1' || $nf === 'true') ? 1 : 0, $_SESSION['username']]);
         echo json_encode(['success' => true]);
         break;
 
     case 'set_sig_hidden_text':
+        chatapp_ensure_sig_columns();
         $ht = trim(mb_substr($_POST['hidden_text'] ?? '', 0, 100));
         db()->prepare('UPDATE users SET sig_hidden_text = ? WHERE username = ?')->execute([$ht, $_SESSION['username']]);
         echo json_encode(['success' => true, 'hidden_text' => $ht]);

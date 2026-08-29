@@ -11,6 +11,7 @@ if ($type !== 'black' && $type !== 'white') $type = 'black';
 $kind = $_GET['kind'] ?? '';
 if ($kind !== 'bg' && $kind !== 'sig') $kind = 'bg';
 $p = $kind === 'sig' ? 'sig' : 'bg'; // 字段/接口前缀
+if ($kind === 'sig') chatapp_ensure_sig_columns();
 
 $privacy = (int)($currentUser[$p . '_privacy'] ?? 0);
 // PHP 端模式校验：非对应模式 → 显示提示不可编辑

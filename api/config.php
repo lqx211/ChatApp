@@ -423,6 +423,18 @@ function db_add_column_if_missing(string $table, string $column, string $definit
     }
 }
 
+/**
+ * 确保签名隐私列存在（幂等；init_db 已调用，这里供 sig API/页面在操作前自愈，
+ * 避免升级后列缺失导致“设置改不动/报错”）。
+ */
+function chatapp_ensure_sig_columns(): void {
+    db_add_column_if_missing('users', 'sig_privacy', "TINYINT(1) NOT NULL DEFAULT 0");
+    db_add_column_if_missing('users', 'sig_blacklist', "TEXT DEFAULT NULL");
+    db_add_column_if_missing('users', 'sig_whitelist', "TEXT DEFAULT NULL");
+    db_add_column_if_missing('users', 'sig_no_friend', "TINYINT(1) NOT NULL DEFAULT 0");
+    db_add_column_if_missing('users', 'sig_hidden_text', "VARCHAR(100) DEFAULT ''");
+}
+
 function chatapp_client_ip(): string {
     $remote = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
     $cf = trim($_SERVER['HTTP_CF_CONNECTING_IP'] ?? '');
@@ -734,11 +746,7 @@ function init_db(): void {
     db_add_column_if_missing('users', 'bg_no_friend', "TINYINT(1) NOT NULL DEFAULT 0");
     db_add_column_if_missing('users', 'bg_private_image', "VARCHAR(255) DEFAULT NULL");
     // ---- Signature privacy (mirrors background privacy) ----
-    db_add_column_if_missing('users', 'sig_privacy', "TINYINT(1) NOT NULL DEFAULT 0");
-    db_add_column_if_missing('users', 'sig_blacklist', "TEXT DEFAULT NULL");
-    db_add_column_if_missing('users', 'sig_whitelist', "TEXT DEFAULT NULL");
-    db_add_column_if_missing('users', 'sig_no_friend', "TINYINT(1) NOT NULL DEFAULT 0");
-    db_add_column_if_missing('users', 'sig_hidden_text', "VARCHAR(100) DEFAULT ''");
+    chatapp_ensure_sig_columns();
     // ---- Profile cover background (personal page, independent from chat wallpaper bg_image) ----
     db_add_column_if_missing('users', 'profile_bg_image', "VARCHAR(255) DEFAULT NULL");
     db_add_column_if_missing('users', 'profile_bg_updated_at', "DATETIME DEFAULT NULL");

@@ -5,6 +5,8 @@
  */
 require_once __DIR__ . '/../../api/config.php';
 chatapp_require_login();
+// 自愈：确保 sig_* 列存在（升级后列缺失时自动补建，避免设置页报错）
+chatapp_ensure_sig_columns();
 $currentUser = chatapp_get_user();
 $from = $_GET['from'] ?? '';   // 'settings' => 返回设置页
 $sigPrivacy = (int)($currentUser['sig_privacy'] ?? 0);
