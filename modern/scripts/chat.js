@@ -2573,6 +2573,11 @@ function cancelReply() {
 }
 
 function addDmMessage(m, prepend) {
+    // 会话归属守卫：只渲染属于当前打开会话(D)的私聊消息——自聊/其它会话消息一律不串台
+    // （群消息无 recipient，不受此守卫影响）
+    if (D && m && m.recipient && !((m.username === U && m.recipient === D) || (m.username === D && m.recipient === U))) {
+        return;
+    }
     var a = document.getElementById('dmMessagesArea');
     // 点赞行允许重复渲染（原地更新次数/删除）；普通消息若已渲染过（seen 或 DOM 存在）则跳过，防止 loadDmMessages 全量重渲染产生重复
     if (m.msg_type !== 'like') {

@@ -156,7 +156,7 @@
                             // 公告
                             if (typeof addAnnouncement === 'function') addAnnouncement(m);
                             if (typeof window.notifyNewMessage === 'function') window.notifyNewMessage(m);
-                        } else if (D && (m.username === D || m.recipient === D)) {
+                        } else if (D && ((m.username === U && m.recipient === D) || (m.username === D && m.recipient === U))) {
                             // 当前打开的私聊
                             if (typeof addDmMessage === 'function') addDmMessage(m);
                         } else if (m.msg_type === 'like' && !(m.id > L)) {
