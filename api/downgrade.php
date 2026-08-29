@@ -64,9 +64,9 @@ switch ($action) {
         $stmt->execute();
         $admin = $stmt->fetch();
         if (!$admin || !password_verify($pwd, $admin['password'])) { echo json_encode(['success' => false, 'error' => 'Administrator password incorrect.']); exit; }
-        $MAINT_USER = ''; $MAINT_PASS = ''; $MAINT_SECRET = '';
-        $maintCfg = __DIR__ . '/../maintenance/config.php';
-        if (is_file($maintCfg)) { include $maintCfg; }
+        require_once __DIR__ . '/../maintenance/creds.php';
+        $__mt = chatapp_maint_creds();
+        $MAINT_USER = $__mt['user']; $MAINT_PASS = $__mt['pass']; $MAINT_SECRET = $__mt['secret'];
         $msOk = ($ms !== '' && ($ms === $MAINT_PASS || ($MAINT_SECRET !== '' && $ms === $MAINT_SECRET)));
         if ($mu !== $MAINT_USER || !$msOk) { echo json_encode(['success' => false, 'error' => 'Maintenance credentials incorrect.']); exit; }
         [$head] = dg_git('git rev-parse HEAD', $root);

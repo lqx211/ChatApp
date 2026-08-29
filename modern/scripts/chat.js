@@ -6700,14 +6700,17 @@ function saveWssSettings() {
         } else { st.textContent = d.error || 'Failed'; st.style.color = '#ff8a8a'; }
     }).catch(function() {});
 }
-// 重新运行 OOBE（root only，幂等）
+// 重新运行 OOBE（root only，需验证当前管理员密码）
 function rerunOobe() {
+    var cur = prompt('请输入当前管理员密码以重新运行 OOBE：');
+    if (cur === null || cur === '') { xalert('已取消。'); return; }
     var f = new URLSearchParams();
     f.append('action', 'oobe_rerun');
+    f.append('password', cur);
     fetch('../../api/admin.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
     .then(function(r) { return r.json(); }).then(function(d) {
         if (d.success) window.location.href = 'oobe.php';
-        else xalert('无法重新运行 OOBE。');
+        else xalert('无法重新运行 OOBE：' + (d.error || ''));
     }).catch(function() { xalert('无法重新运行 OOBE。'); });
 }
 

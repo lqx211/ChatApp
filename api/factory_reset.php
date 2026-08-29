@@ -58,8 +58,9 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Administrator password incorrect.']); exit;
         }
         // maintenance 凭据（明文密码或 secret）
-        $MAINT_USER = ''; $MAINT_PASS = ''; $MAINT_SECRET = '';
-        if (is_file(__DIR__ . '/../maintenance/config.php')) { include __DIR__ . '/../maintenance/config.php'; }
+        require_once __DIR__ . '/../maintenance/creds.php';
+        $__mt = chatapp_maint_creds();
+        $MAINT_USER = $__mt['user']; $MAINT_PASS = $__mt['pass']; $MAINT_SECRET = $__mt['secret'];
         $msOk = ($ms !== '' && ($ms === $MAINT_PASS || ($MAINT_SECRET !== '' && $ms === $MAINT_SECRET)));
         if ($mu !== $MAINT_USER || !$msOk) {
             echo json_encode(['success' => false, 'error' => 'Maintenance credentials incorrect.']); exit;
@@ -177,12 +178,12 @@ switch ($action) {
         if ($rc !== 0 || $cnt !== 1) {
             echo json_encode(['success' => false, 'error' => 'Rebuild verification failed: users=' . $cnt . ' (DB was NOT fully reset).']); exit;
         }
-        // 5.5) 维护门户凭据（若提供了新值则重写 maintenance/config.php；否则保持现状）
+        // 5.5) 维护门户凭据（若提供了新值则重写；否则保持现状）
         $newMu = ''; $newMp = '';
         if (!empty($st['maint_user']) || !empty($st['maint_pass'])) {
-            $maintFile = $root . '/maintenance/config.php';
-            $oldMu = 'admin'; $oldMp = ''; $oldMs = '';
-            if (is_file($maintFile)) { include $maintFile; }
+            require_once __DIR__ . '/../maintenance/creds.php';
+            $__old = chatapp_maint_creds();
+            $oldMu = $__old['user']; $oldMp = $__old['pass']; $oldMs = $__old['secret'];
             $newMu = !empty($st['maint_user']) ? $st['maint_user'] : $oldMu;
             $newMp = !empty($st['maint_pass']) ? $st['maint_pass'] : ($oldMp !== '' ? $oldMp : bin2hex(random_bytes(12)));
             $newMs = bin2hex(random_bytes(32));
@@ -190,7 +191,16 @@ switch ($action) {
                 . "\$MAINT_USER   = getenv('MAINT_USER') ?: " . var_export($newMu, true) . ";\n"
                 . "\$MAINT_PASS   = getenv('MAINT_PASS') ?: " . var_export($newMp, true) . ";\n"
                 . "\$MAINT_SECRET = getenv('MAINT_SECRET') ?: " . var_export($newMs, true) . ";\n";
-            if (@file_put_contents($maintFile, $body) === false) {
+            // 主写 data/（Web 可写，Mac/容器上 maintenance/config.php 可能只读）；再尽力镜像 legacy
+            $__maintDir = $root . '/data';
+            @mkdir($__maintDir, 0775, true);
+            $__ok = @file_put_contents($__maintDir . '/maint_config.php', $body);
+            if ($__ok !== false) {
+                @file_put_contents($root . '/maintenance/config.php', $body); // best effort
+            } else {
+                $__ok = @file_put_contents($root . '/maintenance/config.php', $body);
+            }
+            if ($__ok === false) {
                 echo json_encode(['success' => false, 'error' => 'Could not write maintenance config.']); exit;
             }
         }

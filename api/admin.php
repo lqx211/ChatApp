@@ -513,6 +513,13 @@ switch ($action) {
         if (chatapp_get_role($myUid) !== 'root') {
             echo json_encode(['success' => false, 'error' => 'Access denied']); exit;
         }
+        // 安全门：重新运行 OOBE 前必须验证当前管理员密码
+        $__cur = (string)($_POST['password'] ?? '');
+        if ($__cur === '') { echo json_encode(['success' => false, 'error' => 'Current admin password required.']); exit; }
+        $__adm = $pdo->query('SELECT password FROM users WHERE user_id=10000')->fetch();
+        if (!$__adm || !password_verify($__cur, (string)($__adm['password'] ?? ''))) {
+            echo json_encode(['success' => false, 'error' => 'Current admin password incorrect.']); exit;
+        }
         @unlink(__DIR__ . '/../data/oobe.done');
         echo json_encode(['success' => true]);
         break;

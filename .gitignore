@@ -73,6 +73,9 @@ data/res/wallpaper/*
 # =================== Sensitive config (track example files only) ===================
 # maintenance/config.php contains credentials — use config.example.php instead
 maintenance/config.php
+# data/maint_config.php is the web-writable runtime copy of maintenance credentials
+# (written by OOBE when maintenance/config.php is read-only, e.g. on macOS/local).
+data/maint_config.php
 
 # =================== Keep directory structure ===================
 # Ensure empty directories are tracked via .gitkeep

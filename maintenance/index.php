@@ -2,7 +2,11 @@
 /**
  * ChatApp - Maintenance admin login (retro table UI)
  */
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/creds.php';
+$__mt_creds = chatapp_maint_creds();
+$MAINT_USER   = $__mt_creds['user'];
+$MAINT_PASS   = $__mt_creds['pass'];
+$MAINT_SECRET = $__mt_creds['secret'];
 
 $error = '';
 $token = '';

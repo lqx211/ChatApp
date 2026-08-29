@@ -10,31 +10,26 @@ $__status = include __DIR__ . '/status.php';
 if (is_array($__status) && !empty($__status['is_maintenance'])) {
 
     // ---- Admin bypass: valid 1-hour token grants access ----
+    // 凭据来源：data/maint_config.php（Web 可写，OOBE 写入，优先）→ maintenance/config.php（legacy）
+    require_once __DIR__ . '/maintenance/creds.php';
+    $__mt_creds = chatapp_maint_creds();
+    $__mt_secret = (string)$__mt_creds['secret'];
+    $__hour_window = floor(time() / 3600);
     $__bypass = false;
     $__mt_token = $_COOKIE['MT_TOKEN'] ?? '';
-    if ($__mt_token !== '') {
-        $__mt_config = __DIR__ . '/maintenance/config.php';
-        if (file_exists($__mt_config)) {
-            include $__mt_config; // defines $MAINT_SECRET
-            $__hour_window = floor(time() / 3600);
-            $__expected = hash_hmac('sha256', 'mt:' . $__hour_window, $MAINT_SECRET);
-            if (hash_equals($__expected, $__mt_token)) {
-                $__bypass = true;
-            }
+    if ($__mt_token !== '' && $__mt_secret !== '') {
+        $__expected = hash_hmac('sha256', 'mt:' . $__hour_window, $__mt_secret);
+        if (hash_equals($__expected, $__mt_token)) {
+            $__bypass = true;
         }
     }
     // Also allow a one-off token passed as ?token= in the query string
-    if (!$__bypass && isset($_GET['token'])) {
-        $__mt_config = __DIR__ . '/maintenance/config.php';
-        if (file_exists($__mt_config)) {
-            include $__mt_config;
-            $__hour_window = floor(time() / 3600);
-            $__expected = hash_hmac('sha256', 'mt:' . $__hour_window, $MAINT_SECRET);
-            if (hash_equals($__expected, (string)$_GET['token'])) {
-                // Promote to cookie so subsequent page loads keep working
-                setcookie('MT_TOKEN', (string)$_GET['token'], 0, '/', '', false, true);
-                $__bypass = true;
-            }
+    if (!$__bypass && isset($_GET['token']) && $__mt_secret !== '') {
+        $__expected = hash_hmac('sha256', 'mt:' . $__hour_window, $__mt_secret);
+        if (hash_equals($__expected, (string)$_GET['token'])) {
+            // Promote to cookie so subsequent page loads keep working
+            setcookie('MT_TOKEN', (string)$_GET['token'], 0, '/', '', false, true);
+            $__bypass = true;
         }
     }
     if ($__bypass) {

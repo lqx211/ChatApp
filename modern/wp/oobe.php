@@ -45,10 +45,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'set_creds') {
+        $cur = (string)($_POST['current_password'] ?? '');
         $pwd = (string)($_POST['password'] ?? '');
         $mu  = trim($_POST['maint_user'] ?? '');
         $mp  = (string)($_POST['maint_pass'] ?? '');
         $dn  = trim((string)($_POST['display_name'] ?? ''));
+        // 安全门：修改任何凭据（管理员密码 / 维护门户）前，必须先验证当前管理员密码。
+        // 防止“已登录的 root 会话”被他人或被劫持会话直接改密。
+        if ($cur === '') { echo json_encode(['success' => false, 'error' => 'Current admin password is required.']); exit; }
+        $__adm = db()->query('SELECT password FROM users WHERE user_id=10000')->fetch();
+        if (!$__adm || !password_verify($cur, (string)($__adm['password'] ?? ''))) {
+            echo json_encode(['success' => false, 'error' => 'Current admin password incorrect.']); exit;
+        }
         if ($pwd !== '') {
             if (strlen($pwd) < 8) { echo json_encode(['success' => false, 'error' => 'Password min 8.']); exit; }
             db()->prepare('UPDATE users SET password=? WHERE user_id=10000')->execute([password_hash($pwd, PASSWORD_BCRYPT)]);
@@ -56,12 +64,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($mu !== '' && $mp !== '') {
             if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $mu)) { echo json_encode(['success' => false, 'error' => 'Invalid maintenance username.']); exit; }
             if (strlen($mp) < 8) { echo json_encode(['success' => false, 'error' => 'Maintenance password min 8.']); exit; }
-            $maintFile = __DIR__ . '/../../maintenance/config.php';
             $body = "<?php\n/**\n * ChatApp — Maintenance admin credentials\n *\n * AUTO-GENERATED during OOBE.\n * Override via MAINT_USER / MAINT_PASS / MAINT_SECRET env vars if needed.\n */\n"
                 . "\$MAINT_USER   = getenv('MAINT_USER') ?: " . var_export($mu, true) . ";\n"
                 . "\$MAINT_PASS   = getenv('MAINT_PASS') ?: " . var_export($mp, true) . ";\n"
                 . "\$MAINT_SECRET = getenv('MAINT_SECRET') ?: " . var_export(bin2hex(random_bytes(32)), true) . ";\n";
-            if (@file_put_contents($maintFile, $body) === false) { echo json_encode(['success' => false, 'error' => 'Could not write maintenance config.']); exit; }
+            // 主写 data/（Web 可写，Mac/容器上 maintenance/config.php 可能是只读）；
+            // 再尽力镜像到 legacy maintenance/config.php（服务器上通常可写）。
+            $__maintDir = __DIR__ . '/../../data';
+            @mkdir($__maintDir, 0775, true);
+            $__ok = @file_put_contents($__maintDir . '/maint_config.php', $body);
+            if ($__ok !== false) {
+                @file_put_contents(__DIR__ . '/../../maintenance/config.php', $body); // best effort
+            } else {
+                $__ok = @file_put_contents(__DIR__ . '/../../maintenance/config.php', $body);
+            }
+            if ($__ok === false) { echo json_encode(['success' => false, 'error' => 'Could not write maintenance config.']); exit; }
         } elseif (($mu === '') !== ($mp === '')) {
             echo json_encode(['success' => false, 'error' => 'Maintenance username and password must both be set (or both empty).']); exit;
         }
@@ -325,7 +342,9 @@ function stepSecurity(){
   var dnPh = ME_DISPLAY
     ? L('Current: ','当前: ')+ME_DISPLAY+L(' (leave blank to keep)','（留空保持）')
     : L('Set your display name (optional)','设置你的显示名称（可选）');
-  body('<div class="uinput"><label>'+L('Display name','显示名称')+'</label>'+
+  body('<div class="uinput"><label>'+L('Current admin password (required)','当前管理员密码（必填）')+'</label>'+
+       '<input type="password" id="cur" autocomplete="current-password" placeholder="'+L('verify current admin password','验证当前管理员密码')+'"></div>'+
+       '<div class="uinput"><label>'+L('Display name','显示名称')+'</label>'+
        '<input type="text" id="dn" autocomplete="off" placeholder="'+dnPh+'"></div>'+
        '<div class="uinput"><label>'+L('New admin password (optional)','新管理员密码（可选）')+'</label>'+
        '<input type="password" id="pw" autocomplete="new-password" placeholder="'+L('leave blank to keep current','留空保持现状')+'"></div>'+
@@ -339,7 +358,7 @@ function stepSecurity(){
 }
 /* Security 表单：Enter 依次跳下一个输入框，最后一个（维护门户密码）触发保存 */
 function wireEnterNav(){
-  var ids = ['dn','pw','mu','mp'];
+  var ids = ['cur','dn','pw','mu','mp'];
   for (var i=0;i<ids.length;i++){
     var el = document.getElementById(ids[i]);
     if (!el) continue;
@@ -354,13 +373,15 @@ function wireEnterNav(){
   }
 }
 function submitSecurity(){
+  var cur = $('cur').value;
   var pw = $('pw').value;
   var mu = $('mu').value.trim();
   var mp = $('mp').value;
+  if (!cur){ alert(L('Please enter your current admin password.','请输入当前管理员密码。')); return; }
   if (pw && pw.length < 8){ alert(L('Password min 8 chars.','密码至少 8 位。')); return; }
   if ((!!mu) !== (!!mp)){ alert(L('Maintenance username & password must both be set (or both empty).','维护门户用户名和密码需同时填写（或都留空）。')); return; }
   var qs = new URLSearchParams();
-  qs.append('action','set_creds'); qs.append('password',pw); qs.append('maint_user',mu); qs.append('maint_pass',mp);
+  qs.append('action','set_creds'); qs.append('current_password',cur); qs.append('password',pw); qs.append('maint_user',mu); qs.append('maint_pass',mp);
   qs.append('display_name', $('dn') ? $('dn').value.trim() : '');
   fetch('oobe.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:qs.toString() })
     .then(function(r){ return r.json(); }).then(function(d){
