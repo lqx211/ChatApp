@@ -2421,7 +2421,15 @@ function attachmentHtml(attUrl, msgType) {
     if (!attUrl) return '';
     var isAudio = msgType === 'audio' || /\.(mp3|m4a|wav|aac|opus|flac|ogg)$/i.test(attUrl) || attUrl.indexOf('audio/') > -1;
     if (isAudio) {
-        return '<div class="msg-media"><audio src="' + attUrl + '" controls preload="none" style="max-width:100%;max-height:40px"></audio></div>';
+        // 自定义可拖拽迷你播放器窗口（替代原生 <audio controls>）+ 下载按钮
+        var _afn = this && this.attName ? this.attName : 'audio';
+        var _as = this && this.attSize ? fmtSize(this.attSize) : '';
+        return '<div class="msg-media msg-audio-card" data-url="' + attUrl + '" data-name="' + eh(_afn) + '" data-size="' + eh(_as) + '" onclick="event.stopPropagation();openAudioWin(this)">'
+            + '<span class="audio-ico">&#127925;</span>'
+            + '<span class="audio-name">' + eh(_afn) + '</span>'
+            + '<span class="audio-size">' + eh(_as) + '</span>'
+            + '<span class="audio-btn">' + T('btn_play', 'Play') + '</span>'
+            + '</div>';
     }
     var isVideo = /\.(mp4|webm|mov|ogg)$/i.test(attUrl) || attUrl.indexOf('video/') > -1;
     if (isVideo) {
@@ -2449,6 +2457,105 @@ function attachmentHtml(attUrl, msgType) {
     }
     return '<div class="msg-media"><a href="' + attUrl + '" target="_blank">Download</a></div>';
 }
+
+/* ==================== 可拖拽迷你音频播放窗口（FileMgr 风格虚拟窗口） ==================== */
+function fmtDur(sec) {
+    if (!isFinite(sec) || sec < 0) sec = 0;
+    sec = Math.floor(sec);
+    return Math.floor(sec / 60) + ':' + ((sec % 60) < 10 ? '0' : '') + (sec % 60);
+}
+function openAudioWin(el) {
+    var win = document.getElementById('audioWin');
+    if (!win) return;
+    var url = el.getAttribute('data-url') || '';
+    var name = el.getAttribute('data-name') || 'audio';
+    var size = el.getAttribute('data-size') || '';
+    document.getElementById('audioWinTitle').textContent = name;
+    document.getElementById('audioWinSub').textContent = size;
+    var a = document.getElementById('audioWinAudio');
+    a.src = url;
+    a.load();
+    document.getElementById('audioWinDownload').href = url;
+    document.getElementById('audioWinDownload').setAttribute('download', name);
+    document.getElementById('audioWinCur').textContent = '0:00';
+    document.getElementById('audioWinDur').textContent = '0:00';
+    document.getElementById('audioWinSeek').value = 0;
+    document.getElementById('audioWinPlay').textContent = '\u25B6';
+    if (!window._audioWinPos) {
+        win.style.left = Math.max(8, (window.innerWidth - 330) / 2) + 'px';
+        win.style.top = Math.max(8, (window.innerHeight - 180) / 2) + 'px';
+        window._audioWinPos = true;
+    }
+    win.style.display = 'block';
+    a.play().catch(function(){});
+}
+function closeAudioWin() {
+    var a = document.getElementById('audioWinAudio');
+    a.pause();
+    a.removeAttribute('src');
+    a.load();
+    document.getElementById('audioWin').style.display = 'none';
+}
+function toggleAudioWinPlay() {
+    var a = document.getElementById('audioWinAudio');
+    if (a.paused) a.play().catch(function(){}); else a.pause();
+}
+function audioWinTime() {
+    var a = document.getElementById('audioWinAudio');
+    var cur = document.getElementById('audioWinCur');
+    var dur = document.getElementById('audioWinDur');
+    var seek = document.getElementById('audioWinSeek');
+    var play = document.getElementById('audioWinPlay');
+    cur.textContent = fmtDur(a.currentTime);
+    if (isFinite(a.duration) && a.duration > 0) {
+        dur.textContent = fmtDur(a.duration);
+        seek.max = Math.floor(a.duration * 1000);
+        if (!document.activeElement || document.activeElement.id !== 'audioWinSeek') seek.value = Math.floor(a.currentTime * 1000);
+    }
+    play.textContent = a.paused ? '\u25B6' : '\u275A\u275A';
+}
+function audioWinSeekInput() {
+    var a = document.getElementById('audioWinAudio');
+    if (isFinite(a.duration) && a.duration > 0) {
+        a.currentTime = parseInt(document.getElementById('audioWinSeek').value, 10) / 1000;
+    }
+}
+function audioWinVolInput() {
+    var a = document.getElementById('audioWinAudio');
+    a.volume = parseInt(document.getElementById('audioWinVol').value, 10) / 100;
+}
+function initAudioWinDrag() {
+    var win = document.getElementById('audioWin');
+    var bar = document.getElementById('audioWinBar');
+    if (!win || !bar) return;
+    var dragging = false, offX = 0, offY = 0;
+    bar.addEventListener('mousedown', function(e) {
+        if (e.target.closest && e.target.closest('.awin-close')) return;
+        dragging = true;
+        var r = win.getBoundingClientRect();
+        offX = e.clientX - r.left;
+        offY = e.clientY - r.top;
+        e.preventDefault();
+    });
+    document.addEventListener('mousemove', function(e) {
+        if (!dragging) return;
+        win.style.left = Math.min(Math.max(4, e.clientX - offX), window.innerWidth - win.offsetWidth - 4) + 'px';
+        win.style.top = Math.min(Math.max(4, e.clientY - offY), window.innerHeight - win.offsetHeight - 4) + 'px';
+        window._audioWinPos = true;
+    });
+    document.addEventListener('mouseup', function() { dragging = false; });
+}
+(function initAudioWin() {
+    var a = document.getElementById('audioWinAudio');
+    if (a) {
+        a.addEventListener('timeupdate', audioWinTime);
+        a.addEventListener('loadedmetadata', audioWinTime);
+        a.addEventListener('play', audioWinTime);
+        a.addEventListener('pause', audioWinTime);
+        a.addEventListener('ended', audioWinTime);
+    }
+    initAudioWinDrag();
+})();
 
 // ---- 代码文件预览（Monaco = VS Code 网页版编辑器；加载失败降级为纯文本） ----
 var CODE_EXT = {

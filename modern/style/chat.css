@@ -1068,3 +1068,22 @@ input[type="date"]:focus {
 .batch-file .bf-ico { flex-shrink: 0; font-size: 1em; }
 .batch-file .bf-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .batch-file .bf-size { flex-shrink: 0; color: #888; font-size: .9em; }
+
+/* ===== 自定义音频消息卡片 ===== */
+.msg-audio-card { display: flex; align-items: center; gap: 10px; max-width: 340px; padding: 9px 12px; background: #1c2430; border: 1px solid #2c3a4a; cursor: pointer; }
+.msg-audio-card .audio-ico { font-size: 16px; }
+.msg-audio-card .audio-name { flex: 1; min-width: 0; font-size: .8em; color: #ddd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.msg-audio-card .audio-size { font-size: .7em; color: #888; flex-shrink: 0; }
+.msg-audio-card .audio-btn { font-size: .75em; color: #9fc7e8; border: 1px solid #3a5a7a; padding: 3px 10px; flex-shrink: 0; }
+.msg-audio-card:hover { border-color: #4a9dd8; }
+
+/* ===== 可拖拽迷你音频播放窗口（FileMgr 风格虚拟窗口） ===== */
+#audioWin { position: fixed; z-index: 20000; width: 330px; background: #1e1e1e; border: 1px solid #3a3a3a; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+#audioWin .awin-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #2a2a2a; border-bottom: 1px solid #3a3a3a; cursor: move; user-select: none; }
+#audioWin .awin-title { font-size: .8em; color: #ddd; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#audioWin .awin-sub { font-size: .68em; color: #888; }
+#audioWin .awin-close { background: none; border: none; color: #888; cursor: pointer; font-size: 13px; padding: 2px 6px; }
+#audioWin .awin-close:hover { color: #ff9a9a; }
+#audioWin input[type=range] { -webkit-appearance: none; appearance: none; height: 4px; background: #444; outline: none; cursor: pointer; }
+#audioWin input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 12px; height: 12px; background: #4a9dd8; cursor: pointer; border: none; }
+#audioWin input[type=range]::-moz-range-thumb { width: 12px; height: 12px; background: #4a9dd8; cursor: pointer; border: none; }

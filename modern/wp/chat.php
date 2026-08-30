@@ -575,6 +575,33 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
 
 <!-- 批量文件发送预览（多选/拖拽 → 确认后逐个普通发送） -->
 <div class="modal-overlay" id="batchModal"><div class="modal-box"><h3 id="batchTitle"><?php echo t('batch_title', 'Send files');?></h3><p id="batchTo" style="color:#aaa;font-size:.8em"></p><div id="batchList" style="max-height:300px;overflow-y:auto;margin:10px 0"></div><div id="batchInfo" style="color:#888;font-size:.78em;margin-bottom:10px"></div><div class="modal-actions"><button class="bsm" onclick="cancelBatch()"><?php echo t('btn_cancel');?></button><button class="bsm" id="batchSendBtn" style="background:#2a4a2a;border-color:#3a6a3a" onclick="confirmBatch()"><?php echo t('batch_send', 'Send');?></button></div></div></div>
+
+<!-- 可拖拽迷你音频播放窗口（点音频消息打开；标题栏可拖动；含下载按钮） -->
+<div id="audioWin" style="display:none">
+  <div class="awin-bar" id="audioWinBar">
+    <span style="font-size:14px">&#127925;</span>
+    <div style="flex:1;min-width:0">
+      <div class="awin-title" id="audioWinTitle">audio</div>
+      <div class="awin-sub" id="audioWinSub"></div>
+    </div>
+    <button class="awin-close" onclick="closeAudioWin()" title="<?php echo t('btn_close', 'Close');?>">&#10005;</button>
+  </div>
+  <div style="padding:12px 14px">
+    <audio id="audioWinAudio" style="display:none"></audio>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <button id="audioWinPlay" onclick="toggleAudioWinPlay()" style="width:38px;height:38px;flex-shrink:0;background:#4a9dd8;border:none;color:#fff;font-size:14px;cursor:pointer;border-radius:0">&#9654;</button>
+      <div style="flex:1;min-width:0">
+        <input type="range" id="audioWinSeek" min="0" max="1000" value="0" style="width:100%" oninput="audioWinSeekInput()">
+        <div style="display:flex;justify-content:space-between;font-size:.68em;color:#888"><span id="audioWinCur">0:00</span><span id="audioWinDur">0:00</span></div>
+      </div>
+      <input type="range" id="audioWinVol" min="0" max="100" value="100" style="width:64px;flex-shrink:0" title="<?php echo t('title_volume', 'Volume');?>" oninput="audioWinVolInput()">
+    </div>
+    <div style="display:flex;gap:8px">
+      <a id="audioWinDownload" href="#" download style="flex:1;text-align:center;padding:7px;background:#2a4a2a;border:1px solid #3a6a3a;color:#c8f5d8;text-decoration:none;font-size:.8em">&#11015; <?php echo t('btn_download', 'Download');?></a>
+      <button onclick="closeAudioWin()" style="padding:7px 14px;background:#3a3a3a;border:1px solid #4a4a4a;color:#bbb;cursor:pointer;font-size:.8em;font-family:inherit"><?php echo t('btn_close', 'Close');?></button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="addUserModal"><div class="modal-box"><h3><?php echo t('admin_add_user');?></h3><div class="fg" style="text-align:left"><label><?php echo t('label_username');?></label><input type="text" id="addUserName" maxlength="20" style="width:100%;padding:8px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:inherit"></div><div class="fg" style="text-align:left"><label><?php echo t('label_password');?></label><input type="password" id="addUserPwd" style="width:100%;padding:8px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:inherit"></div><div class="modal-actions"><button class="bsm" onclick="closeAddUserModal()"><?php echo t('btn_cancel');?></button><button class="bsm" onclick="doAddUser()" style="background:#2a4a2a;border-color:#3a6a3a"><?php echo t('btn_save');?></button></div></div></div>
 <div class="modal-overlay" id="addPlaceholderModal"><div class="modal-box"><h3><?php echo t('admin_add_placeholder');?></h3><p><?php echo t('admin_placeholder_confirm');?></p><div class="fg" style="text-align:left"><label><?php echo t('label_username');?></label><input type="text" id="addPhName" maxlength="20" style="width:100%;padding:8px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:inherit"></div><div class="modal-actions"><button class="bsm" onclick="closeAddPlaceholderModal()"><?php echo t('btn_cancel');?></button><button class="bsm danger" onclick="doAddPlaceholder()"><?php echo t('btn_confirm');?></button></div></div></div>
 <div class="modal-overlay" id="reportModal"><div class="modal-box"><h3 id="reportTitle"><?php echo t('title_report_user');?></h3><div class="fg" style="text-align:left"><label><?php echo t('label_report_reason');?></label><input type="text" id="reportReason" maxlength="1000" style="width:100%;padding:8px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:inherit"></div><div id="reportMsgCheckboxes" style="text-align:left;max-height:150px;overflow-y:auto"></div><div class="modal-actions"><button class="bsm" onclick="closeReportModal()"><?php echo t('btn_cancel');?></button><button class="bsm" id="reportSendBtn" onclick="doReport()" style="background:#c44;border-color:#c44"><?php echo t('btn_submit_report');?></button></div></div></div>
