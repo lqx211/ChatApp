@@ -110,6 +110,11 @@ img{border:0;vertical-align:middle}
 .mod-side-nav .sn-list li.current a{background:#eaf2ff;color:var(--q-blue);font-weight:600;border-left:3px solid var(--q-blue)}
 .mod-side-nav .sn-list .sn-ico{width:16px;height:16px;border-radius:4px;flex:none;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:#fff}
 .sn-ico.c1{background:#ff8b3d}.sn-ico.c2{background:#35c06e}.sn-ico.c3{background:#4a9fe8}.sn-ico.c4{background:#b07be8}.sn-ico.c5{background:#e85b6a}.sn-ico.c6{background:#3dc9c9}
+/* 内联 SVG 图标（禁止 emoji） */
+.sp-ic{display:inline-block;vertical-align:-2px}
+.sn-ico .sp-ic{vertical-align:0}
+.logo-ico .sp-ic{vertical-align:0}
+.op-list .op-ic{vertical-align:-2px;margin-right:1px}
 /* 主列 */
 .col-main{flex:1;min-width:0;display:flex;gap:12px}
 .col-main-feed{flex:1;min-width:0}

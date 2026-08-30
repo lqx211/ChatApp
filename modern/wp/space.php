@@ -54,6 +54,27 @@ function sp_ph(int $i, string $ch, string $a, string $b): string {
         . '<text x="80" y="92" font-size="56" text-anchor="middle" fill="rgba(255,255,255,.85)" font-family="sans-serif">' . htmlspecialchars($ch) . '</text></svg>';
     return 'data:image/svg+xml;base64,' . base64_encode($svg);
 }
+
+/** 内联 SVG 图标（QQ 风格灰线图标，currentColor 着色，禁止 emoji） */
+function sp_ic(string $n): string {
+    $map = [
+        'home'    => '<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M12 3 2 12h3v9h5v-6h4v6h5v-9h3z"/></svg>',
+        'search'  => '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5" stroke-linecap="round"/></svg>',
+        'people'  => '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><circle cx="9" cy="8" r="4"/><path d="M9 14c-4.4 0-7 2-7 5v1h14v-1c0-3-2.6-5-7-5z"/><path d="M17 12.5A3.5 3.5 0 1 0 13.5 9 3.5 3.5 0 0 0 17 12.5z" opacity=".65"/><path d="M16 14.6c.7.3 1.4.7 2 1.1.9.7 1.6 1.5 2 2.3v1h4v-1c0-2.5-3-4.6-8-5.4z"/></svg>',
+        'me'      => '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-3.3 0-7 1.7-7 4v2h14v-2c0-2.3-3.7-4-7-4z"/></svg>',
+        'photo'   => '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m3 17 5-5 3 3 3-3 7 6"/></svg>',
+        'say'     => '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8l-5 4V6a2 2 0 0 1 2-2z"/></svg>',
+        'card'    => '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm2 4v2h12V8zm0 4v2h8v-2z"/></svg>',
+        'star'    => '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="m12 3 2.7 5.6 6.3.9-4.6 4.4 1.1 6.1L12 17.8 6.5 20l1.1-6.1L3 9.5l6.3-.9z"/></svg>',
+        'image'   => '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m3 17 5-5 3 3 3-3 7 6"/></svg>',
+        'smile'   => '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8 14a4 4 0 0 0 8 0" stroke-linecap="round"/><path d="M9 9.5h.01M15 9.5h.01" stroke-linecap="round" stroke-width="2.4"/></svg>',
+        'share'   => '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M14 5v3C8 8.4 4.6 11 3.2 15.6 4.8 13.6 6.8 12.6 14 12.6v3L22 9z"/></svg>',
+        'comment' => '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 3C6.5 3 2 6.7 2 11.3c0 2.5 1.3 4.8 3.4 6.3L4 21.2l3.8-1.9c1.3.4 2.7.6 4.2.6 5.5 0 10-3.7 10-8.3S17.5 3 12 3z"/></svg>',
+        'like'    => '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 21s-7.5-4.7-10-9.2C.6 9 2 5.6 5.2 5c1.8-.3 3.6.5 4.8 2L12 9l2-2c1.2-1.5 3-2.3 4.8-2C22 5.6 23.4 9 22 11.8 19.5 16.3 12 21 12 21z"/></svg>',
+        'top'     => '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="m12 4 7 8h-4v8h-6v-8H5z"/></svg>',
+    ];
+    return $map[$n] ?? '';
+}
 $ch = mb_strtoupper(mb_substr($displayName, 0, 1));
 // 示例精选相片（后续从 api/space.php?action=photos 读取）
 $samplePhotos = [];
@@ -61,7 +82,7 @@ for ($i = 0; $i < 9; $i++) { $samplePhotos[] = ['src' => sp_ph($i, $ch, '#ffb300
 // 示例说说（后续从 api/space.php?action=feed 读取）
 $sampleFeeds = [
     ['text' => '这里是 ' . $displayName . ' 的个人空间，欢迎来做客～（示例内容，接入朋友圈后替换）', 'photos' => [0, 1, 2], 'time' => '刚刚', 'likes' => 0],
-    ['text' => '晒一张今天拍的照片 📷', 'photos' => [3], 'time' => '昨天', 'likes' => 2],
+    ['text' => '晒一张今天拍的照片', 'photos' => [3], 'time' => '昨天', 'likes' => 2],
 ];
 $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 ?>
@@ -79,7 +100,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 <div class="top-fix-bar">
   <div class="top-fix-inner">
     <div class="top-fix-wrap">
-      <a class="logo" href="chat.php" title="返回聊天"><span class="logo-ico">家</span>个人空间</a>
+      <a class="logo" href="chat.php" title="返回聊天"><span class="logo-ico"><?php echo sp_ic('home');?></span>个人空间</a>
       <ul class="top-nav">
         <li class="nav-list"><a href="space.php<?php echo $isSelf ? '' : '?user=' . urlencode($u['username']);?>" class="on">主页</a></li>
         <li class="nav-list"><a href="chat.php">聊天</a></li>
@@ -88,7 +109,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
       <div class="top-search">
         <div class="search-box">
           <input class="search-input" placeholder="用户/动态" id="spSearchInput">
-          <a class="search-button" title="搜索用户">🔍</a>
+          <a class="search-button" title="搜索用户"><?php echo sp_ic('search');?></a>
         </div>
       </div>
       <div class="user-info">
@@ -180,10 +201,10 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
             <div class="hd">动态</div>
             <div class="inner"><div class="bd">
               <ul class="sn-list" id="feedTypes">
-                <li class="current" data-f="all"><a><span class="sn-ico c1">友</span><span class="sn-title">好友动态</span></a></li>
-                <li data-f="me"><a><span class="sn-ico c2">我</span><span class="sn-title">与我相关</span></a></li>
-                <li data-f="photo"><a><span class="sn-ico c3">片</span><span class="sn-title">我的相册</span></a></li>
-                <li data-f="say"><a><span class="sn-ico c4">说</span><span class="sn-title">我的说说</span></a></li>
+                <li class="current" data-f="all"><a><span class="sn-ico c1"><?php echo sp_ic('people');?></span><span class="sn-title">好友动态</span></a></li>
+                <li data-f="me"><a><span class="sn-ico c2"><?php echo sp_ic('me');?></span><span class="sn-title">与我相关</span></a></li>
+                <li data-f="photo"><a><span class="sn-ico c3"><?php echo sp_ic('photo');?></span><span class="sn-title">我的相册</span></a></li>
+                <li data-f="say"><a><span class="sn-ico c4"><?php echo sp_ic('say');?></span><span class="sn-title">我的说说</span></a></li>
               </ul>
             </div></div>
           </div>
@@ -191,8 +212,8 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
             <div class="hd">个人资料</div>
             <div class="inner"><div class="bd">
               <ul class="sn-list">
-                <li><a><span class="sn-ico c5">名</span><span class="sn-title textoverflow"><?php echo htmlspecialchars($displayName);?></span></a></li>
-                <li><a><span class="sn-ico c6">级</span><span class="sn-title">等级 Lv.<?php echo $level;?></span></a></li>
+                <li><a><span class="sn-ico c5"><?php echo sp_ic('card');?></span><span class="sn-title textoverflow"><?php echo htmlspecialchars($displayName);?></span></a></li>
+                <li><a><span class="sn-ico c6"><?php echo sp_ic('star');?></span><span class="sn-title">等级 Lv.<?php echo $level;?></span></a></li>
               </ul>
             </div></div>
           </div>
@@ -210,8 +231,8 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
               </div>
               <div class="qz-poster-ft">
                 <div class="attach-icons">
-                  <span title="照片">🖼️</span>
-                  <span title="表情">😊</span>
+                  <span title="照片"><?php echo sp_ic('image');?></span>
+                  <span title="表情"><?php echo sp_ic('smile');?></span>
                   <span title="@好友">@</span>
                   <span title="话题">#</span>
                 </div>
@@ -254,9 +275,9 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
                 </div>
                 <div class="f-single-foot">
                   <ul class="op-list">
-                    <li class="op-share">↪ 转发</li>
-                    <li class="op-comment">💬 评论</li>
-                    <li class="op-like<?php echo $fd['likes'] > 0 ? ' liked' : '';?>" data-n="<?php echo (int)$fd['likes'];?>">👍 赞<?php echo $fd['likes'] > 0 ? ' (' . (int)$fd['likes'] . ')' : '';?></li>
+                    <li class="op-share"><span class="op-ic"><?php echo sp_ic('share');?></span> 转发</li>
+                    <li class="op-comment"><span class="op-ic"><?php echo sp_ic('comment');?></span> 评论</li>
+                    <li class="op-like<?php echo $fd['likes'] > 0 ? ' liked' : '';?>" data-n="<?php echo (int)$fd['likes'];?>"><span class="op-ic"><?php echo sp_ic('like');?></span> 赞<?php echo $fd['likes'] > 0 ? ' (' . (int)$fd['likes'] . ')' : '';?></li>
                   </ul>
                 </div>
               </li>
@@ -315,7 +336,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 
 <!-- 返回顶部 -->
 <div class="fix-layout">
-  <div class="to-top" id="spToTop" title="返回顶部">↑</div>
+  <div class="to-top" id="spToTop" title="返回顶部"><?php echo sp_ic('top');?></div>
 </div>
 
 <script>
