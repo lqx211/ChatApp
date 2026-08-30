@@ -1,0 +1,445 @@
+<?php
+/**
+ * ChatApp · Maintenance Management Portal — 维护模式管理门户
+ *
+ * 复刻 chat.php 的深色界面风格（global.css + modern/style/chat.css），
+ * 仅替换侧边栏为门户导航。自包含，不依赖 chat.js。
+ *
+ * 鉴权：维护门户凭据签发的 1 小时 token（MT_TOKEN cookie / ?token=），
+ * 与 maintenance.php 闸门一致 —— 即使处于维护模式、DB 挂掉也能访问。
+ *
+ * 能力：
+ *   - 仪表盘：维护开关、当前状态、服务器信息（PHP/MySQL/git/磁盘）
+ *   - 维护设置：返回码 / 维护页面 / 允许维护登录 / 使用 MySQL 凭据
+ *   - 门户凭据：改维护门户用户名密码（须验证当前管理员密码）
+ *   - 快捷链接：ChatApp 管理 / 工厂重置 / 升级 / 降级 / 卸载
+ *
+ * 存储：主写 data/maintenance_status.php（Web 可写，权威），尽力镜像到
+ * 根 status.php（服务器上通常可写）。读取统一走 maintenance/status_loader.php。
+ */
+
+// 1) 引导（config.php 内含维护闸门：维护中且无有效 token 会被拦截——正确的安全行为）
+require_once __DIR__ . '/../api/config.php';
+require_once __DIR__ . '/creds.php';
+require_once __DIR__ . '/status_loader.php';
+
+// 2) 鉴权：维护门户 token（MT_TOKEN / ?token=）或已登录的 ChatApp 管理员（uid 10000）
+$__authed = false;
+$__creds = chatapp_maint_creds();
+$__secret = (string)$__creds['secret'];
+$__hour_window = floor(time() / 3600);
+$__tok = $_COOKIE['MT_TOKEN'] ?? ($_GET['token'] ?? '');
+if ($__secret !== '' && $__tok !== ''
+    && hash_equals(hash_hmac('sha256', 'mt:' . $__hour_window, $__secret), (string)$__tok)) {
+    $__authed = true;
+    // ?token= 场景：提升为 cookie 并同步到 $_COOKIE（让本次请求内维护闸门也能读到）
+    if (($_GET['token'] ?? '') !== '' && ($_COOKIE['MT_TOKEN'] ?? '') === '') {
+        setcookie('MT_TOKEN', $__tok, 0, '/', '', false, true);
+        $_COOKIE['MT_TOKEN'] = $__tok;
+    }
+}
+if (!$__authed) {
+    // 备选：已登录管理员（DB 正常时）可直接进入；DB 挂掉则此路不通 → 走维护登录
+    try {
+        chatapp_session_start();
+        $__me = chatapp_get_user();
+        if (is_array($__me) && (int)($__me['user_id'] ?? 0) === 10000) $__authed = true;
+    } catch (\Throwable $e) { $__authed = false; }
+}
+if (!$__authed) {
+    header('Location: /maintenance/index.php');
+    exit;
+}
+
+/** MySQL 是否可达（尽力探测，DB 挂掉时门户其余功能仍可用） */
+function chatapp_portal_mysql_ok(): bool {
+    try { db(); return true; } catch (\Throwable $e) { return false; }
+}
+
+/** 写维护状态：主写 data/，尽力镜像到根 status.php */
+function chatapp_portal_write_status(array $st): bool {
+    $body = "<?php\n/**\n * ChatApp — Maintenance status (written by Maintenance Portal).\n * 手动改这里也行；门户会优先读 data/maintenance_status.php。\n */\nreturn " . var_export($st, true) . ";\n";
+    $dataDir = dirname(__DIR__) . '/data';
+    @mkdir($dataDir, 0775, true);
+    $ok = @file_put_contents($dataDir . '/maintenance_status.php', $body);
+    if ($ok !== false) {
+        @file_put_contents(dirname(__DIR__) . '/status.php', $body); // best effort
+    } else {
+        $ok = @file_put_contents(dirname(__DIR__) . '/status.php', $body);
+    }
+    return $ok !== false;
+}
+
+$__maintPages = [
+    '/errors/unavailable_erepair.html' => '紧急修复 Emergency Repair',
+    '/errors/unavailable_offline.html'  => '离线维护 Offline',
+    '/errors/unavailable_upgrade.html'  => '升级中 Upgrade',
+    '/errors/unavailable_breakdb.html'  => '数据库损坏 DB Broken',
+    '/errors/unavailable_limit.html'    => '人数上限 Limit',
+    '/errors/unavailable_spam.html'     => '风控拦截 Spam',
+];
+$__codes = [200, 401, 403, 429, 500, 503];
+
+// ---------- POST 后端 ----------
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    $action = $_POST['action'] ?? '';
+    $st = chatapp_maint_status();
+
+    if ($action === 'get') {
+        $git = trim((string)@shell_exec('git -C ' . escapeshellarg(dirname(__DIR__)) . ' rev-parse --short HEAD 2>&1'));
+        $df = disk_free_space(dirname(__DIR__));
+        echo json_encode([
+            'success' => true,
+            'status'  => $st,
+            'server'  => [
+                'php'         => PHP_VERSION,
+                'mysql'       => chatapp_portal_mysql_ok(),
+                'git_head'    => $git,
+                'disk_free'   => ($df === false ? null : (int)$df),
+                'time'        => date('Y-m-d H:i:s'),
+                'cfg_writable'=> is_writable(dirname(__DIR__) . '/data'),
+            ],
+        ]);
+        exit;
+    }
+
+    if ($action === 'set') {
+        $st['is_maintenance'] = (($_POST['is_maintenance'] ?? '') === '1');
+        $code = (int)($_POST['mt_return_code'] ?? $st['mt_return_code']);
+        if (!in_array($code, $__codes, true)) $code = 500;
+        $st['mt_return_code'] = $code;
+        $page = trim((string)($_POST['maintenance_page'] ?? $st['maintenance_page']));
+        if (!isset($__maintPages[$page])) $page = $st['maintenance_page'];
+        $st['maintenance_page'] = $page;
+        $st['allow_mt_login'] = (($_POST['allow_mt_login'] ?? '') === '1');
+        $st['mt_login_use_mysql_creds'] = (($_POST['mt_login_use_mysql_creds'] ?? '') === '1');
+        if (!chatapp_portal_write_status($st)) {
+            echo json_encode(['success' => false, 'error' => 'Could not write status config (data/ not writable?).']); exit;
+        }
+        echo json_encode(['success' => true, 'status' => $st]);
+        exit;
+    }
+
+    if ($action === 'set_creds') {
+        $cur = (string)($_POST['current_password'] ?? '');
+        $mu  = trim($_POST['maint_user'] ?? '');
+        $mp  = (string)($_POST['maint_pass'] ?? '');
+        if ($cur === '') { echo json_encode(['success' => false, 'error' => 'Current admin password is required.']); exit; }
+        $adm = db()->query('SELECT password FROM users WHERE user_id=10000')->fetch();
+        if (!$adm || !password_verify($cur, (string)($adm['password'] ?? ''))) {
+            echo json_encode(['success' => false, 'error' => 'Current admin password incorrect.']); exit;
+        }
+        if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $mu)) { echo json_encode(['success' => false, 'error' => 'Invalid maintenance username.']); exit; }
+        if (strlen($mp) < 8) { echo json_encode(['success' => false, 'error' => 'Maintenance password min 8.']); exit; }
+        $body = "<?php\n/**\n * ChatApp — Maintenance admin credentials\n *\n * AUTO-GENERATED during OOBE / Maintenance Portal.\n * Override via MAINT_USER / MAINT_PASS / MAINT_SECRET env vars if needed.\n */\n"
+            . "\$MAINT_USER   = getenv('MAINT_USER') ?: " . var_export($mu, true) . ";\n"
+            . "\$MAINT_PASS   = getenv('MAINT_PASS') ?: " . var_export($mp, true) . ";\n"
+            . "\$MAINT_SECRET = getenv('MAINT_SECRET') ?: " . var_export(bin2hex(random_bytes(32)), true) . ";\n";
+        $dataDir = dirname(__DIR__) . '/data';
+        @mkdir($dataDir, 0775, true);
+        $ok = @file_put_contents($dataDir . '/maint_config.php', $body);
+        if ($ok !== false) {
+            @file_put_contents(__DIR__ . '/config.php', $body); // best effort
+        } else {
+            $ok = @file_put_contents(__DIR__ . '/config.php', $body);
+        }
+        if ($ok === false) { echo json_encode(['success' => false, 'error' => 'Could not write maintenance config.']); exit; }
+        // 凭据变更 → 使旧 MT_TOKEN 失效（强制重新登录）
+        setcookie('MT_TOKEN', '', time() - 42000, '/', '', false, true);
+        echo json_encode(['success' => true, 'relogin' => true]);
+        exit;
+    }
+
+    if ($action === 'logout') {
+        setcookie('MT_TOKEN', '', time() - 42000, '/', '', false, true);
+        echo json_encode(['success' => true]);
+        exit;
+    }
+
+    echo json_encode(['success' => false, 'error' => 'unknown action']); exit;
+}
+
+$__st = chatapp_maint_status();
+$__git = trim((string)@shell_exec('git -C ' . escapeshellarg(dirname(__DIR__)) . ' rev-parse --short HEAD 2>&1'));
+$__df = disk_free_space(dirname(__DIR__));
+$__dfTxt = ($__df === false) ? '?' : number_format($__df / 1073741824, 2) . ' GB';
+$__mysqlOk = chatapp_portal_mysql_ok();
+?>
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maintenance Portal · 维护门户</title>
+<link rel="stylesheet" href="../css/global.css">
+<link rel="stylesheet" href="../modern/style/chat.css?v=<?php echo time();?>">
+<style>
+  html,body{height:100%;margin:0;background:#222}
+  /* 加载动画（与 chat.php 一致） */
+  #loader-wrapper{position:fixed;top:0;left:0;width:100%;height:100%;z-index:999;overflow:hidden;background:#333}
+  #loader-wrapper .loader{width:100%;height:100%;position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-size:22px}
+  #loader-wrapper .loader .circle{width:110px;height:110px;border-radius:50%;border:3px solid transparent;border-top-color:#fff;animation:spin 1.4s linear infinite}
+  #loader-wrapper.loaded{visibility:hidden;transform:translateY(-100%);transition:transform .4s .4s ease-out,visibility .4s .4s ease-out}
+  @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+  /* 门户卡片与表单（沿用深色主题） */
+  .portal{padding:18px 22px;overflow-y:auto;flex:1}
+  .pcard{background:rgba(42,42,42,.8);border:1px solid #3a3a3a;border-radius:10px;padding:16px 18px;margin-bottom:14px}
+  .pcard h3{margin:0 0 10px;font-size:.95em;color:#d0d0d0;font-weight:600;display:flex;align-items:center;gap:8px}
+  .prow{display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px dashed #2f2f2f;font-size:.84em;color:#aaa}
+  .prow:last-child{border-bottom:none}
+  .prow .k{width:180px;color:#888;flex-shrink:0}
+  .prow .v{color:#d8d8d8;word-break:break-all}
+  .pbtn{display:inline-block;background:#2d4a6e;border:1px solid #3d5a7e;color:#e8f0fa;padding:8px 18px;border-radius:7px;cursor:pointer;font-size:.85em;font-family:inherit;text-decoration:none}
+  .pbtn:hover{background:#37608a}
+  .pbtn.green{background:#2e5d43;border-color:#3a704f}
+  .pbtn.green:hover{background:#3a704f}
+  .pbtn.red{background:#6e2d2d;border-color:#8a3a3a}
+  .pbtn.red:hover{background:#8a3a3a}
+  .pbtn.gray{background:#3a3a3a;border-color:#4a4a4a;color:#bbb}
+  .pbtn:disabled{opacity:.5;cursor:not-allowed}
+  .pfield{margin-bottom:12px}
+  .pfield label{display:block;color:#999;font-size:.76em;margin-bottom:5px}
+  .pfield input[type=text],.pfield input[type=password],.pfield select{width:100%;max-width:360px;padding:8px 12px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-size:.85em;font-family:inherit;outline:none;border-radius:6px}
+  .pfield input:focus,.pfield select:focus{border-color:#4a6a8e}
+  .pcheck{display:flex;align-items:center;gap:8px;color:#bbb;font-size:.84em;padding:6px 0;cursor:pointer}
+  .pcheck input{width:16px;height:16px;accent-color:#4a8a6a}
+  .stat-big{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .stat-big .pill{font-size:1.05em;font-weight:700;padding:8px 20px;border-radius:20px}
+  .pill.on{background:#2e5d43;color:#7ddb9a;border:1px solid #3a704f}
+  .pill.off{background:#6e2d2d;color:#ff9a9a;border:1px solid #8a3a3a}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+  .ok-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:1px}
+  .ok-dot.g{background:#5ec87a}.ok-dot.r{background:#e06666}
+  .linkbtn{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;margin-bottom:8px;background:rgba(42,42,42,.8);border:1px solid #3a3a3a;border-radius:8px;color:#c8c8c8;text-decoration:none;font-size:.85em}
+  .linkbtn:hover{border-color:#4a6a8e;color:#fff}
+  .note{color:#666;font-size:.72em;line-height:1.6;margin-top:6px}
+  .flash{position:fixed;top:16px;right:16px;z-index:1000;padding:10px 16px;border-radius:8px;font-size:.84em;display:none}
+  .flash.ok{background:#2e5d43;color:#c8f5d8;border:1px solid #3a704f}
+  .flash.err{background:#6e2d2d;color:#ffd0d0;border:1px solid #8a3a3a}
+  .maint-nav-ico{font-size:16px;margin-right:8px;vertical-align:-2px}
+</style>
+</head>
+<body>
+ <!-- 加载动画 -->
+ <div id="loader-wrapper"><div class="loader"><div class="circle"></div><div style="margin-top:26px">Maintenance Portal</div></div></div>
+
+ <div style="display:flex;width:100%;height:100vh">
+  <!-- ============ 侧边栏（复刻 chat.php，替换为门户导航） ============ -->
+  <div class="sidebar">
+   <div class="sidebar-profile">
+    <div class="sa" style="background:linear-gradient(135deg,#3a4a6a,#1f2937);display:flex;align-items:center;justify-content:center;font-size:22px">🛠</div>
+    <div class="sun">Maintenance Portal</div>
+    <div class="sdnd <?php echo $__st['is_maintenance'] ? 'rstr' : 'on'; ?>" id="maintStatusBadge"><?php echo $__st['is_maintenance'] ? '维护中' : '运行中'; ?></div>
+   </div>
+   <div class="sidebar-nav">
+    <div class="ng"><div class="ngh" onclick="showPanel('dash')" style="cursor:pointer"><span><span class="maint-nav-ico">📊</span><?php echo '仪表盘 Dashboard'; ?></span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('settings')" style="cursor:pointer"><span><span class="maint-nav-ico">⚙️</span><?php echo '维护设置 Settings'; ?></span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('creds')" style="cursor:pointer"><span><span class="maint-nav-ico">🔑</span><?php echo '门户凭据 Credentials'; ?></span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('links')" style="cursor:pointer"><span><span class="maint-nav-ico">🔗</span><?php echo '快捷链接 Quick Links'; ?></span></div></div>
+   </div>
+   <div class="sidebar-footer">
+    <div class="ngh" onclick="doLogout()" style="cursor:pointer"><span>退出门户 Logout</span></div>
+   </div>
+  </div>
+
+  <!-- ============ 主区域 ============ -->
+  <div class="main-content">
+
+   <!-- 仪表盘 -->
+   <div class="panel active" id="panel-dash">
+    <div class="ch"><h2>仪表盘 Dashboard</h2><span style="color:#666;font-size:.75em">Maintenance Portal</span></div>
+    <div class="portal">
+     <div class="pcard">
+      <h3>🔴 维护开关</h3>
+      <div class="stat-big">
+       <span class="pill <?php echo $__st['is_maintenance'] ? 'on' : 'off'; ?>" id="dashPill"><?php echo $__st['is_maintenance'] ? '维护中' : '运行中'; ?></span>
+       <button class="pbtn <?php echo $__st['is_maintenance'] ? 'green' : 'red'; ?>" id="dashToggle" onclick="toggleMaint()"><?php echo $__st['is_maintenance'] ? '关闭维护' : '开启维护'; ?></button>
+       <span class="note" style="margin-left:6px">开启后所有访问显示维护页；门户与管理凭据仍可登录。</span>
+      </div>
+     </div>
+     <div class="grid2">
+      <div class="pcard"><h3>📋 当前设置</h3>
+       <div class="prow"><span class="k">返回码 Return Code</span><span class="v" id="dashCode"><?php echo (int)$__st['mt_return_code']; ?></span></div>
+       <div class="prow"><span class="k">维护页面 Page</span><span class="v" id="dashPage"><?php echo htmlspecialchars($__st['maintenance_page']); ?></span></div>
+       <div class="prow"><span class="k">允许维护登录 Allow Login</span><span class="v" id="dashAllowLogin"><?php echo $__st['allow_mt_login'] ? '是 Yes' : '否 No'; ?></span></div>
+       <div class="prow"><span class="k">使用 MySQL 凭据</span><span class="v" id="dashMysqlCreds"><?php echo $__st['mt_login_use_mysql_creds'] ? '是 Yes' : '否 No'; ?></span></div>
+      </div>
+      <div class="pcard"><h3>🖥 服务器信息</h3>
+       <div class="prow"><span class="k">PHP</span><span class="v"><?php echo htmlspecialchars(PHP_VERSION); ?></span></div>
+       <div class="prow"><span class="k">MySQL</span><span class="v"><span class="ok-dot <?php echo $__mysqlOk ? 'g' : 'r'; ?>"></span><?php echo $__mysqlOk ? '可达 Reachable' : '不可达 Down'; ?></span></div>
+       <div class="prow"><span class="k">Git HEAD</span><span class="v"><?php echo htmlspecialchars($__git ?: '?'); ?></span></div>
+       <div class="prow"><span class="k">磁盘可用 Free</span><span class="v"><?php echo htmlspecialchars($__dfTxt); ?></span></div>
+       <div class="prow"><span class="k">服务器时间 Time</span><span class="v"><?php echo date('Y-m-d H:i:s'); ?></span></div>
+      </div>
+     </div>
+     <div class="pcard"><h3>⚡ 快速操作</h3>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+       <a class="pbtn" href="index.php">维护登录页</a>
+       <button class="pbtn gray" onclick="location.href='../modern/wp/chat.php'">进入 ChatApp</button>
+       <button class="pbtn gray" onclick="location.href='../modern/wp/settings-factory.php'">工厂重置</button>
+       <button class="pbtn gray" onclick="location.href='../modern/wp/settings-upgrade.php'">升级</button>
+       <button class="pbtn gray" onclick="location.href='../modern/wp/settings-downgrade.php'">降级</button>
+      </div>
+     </div>
+    </div>
+   </div>
+
+   <!-- 维护设置 -->
+   <div class="panel" id="panel-settings">
+    <div class="ch"><h2>维护设置 Settings</h2></div>
+    <div class="portal">
+     <div class="pcard" style="max-width:520px">
+      <h3>⚙️ 维护模式配置</h3>
+      <div class="pfield"><label>维护模式 Maintenance Mode</label>
+       <select id="setIsMaint">
+        <option value="0" <?php echo $__st['is_maintenance'] ? '' : 'selected'; ?>>运行中 Running（关闭维护）</option>
+        <option value="1" <?php echo $__st['is_maintenance'] ? 'selected' : ''; ?>>维护中 Maintenance（开启维护）</option>
+       </select>
+      </div>
+      <div class="pfield"><label>返回码 Return Code</label>
+       <select id="setCode">
+        <?php foreach ($__codes as $__c): ?>
+        <option value="<?php echo $__c; ?>" <?php echo (int)$__st['mt_return_code'] === $__c ? 'selected' : ''; ?>><?php echo $__c; ?> — <?php echo ['200'=>'OK','401'=>'Unauthorized','403'=>'Forbidden','429'=>'Too Many Requests','500'=>'Internal Server Error','503'=>'Service Unavailable'][$__c]; ?></option>
+        <?php endforeach; ?>
+       </select>
+      </div>
+      <div class="pfield"><label>维护页面 Maintenance Page</label>
+       <select id="setPage">
+        <?php foreach ($__maintPages as $__p => $__pl): ?>
+        <option value="<?php echo $__p; ?>" <?php echo $__st['maintenance_page'] === $__p ? 'selected' : ''; ?>><?php echo $__pl; ?></option>
+        <?php endforeach; ?>
+       </select>
+      </div>
+      <label class="pcheck"><input type="checkbox" id="setAllowLogin" <?php echo $__st['allow_mt_login'] ? 'checked' : ''; ?>> 允许维护登录（维护页显示「Admin Login」入口）</label>
+      <label class="pcheck"><input type="checkbox" id="setMysqlCreds" <?php echo $__st['mt_login_use_mysql_creds'] ? 'checked' : ''; ?>> 维护登录使用 MySQL 凭据（账号密码入库校验）</label>
+      <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
+       <button class="pbtn green" onclick="saveSettings()">保存 Save</button>
+       <button class="pbtn gray" onclick="previewPage()">预览维护页 Preview</button>
+       <span class="note">保存后立即生效；预览在新标签打开所选维护页。</span>
+      </div>
+     </div>
+    </div>
+   </div>
+
+   <!-- 门户凭据 -->
+   <div class="panel" id="panel-creds">
+    <div class="ch"><h2>门户凭据 Credentials</h2></div>
+    <div class="portal">
+     <div class="pcard" style="max-width:520px">
+      <h3>🔑 修改维护门户用户名 / 密码</h3>
+      <p class="note" style="margin-top:0">修改前必须验证当前管理员密码（uid 10000）。保存后旧维护 token 失效，需重新登录。</p>
+      <div class="pfield"><label>当前管理员密码 Current Admin Password（必填）</label><input type="password" id="cCur" autocomplete="current-password"></div>
+      <div class="pfield"><label>维护门户用户名 Maintenance Username（3-20）</label><input type="text" id="cUser" autocomplete="off" placeholder="admin"></div>
+      <div class="pfield"><label>维护门户密码 Maintenance Password（≥8）</label><input type="password" id="cPass" autocomplete="new-password"></div>
+      <button class="pbtn green" onclick="saveCreds()">保存并重新登录</button>
+     </div>
+    </div>
+   </div>
+
+   <!-- 快捷链接 -->
+   <div class="panel" id="panel-links">
+    <div class="ch"><h2>快捷链接 Quick Links</h2></div>
+    <div class="portal">
+     <div class="pcard">
+      <h3>🔗 管理入口</h3>
+      <a class="linkbtn" href="../modern/wp/chat.php"><span>💬 ChatApp 主界面</span><span>→</span></a>
+      <a class="linkbtn" href="../modern/wp/settings-factory.php"><span>♻️ 工厂重置 Factory Reset</span><span>→</span></a>
+      <a class="linkbtn" href="../modern/wp/settings-upgrade.php"><span>⬆️ 升级 Upgrade</span><span>→</span></a>
+      <a class="linkbtn" href="../modern/wp/settings-downgrade.php"><span>⬇️ 降级 Downgrade</span><span>→</span></a>
+      <a class="linkbtn" href="../modern/wp/settings-uninstall.php"><span>🗑 卸载 Uninstall</span><span>→</span></a>
+      <a class="linkbtn" href="index.php"><span>🔐 维护登录页（重新登录）</span><span>→</span></a>
+      <p class="note">危险操作页面本身带有管理员密码 + 维护门户凭据 + git hash 三重验证。</p>
+     </div>
+    </div>
+   </div>
+
+  </div>
+ </div>
+
+ <div class="flash" id="flash"></div>
+
+<script>
+var STATUS = <?php echo json_encode($__st); ?>;
+var PAGES  = <?php echo json_encode($__maintPages); ?>;
+function showPanel(id){
+  document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
+  var el = document.getElementById('panel-' + id);
+  if (el) el.classList.add('active');
+}
+function flash(msg, ok){
+  var f = document.getElementById('flash');
+  f.textContent = msg;
+  f.className = 'flash ' + (ok ? 'ok' : 'err');
+  f.style.display = 'block';
+  clearTimeout(flash._t);
+  flash._t = setTimeout(function(){ f.style.display = 'none'; }, 2600);
+}
+function api(action, extra, cb){
+  var fd = new URLSearchParams(); fd.append('action', action);
+  (extra || []).forEach(function(kv){ fd.append(kv[0], kv[1]); });
+  fetch('portal.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:fd.toString(), credentials:'same-origin' })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ cb(d); })
+    .catch(function(){ flash('网络错误 / 服务器无响应', false); });
+}
+function applyStatus(d){
+  STATUS = d.status || STATUS;
+  var mt = !!STATUS.is_maintenance;
+  var pill = document.getElementById('dashPill');
+  pill.textContent = mt ? '维护中' : '运行中';
+  pill.className = 'pill ' + (mt ? 'on' : 'off');
+  document.getElementById('dashToggle').textContent = mt ? '关闭维护' : '开启维护';
+  document.getElementById('dashToggle').className = 'pbtn ' + (mt ? 'green' : 'red');
+  var b = document.getElementById('maintStatusBadge');
+  b.textContent = mt ? '维护中' : '运行中';
+  b.className = 'sdnd ' + (mt ? 'rstr' : 'on');
+  document.getElementById('dashCode').textContent = STATUS.mt_return_code;
+  document.getElementById('dashPage').textContent = STATUS.maintenance_page;
+  document.getElementById('dashAllowLogin').textContent = STATUS.allow_mt_login ? '是 Yes' : '否 No';
+  document.getElementById('dashMysqlCreds').textContent = STATUS.mt_login_use_mysql_creds ? '是 Yes' : '否 No';
+}
+function toggleMaint(){
+  var next = !STATUS.is_maintenance;
+  api('set', [['is_maintenance', next ? '1' : '0']], function(d){
+    if (d.success){ applyStatus(d); flash(next ? '维护模式已开启' : '维护模式已关闭', true); }
+    else flash(d.error || '失败', false);
+  });
+}
+function saveSettings(){
+  api('set', [
+    ['is_maintenance', document.getElementById('setIsMaint').value === '1' ? '1' : '0'],
+    ['mt_return_code', document.getElementById('setCode').value],
+    ['maintenance_page', document.getElementById('setPage').value],
+    ['allow_mt_login', document.getElementById('setAllowLogin').checked ? '1' : '0'],
+    ['mt_login_use_mysql_creds', document.getElementById('setMysqlCreds').checked ? '1' : '0'],
+  ], function(d){
+    if (d.success){ applyStatus(d); flash('设置已保存', true); }
+    else flash(d.error || '保存失败', false);
+  });
+}
+function previewPage(){
+  var p = document.getElementById('setPage').value;
+  window.open(p, '_blank');
+}
+function saveCreds(){
+  var cur = document.getElementById('cCur').value;
+  var mu  = document.getElementById('cUser').value.trim();
+  var mp  = document.getElementById('cPass').value;
+  if (!cur){ flash('请输入当前管理员密码', false); return; }
+  if (!/^[a-zA-Z0-9_]{3,20}$/.test(mu)){ flash('维护门户用户名 3-20 位字母数字下划线', false); return; }
+  if (mp.length < 8){ flash('维护门户密码至少 8 位', false); return; }
+  api('set_creds', [['current_password', cur], ['maint_user', mu], ['maint_pass', mp]], function(d){
+    if (d.success && d.relogin){ flash('凭据已更新，正在重新登录…', true); setTimeout(function(){ location.href = 'index.php'; }, 900); }
+    else flash(d.error || '失败', false);
+  });
+}
+function doLogout(){
+  api('logout', [], function(){ location.href = 'index.php'; });
+}
+window.addEventListener('load', function(){
+  var w = document.getElementById('loader-wrapper');
+  setTimeout(function(){ w.classList.add('loaded'); }, 350);
+});
+</script>
+</body>
+</html>

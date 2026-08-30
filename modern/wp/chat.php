@@ -153,6 +153,7 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
    <div class="ng"><div class="ngh" onclick="switchPanel('dbadmin')" style="cursor:pointer"><span><?php echo t('sb_dbadmin');?></span></div></div>
    <div class="ng"><div class="ngh" onclick="switchPanel('wssettings');loadWssSettings()" style="cursor:pointer"><span>WebSocket Settings</span></div></div>
    <div class="ng"><div class="ngh" onclick="switchPanel('oobe')" style="cursor:pointer"><span>OOBE 引导</span></div></div>
+   <div class="ng"><div class="ngh" onclick="location.href='/maintenance/portal.php'" style="cursor:pointer"><span>🛠 维护门户</span></div></div>
    <?php endif;?>
    <div class="ng"><div class="ngh" onclick="switchPanel('level')" style="cursor:pointer"><span><?php echo t('title_level');?></span></div></div>
    <div class="ng"><div class="ngh" onclick="openSettings()" style="cursor:pointer"><span><?php echo t('title_settings');?></span></div></div>

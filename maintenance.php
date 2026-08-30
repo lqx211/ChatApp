@@ -6,7 +6,9 @@
  * bypasses the gate (used for local admin access during maintenance).
  */
 
-$__status = include __DIR__ . '/status.php';
+require_once __DIR__ . '/maintenance/status_loader.php';
+
+$__status = chatapp_maint_status();
 if (is_array($__status) && !empty($__status['is_maintenance'])) {
 
     // ---- Admin bypass: valid 1-hour token grants access ----

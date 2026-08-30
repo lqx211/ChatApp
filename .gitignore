@@ -76,6 +76,9 @@ maintenance/config.php
 # data/maint_config.php is the web-writable runtime copy of maintenance credentials
 # (written by OOBE when maintenance/config.php is read-only, e.g. on macOS/local).
 data/maint_config.php
+# data/maintenance_status.php is the web-writable runtime copy of maintenance status
+# (written by the Maintenance Portal; preferred over root status.php when read-only).
+data/maintenance_status.php
 
 # =================== Keep directory structure ===================
 # Ensure empty directories are tracked via .gitkeep

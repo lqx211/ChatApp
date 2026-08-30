@@ -16,7 +16,7 @@ $hour_window = floor(time() / 3600);
 $has_token = (isset($_COOKIE['MT_TOKEN']) && hash_equals(hash_hmac('sha256', 'mt:' . $hour_window, $MAINT_SECRET), $_COOKIE['MT_TOKEN']));
 
 if ($has_token) {
-    header('Location: /');
+    header('Location: /maintenance/portal.php');
     exit;
 }
 
@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $hour_window = floor(time() / 3600);
         $token = hash_hmac('sha256', 'mt:' . $hour_window, $MAINT_SECRET);
         setcookie('MT_TOKEN', $token, 0, '/', '', false, true); // session cookie, httponly
-        header('Location: /');
+        header('Location: /maintenance/portal.php');
         exit;
     }
     $error = 'Invalid login or password.';

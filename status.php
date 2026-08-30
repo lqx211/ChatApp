@@ -1,15 +1,12 @@
 <?php
 /**
- * ChatApp - Status
- * Change the values below to enable maintenance mode, or to customize the maintenance page and login behavior.
+ * ChatApp — Maintenance status (written by Maintenance Portal).
+ * 手动改这里也行；门户会优先读 data/maintenance_status.php。
  */
-
-
-return [
-    'is_maintenance'         => false,
-    'mt_return_code'          => 503, # 429:TooManyRequests, 503:ServiceUnavailable, 500:InternalServerError, 401:Unauthorized, 403:Forbidden, 200:OK
-    'maintenance_page'        => '/errors/unavailable_upgrade.html', # breakdb erepair offline upgrade limit spam(!2)
-    'allow_mt_login' => false,
-    'mt_login_use_mysql_creds' => false,
-];
-
+return array (
+  'is_maintenance' => false,
+  'mt_return_code' => 500,
+  'maintenance_page' => '/errors/unavailable_erepair.html',
+  'allow_mt_login' => false,
+  'mt_login_use_mysql_creds' => false,
+);
