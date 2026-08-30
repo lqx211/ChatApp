@@ -166,7 +166,7 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
    </div>
   </div>
   <div class="sidebar-nav" id="sidebarNavUser" style="display:none"></div>
-  <div class="sidebar-footer"><a class="ngh" href="m.php" style="cursor:pointer;display:block;color:#8fb6d9"><span><?php echo t('m_switch_mobile', '手机版');?></span></a><div class="ngh" id="logoutLink" onclick="logout()" style="cursor:pointer"><span><?php echo isset($_SESSION['admin_username']) ? t('sb_back_all_users') : t('title_logout');?></span></div></div>
+  <div class="sidebar-footer"><a class="ngh" href="space.php" style="cursor:pointer;display:block;color:#8fb6d9"><span><?php echo t('m_space', '个人空间');?></span></a><a class="ngh" href="m.php" style="cursor:pointer;display:block;color:#8fb6d9"><span><?php echo t('m_switch_mobile', '手机版');?></span></a><div class="ngh" id="logoutLink" onclick="logout()" style="cursor:pointer"><span><?php echo isset($_SESSION['admin_username']) ? t('sb_back_all_users') : t('title_logout');?></span></div></div>
  </div>
 
 <div class="main-content">

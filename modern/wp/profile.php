@@ -265,9 +265,11 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
     <span class="arrow">›</span>
   </div>
 
-  <!-- 8. 精选照片 - 横滑滚动 -->
+  <!-- 8. 精选照片 - 横滑滚动（精选相片来自个人空间，点击进入空间主页） -->
   <div class="photo-section">
-    <div class="photo-title"><?php echo t('p_photos');?></div>
+    <div class="photo-title"><?php echo t('p_photos');?>
+      <a class="photo-more" href="space.php<?php echo $isSelf ? '' : '?user=' . urlencode($profileUser['username']);?>"><?php echo t('p_space', '进入个人空间');?> ›</a>
+    </div>
     <div class="photo-scroll">
       <!--
       <img src="../../data/user/..." alt="photo">
