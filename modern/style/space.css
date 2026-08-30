@@ -1,14 +1,14 @@
 /* ============================================================
-   ChatApp 个人空间（QQ 空间风格主页，桌面版）
-   原创样式，参考 QQ 空间 v8 浅色主页观感重写（非复制其专有 CSS）
+   ChatApp 个人空间（桌面版 · 灰色简洁风格）
+   原创样式
    ============================================================ */
 :root{
   --q-toolbar-h:44px;
   --q-cover-h:250px;
   --q-sidebar-w:230px;
   --q-main-w:766px;
-  --q-accent:#FFC028;
-  --q-blue:#2486ff;
+  --q-accent:#7a8089;
+  --q-blue:#5b616b;
   --q-text:#111;
   --q-sub:#888;
   --q-card:#fff;
@@ -17,7 +17,7 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
-body{font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--q-bg);color:var(--q-text)}
+body{font:14px/1.6 "Roboto",-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;background:var(--q-bg);color:var(--q-text)}
 a{color:inherit;text-decoration:none}
 img{border:0;vertical-align:middle}
 .none{display:none!important}
@@ -29,7 +29,7 @@ img{border:0;vertical-align:middle}
 .top-fix-inner{max-width:1180px;margin:0 auto;height:100%}
 .top-fix-wrap{display:flex;align-items:center;height:100%;gap:4px}
 .top-fix-wrap .logo{display:flex;align-items:center;gap:6px;padding:0 10px;font-size:18px;font-weight:700;color:#111;cursor:pointer}
-.top-fix-wrap .logo .logo-ico{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#ffd54a,#ffb300);display:flex;align-items:center;justify-content:center;font-size:12px;color:#7a5200}
+.top-fix-wrap .logo .logo-ico{width:22px;height:22px;border-radius:0;background:#6b7078;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff}
 .top-nav{display:flex;list-style:none;margin-left:8px}
 .top-nav .nav-list{position:relative}
 .top-nav .nav-list>a{display:block;padding:0 14px;line-height:var(--q-toolbar-h);color:#333;font-size:14px;cursor:pointer}
@@ -52,7 +52,7 @@ img{border:0;vertical-align:middle}
 /* ---------- 背景分层 ---------- */
 .background-container{position:relative}
 .layout-head{position:relative}
-.layout-head-inner{position:relative;overflow:hidden;height:var(--q-cover-h);background:linear-gradient(150deg,#1c3c6e 0%,#2a6aa8 45%,#3a8fc0 100%);color:#fff}
+.layout-head-inner{position:relative;overflow:hidden;height:var(--q-cover-h);background:linear-gradient(150deg,#3a3f46 0%,#565b63 45%,#6b7078 100%);color:#fff}
 /* 封面图（若用户设置） */
 .layout-head-inner.has-cover{background-size:cover;background-position:center}
 .layout-head-inner .head-cover-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
@@ -60,7 +60,7 @@ img{border:0;vertical-align:middle}
 .head-info{position:absolute;top:16px;left:20px;z-index:2;max-width:70%}
 .head-title{display:flex;align-items:center;gap:8px;font-size:20px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.4)}
 .head-title .title-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.head-title .qz-level-flag{font-size:11px;background:rgba(255,192,40,.9);color:#6b4a00;border-radius:3px;padding:1px 6px;font-weight:600;flex:none}
+.head-title .qz-level-flag{font-size:11px;background:rgba(90,95,103,.92);color:#e8eaed;border-radius:0;padding:1px 6px;font-weight:600;flex:none}
 .head-description{margin-top:6px;font-size:13px;opacity:.92;text-shadow:0 1px 2px rgba(0,0,0,.4);max-width:520px}
 .head-description .description-text{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .head-detail{position:absolute;bottom:60px;left:20px;z-index:2}
@@ -68,11 +68,11 @@ img{border:0;vertical-align:middle}
 /* 封面浮层导航 tab */
 .layout-shop-item{position:absolute;z-index:3}
 #menuContainer{left:150px;top:200px}
-.head-nav .head-nav-menu{display:flex;list-style:none;background:rgba(255,255,255,.92);border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.25);overflow:hidden}
+.head-nav .head-nav-menu{display:flex;list-style:none;background:rgba(255,255,255,.92);border-radius:0;box-shadow:0 2px 8px rgba(0,0,0,.25);overflow:hidden}
 .head-nav .head-nav-menu li{position:relative}
 .head-nav .head-nav-menu li a{display:block;padding:0 16px;line-height:38px;font-size:14px;color:#333;cursor:pointer;white-space:nowrap}
-.head-nav .head-nav-menu li:hover a{color:var(--q-blue);background:#f0f4ff}
-.head-nav .head-nav-menu li.cur a{color:var(--q-blue);font-weight:700;background:#eaf2ff}
+.head-nav .head-nav-menu li:hover a{color:var(--q-blue);background:#f2f2f2}
+.head-nav .head-nav-menu li.cur a{color:var(--q-blue);font-weight:700;background:#e9eaec}
 /* 访客统计 */
 #visitorsDiv{left:auto;right:16px;top:120px}
 .visit-module .other-info{background:rgba(0,0,0,.35);border-radius:8px;padding:10px 14px;color:#fff;font-size:12px;text-align:center;backdrop-filter:blur(3px)}
@@ -83,15 +83,15 @@ img{border:0;vertical-align:middle}
 .btn-head a{display:inline-block;background:rgba(255,255,255,.92);color:#333;border-radius:6px;padding:6px 16px;font-size:13px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .btn-head a:hover{color:var(--q-blue);background:#fff}
 .btn-head.btn-primary a{background:var(--q-blue);color:#fff}
-.btn-head.btn-primary a:hover{background:#1a76e0;color:#fff}
+.btn-head.btn-primary a:hover{background:#4a4f57;color:#fff}
 
 /* ---------- 头像栏（压在封面上） ---------- */
 .layout-nav{position:relative;height:0;z-index:5}
 .layout-nav-inner{position:relative;height:0}
 .head-avatar{position:absolute;left:20px;top:-64px}
-.head-avatar img{width:120px;height:120px;border-radius:8px;object-fit:cover;border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.3);background:#fff}
-.head-avatar .av-empty{width:120px;height:120px;border-radius:8px;border:3px solid #fff;background:#cfd8e3;display:flex;align-items:center;justify-content:center;font-size:48px;color:#fff;font-weight:700}
-/* 头像旁昵称（Qzone 风格） */
+.head-avatar img{width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.3);background:#fff}
+.head-avatar .av-empty{width:120px;height:120px;border-radius:50%;border:3px solid #fff;background:#cfd8e3;display:flex;align-items:center;justify-content:center;font-size:48px;color:#fff;font-weight:700}
+/* 头像旁昵称 */
 .layout-nav-inner .head-detail{position:absolute;left:156px;top:-56px;z-index:5;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
 .layout-nav-inner .head-detail .user-name{font-size:24px;font-weight:700;line-height:1.2}
 .layout-nav-inner .head-detail .head-detail-sub{margin-top:4px;font-size:12px;opacity:.85}
@@ -106,10 +106,10 @@ img{border:0;vertical-align:middle}
 .mod-side-nav .hd{padding:10px 14px;font-size:14px;font-weight:700;border-bottom:1px solid #f0f0f0}
 .mod-side-nav .sn-list{list-style:none}
 .mod-side-nav .sn-list li a{display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:13px;color:#333;cursor:pointer}
-.mod-side-nav .sn-list li a:hover{background:#f5f8ff;color:var(--q-blue)}
-.mod-side-nav .sn-list li.current a{background:#eaf2ff;color:var(--q-blue);font-weight:600;border-left:3px solid var(--q-blue)}
+.mod-side-nav .sn-list li a:hover{background:#f2f2f2;color:var(--q-blue)}
+.mod-side-nav .sn-list li.current a{background:#e9eaec;color:var(--q-blue);font-weight:600;border-left:3px solid var(--q-blue)}
 .mod-side-nav .sn-list .sn-ico{width:16px;height:16px;border-radius:4px;flex:none;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:#fff}
-.sn-ico.c1{background:#ff8b3d}.sn-ico.c2{background:#35c06e}.sn-ico.c3{background:#4a9fe8}.sn-ico.c4{background:#b07be8}.sn-ico.c5{background:#e85b6a}.sn-ico.c6{background:#3dc9c9}
+.sn-ico.c1{background:#8a9098}.sn-ico.c2{background:#6b7078}.sn-ico.c3{background:#7a8089}.sn-ico.c4{background:#5b616b}.sn-ico.c5{background:#8a9098}.sn-ico.c6{background:#6b7078}
 /* 内联 SVG 图标（禁止 emoji） */
 .sp-ic{display:inline-block;vertical-align:-2px}
 .sn-ico .sp-ic{vertical-align:0}
@@ -131,7 +131,7 @@ img{border:0;vertical-align:middle}
 .qz-poster .attach-icons span:hover{background:#f0f2f5}
 .qz-poster .op{margin-left:auto}
 .qz-poster .btn-post{background:var(--q-blue);color:#fff;border:none;border-radius:6px;padding:7px 22px;font-size:13px;cursor:pointer}
-.qz-poster .btn-post:hover{background:#1a76e0}
+.qz-poster .btn-post:hover{background:#4a4f57}
 /* 动态流 tab */
 .feed-control{display:flex;align-items:center;background:#fff;border-radius:8px;border:1px solid var(--q-border);padding:0 14px;margin-bottom:12px}
 .feed-control .feed-control-tab{display:flex;gap:2px}
@@ -142,7 +142,7 @@ img{border:0;vertical-align:middle}
 .feed-list{list-style:none}
 .f-single{background:#fff;border-radius:8px;border:1px solid var(--q-border);padding:16px 16px 10px;margin-bottom:12px}
 .f-single .f-single-head{display:flex;gap:10px;margin-bottom:10px}
-.f-single .user-avatar{width:50px;height:50px;border-radius:6px;object-fit:cover;flex:none;background:#ddd;cursor:pointer}
+.f-single .user-avatar{width:50px;height:50px;border-radius:50%;object-fit:cover;flex:none;background:#ddd;cursor:pointer}
 .f-single .user-info{flex:1;min-width:0}
 .f-single .f-nick{font-size:14px;font-weight:700;color:var(--q-blue);cursor:pointer}
 .f-single .info-detail{margin-top:2px;font-size:12px;color:#999}
@@ -191,29 +191,40 @@ body.embed .layout-background{min-height:0}
 
 /* 返回顶部 */
 .fix-layout{position:fixed;right:16px;bottom:30px;z-index:900}
-.fix-layout .to-top{width:40px;height:40px;border-radius:50%;background:#fff;border:1px solid var(--q-border);box-shadow:0 2px 8px rgba(0,0,0,.15);display:flex;align-items:center;justify-content:center;font-size:16px;color:#666;cursor:pointer}
+.fix-layout .to-top{width:40px;height:40px;border-radius:0;background:#fff;border:1px solid var(--q-border);box-shadow:0 2px 8px rgba(0,0,0,.15);display:flex;align-items:center;justify-content:center;font-size:16px;color:#666;cursor:pointer}
 .fix-layout .to-top:hover{color:var(--q-blue)}
 
-/* ============ 封面就地编辑 ============ */
-/* 编辑态：隐藏标题/导航/遮罩/动作，保留头像与封面媒体，便于就地取景 */
-.layout-head-inner.sp-editing{cursor:move;touch-action:none}
-.layout-head-inner.sp-editing .head-cover-tint,
-.layout-head-inner.sp-editing .head-info,
-.layout-head-inner.sp-editing #menuContainer,
-.layout-head-inner.sp-editing .profile-hd-actions{display:none!important}
-.layout-head-inner.sp-editing .head-cover-img{object-fit:none}
-
-/* 背景图操作菜单（固定定位，避开头 overflow:hidden 裁剪） */
-.sp-bg-menu{position:fixed;z-index:2000;background:#fff;border:1px solid #e3e5e8;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.18);padding:6px 0;display:none;min-width:180px}
-.sp-bg-menu-item{padding:9px 16px;font-size:13px;color:#333;cursor:pointer;white-space:nowrap}
-.sp-bg-menu-item:hover{background:#f2f4f7}
-.sp-bg-menu-item.danger{color:#e74c3c}
-
-/* 就地编辑控制条（浮在封面下缘） */
-.sp-cover-edit-bar{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:30;display:none;align-items:center;gap:8px;background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.25);border-radius:10px;padding:8px 12px;backdrop-filter:blur(4px);box-sizing:border-box;max-width:96%}
-.sp-eb-hint{color:#e8ecf3;font-size:12px;margin-right:4px;white-space:nowrap}
-.sp-eb-btn{background:#2a3140;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;line-height:1.2}
-.sp-eb-btn:hover{filter:brightness(1.2)}
-.sp-eb-btn.active{background:#3b82f6;color:#fff}
-.sp-eb-btn.sp-eb-ok{background:#3b82f6;color:#fff}
-.sp-eb-progress{color:#9be8ff;font-size:12px;white-space:nowrap}
+/* ============ 灰色风格 · 全无圆角 · 头像统一圆形 ============ */
+/* 去掉全部圆角（头像除外，头像单独 50%） */
+.top-fix-wrap .logo .logo-ico,
+.top-search .search-box,
+.user-info .user-home,
+.head-title .qz-level-flag,
+.head-nav .head-nav-menu,
+.visit-module .other-info,
+.btn-head a,
+.mod-side-nav,
+.mod-side-nav .sn-list .sn-ico,
+.qz-poster,
+.qz-poster .qz-inputer,
+.qz-poster .attach-icons span,
+.qz-poster .btn-post,
+.feed-control,
+.f-single,
+.f-ct-txtimg .img-item,
+.icenter-right-mod,
+.photo-grid li,
+.fix-layout .to-top{border-radius:0!important}
+/* 头像全部圆形（已 50% 的保持，其余补上） */
+.head-avatar img,
+.head-avatar .av-empty,
+.f-single .user-avatar,
+.user-info .user-avatar,
+.poster-av,
+.visitor-list li img{border-radius:50%!important}
+/* 主按钮灰化，避免蓝色残留 */
+.btn-head.btn-primary a{background:#5b616b;color:#fff}
+.btn-head.btn-primary a:hover{background:#4a4f57;color:#fff}
+.qz-poster .btn-post{background:#5b616b;color:#fff}
+.qz-poster .btn-post:hover{background:#4a4f57}
+.btn-head a:hover{color:var(--q-blue);background:#fff}
