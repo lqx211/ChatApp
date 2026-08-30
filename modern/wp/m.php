@@ -115,6 +115,12 @@ if (!empty($meAvatar) && strpos($meAvatar, 'data:') !== 0 && preg_match('/^[0-9a
   </div>
 </div>
 
+<!-- 图片全屏预览 -->
+<div class="img-viewer" id="imgViewer" style="display:none">
+  <img id="imgViewerImg" alt="">
+  <button class="img-viewer-close" id="imgViewerClose">✕</button>
+</div>
+
 <!-- 轻提示 -->
 <div class="m-toast" id="mToast"></div>
 

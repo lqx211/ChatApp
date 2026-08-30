@@ -491,6 +491,14 @@
             openFrame('profile.php?user=' + encodeURIComponent(av.getAttribute('data-u')), '');
             return;
         }
+        var img = e.target.closest('.m-img');
+        if (img) { openImageViewer(img.getAttribute('src')); return; }
+        var playBtn = e.target.closest('.m-audio-play');
+        if (playBtn) {
+            var card = playBtn.closest('.m-audio');
+            if (card) toggleAudio(playBtn, card.getAttribute('data-src'));
+            return;
+        }
         var msgEl = e.target.closest('.msg');
         if (!msgEl) return;
         if (e.target.closest('a')) return;   // 附件链接照常打开，不弹操作面板
@@ -498,6 +506,28 @@
         if (!id) return;
         openMsgActions(msgEl, id);
     });
+
+    /* ---------------- 图片全屏预览 ---------------- */
+    function openImageViewer(src) {
+        if (!src) return;
+        $('imgViewerImg').src = src;
+        $('imgViewer').style.display = 'flex';
+    }
+    $('imgViewerClose').addEventListener('click', function () { $('imgViewer').style.display = 'none'; });
+    $('imgViewer').addEventListener('click', function (e) { if (e.target === $('imgViewer')) $('imgViewer').style.display = 'none'; });
+
+    /* ---------------- 音频播放（内联播放器） ---------------- */
+    var _audio = new Audio();
+    function toggleAudio(btn, src) {
+        if (!src) return;
+        var playing = _audio.src === src && !_audio.paused;
+        if (playing) { _audio.pause(); btn.textContent = '▶'; return; }
+        _audio.src = src;
+        _audio.play();
+        btn.textContent = '⏸';
+        _audio.onended = function () { btn.textContent = '▶'; };
+        _audio.onpause = function () { btn.textContent = '▶'; };
+    }
 
     /* ---------------- 消息操作（点按：复制/回复/撤回） ---------------- */
     var _curMsg = null;      // { id, mine, text }
@@ -733,7 +763,9 @@
         }
         if (groupSender) body += '<div class="msg-sender">' + esc(groupSender) + '</div>';
         if (m.attachment_url && m.msg_type !== 'file' && /\.(png|jpe?g|gif|webp)(\?|$)/i.test(m.attachment_url)) {
-            body += '<img src="' + esc(m.attachment_url) + '" style="max-width:210px;max-height:260px;border-radius:6px;display:block">';
+            body += '<img class="m-img" src="' + esc(m.attachment_url) + '" alt="" style="max-width:210px;max-height:260px;border-radius:6px;display:block">';
+        } else if (m.msg_type === 'audio' && m.attachment_url) {
+            body += '<div class="m-audio" data-src="' + esc(m.attachment_url) + '"><button class="m-audio-play">▶</button><span class="m-audio-name">' + esc(m.attachment_name || t('m_voice_msg', 'Voice message')) + '</span><a class="m-audio-dl" href="' + esc(m.attachment_url) + '" download>⤓</a></div>';
         } else if (m.msg_type === 'file' || m.attachment_url) {
             body += '<a class="file" href="' + esc(m.attachment_url || '#') + '" target="_blank" rel="noopener"><img src="../../data/res/cil/cil-paperclip.svg" style="width:12px;height:12px;vertical-align:-1px;margin-right:3px;filter:brightness(0) invert(1)" alt=""> ' + esc(m.attachment_name || t('m_file', 'File')) + '</a>';
         } else {
