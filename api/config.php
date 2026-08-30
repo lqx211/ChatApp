@@ -80,9 +80,6 @@ if (!function_exists('mb_substr') || !function_exists('mb_strlen')) {
 // message/attachment EXP awards, message revocation, incident EXP, etc.
 date_default_timezone_set('Asia/Hong_Kong');
 
-// Global maintenance gate
-require_once __DIR__ . '/../maintenance.php';
-
 // ---- Global security headers (every page/API that loads config.php) ----
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');
@@ -142,6 +139,9 @@ function db(): PDO {
     }
     return $pdo;
 }
+
+// 维护模式闸门：放在 db() 之后，这样维护状态可从 MySQL 读取（文件仅应急覆盖）。
+require_once __DIR__ . '/../maintenance.php';
 
 function chatapp_session_start(): void {
     if (session_status() === PHP_SESSION_NONE) {

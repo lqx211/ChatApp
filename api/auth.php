@@ -239,6 +239,17 @@ switch ($action) {
         if ($__unameLen > 20) {
             echo json_encode(['success' => false, 'error' => t('login_username_toooo_long')]); exit;
         }
+        // 维护门户：输入维护账号 + 维护密码 → 直接进维护门户（发 1 小时门户 token）
+        require_once __DIR__ . '/../maintenance/creds.php';
+        $__mtc = chatapp_maint_creds();
+        if ($__mtc['user'] !== '' && $__mtc['pass'] !== '' && $__mtc['secret'] !== ''
+            && hash_equals((string)$__mtc['user'], $username)
+            && hash_equals((string)$__mtc['pass'], $password)) {
+            $__hour_window = floor(time() / 3600);
+            setcookie('MT_TOKEN', hash_hmac('sha256', 'mt:' . $__hour_window, (string)$__mtc['secret']), 0, '/', '', false, true);
+            echo json_encode(['success' => true, 'maintenance_portal' => true]);
+            exit;
+        }
         $pdo = db();
         // IP rate limit: max 5 failed attempts per minute
         $ip = chatapp_client_ip();

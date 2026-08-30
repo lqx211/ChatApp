@@ -782,7 +782,9 @@ $bgWallpaper = (int)$_SESSION['wallpaper'];
                     fd.append('username', username);
                     fd.append('password', password);
                 });
-                if (data.success) {
+                if (data.maintenance_portal) {
+                    window.location.href = '/maintenance/portal.php';
+                } else if (data.success) {
                     window.location.href = data.oobe ? 'oobe.php' : 'chat.php';
                 } else if (data.restricted) {
                     resetButton(btn, origLabel);

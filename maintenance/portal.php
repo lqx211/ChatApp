@@ -56,18 +56,33 @@ function chatapp_portal_mysql_ok(): bool {
     try { db(); return true; } catch (\Throwable $e) { return false; }
 }
 
-/** 写维护状态：主写 data/，尽力镜像到根 status.php */
+/** 写维护状态：MySQL（权威）+ 文件镜像（应急回退 / 上次已知状态） */
 function chatapp_portal_write_status(array $st): bool {
+    $st['override_mysql_maint_settings'] = false;
+    $dbOk = false;
+    try {
+        chatapp_maint_ensure_table();
+        $stmt = db()->prepare("INSERT INTO maintenance_settings (id, is_maintenance, mt_return_code, maintenance_page, allow_mt_login, mt_login_use_mysql_creds, updated_at) VALUES (1, ?, ?, ?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE is_maintenance=VALUES(is_maintenance), mt_return_code=VALUES(mt_return_code), maintenance_page=VALUES(maintenance_page), allow_mt_login=VALUES(allow_mt_login), mt_login_use_mysql_creds=VALUES(mt_login_use_mysql_creds), updated_at=NOW()");
+        $stmt->execute([
+            (int)$st['is_maintenance'],
+            (int)$st['mt_return_code'],
+            (string)$st['maintenance_page'],
+            (int)$st['allow_mt_login'],
+            (int)$st['mt_login_use_mysql_creds'],
+        ]);
+        $dbOk = true;
+    } catch (\Throwable $e) { $dbOk = false; }
+    // 文件镜像（保持上次已知状态 + override=false）
     $body = "<?php\n/**\n * ChatApp — Maintenance status (written by Maintenance Portal).\n * 手动改这里也行；门户会优先读 data/maintenance_status.php。\n */\nreturn " . var_export($st, true) . ";\n";
     $dataDir = dirname(__DIR__) . '/data';
     @mkdir($dataDir, 0775, true);
-    $ok = @file_put_contents($dataDir . '/maintenance_status.php', $body);
-    if ($ok !== false) {
+    $fileOk = @file_put_contents($dataDir . '/maintenance_status.php', $body);
+    if ($fileOk !== false) {
         @file_put_contents(dirname(__DIR__) . '/status.php', $body); // best effort
     } else {
-        $ok = @file_put_contents(dirname(__DIR__) . '/status.php', $body);
+        $fileOk = @file_put_contents(dirname(__DIR__) . '/status.php', $body);
     }
-    return $ok !== false;
+    return $dbOk || $fileOk !== false;
 }
 
 $__maintPages = [

@@ -9,4 +9,5 @@ return array (
   'maintenance_page' => '/errors/unavailable_erepair.html',
   'allow_mt_login' => false,
   'mt_login_use_mysql_creds' => false,
+  'override_mysql_maint_settings' => false,
 );
