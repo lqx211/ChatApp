@@ -63,8 +63,21 @@ if (!empty($meAvatar) && strpos($meAvatar, 'data:') !== 0 && preg_match('/^[0-9a
 <!-- 聊天更多菜单 -->
 <div class="sheet" id="chatMenuSheet" style="display:none">
   <button class="sheet-item" id="menuViewProfile"><?php echo t('m_view_profile');?></button>
+  <button class="sheet-item" id="menuGroupInfo">Group Info</button>
   <button class="sheet-item" id="menuClearHistory"><?php echo t('m_clear_history');?></button>
   <button class="sheet-item" id="menuSheetCancel"><?php echo t('btn_cancel');?></button>
+</div>
+
+<!-- 群信息弹窗 -->
+<div class="modal-overlay" id="groupInfoModal" style="display:none">
+  <div class="modal-box">
+    <h3 id="groupInfoTitle">Group Info</h3>
+    <div id="groupInfoBody"></div>
+    <div class="modal-actions">
+      <button class="bsm" id="groupInfoLeave" style="color:#e06060">Leave Group</button>
+      <button class="bsm" id="groupInfoClose"><?php echo t('btn_close');?></button>
+    </div>
+  </div>
 </div>
 
 <!-- 「+」快捷入口 -->

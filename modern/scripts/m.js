@@ -567,16 +567,78 @@
     }
     $('replyBarClose').addEventListener('click', cancelReply);
     // 聊天更多菜单
-    $('chatMoreBtn').addEventListener('click', function () { showSheet('chatMenuSheet'); });
+    $('chatMoreBtn').addEventListener('click', function () {
+        var isGroup = !!currentGroupId;
+        $('menuViewProfile').style.display = isGroup ? 'none' : 'block';
+        $('menuGroupInfo').style.display = isGroup ? 'block' : 'none';
+        showSheet('chatMenuSheet');
+    });
     $('menuSheetCancel').addEventListener('click', function () { hideSheet('chatMenuSheet'); });
     $('menuViewProfile').addEventListener('click', function () {
         if (!currentPartner || currentGroupId) return;
         hideSheet('chatMenuSheet');
         openFrame('profile.php?user=' + encodeURIComponent(currentPartner.username), currentPartner.display_name || currentPartner.username);
     });
+    $('menuGroupInfo').addEventListener('click', function () {
+        hideSheet('chatMenuSheet');
+        if (!currentGroupId) return;
+        openGroupInfo(currentGroupId, currentPartner ? currentPartner.display_name : '');
+    });
     $('menuClearHistory').addEventListener('click', function () {
         hideSheet('chatMenuSheet');
         toast(t('m_coming_soon', '敬请期待'));
+    });
+
+    /* ---------------- 群信息 / 成员 / 退出 ---------------- */
+    function openGroupInfo(gid, name) {
+        $('groupInfoTitle').textContent = name || t('m_group_info', 'Group Info');
+        $('groupInfoBody').innerHTML = '<div class="empty">' + t('msg_loading') + '</div>';
+        $('groupInfoLeave').style.display = 'none';
+        $('groupInfoModal').style.display = 'flex';
+        apiGet('../../api/group.php?action=members&group_id=' + gid).then(function (d) {
+            var members = (d && d.members) || [];
+            var html = '<div class="gi-count">' + members.length + ' ' + t('m_members', 'members') + '</div>';
+            for (var i = 0; i < members.length; i++) {
+                var mm = members[i];
+                var roleTxt = mm.role === 'owner' ? ' <span class="gi-role gi-owner">' + t('m_owner', 'Owner') + '</span>'
+                    : (mm.role === 'admin' ? ' <span class="gi-role gi-admin">' + t('m_admin', 'Admin') + '</span>' : '');
+                html += '<div class="gi-member" data-u="' + esc(mm.username) + '">'
+                    + (mm.avatar_url ? '<img class="gi-av" src="' + esc(mm.avatar_url) + '" alt="">' : '<div class="gi-av">' + letterAvatar(mm.display_name || mm.username) + '</div>')
+                    + '<div class="gi-name">' + esc(mm.display_name || mm.username) + roleTxt
+                    + (mm.username === ME.username ? ' <span class="gi-me">(me)</span>' : '') + '</div>'
+                    + '</div>';
+            }
+            $('groupInfoBody').innerHTML = html;
+            var me = null;
+            for (var j = 0; j < members.length; j++) { if (members[j].username === ME.username) { me = members[j]; break; } }
+            if (me && me.role !== 'owner') $('groupInfoLeave').style.display = 'block';
+            [].forEach.call($('groupInfoBody').querySelectorAll('.gi-member[data-u]'), function (el) {
+                el.addEventListener('click', function () {
+                    openFrame('profile.php?user=' + encodeURIComponent(el.getAttribute('data-u')), '');
+                });
+            });
+        });
+    }
+    $('groupInfoClose').addEventListener('click', function () { $('groupInfoModal').style.display = 'none'; });
+    $('groupInfoLeave').addEventListener('click', function () {
+        if (!currentGroupId) return;
+        var gid = currentGroupId;
+        if (!confirm(t('m_leave_group_confirm', 'Leave this group?'))) return;
+        var f = new URLSearchParams();
+        f.append('group_id', gid);
+        fetch('../../api/group.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'action=leave&' + f.toString() })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                $('groupInfoModal').style.display = 'none';
+                if (d && d.success) {
+                    toast(t('m_left_group', 'Left group'));
+                    closeChat();
+                    showTab('contacts');
+                    loadGroups();
+                } else {
+                    toast((d && d.error) || t('m_send_fail', 'Failed'));
+                }
+            });
     });
 
     function chatQuery() {
