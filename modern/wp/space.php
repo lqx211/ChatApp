@@ -145,22 +145,6 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
         <?php endif;?>
       </div>
 
-      <!-- 封面浮层导航 -->
-      <div class="layout-shop-item" id="menuContainer">
-        <div class="shop-item cs">
-          <div class="head-nav">
-            <ul class="head-nav-menu" id="coverTabs">
-              <li class="cur"><a title="主页">主页</a></li>
-              <li><a title="日志">日志</a></li>
-              <li><a title="相册">相册</a></li>
-              <li><a title="留言板">留言板</a></li>
-              <li><a title="说说">说说</a></li>
-              <li><a title="个人档">个人档</a></li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
       <!-- 访客统计 -->
       <div class="layout-shop-item" id="visitorsDiv">
         <div class="visit-module">
@@ -188,6 +172,21 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 
   <!-- 内容背景 -->
   <div class="layout-background">
+    <!-- 导航 tabs（主页/日志/...）放在头像栏下方，避免与昵称重叠 -->
+    <div class="layout-shop-item" id="menuContainer">
+      <div class="shop-item cs">
+        <div class="head-nav">
+          <ul class="head-nav-menu" id="coverTabs">
+            <li class="cur"><a title="主页">主页</a></li>
+            <li><a title="日志">日志</a></li>
+            <li><a title="相册">相册</a></li>
+            <li><a title="留言板">留言板</a></li>
+            <li><a title="说说">说说</a></li>
+            <li><a title="个人档">个人档</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
     <div class="layout-body">
       <div class="layout-page clearfix">
 
