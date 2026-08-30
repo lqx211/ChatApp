@@ -8739,6 +8739,7 @@ var ChatShare = (function () {
     var mySid = null, shareAccepted = false, pendingSid = null, inviteTimer = null; // 一次性 key：每次邀请唯一 sid
     var shareAudioTrack = null, shareAudioSender = null, shareReneg = false, remoteShareStream = null; // 系统声音共享
     var shareMuted = false; // 观看端本地静音
+    var shareStatsInt = null, _shPrevOut = 0, _shPrevIn = 0, _shPrevTime = 0; // 屏幕共享网络统计
     function makeSid() {
         return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12) + '-' + Math.random().toString(36).slice(2, 8);
     }
@@ -8906,6 +8907,7 @@ var ChatShare = (function () {
             t.onended = function () { stopShare(); }; // 浏览器「停止共享」栏
             pc = makePc(false);
             if (!pc) { cleanup(); return; }
+            startShareStats();
             pc.addTrack(t, stream);
             shareAudioTrack = stream.getAudioTracks()[0] || null; // 系统声音轨道（可能没有）
             if (shareAudioTrack) shareAudioSender = pc.addTrack(shareAudioTrack, stream); // 默认共享声音
@@ -8953,6 +8955,7 @@ var ChatShare = (function () {
         if (pendingSid && data.sid && data.sid !== pendingSid) { send('share_busy', { sid: data.sid }); return; }
         pc = makePc(true);
         if (!pc) { cleanup(); return; }
+        startShareStats();
         pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function () {
             return pc.createAnswer();
         }).then(function (answer) {
@@ -9044,6 +9047,49 @@ var ChatShare = (function () {
         if (sv) sv.muted = shareMuted;
         updateShareMuteBtn();
     }
+    /* ---------- 屏幕共享网络统计：自己/对方 上行↓下行 + ping ---------- */
+    function startShareStats() {
+        if (shareStatsInt) return;
+        collectShareStats();
+        shareStatsInt = setInterval(collectShareStats, 2000);
+    }
+    function stopShareStats() {
+        if (shareStatsInt) { clearInterval(shareStatsInt); shareStatsInt = null; }
+        _shPrevOut = 0; _shPrevIn = 0; _shPrevTime = 0;
+        var el = byId('shareStats');
+        if (el) el.style.display = 'none';
+    }
+    // WebRTC 统计语义（本端 getStats）：
+    //   outbound-rtp.bytesSent  = 我上行（发给对方）= 对方的下载
+    //   inbound-rtp.bytesReceived = 我下行（收对方）= 对方的上传
+    function collectShareStats(pcArg) {
+        var p = pcArg || pc;
+        if (!p) return;
+        p.getStats(null).then(function (report) {
+            var ping = null, outBytes = 0, inBytes = 0;
+            report.forEach(function (st) {
+                if (st.type === 'candidate-pair' && st.state === 'succeeded' && typeof st.currentRoundTripTime === 'number' && st.currentRoundTripTime >= 0) {
+                    ping = st.currentRoundTripTime * 1000;
+                }
+                if (st.type === 'outbound-rtp' && typeof st.bytesSent === 'number') outBytes += st.bytesSent;
+                if (st.type === 'inbound-rtp' && typeof st.bytesReceived === 'number') inBytes += st.bytesReceived;
+            });
+            var el = byId('shareStats');
+            if (!el) return;
+            var now = Date.now(), outSpd = 0, inSpd = 0;
+            if (_shPrevTime > 0) {
+                var dt = Math.max(1, (now - _shPrevTime) / 1000);
+                if (outBytes >= _shPrevOut) outSpd = (outBytes - _shPrevOut) / dt;
+                if (inBytes >= _shPrevIn) inSpd = (inBytes - _shPrevIn) / dt;
+            }
+            _shPrevOut = outBytes; _shPrevIn = inBytes; _shPrevTime = now;
+            var pTxt = ping !== null ? Math.round(ping) + 'ms' : '--';
+            el.innerHTML = '<span>自己 ↑' + fmtSpeed(outSpd) + ' ↓' + fmtSpeed(inSpd) + '</span>'
+                + '<span>对方 ↑' + fmtSpeed(inSpd) + ' ↓' + fmtSpeed(outSpd) + '</span>'
+                + '<span>ping ' + pTxt + '</span>';
+            el.style.display = 'flex';
+        }).catch(function () {});
+    }
     function renegotiateShare() {
         if (!pc || shareReneg) return;
         shareReneg = true;
@@ -9110,6 +9156,7 @@ var ChatShare = (function () {
     function cleanup() {
         if (pc) { try { pc.close(); } catch (e) {} }
         pc = null;
+        stopShareStats();
         if (screenStream) { screenStream.getTracks().forEach(function (t) { t.stop(); }); }
         screenStream = null;
         peer = null; role = null; ringing = false; viewerAccepted = false; iceBuffer = []; pendingOffer = null;
@@ -9133,7 +9180,7 @@ var ChatShare = (function () {
         }
     };
 
-    return { startShare: startShare, accept: accept, reject: reject, stopShare: stopShare, closeViewer: closeViewer, minimize: minimize, restore: restore, toggleAudio: toggleAudio, toggleMute: toggleMute, isActive: function () { return !!pc; } };
+    return { startShare: startShare, accept: accept, reject: reject, stopShare: stopShare, closeViewer: closeViewer, minimize: minimize, restore: restore, toggleAudio: toggleAudio, toggleMute: toggleMute, isActive: function () { return !!pc; }, startShareStats: startShareStats, stopShareStats: stopShareStats, collectShareStats: collectShareStats };
 })();
 function startStandaloneShare(u) { if (ChatShare) ChatShare.startShare(u || D); }
 function acceptShare() { if (ChatShare) ChatShare.accept(); }

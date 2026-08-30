@@ -981,6 +981,7 @@ try {
     <button class="bsm danger" id="shareStopBtn" onclick="ChatShare.stopShare()" style="display:none"><?php echo t('share_stop');?></button>
     <button class="bsm" id="shareCloseBtn" onclick="ChatShare.closeViewer()" style="display:none"><?php echo t('share_exit');?></button>
   </div>
+  <div class="share-stats" id="shareStats" style="display:none"></div>
   <div class="share-wait" id="shareWaitMsg" style="display:none"><?php echo t('share_waiting');?></div>
   <video id="shareVideo" autoplay playsinline style="display:none"></video>
 </div>
