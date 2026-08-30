@@ -379,8 +379,8 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
   <div class="sp-vis-item" data-v="4"><span class="v-ic"><?php echo sp_ic('lock');?></span>仅自己可见</div>
 </div>
 
-<!-- 选择好友弹窗 -->
-<div class="sp-fm-mask" id="spFmMask" style="display:none" onclick="if(event.target===this)spFmClose()">
+<!-- 选择好友下拉面板（从可见范围按钮下方延伸） -->
+<div class="sp-fm-mask" id="spFmMask" style="display:none">
   <div class="sp-fm-box">
     <div class="sp-fm-head"><span>选择好友</span><span class="sp-fm-x" onclick="spFmClose()">×</span></div>
     <div class="sp-fm-body">
@@ -441,10 +441,15 @@ function spVisToggle(e) {
   m.style.top = (r.bottom + 6) + 'px';
   [].forEach.call(m.children, function (it) { it.classList.toggle('cur', +(it.getAttribute('data-v')) === SP_POST_VIS); });
 }
-document.addEventListener('click', function () { var m = document.getElementById('spVisMenu'); if (m) m.style.display = 'none'; });
+document.addEventListener('click', function (e) {
+  var m = document.getElementById('spVisMenu'); if (m) m.style.display = 'none';
+  var fm = document.getElementById('spFmMask');
+  if (fm && fm.style.display === 'flex' && !fm.contains(e.target)) fm.style.display = 'none';
+});
 document.getElementById('spVisMenu').addEventListener('click', function (e) {
   var it = e.target.closest('.sp-vis-item');
   if (!it) return;
+  e.stopPropagation(); // 阻止冒泡到 document 立即关掉刚打开的好友面板
   SP_POST_VIS = +it.getAttribute('data-v');
   this.style.display = 'none';
   if (SP_POST_VIS === 2 || SP_POST_VIS === 3) { spFmOpen(); return; }
@@ -457,6 +462,12 @@ document.getElementById('spVisMenu').addEventListener('click', function (e) {
 function spFmOpen() {
   var mask = document.getElementById('spFmMask');
   if (!mask) return;
+  var btn = document.getElementById('spVisBtn');
+  if (btn) {
+    var r = btn.getBoundingClientRect();
+    mask.style.left = Math.min(window.innerWidth - 610, r.left) + 'px';
+    mask.style.top = (r.bottom + 6) + 'px';
+  }
   mask.style.display = 'flex';
   if (SP_FRIENDS.length) { renderFmList(); return; }
   fetch('../../api/contacts.php?action=list', { credentials: 'same-origin' })
