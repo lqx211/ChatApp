@@ -4376,7 +4376,8 @@ if (location.search.indexOf("goto=users") > -1) {
 var _annInput = document.getElementById("messageInput");
 if (_annInput) {
     _annInput.addEventListener("keydown", function(e) {
-        if (e.key === "Enter" && !e.shiftKey) {
+        // isComposing / keyCode 229：中文输入法组词按回车=选词，绝不触发发送
+        if (e.key === "Enter" && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
             e.preventDefault();
             sendAnnouncement();
         }
@@ -4385,7 +4386,7 @@ if (_annInput) {
 var _dmInput = document.getElementById("dmMessageInput");
 if (_dmInput) {
     _dmInput.addEventListener("keydown", function(e) {
-        if (e.key === "Enter" && !e.shiftKey) {
+        if (e.key === "Enter" && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
             e.preventDefault();
             if (G) sendGroupMessage(); else sendDmMessage();
         }
@@ -9231,6 +9232,95 @@ function lockClient() {
     if (typeof window.cancelVoiceRec === 'function') { try { cancelVoiceRec(); } catch (err) {} }
     showClientReloadDialog();
 }
+
+/* ================= 全局键盘快捷键（Enter 确认发送 / ESC·Backspace 退出/取消） ================= */
+// 关闭最上层弹层/菜单/弹窗；返回 true 表示已处理（从上到下：瞬态菜单→对话框→弹窗→兜底隐藏）
+function _escClosers() {
+    if (typeof closeAllMsgMenus === 'function') closeAllMsgMenus();
+    if (typeof closeUserCtxMenu === 'function') closeUserCtxMenu();
+    var cd = document.getElementById('customDialog');
+    if (cd && cd.classList.contains('active') && !cd.classList.contains('cd-danger')) {
+        closeCustomDialog(false);
+        return true;
+    }
+    var ep = document.getElementById('emojiPopup');
+    if (ep && ep.style.display === 'flex') {
+        ep.style.display = 'none';
+        if (typeof emojiUndockMobile === 'function') emojiUndockMobile();
+        _emojiTarget = null;
+        return true;
+    }
+    var dmOpt = document.getElementById('dmOptionsMenu');
+    if (dmOpt && dmOpt.classList.contains('active')) { dmOpt.classList.remove('active'); return true; }
+    var nine = document.getElementById('dmNineMenu');
+    if (nine && nine.style.display === 'block') { if (typeof closeDmNineMenu === 'function') closeDmNineMenu(); return true; }
+    var fm = document.getElementById('flashMenu');
+    if (fm && fm.style.display === 'block') { fm.style.display = 'none'; return true; }
+    var pm = document.getElementById('penMenu');
+    if (pm && pm.style.display === 'block') { pm.style.display = 'none'; return true; }
+    // 已知 .active 弹窗 → 专用 close（保证内部状态复位）
+    var closes = {
+        attachModal: cancelAttachment, reportModal: closeReportModal,
+        forwardModal: closeForwardModal, flashMyModal: closeFlashMyModal,
+        friendReqModal: closeFriendReqModal, noteModal: closeNoteModal,
+        addUserModal: closeAddUserModal, addPlaceholderModal: closeAddPlaceholderModal,
+        changeStatusModal: closeChangeStatusModal, addDonModal: closeAddDonModal,
+        createTicketModal: closeCreateTicket, codePreviewModal: closeCodePreview,
+        safetyVerifyModal: closeSafetyVerify, duressModal: closeDuressModal,
+        batchModal: cancelBatch, deleteModal: hideDeleteModal
+    };
+    for (var id in closes) {
+        if (!Object.prototype.hasOwnProperty.call(closes, id)) continue;
+        var el = document.getElementById(id);
+        if (el && el.classList.contains('active')) { closes[id](); return true; }
+    }
+    // 兜底：隐藏任何可见 overlay/modal（没专门 close 的也能被 ESC 收掉）
+    var ovs = document.querySelectorAll('.modal-overlay, .doodle-overlay, .crop-overlay, .profile-overlay, .sidebar-overlay, .bg-overlay');
+    for (var i = 0; i < ovs.length; i++) {
+        var o = ovs[i];
+        var vis = o.classList.contains('active') || (o.style.display && o.style.display !== 'none');
+        if (vis && o.id !== 'customDialog') { o.classList.remove('active'); o.style.display = 'none'; return true; }
+    }
+    return false;
+}
+
+function _activePanelId() {
+    var p = document.querySelector('.panel.active');
+    return p ? (p.id || '').replace('panel-', '') : '';
+}
+
+document.addEventListener('keydown', function(e) {
+    if (typeof CLIENT_LOCKED !== 'undefined' && CLIENT_LOCKED) return;
+    if (e.isComposing || e.keyCode === 229) return;   // 输入法组词中不劫持
+    if (e.ctrlKey || e.metaKey || e.altKey) return;    // 不抢系统组合键
+    var key = e.key;
+    if (key !== 'Escape' && key !== 'Backspace') return;
+    var el = e.target;
+    var tag = (el && el.tagName) ? el.tagName.toLowerCase() : '';
+    var editable = tag === 'input' || tag === 'textarea' || (el && el.isContentEditable);
+    var composer = document.getElementById('dmMessageInput');
+
+    if (key === 'Escape') {
+        if (_escClosers()) { e.preventDefault(); return; }
+        // 会话内搜索 → 退回聊天
+        if (_activePanelId() === 'dm-search') { backToDm(); e.preventDefault(); return; }
+        // 输入框里有草稿：先清空（abort 草稿），再按一次才退出会话
+        if (composer && e.target === composer && composer.value.trim()) {
+            composer.value = '';
+            if (typeof autoResize === 'function') autoResize(composer);
+            e.preventDefault();
+            return;
+        }
+        if (D || G) { closeDm(); e.preventDefault(); }
+        return;
+    }
+    // Backspace：仅非输入框时作为「返回/退出」（输入框内保持默认删字，绝不劫持）
+    if (key === 'Backspace' && !editable) {
+        if (_escClosers()) { e.preventDefault(); return; }
+        if (_activePanelId() === 'dm-search') { backToDm(); e.preventDefault(); return; }
+        if (D || G) { closeDm(); e.preventDefault(); }
+    }
+});
 
 // 收到 wss reload 推送：Win8.1 风格「客户端版本过时」窗口（复用 customDialog 的 DOM），点 Reload 刷新页面
 function showClientReloadDialog() {
