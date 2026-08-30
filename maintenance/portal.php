@@ -194,7 +194,7 @@ $__mysqlOk = chatapp_portal_mysql_ok();
   #loader-wrapper{position:fixed;top:0;left:0;width:100%;height:100%;z-index:999;overflow:hidden;background:#333}
   #loader-wrapper .loader{width:100%;height:100%;position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-size:22px}
   #loader-wrapper .loader .circle{width:110px;height:110px;border-radius:50%;border:3px solid transparent;border-top-color:#fff;animation:spin 1.4s linear infinite}
-  #loader-wrapper.loaded{visibility:hidden;transform:translateY(-100%);transition:transform .4s .4s ease-out,visibility .4s .4s ease-out}
+  #loader-wrapper.loaded{visibility:hidden;pointer-events:none;transform:translateY(-100%);transition:transform .4s .4s ease-out,visibility .4s .4s ease-out}
   @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
   /* 门户卡片与表单（沿用深色主题） */
   .portal{padding:18px 22px;overflow-y:auto;flex:1}
@@ -663,7 +663,12 @@ function uninstallRun(){
 }
 window.addEventListener('load', function(){
   var w = document.getElementById('loader-wrapper');
-  setTimeout(function(){ w.classList.add('loaded'); }, 350);
+  if (!w) return;
+  setTimeout(function(){
+    w.classList.add('loaded');
+    w.style.pointerEvents = 'none';
+    setTimeout(function(){ w.style.display = 'none'; }, 900); // 彻底移除，杜绝遮罩挡点击
+  }, 350);
 });
 </script>
 </body>

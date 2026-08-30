@@ -35,7 +35,15 @@ if (is_array($__status) && !empty($__status['is_maintenance'])) {
         }
     }
     if ($__bypass) {
-        return; // let the request continue into the app
+        // 维护期间门户 token 只放行维护门户页面（/maintenance/*）与门户调用的 API（/api/*）。
+        // 其余（含登录页 login.php / 聊天 chat.php / 首页 /）一律仍显示维护页 —— 这样“维护”才真正生效。
+        $__reqPath = (string)parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+        $__isPortal = ($__reqPath === '/maintenance' || strpos($__reqPath, '/maintenance/') === 0);
+        $__isPortalApi = (strpos($__reqPath, '/api/') === 0);
+        if ($__isPortal || $__isPortalApi) {
+            return; // 放行：门户页面 / 门户调用的危险 API
+        }
+        // 有 token 但访问非门户路径 → 继续走到下面的维护页
     }
 
     $__code = (int)($__status['mt_return_code'] ?? 503);
