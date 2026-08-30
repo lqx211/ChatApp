@@ -178,6 +178,18 @@ $bgFetchSrc = ($bgImg !== '../gx.jpg') ? $bgImg : '';
 $statusLabel = $restricted ? t('admin_restricted_status') : ($dnd ? t('msg_dnd_status') : t('msg_online_status'));
 $statusClass = $restricted ? 'rstr' : ($dnd ? 'dnd' : 'on');
 $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? '');
+// 封面存景参数（视频位置/缩放；默认 pos_x=50,pos_y=0,zoom=1 ≈ 原 center-top 行为）
+$pdo = db();
+$bgPosStmt = $pdo->prepare("SELECT bg_pos_x, bg_pos_y, bg_zoom FROM users WHERE user_id = ?");
+$bgPosStmt->execute([$userId]);
+$bgPosRow = $bgPosStmt->fetch();
+$bgPosX = (int)($bgPosRow['bg_pos_x'] ?? 50);
+$bgPosY = (int)($bgPosRow['bg_pos_y'] ?? 0);
+$bgZoom = (float)($bgPosRow['bg_zoom'] ?? 1);
+if ($bgPosX < 0 || $bgPosX > 100) $bgPosX = 50;
+if ($bgPosY < 0 || $bgPosY > 100) $bgPosY = 0;
+if ($bgZoom < 1 || $bgZoom > 5) $bgZoom = 1;
+$bgFrameStyle = 'object-position:' . $bgPosX . '% ' . $bgPosY . '%;transform-origin:' . $bgPosX . '% ' . $bgPosY . '%;transform:scale(' . number_format($bgZoom, 2, '.', '') . ')';
 ?>
 <!DOCTYPE html>
 <html lang="zh">
@@ -205,9 +217,9 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
     <div class="cover" id="coverEl">
       <?php if ($bgFetchSrc):?>
         <?php if ($isBgVideo):?>
-        <video id="coverMedia" data-src="<?php echo htmlspecialchars($bgFetchSrc);?>" data-mime="<?php echo htmlspecialchars($bgMimeType);?>" autoplay muted loop playsinline></video>
+        <video id="coverMedia" data-src="<?php echo htmlspecialchars($bgFetchSrc);?>" data-mime="<?php echo htmlspecialchars($bgMimeType);?>" autoplay muted loop playsinline style="<?php echo $bgFrameStyle;?>"></video>
         <?php else:?>
-        <img id="coverMedia" data-src="<?php echo htmlspecialchars($bgFetchSrc);?>" alt="<?php echo t('p_bg');?>">
+        <img id="coverMedia" data-src="<?php echo htmlspecialchars($bgFetchSrc);?>" alt="<?php echo t('p_bg');?>" style="<?php echo $bgFrameStyle;?>">
         <?php endif;?>
       <?php else:?>
         <img src="../gx.jpg" alt="<?php echo t('p_bg');?>" id="coverMedia">
@@ -313,7 +325,7 @@ $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? 
   <div class="picker-option" onclick="clearBg()"><?php echo t('p_clear_bg');?></div>
   <div class="picker-option" onclick="openBgPrivacy()"><?php echo t('p_bg_privacy');?></div>
 </div>
-<input type="file" id="bgFileInput" accept="image/*,video/mp4,video/webm" style="display:none" onchange="onBgFileChange(this)">
+<input type="file" id="bgFileInput" accept="image/*,video/*" style="display:none" onchange="onBgFileChange(this)">
 
 <!-- 背景图剪裁遮罩：手机全屏 / 桌面居中窗口（宽度固定 428px 与 app 一致）
      id/class 用 bgi- 前缀，避免与 chat.php 里已有的 cropOverlay（头像 canvas 裁剪）冲突 -->
@@ -537,16 +549,16 @@ function onBgFileChange(input) {
   var f = input.files[0];
   if (!f) return;
   input.value = '';
-  // 视频：直接上传（剪裁只针对图片）；图片：先打开剪裁
-  if (f.type && f.type.indexOf('video/') === 0) {
-    startBgUpload(f);
-  } else {
-    openCrop(f);
-  }
+  // 图片：先打开剪裁；视频：也进编辑框（框内循环播放，可拖/缩取景，确认后存原片+取景参数）
+  // iOS 某些相册视频 f.type 为空 → 用扩展名兜底判断
+  var t = (f.type || '').toLowerCase();
+  var name = (f.name || '').toLowerCase();
+  var isVid = t.indexOf('video/') === 0 || /\.(mp4|mov|m4v|webm|mkv)$/.test(name);
+  openCrop(f, isVid);
 }
 
 // ---- 上传（带进度条 n% 每 0.1s、速率 B/kB/s 每 0.5s）----
-function startBgUpload(media) {
+function startBgUpload(media, framing) {
   var prog = document.getElementById('bgProgress');
   var fill = document.getElementById('bgProgressFill');
   var txt = document.getElementById('bgProgressText');
@@ -562,6 +574,11 @@ function startBgUpload(media) {
   var form = new FormData();
   form.append('action', 'upload_profile_bg');
   form.append('file', media);
+  if (framing) {
+    form.append('pos_x', framing.pos_x);
+    form.append('pos_y', framing.pos_y);
+    form.append('zoom', framing.zoom);
+  }
 
   var _loaded = 0, _total = (media.size) || 1;
   var _lastLoaded = 0, _lastTs = Date.now(), _rate = 0;
@@ -616,10 +633,10 @@ function startBgUpload(media) {
 
 // ================= 背景图剪裁（手机全屏 / 桌面居中窗口） =================
 // 剪裁框固定为封面比例 428:223；图片可拖拽平移 + 缩放，完成后按 2x 裁出上传
-var _crop = { img: null, url: '', sx: 1, ox: 0, oy: 0, frameW: 0, frameH: 0 };
+var _crop = { img: null, url: '', sx: 1, ox: 0, oy: 0, frameW: 0, frameH: 0, isVideo: false, file: null, nw: 0, nh: 0 };
 var _cropPts = {}, _pinch0 = null;
 
-function openCrop(file) {
+function openCrop(file, isVideo) {
   var overlay = document.getElementById('bgiCropOverlay');
   var stage = document.getElementById('bgiCropStage');
   var frame = document.getElementById('bgiCropFrame');
@@ -633,18 +650,33 @@ function openCrop(file) {
   frame.style.height = _crop.frameH + 'px';
 
   _crop.url = URL.createObjectURL(file);
-  var img = new Image();
-  _crop.img = img;
-  img.src = _crop.url;
-  frame.appendChild(img);
-  img.onload = function () {
-    img.style.width = img.naturalWidth + 'px';
-    img.style.height = img.naturalHeight + 'px';
-    _crop.sx = Math.max(_crop.frameW / img.naturalWidth, _crop.frameH / img.naturalHeight);
-    _crop.ox = (_crop.frameW - img.naturalWidth * _crop.sx) / 2;
-    _crop.oy = (_crop.frameH - img.naturalHeight * _crop.sx) / 2;
+  _crop.isVideo = !!isVideo;
+  _crop.file = file;
+  var media;
+  if (isVideo) {
+    // 视频：框内循环播放，可拖动/缩放取景
+    media = document.createElement('video');
+    media.loop = true; media.muted = true; media.autoplay = true; media.playsInline = true;
+    media.src = _crop.url;
+  } else {
+    media = new Image();
+    media.src = _crop.url;
+  }
+  _crop.img = media;
+  frame.appendChild(media);
+  var onReady = function () {
+    var nw = media.videoWidth || media.naturalWidth || 1;
+    var nh = media.videoHeight || media.naturalHeight || 1;
+    media.style.width = nw + 'px';
+    media.style.height = nh + 'px';
+    _crop.nw = nw; _crop.nh = nh;
+    _crop.sx = Math.max(_crop.frameW / nw, _crop.frameH / nh);
+    _crop.ox = (_crop.frameW - nw * _crop.sx) / 2;
+    _crop.oy = (_crop.frameH - nh * _crop.sx) / 2;
     renderCrop();
   };
+  if (isVideo) media.onloadedmetadata = onReady;
+  else media.onload = onReady;
 }
 function renderCrop() {
   var im = _crop.img; if (!im) return;
@@ -652,7 +684,10 @@ function renderCrop() {
   im.style.transform = 'translate(' + _crop.ox + 'px,' + _crop.oy + 'px) scale(' + _crop.sx + ')';
 }
 function clampCrop() {
-  var w = _crop.img.naturalWidth * _crop.sx, h = _crop.img.naturalHeight * _crop.sx;
+  var im = _crop.img; if (!im) return;
+  // 视频用 videoWidth/Height，图片用 naturalWidth/Height（视频没有 naturalWidth）
+  var w = (im.videoWidth || im.naturalWidth || 1) * _crop.sx;
+  var h = (im.videoHeight || im.naturalHeight || 1) * _crop.sx;
   _crop.ox = Math.min(0, Math.max(_crop.frameW - w, _crop.ox));
   _crop.oy = Math.min(0, Math.max(_crop.frameH - h, _crop.oy));
 }
@@ -679,11 +714,29 @@ function cancelCrop() {
   var im = _crop.img;
   if (im && im.parentNode) { try { im.parentNode.removeChild(im); } catch (e) {} }
   if (_crop.url) URL.revokeObjectURL(_crop.url);
-  _crop = { img: null, url: '', sx: 1, ox: 0, oy: 0, frameW: 0, frameH: 0 };
+  _crop = { img: null, url: '', sx: 1, ox: 0, oy: 0, frameW: 0, frameH: 0, isVideo: false, file: null, nw: 0, nh: 0 };
   _cropPts = {}; _pinch0 = null;
 }
 function confirmCrop() {
   var im = _crop.img; if (!im) return;
+  // 视频：上传原片 + 取景参数（可视区中心% + 放大倍数），不重编码（QQ 空间同款做法）
+  if (_crop.isVideo) {
+    var nw = _crop.nw || im.videoWidth || 1, nh = _crop.nh || im.videoHeight || 1;
+    var coverScale = Math.max(_crop.frameW / nw, _crop.frameH / nh);
+    var zoom = Math.max(1, _crop.sx / coverScale);
+    var cx = (-_crop.ox) / _crop.sx + _crop.frameW / (2 * _crop.sx);
+    var cy = (-_crop.oy) / _crop.sx + _crop.frameH / (2 * _crop.sx);
+    var posX = Math.round(Math.max(0, Math.min(100, cx / nw * 100)));
+    var posY = Math.round(Math.max(0, Math.min(100, cy / nh * 100)));
+    var overlay = document.getElementById('bgiCropOverlay');
+    overlay.style.display = 'none';
+    var file = _crop.file, url = _crop.url;
+    _crop = { img: null, url: '', sx: 1, ox: 0, oy: 0, frameW: 0, frameH: 0, isVideo: false, file: null, nw: 0, nh: 0 };
+    _cropPts = {}; _pinch0 = null;
+    if (url) URL.revokeObjectURL(url);
+    if (file) startBgUpload(file, { pos_x: posX, pos_y: posY, zoom: parseFloat(zoom.toFixed(2)) });
+    return;
+  }
   var outW = Math.round(_crop.frameW * 2), outH = Math.round(_crop.frameH * 2);
   var c = document.createElement('canvas');
   c.width = outW; c.height = outH;
@@ -700,7 +753,7 @@ function confirmCrop() {
     }, 'image/png');
   } else { alert('<?php echo t('p_browser_unsupported');?>'); }
   if (_crop.url) URL.revokeObjectURL(_crop.url);
-  _crop = { img: null, url: '', sx: 1, ox: 0, oy: 0, frameW: 0, frameH: 0 };
+  _crop = { img: null, url: '', sx: 1, ox: 0, oy: 0, frameW: 0, frameH: 0, isVideo: false, file: null, nw: 0, nh: 0 };
   _cropPts = {}; _pinch0 = null;
 }
 
