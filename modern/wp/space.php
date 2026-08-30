@@ -265,6 +265,24 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
                 </div>
                 <div class="op"><button class="btn-post" id="spPostBtn" onclick="spPost()">发表</button></div>
               </div>
+              <!-- 好友选择面板：贴在发表框底部，随页面滚动，动画伸出 -->
+              <div class="sp-fm-mask" id="spFmMask" style="display:none">
+                <div class="sp-fm-box">
+                  <div class="sp-fm-head"><span>选择好友</span><span class="sp-fm-x" onclick="spFmClose()">×</span></div>
+                  <div class="sp-fm-body">
+                    <div class="sp-fm-left">
+                      <div class="sp-fm-search"><input id="spFmSearch" placeholder="搜索好友"><span class="sp-fm-sbtn"><?php echo sp_ic('search');?></span></div>
+                      <label class="sp-fm-g"><input type="checkbox" id="spFmAll" onchange="spFmSetAll(this.checked)"> 全部好友</label>
+                      <div class="sp-fm-hint">最多可勾选 1000 位好友</div>
+                    </div>
+                    <div class="sp-fm-right" id="spFmList"></div>
+                  </div>
+                  <div class="sp-fm-foot">
+                    <span class="sp-fm-count" id="spFmCount">已选 0 位</span>
+                    <button class="sp-fm-ok" onclick="spFmConfirm()">确定</button>
+                  </div>
+                </div>
+              </div>
             </div>
             <?php endif; ?>
 
@@ -379,25 +397,6 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
   <div class="sp-vis-item" data-v="4"><span class="v-ic"><?php echo sp_ic('lock');?></span>仅自己可见</div>
 </div>
 
-<!-- 选择好友下拉面板（从可见范围按钮下方延伸） -->
-<div class="sp-fm-mask" id="spFmMask" style="display:none">
-  <div class="sp-fm-box">
-    <div class="sp-fm-head"><span>选择好友</span><span class="sp-fm-x" onclick="spFmClose()">×</span></div>
-    <div class="sp-fm-body">
-      <div class="sp-fm-left">
-        <div class="sp-fm-search"><input id="spFmSearch" placeholder="搜索好友"><span class="sp-fm-sbtn"><?php echo sp_ic('search');?></span></div>
-        <label class="sp-fm-g"><input type="checkbox" id="spFmAll" onchange="spFmSetAll(this.checked)"> 全部好友</label>
-        <div class="sp-fm-hint">最多可勾选 1000 位好友</div>
-      </div>
-      <div class="sp-fm-right" id="spFmList"></div>
-    </div>
-    <div class="sp-fm-foot">
-      <span class="sp-fm-count" id="spFmCount">已选 0 位</span>
-      <button class="sp-fm-ok" onclick="spFmConfirm()">确定</button>
-    </div>
-  </div>
-</div>
-
 <script>
 var SP_USER = <?php echo json_encode(['self' => $isSelf, 'username' => $u['username'], 'display' => $displayName]);?>;
 // 封面 tab 切换（UI 高亮）
@@ -452,6 +451,7 @@ document.getElementById('spVisMenu').addEventListener('click', function (e) {
   e.stopPropagation(); // 阻止冒泡到 document 立即关掉刚打开的好友面板
   SP_POST_VIS = +it.getAttribute('data-v');
   this.style.display = 'none';
+  spFmClose(); // 先收起好友面板
   if (SP_POST_VIS === 2 || SP_POST_VIS === 3) { spFmOpen(); return; }
   SP_POST_FRIENDS = [];
   var lbl = document.getElementById('spVisLabel');
@@ -462,13 +462,11 @@ document.getElementById('spVisMenu').addEventListener('click', function (e) {
 function spFmOpen() {
   var mask = document.getElementById('spFmMask');
   if (!mask) return;
-  var btn = document.getElementById('spVisBtn');
-  if (btn) {
-    var r = btn.getBoundingClientRect();
-    mask.style.left = Math.min(window.innerWidth - 610, r.left) + 'px';
-    mask.style.top = (r.bottom + 6) + 'px';
-  }
+  // 面板贴发表框底部（absolute 定位随页面滚动），无需手动设置坐标
   mask.style.display = 'flex';
+  mask.classList.remove('sp-open');
+  void mask.offsetHeight; // 强制 reflow，确保动画每次重新触发
+  mask.classList.add('sp-open');
   if (SP_FRIENDS.length) { renderFmList(); return; }
   fetch('../../api/contacts.php?action=list', { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })
@@ -512,7 +510,10 @@ function spFmConfirm() {
   var lbl = document.getElementById('spVisLabel');
   if (lbl) lbl.textContent = (SP_POST_VIS === 3 ? '部分好友不可见' : '部分好友可见') + (ids.length ? '（' + ids.length + '）' : '');
 }
-function spFmClose() { document.getElementById('spFmMask').style.display = 'none'; }
+function spFmClose() {
+  var m = document.getElementById('spFmMask');
+  if (m) { m.style.display = 'none'; m.classList.remove('sp-open'); }
+}
 (function () {
   var s = document.getElementById('spFmSearch'); if (s) s.addEventListener('input', renderFmList);
   var l = document.getElementById('spFmList'); if (l) l.addEventListener('change', updateFmCount);
