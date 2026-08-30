@@ -86,6 +86,60 @@ if (!function_exists('chat_actions_exp_add')) {
     }
 }
 
+if (!function_exists('chatapp_save_attachment')) {
+    /**
+     * 保存附件（data URL）到 data/user/<uid>/，返回消息元数据。
+     * 供群聊等需要独立附件保存的通道复用（与 chat_action_send 内联逻辑一致：
+     * MIME→扩展名白名单、图片内容校验、级别大小限制）。
+     */
+    function chatapp_save_attachment(PDO $pdo, int $senderUid, string $attachmentB64, string $clientFilename = ''): array {
+        if (!preg_match('/^data:([^;]+);base64,(.+)$/s', $attachmentB64, $m)) {
+            return ['ok' => false, 'error' => 'Invalid attachment'];
+        }
+        $mediaMainType = strtolower($m[1]);
+        $binary = base64_decode($m[2]);
+        $maxAttachKb = chat_actions_level_limits(chat_actions_user_level($pdo, $senderUid))['max_attach_kb'];
+        $maxAttachBytes = $maxAttachKb * 1024;
+        if ($binary === false || strlen($binary) > $maxAttachBytes) {
+            return ['ok' => false, 'error' => 'Too large', 'max_attach_kb' => $maxAttachKb];
+        }
+        $hash = hash('sha256', $binary);
+        // 与 chat_action_send 相同的严格 MIME→扩展名白名单；未知类型 → 'bin'（防 RCE）
+        $mimeExtMap = [
+            'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif',
+            'image/webp' => 'webp',
+            'video/mp4' => 'mp4', 'video/webm' => 'webm', 'video/quicktime' => 'mov',
+            'video/ogg' => 'ogg', 'video/mov' => 'mov',
+            'audio/mpeg' => 'mp3', 'audio/mp4' => 'm4a', 'audio/x-m4a' => 'm4a',
+            'audio/wav' => 'wav', 'audio/x-wav' => 'wav', 'audio/flac' => 'flac',
+            'audio/ogg' => 'ogg', 'audio/webm' => 'webm',
+            'application/pdf' => 'pdf', 'application/zip' => 'zip',
+            'application/msword' => 'doc', 'application/vnd.ms-excel' => 'xls',
+        ];
+        $ext = $mimeExtMap[$mediaMainType] ?? 'bin';
+        if (in_array($ext, ['jpg', 'png', 'gif', 'webp'], true) && @getimagesizefromstring($binary) === false) {
+            return ['ok' => false, 'error' => 'Invalid image'];
+        }
+        $filename = $hash . '.' . $ext;
+        $dir = __DIR__ . '/../data/user/' . $senderUid;
+        if (!is_dir($dir)) mkdir($dir, 0755, true);
+        file_put_contents($dir . '/' . $filename, $binary);
+
+        if (strpos($mediaMainType, 'image/') === 0 || strpos($mediaMainType, 'video/') === 0) {
+            $msgType = 'photo';
+            $stored = $filename;
+        } elseif (strpos($mediaMainType, 'audio/') === 0) {
+            $msgType = 'audio';
+            $stored = $filename;
+        } else {
+            $msgType = 'file';
+            $origName = $clientFilename !== '' ? mb_substr(trim($clientFilename), 0, 255) : ('file.' . $ext);
+            $stored = json_encode(['file' => $filename, 'name' => $origName, 'size' => strlen($binary)], JSON_UNESCAPED_UNICODE);
+        }
+        return ['ok' => true, 'msg_type' => $msgType, 'attachment' => $stored];
+    }
+}
+
 if (!function_exists('chat_actions_exp_daily_incr')) {
     /**
      * 每日限次 EXP 计数器（UTC+8）

@@ -388,10 +388,10 @@
                     + '<span style="color:var(--m-sub);font-size:14px">›</span></div>';
             }
             box.innerHTML = html;
-            // 联系人点击 → 打开个人主页（而非聊天）
+            // 联系人点击 → 直接打开私聊（与桌面 chat.php 一致）；聊天头部点头像可进其主页
             [].forEach.call(box.querySelectorAll('.li[data-u]'), function (el) {
                 el.addEventListener('click', function () {
-                    openFrame('profile.php?user=' + encodeURIComponent(el.getAttribute('data-u')), el.getAttribute('data-name') || el.getAttribute('data-u'));
+                    openChat(el.getAttribute('data-u'), el.getAttribute('data-name') || el.getAttribute('data-u'));
                 });
             });
         });
@@ -606,11 +606,13 @@
         wrap.scrollTop = wrap.scrollHeight;
     }
 
-    /* ---------------- 发送 ---------------- */
+    /* ---------------- 发送（支持附件/多文件队列） ---------------- */
+    var pendingAttach = null;      // 当前待发送附件 { data: dataURL, name: filename }
+    var attachQueue = [];          // 多文件队列
     function sendMessage() {
         var input = $('chatInput');
         var text = input.value.trim();
-        if (!text || !currentPartner || sending) return;
+        if ((!text && !pendingAttach) || !currentPartner || sending) return;
         sending = true;
         var f = new URLSearchParams();
         var url;
@@ -625,21 +627,57 @@
             f.append('msg_type', '');
         }
         f.append('message', text);
+        if (pendingAttach) {
+            f.append('attachment', pendingAttach.data);
+            if (pendingAttach.name) f.append('filename', pendingAttach.name);
+            pendingAttach = null;
+        }
         fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
             .then(function (r) { return r.json(); })
             .then(function (d) {
                 sending = false;
                 if (d && d.success) {
                     input.value = '';
-                    pullNew();   // 拉取刚发的消息
+                    // 拉取刚发的消息后再发队列中的下一个文件（串行，避免并发乱序）
+                    pullNew().catch(function () {}).then(flushAttachQueue);
                 } else {
                     input.placeholder = (d && d.error) ? d.error : t('m_send_fail', 'Send failed');
+                    flushAttachQueue();
                 }
             })
-            .catch(function () { sending = false; });
+            .catch(function () { sending = false; flushAttachQueue(); });
     }
     $('chatSendBtn').addEventListener('click', sendMessage);
     $('chatInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') sendMessage(); });
+
+    /* 附件：点按钮选文件 → 逐个发送 */
+    var chatAttachBtn = $('chatAttachBtn');
+    var chatMediaFile = $('chatMediaFile');
+    if (chatAttachBtn && chatMediaFile) {
+        chatAttachBtn.addEventListener('click', function () {
+            if (!currentPartner) { toast(t('m_choose_chat', 'Choose a chat first')); return; }
+            chatMediaFile.click();
+        });
+        chatMediaFile.addEventListener('change', function () {
+            var files = Array.prototype.slice.call(chatMediaFile.files || []);
+            chatMediaFile.value = '';
+            if (!files.length || !currentPartner) return;
+            toast(t('m_sending', 'Sending') + ' ' + files.length + ' file(s)');
+            files.forEach(function (file) {
+                var reader = new FileReader();
+                reader.onload = function (ev) {
+                    attachQueue.push({ data: ev.target.result, name: file.name });
+                    flushAttachQueue();
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+    }
+    function flushAttachQueue() {
+        if (sending || !attachQueue.length || !currentPartner) return;
+        pendingAttach = attachQueue.shift();
+        sendMessage();
+    }
 
     /* ---------------- 实时（HTTP 轮询） ---------------- */
     function pullNew() {

@@ -40,6 +40,8 @@ if (!empty($meAvatar) && strpos($meAvatar, 'data:') !== 0 && preg_match('/^[0-9a
     <div class="emoji-grid" id="emojiGridCustom" style="display:none"></div>
   </div>
   <div class="chat-inputbar">
+    <input type="file" id="chatMediaFile" multiple style="display:none">
+    <button class="input-icon" id="chatAttachBtn" title="Attach"><img src="../../data/res/cil/cil-paperclip.svg" style="width:18px;height:18px;vertical-align:-3px;filter:brightness(0) invert(1)"></button>
     <button class="input-icon" id="chatEmojiBtn"><img src="../../data/res/cil/cil-smile.svg" style="width:18px;height:18px;vertical-align:-3px;filter:brightness(0) invert(1)"></button>
     <input id="chatInput" placeholder="<?php echo t('m_enter_message');?>" autocomplete="off" maxlength="32767">
     <button id="chatSendBtn"><?php echo t('btn_send');?></button>

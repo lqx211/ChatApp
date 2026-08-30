@@ -4,6 +4,7 @@
  */
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/chat_actions.php';   // chatapp_save_attachment / 级别限制
 
 chatapp_session_start();
 isset($_SESSION['username']) or die(json_encode(['success' => false]));
@@ -31,6 +32,47 @@ function gen_group_id(PDO $pdo): int {
         }
     }
     throw new Exception('Failed to generate unique group ID');
+}
+
+/**
+ * 群消息加工：计算 attachment_url / attachment_name / attachment_size / is_deleted /
+ * is_markdown / avatar（与 api/chat.php proc 的 file/photo/audio 分支保持一致）。
+ */
+function chatapp_group_proc_messages(PDO $pdo, array $msgs): array {
+    $out = [];
+    foreach ($msgs as $m) {
+        $m['id'] = (int)$m['id'];
+        $m['display_name'] = $m['display_name'] ?? ($m['username'] ?? '');
+        $m['username'] = $m['username'] ?? '';
+        $m['avatar'] = chatapp_avatar_url($m['avatar'] ?? null, $m['username'], (int)($m['user_id'] ?? 0));
+        $m['msg_type'] = $m['msg_type'] ?? null;
+        $m['is_markdown'] = ($m['msg_type'] === 'md');
+        $m['is_deleted'] = ($m['deleted_at'] !== null);
+        $m['attachment_name'] = null;
+        $m['attachment_size'] = null;
+        if ($m['is_deleted']) {
+            $m['message'] = '[This message has been revoked]';
+            $m['attachment_url'] = null;
+        } elseif (!empty($m['attachment']) && !empty($m['msg_type'])) {
+            if ($m['msg_type'] === 'file') {
+                $meta = json_decode($m['attachment'], true);
+                if (is_array($meta) && !empty($meta['file'])) {
+                    $m['attachment_url'] = '../../api/file.php?u=' . ((int)$m['user_id']) . '&f=' . rawurlencode($meta['file']) . '&name=' . rawurlencode($meta['name'] ?? 'file');
+                    $m['attachment_name'] = $meta['name'] ?? 'file';
+                    $m['attachment_size'] = isset($meta['size']) ? (int)$meta['size'] : null;
+                } else {
+                    $m['attachment_url'] = null;
+                }
+            } else {
+                $m['attachment_url'] = '../../api/file.php?u=' . ((int)$m['user_id']) . '&f=' . $m['attachment'];
+            }
+        } else {
+            $m['attachment_url'] = null;
+        }
+        unset($m['deleted_at'], $m['sender_id'], $m['recipient_id'], $m['user_id']);
+        $out[] = $m;
+    }
+    return $out;
 }
 
 switch ($action) {
@@ -359,7 +401,8 @@ switch ($action) {
         // Sanitize group text: strip HTML tags server-side as defense-in-depth
         // (clients escape on render; this also protects non-escaping clients/WSS).
         $msg = strip_tags(trim(mb_substr($_POST['message'] ?? '', 0, 32767)));
-        if (!$gid || empty($msg)) { echo json_encode(['success' => false]); exit; }
+        $attachmentB64 = trim((string)($_POST['attachment'] ?? ''));
+        if (!$gid || (empty($msg) && empty($attachmentB64))) { echo json_encode(['success' => false]); exit; }
         // Must be a member
         $info = $pdo->query("SELECT role, muted FROM group_members WHERE group_id=$gid AND user_id=$myUid")->fetch();
         if (!$info) { echo json_encode(['success' => false]); exit; }
@@ -374,7 +417,18 @@ switch ($action) {
             exit;
         }
         $now = time(); // messages.time 列存 UNIX 秒；datetime 用 NOW()
-        $pdo->prepare("INSERT INTO messages (sender_id, group_id, message, time, datetime) VALUES (?, ?, ?, ?, NOW())")->execute([$myUid, $gid, $msg, $now]);
+        $msgType = null;
+        $attachmentStored = null;
+        if (!empty($attachmentB64)) {
+            $res = chatapp_save_attachment($pdo, $myUid, $attachmentB64, (string)($_POST['filename'] ?? ''));
+            if (empty($res['ok']) || !empty($res['error'])) {
+                echo json_encode(['success' => false, 'error' => $res['error'] ?? 'Invalid attachment', 'max_attach_kb' => $res['max_attach_kb'] ?? null]);
+                exit;
+            }
+            $msgType = $res['msg_type'];
+            $attachmentStored = $res['attachment'];
+        }
+        $pdo->prepare("INSERT INTO messages (sender_id, group_id, message, msg_type, attachment, time, datetime) VALUES (?, ?, ?, ?, ?, ?, NOW())")->execute([$myUid, $gid, $msg, $msgType, $attachmentStored, $now]);
         echo json_encode(['success' => true, 'id' => (int)$pdo->lastInsertId()]);
         break;
 
@@ -388,9 +442,9 @@ switch ($action) {
         }
         $where = "m.group_id = $gid";
         if ($before) $where .= " AND m.id < $before";
-        $stmt = $pdo->prepare("SELECT m.*, COALESCE(u.display_name, u.username) AS display_name, u.username, u.avatar FROM messages m JOIN users u ON u.user_id=m.sender_id WHERE $where ORDER BY m.id DESC LIMIT $limit");
+        $stmt = $pdo->prepare("SELECT m.*, u.user_id, COALESCE(u.display_name, u.username) AS display_name, u.username, u.avatar FROM messages m JOIN users u ON u.user_id=m.sender_id WHERE $where ORDER BY m.id DESC LIMIT $limit");
         $stmt->execute();
-        $messages = array_reverse($stmt->fetchAll());
+        $messages = chatapp_group_proc_messages($pdo, array_reverse($stmt->fetchAll()));
         $hasMore = $before ? ($pdo->query("SELECT COUNT(*) FROM messages WHERE group_id=$gid AND id < $before")->fetchColumn() > 0) : (count($messages) == $limit);
         $oldestId = count($messages) > 0 ? (int)$messages[0]['id'] : 0;
         echo json_encode(['success' => true, 'messages' => $messages, 'has_more' => $hasMore, 'oldest_id' => $oldestId]);
@@ -416,9 +470,9 @@ switch ($action) {
         if (!$pdo->query("SELECT 1 FROM group_members WHERE group_id=$gid AND user_id=$myUid")->fetch()) {
             echo json_encode(['success' => false]); exit;
         }
-        $stmt = $pdo->prepare("SELECT m.*, COALESCE(u.display_name, u.username) AS display_name, u.username, u.avatar FROM messages m JOIN users u ON u.user_id=m.sender_id WHERE m.group_id=? AND m.id > ? ORDER BY m.id ASC LIMIT 50");
+        $stmt = $pdo->prepare("SELECT m.*, u.user_id, COALESCE(u.display_name, u.username) AS display_name, u.username, u.avatar FROM messages m JOIN users u ON u.user_id=m.sender_id WHERE m.group_id=? AND m.id > ? ORDER BY m.id ASC LIMIT 50");
         $stmt->execute([$gid, $after]);
-        $messages = $stmt->fetchAll();
+        $messages = chatapp_group_proc_messages($pdo, $stmt->fetchAll());
         $latestId = count($messages) > 0 ? (int)$messages[count($messages)-1]['id'] : $after;
         echo json_encode(['success' => true, 'messages' => $messages, 'latest_id' => $latestId]);
         break;
