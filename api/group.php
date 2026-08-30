@@ -50,6 +50,21 @@ function chatapp_group_proc_messages(PDO $pdo, array $msgs): array {
         $m['is_deleted'] = ($m['deleted_at'] !== null);
         $m['attachment_name'] = null;
         $m['attachment_size'] = null;
+        // 回复引用：查被回复消息（id/发送者/内容预览）
+        $m['reply_data'] = null;
+        if (!empty($m['reply_to'])) {
+            $rStmt = $pdo->prepare("SELECT m.id, m.message, m.deleted_at, u.username, COALESCE(u.display_name,u.username) AS display_name FROM messages m JOIN users u ON u.user_id=m.sender_id WHERE m.id = ?");
+            $rStmt->execute([(int)$m['reply_to']]);
+            $r = $rStmt->fetch();
+            if ($r) {
+                $m['reply_data'] = [
+                    'id' => (int)$r['id'],
+                    'username' => $r['username'],
+                    'display_name' => $r['display_name'],
+                    'message' => ($r['deleted_at'] !== null) ? '[This message has been revoked]' : mb_substr($r['message'], 0, 80),
+                ];
+            }
+        }
         if ($m['is_deleted']) {
             $m['message'] = '[This message has been revoked]';
             $m['attachment_url'] = null;
@@ -69,7 +84,7 @@ function chatapp_group_proc_messages(PDO $pdo, array $msgs): array {
         } else {
             $m['attachment_url'] = null;
         }
-        unset($m['deleted_at'], $m['sender_id'], $m['recipient_id'], $m['user_id']);
+        unset($m['deleted_at'], $m['sender_id'], $m['recipient_id'], $m['user_id'], $m['reply_to']);
         $out[] = $m;
     }
     return $out;

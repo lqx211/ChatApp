@@ -126,6 +126,23 @@ input{font-family:inherit;border:none;outline:none}
 }
 .chat-inputbar button:disabled{opacity:.5}
 
+/* 回复栏 */
+.reply-bar{
+  display:flex;align-items:center;gap:8px;padding:6px 12px;
+  background:var(--m-search);border-top:1px solid #2A2C2F;font-size:13px;
+}
+.reply-bar span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--m-sub)}
+.reply-bar span b{color:var(--m-text);font-weight:600}
+.reply-bar-close{flex:none;background:none;border:none;color:var(--m-sub);font-size:15px;padding:4px;cursor:pointer}
+
+/* 消息内引用（回复） */
+.msg-quote{
+  border-left:3px solid var(--m-blue);background:rgba(255,255,255,.04);
+  padding:4px 8px;margin-bottom:5px;border-radius:0 4px 4px 0;font-size:.78em;color:var(--m-sub);
+  word-break:break-word;
+}
+.msg-quote b{color:var(--m-text)}
+
 /* ---------- 我的页 ---------- */
 .me-card{
   display:flex;flex-direction:column;align-items:center;padding:26px 16px 22px;

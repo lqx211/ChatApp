@@ -475,6 +475,7 @@
         closeEmojiPanel();
         currentPartner = null;
         currentGroupId = 0;
+        cancelReply();
         $('chatScreen').style.display = 'none';
         loadConversations();
     }
@@ -488,8 +489,83 @@
         var av = e.target.closest('.msg .av');
         if (av && av.getAttribute('data-u')) {
             openFrame('profile.php?user=' + encodeURIComponent(av.getAttribute('data-u')), '');
+            return;
         }
+        var msgEl = e.target.closest('.msg');
+        if (!msgEl) return;
+        if (e.target.closest('a')) return;   // 附件链接照常打开，不弹操作面板
+        var id = parseInt(msgEl.getAttribute('data-id'), 10);
+        if (!id) return;
+        openMsgActions(msgEl, id);
     });
+
+    /* ---------------- 消息操作（点按：复制/回复/撤回） ---------------- */
+    var _curMsg = null;      // { id, mine, text }
+    function openMsgActions(el, id) {
+        var mine = el.classList.contains('out');
+        var text = '';
+        var bubble = el.querySelector('.bubble');
+        if (bubble) {
+            var clone = bubble.cloneNode(true);
+            var q = clone.querySelector('.msg-quote');
+            if (q) clone.removeChild(q);
+            text = (clone.textContent || '').trim();
+        }
+        _curMsg = { id: id, mine: mine, text: text };
+        $('msgRevoke').style.display = mine ? 'block' : 'none';
+        $('msgCopy').style.display = text ? 'block' : 'none';
+        showSheet('msgActionSheet');
+    }
+    $('msgActionCancel').addEventListener('click', function () { hideSheet('msgActionSheet'); });
+    $('msgCopy').addEventListener('click', function () {
+        hideSheet('msgActionSheet');
+        if (!_curMsg || !_curMsg.text) return;
+        function fallbackCopy(t) {
+            var ta = document.createElement('textarea');
+            ta.value = t;
+            ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch (e) {}
+            document.body.removeChild(ta);
+        }
+        var done = function () { toast(t('m_copied', 'Copied')); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(_curMsg.text).then(done).catch(function () { fallbackCopy(_curMsg.text); done(); });
+        } else { fallbackCopy(_curMsg.text); done(); }
+    });
+    $('msgReply').addEventListener('click', function () {
+        hideSheet('msgActionSheet');
+        if (!_curMsg) return;
+        setReplyTarget(_curMsg.id, _curMsg.text);
+    });
+    $('msgRevoke').addEventListener('click', function () {
+        hideSheet('msgActionSheet');
+        if (!_curMsg) return;
+        var id = _curMsg.id;
+        var f = new URLSearchParams();
+        f.append('message_id', id);
+        fetch('../../api/chat.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'action=revoke&' + f.toString() })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (d && d.success) { toast(t('m_revoked_ok', 'Revoked')); loadChatHistory(); }
+                else toast((d && d.error) || t('m_revoke_fail', 'Revoke failed'));
+            })
+            .catch(function () { toast(t('m_revoke_fail', 'Revoke failed')); });
+    });
+    /* 回复引用 */
+    var _replyTarget = 0;
+    function setReplyTarget(id, text) {
+        _replyTarget = id;
+        $('replyBarText').innerHTML = t('m_reply_to', 'Reply to') + ': <b>' + esc((text || '').slice(0, 50)) + '</b>';
+        $('replyBar').style.display = 'flex';
+        $('chatInput').focus();
+    }
+    function cancelReply() {
+        _replyTarget = 0;
+        $('replyBar').style.display = 'none';
+    }
+    $('replyBarClose').addEventListener('click', cancelReply);
     // 聊天更多菜单
     $('chatMoreBtn').addEventListener('click', function () { showSheet('chatMenuSheet'); });
     $('menuSheetCancel').addEventListener('click', function () { hideSheet('chatMenuSheet'); });
@@ -563,7 +639,7 @@
             if (tSec) prev = tSec;
             var mine = (m.sender_id === ME.uid) || (m.username === ME.username);
             var gSender = (currentGroupId && !mine) ? (m.display_name || m.username || '') : '';
-            chunks.push('<div class="msg ' + (mine ? 'out' : 'in') + '">'
+            chunks.push('<div class="msg ' + (mine ? 'out' : 'in') + '" data-id="' + (m.id || '') + '">'
                 + (mine
                     ? '<img class="av" data-u="' + esc(ME.username) + '" src="' + (ME.avatar ? esc(ME.avatar) : '') + '" alt="">'
                     : (m.avatar ? '<img class="av" data-u="' + esc(m.username) + '" src="' + esc(m.avatar) + '" alt="">' : '<div class="av" data-u="' + esc(m.username) + '" style="display:flex;align-items:center;justify-content:center;color:#4aa9d8">' + letterAvatar(m.display_name || m.username) + '</div>'))
@@ -590,6 +666,9 @@
     function bubbleHTML(m, groupSender) {
         if (m.is_deleted) return '<div class="bubble revoked">' + t('m_revoked') + '</div>';
         var body = '';
+        if (m.reply_data) {
+            body += '<div class="msg-quote"><b>' + esc(m.reply_data.display_name || m.reply_data.username || '') + ':</b> ' + esc(m.reply_data.message || '') + '</div>';
+        }
         if (groupSender) body += '<div class="msg-sender">' + esc(groupSender) + '</div>';
         if (m.attachment_url && m.msg_type !== 'file' && /\.(png|jpe?g|gif|webp)(\?|$)/i.test(m.attachment_url)) {
             body += '<img src="' + esc(m.attachment_url) + '" style="max-width:210px;max-height:260px;border-radius:6px;display:block">';
@@ -627,6 +706,7 @@
             f.append('msg_type', '');
         }
         f.append('message', text);
+        if (_replyTarget) f.append('reply_to', _replyTarget);
         if (pendingAttach) {
             f.append('attachment', pendingAttach.data);
             if (pendingAttach.name) f.append('filename', pendingAttach.name);
@@ -638,6 +718,7 @@
                 sending = false;
                 if (d && d.success) {
                     input.value = '';
+                    cancelReply();
                     // 拉取刚发的消息后再发队列中的下一个文件（串行，避免并发乱序）
                     pullNew().catch(function () {}).then(flushAttachQueue);
                 } else {

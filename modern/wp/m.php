@@ -39,6 +39,10 @@ if (!empty($meAvatar) && strpos($meAvatar, 'data:') !== 0 && preg_match('/^[0-9a
     <div class="emoji-grid" id="emojiGridBuiltin"></div>
     <div class="emoji-grid" id="emojiGridCustom" style="display:none"></div>
   </div>
+  <div class="reply-bar" id="replyBar" style="display:none">
+    <span id="replyBarText"></span>
+    <button class="reply-bar-close" id="replyBarClose">✕</button>
+  </div>
   <div class="chat-inputbar">
     <input type="file" id="chatMediaFile" multiple style="display:none">
     <button class="input-icon" id="chatAttachBtn" title="Attach"><img src="../../data/res/cil/cil-paperclip.svg" style="width:18px;height:18px;vertical-align:-3px;filter:brightness(0) invert(1)"></button>
@@ -47,6 +51,14 @@ if (!empty($meAvatar) && strpos($meAvatar, 'data:') !== 0 && preg_match('/^[0-9a
     <button id="chatSendBtn"><?php echo t('btn_send');?></button>
   </div>
 </section>
+
+<!-- 消息操作菜单（点按消息） -->
+<div class="sheet" id="msgActionSheet" style="display:none">
+  <button class="sheet-item" id="msgCopy"><?php echo t('btn_copy');?></button>
+  <button class="sheet-item" id="msgReply"><?php echo t('menu_reply');?></button>
+  <button class="sheet-item" id="msgRevoke" style="color:#e06060"><?php echo t('menu_revoke');?></button>
+  <button class="sheet-item" id="msgActionCancel"><?php echo t('btn_cancel');?></button>
+</div>
 
 <!-- 聊天更多菜单 -->
 <div class="sheet" id="chatMenuSheet" style="display:none">
