@@ -16,7 +16,7 @@ $isSelf = ($viewUsername === '' || $viewUsername === ($currentUser['username'] ?
 $target = $isSelf ? ($currentUser['username'] ?? '') : $viewUsername;
 
 $pdo = db();
-$stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, custom_title, gender, gender_privacy, birthday, profile_bg_image, profile_bg_updated_at, level, exp, likes, created_at, dnd, enabled, placeholder FROM users WHERE username = ?");
+$stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, custom_title, gender, gender_privacy, birthday, profile_bg_image, profile_bg_updated_at, bg_privacy, bg_blacklist, bg_whitelist, bg_no_friend, bg_private_image, level, exp, likes, created_at, dnd, enabled, placeholder FROM users WHERE username = ?");
 $stmt->execute([$target]);
 $u = $stmt->fetch();
 if (!$u || !(int)$u['enabled'] || (int)$u['placeholder']) {
@@ -28,20 +28,73 @@ $displayName = $u['display_name'] ?: $u['username'];
 $avatarUrl = chatapp_avatar_url($u['avatar'] ?? '', $u['username']);
 $sig = trim((string)($u['custom_title'] ?? ''));
 $cover = trim((string)($u['profile_bg_image'] ?? ''));
-// 封面：profile_bg_image 是文件名 → 走 api/file 或 data 取图；这里统一拼 URL（data URI 原样保留）
-if ($cover !== '' && strpos($cover, 'data:') !== 0 && preg_match('/^[0-9a-zA-Z_]+\.(png|jpg|jpeg|gif|webp)$/i', $cover)) {
-    $coverUrl = '../../api/avatar.php?u=' . urlencode($u['username']) . '&bg=' . urlencode($cover);
-} elseif ($cover !== '' && strpos($cover, 'data:') === 0) {
-    $coverUrl = $cover;
-} else {
-    $coverUrl = '';
-}
 $level = (int)$u['level']; $exp = (int)$u['exp']; $likes = (int)$u['likes'];
 $gender = $u['gender']; // 0/1/2? 按现有 profile 语义显示
 $birthday = $u['birthday'] ?? '';
 $uid = (int)$u['user_id'];
 $meUid = (int)($currentUser['user_id'] ?? 0);
 $spaceTitle = $displayName . '的空间';
+
+// ===== 封面：资源 URL（含视频）+ 可见性 + 取景/镜像参数（与 profile.php 一致） =====
+$bgPrivacy = (int)($u['bg_privacy'] ?? 0);
+$bgBlackList = array_filter(array_map('intval', explode(',', (string)($u['bg_blacklist'] ?? ''))));
+$bgWhiteList = array_filter(array_map('intval', explode(',', (string)($u['bg_whitelist'] ?? ''))));
+$bgNoFriend = (int)($u['bg_no_friend'] ?? 0);
+$bgPrivateImg = trim((string)($u['bg_private_image'] ?? ''));
+$canSeeBg = true;
+if ($bgPrivacy === 2) {
+    $canSeeBg = false; // 仅自己能看见
+} elseif (!empty($cover)) {
+    if ($bgPrivacy === 0) { $canSeeBg = !in_array($meUid, $bgBlackList, true); }
+    elseif ($bgPrivacy === 1) { $canSeeBg = in_array($meUid, $bgWhiteList, true); }
+    if ($bgNoFriend && $meUid > 0 && $uid > 0 && !$isSelf) {
+        $cstmt = $pdo->prepare("SELECT COUNT(*) FROM contacts WHERE status='accepted' AND ((user_from=? AND user_to=?) OR (user_from=? AND user_to=?))");
+        $cstmt->execute([$meUid, $uid, $uid, $meUid]);
+        $isFriend = (int)$cstmt->fetchColumn() > 0;
+        if (!$isFriend) $canSeeBg = false;
+    }
+}
+$coverUrl = '';
+$isBgVideo = false;
+$bgMimeType = 'image/png';
+$bgSrcKey = $canSeeBg ? $cover : $bgPrivateImg;
+if (!empty($bgSrcKey)) {
+    $ts = strtotime($u['profile_bg_updated_at'] ?? '') ?: time();
+    if (strpos($bgSrcKey, 'data:') === 0) {
+        $coverUrl = $bgSrcKey;
+    } elseif (strpos($bgSrcKey, 'bgi/') === 0) {
+        // data/bgi/<uid>.* 走 file.php 鉴权读取（不暴露真实路径）
+        $coverUrl = '../../api/file.php?type=bgi&u=' . $uid . '&v=' . $ts;
+    } elseif (strpos($bgSrcKey, 'res/wallpaper/') === 0) {
+        $coverUrl = '../../data/' . $bgSrcKey . '?v=' . $ts;
+    } elseif (preg_match('/^[0-9a-zA-Z_]+\.(png|jpg|jpeg|gif|webp)$/i', $bgSrcKey)) {
+        $coverUrl = '../../api/avatar.php?u=' . urlencode($u['username']) . '&bg=' . urlencode($bgSrcKey);
+    } elseif ($bgSrcKey !== '') {
+        $coverUrl = '../../api/file.php?f=' . rawurlencode($bgSrcKey) . '&v=' . $ts;
+    }
+    if (preg_match('/\.(mp4|webm|mov|m4v)$/', $bgSrcKey)) {
+        $isBgVideo = true;
+        $bgMimeType = preg_match('/\.webm$/', $bgSrcKey) ? 'video/webm' : 'video/mp4';
+    }
+}
+// 取景/镜像参数（封面存景：pos_x/pos_y=可视区中心%，zoom=放大倍数，flip=左右镜像）；旧库兜底建列
+$pdo = db();
+db_add_column_if_missing('users', 'bg_pos_x', "INT NOT NULL DEFAULT 50");
+db_add_column_if_missing('users', 'bg_pos_y', "INT NOT NULL DEFAULT 0");
+db_add_column_if_missing('users', 'bg_zoom', "DECIMAL(4,2) NOT NULL DEFAULT 1.00");
+db_add_column_if_missing('users', 'bg_flip', "TINYINT(1) NOT NULL DEFAULT 0");
+$bgPosStmt = $pdo->prepare("SELECT bg_pos_x, bg_pos_y, bg_zoom, bg_flip FROM users WHERE user_id = ?");
+$bgPosStmt->execute([$uid]);
+$bgPosRow = $bgPosStmt->fetch();
+$bgPosX = (int)($bgPosRow['bg_pos_x'] ?? 50);
+$bgPosY = (int)($bgPosRow['bg_pos_y'] ?? 0);
+$bgZoom = (float)($bgPosRow['bg_zoom'] ?? 1);
+$bgFlip = (int)($bgPosRow['bg_flip'] ?? 0);
+if ($bgPosX < 0 || $bgPosX > 100) $bgPosX = 50;
+if ($bgPosY < 0 || $bgPosY > 100) $bgPosY = 0;
+if ($bgZoom < 1 || $bgZoom > 5) $bgZoom = 1;
+$bgTransform = 'scale(' . number_format($bgZoom, 2, '.', '') . ')' . ($bgFlip ? ' scaleX(-1)' : '');
+$bgFrameStyle = 'object-position:' . $bgPosX . '% ' . $bgPosY . '%;transform-origin:' . $bgPosX . '% ' . $bgPosY . '%;transform:' . $bgTransform;
 
 function sp_ph(int $i, string $ch, string $a, string $b): string {
     // 精选相片占位图（正方形 SVG data URI）——后续替换为真实朋友圈图片
@@ -128,8 +181,14 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 
   <!-- 封面头 -->
   <div class="layout-head anti-color">
-    <div class="layout-head-inner<?php echo $coverUrl ? ' has-cover' : '';?>" <?php if($coverUrl):?>style="background-image:url('<?php echo htmlspecialchars($coverUrl);?>')"<?php endif;?>>
-      <?php if($coverUrl):?><img class="head-cover-img" src="<?php echo htmlspecialchars($coverUrl);?>" alt="" style="display:none"><?php endif;?>
+    <div class="layout-head-inner<?php echo $coverUrl ? ' has-cover' : '';?>" id="spaceCoverHead">
+      <?php if ($coverUrl):?>
+        <?php if ($isBgVideo):?>
+        <video id="spaceCoverMedia" class="head-cover-img" src="<?php echo htmlspecialchars($coverUrl);?>" autoplay muted loop playsinline style="<?php echo $bgFrameStyle;?>"></video>
+        <?php else:?>
+        <img id="spaceCoverMedia" class="head-cover-img" src="<?php echo htmlspecialchars($coverUrl);?>" alt="" style="<?php echo $bgFrameStyle;?>">
+        <?php endif;?>
+      <?php endif;?>
       <div class="head-cover-tint"></div>
 
       <div class="head-info">
@@ -143,6 +202,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
       <div class="actions profile-hd-actions">
         <?php if ($isSelf):?>
           <span class="btn-head"><a href="editinfo.php">编辑资料</a></span>
+          <span class="btn-head btn-bg-edit" id="spBgEditBtn" onclick="spOpenBgMenu(event)">更换背景图</span>
         <?php else:?>
           <span class="btn-head btn-primary"><a>加好友</a></span>
           <span class="btn-head"><a href="chat.php?user=<?php echo urlencode($u['username']);?>" target="_blank">发消息</a></span>
@@ -339,6 +399,23 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
   <div class="to-top" id="spToTop" title="返回顶部"><?php echo sp_ic('top');?></div>
 </div>
 
+<!-- 封面编辑：背景图菜单 + 文件选择 + 就地编辑控制条 -->
+<div class="sp-bg-menu" id="spBgMenu">
+  <div class="sp-bg-menu-item" onclick="spPickBgFile()">更换背景图（图片/视频）</div>
+  <div class="sp-bg-menu-item" onclick="spAdjustCover()">调整当前封面</div>
+  <div class="sp-bg-menu-item danger" onclick="spClearBg()">清空背景图</div>
+</div>
+<input type="file" id="spBgFileInput" accept="image/*,video/*" style="display:none" onchange="spOnBgFileChange(this)">
+<div class="sp-cover-edit-bar" id="spCoverEditBar" style="display:none">
+  <span class="sp-eb-hint">拖动移动 · 滚轮/双指缩放</span>
+  <button type="button" class="sp-eb-btn" id="spEbFlip" onclick="spCoverFlip()">⇄ 镜像</button>
+  <button type="button" class="sp-eb-btn" onclick="spCoverZoom(-1)">−</button>
+  <button type="button" class="sp-eb-btn" onclick="spCoverZoom(1)">＋</button>
+  <button type="button" class="sp-eb-btn sp-eb-ok" onclick="spCoverConfirm()">完成</button>
+  <button type="button" class="sp-eb-btn" onclick="spCoverCancel()">取消</button>
+  <span class="sp-eb-progress" id="spEbProgress"></span>
+</div>
+
 <script>
 var SP_USER = <?php echo json_encode(['self' => $isSelf, 'username' => $u['username'], 'display' => $displayName]);?>;
 // 封面 tab 切换（UI 高亮）
@@ -386,6 +463,250 @@ function spLogout() {
     fetch('../../api/auth.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
         .then(function () { location.href = 'login.php'; });
 }
+</script>
+
+<script>
+/* ============ 封面就地编辑：直接在本页移动/缩放/镜像（头像可见，无需额外标记） ============ */
+var SP_COVER_SAVED = <?php echo json_encode(['posX' => $bgPosX, 'posY' => $bgPosY, 'zoom' => (float)$bgZoom, 'flip' => $bgFlip, 'isVideo' => $isBgVideo, 'hadCover' => ($coverUrl !== '')]);?>;
+var SPCOV = { active:false, mode:'adjust', file:null, url:'', isVideo:false, nw:0, nh:0, ox:0, oy:0, sx:1, flip:0, frameW:428, frameH:250, origSrc:'', origStyle:'', pts:{}, pinch:null };
+
+function hideBgMenu() { var m = document.getElementById('spBgMenu'); if (m) m.style.display = 'none'; }
+function spOpenBgMenu(e) {
+  e && e.stopPropagation();
+  var m = document.getElementById('spBgMenu');
+  if (!m) return;
+  if (m.style.display === 'block') { hideBgMenu(); return; }
+  m.style.display = 'block';
+  var r = (e && e.target) ? e.target.getBoundingClientRect() : null;
+  if (r) {
+    m.style.left = Math.min(window.innerWidth - 200, r.left) + 'px';
+    m.style.top = (r.bottom + 6) + 'px';
+  } else {
+    m.style.left = '50%'; m.style.top = '80px';
+  }
+}
+function spPickBgFile() { hideBgMenu(); var i = document.getElementById('spBgFileInput'); if (i) i.click(); }
+function spOnBgFileChange(input) {
+  var f = input.files && input.files[0];
+  if (input) input.value = '';
+  if (!f) return;
+  // iOS 视频常无 type → 用扩展名兜底
+  var isVid = f.type.indexOf('video/') === 0 || /\.(mp4|mov|m4v|webm|mkv)$/i.test(f.name);
+  startCoverEdit(f, isVid);
+}
+function spAdjustCover() { hideBgMenu(); startCoverEdit(null, SP_COVER_SAVED.isVideo); }
+function spClearBg() {
+  hideBgMenu();
+  if (!window.confirm('确定清空背景图？')) return;
+  var f = new URLSearchParams(); f.append('action', 'remove_profile_bg');
+  fetch('../../api/settings.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { if (d && d.success) location.reload(); else alert('清空失败'); })
+    .catch(function () { alert('清空失败'); });
+}
+
+function showEditBar() {
+  var b = document.getElementById('spCoverEditBar'); if (b) b.style.display = 'flex';
+  var fb = document.getElementById('spEbFlip'); if (fb) fb.classList.toggle('active', !!SPCOV.flip);
+}
+function hideEditBar() { var b = document.getElementById('spCoverEditBar'); if (b) b.style.display = 'none'; }
+
+function startCoverEdit(file, isVideo) {
+  var head = document.getElementById('spaceCoverHead');
+  if (!head || SPCOV.active) return;
+  var media = document.getElementById('spaceCoverMedia');
+  SPCOV.active = true;
+  SPCOV.mode = file ? 'file' : 'adjust';
+  SPCOV.file = file || null;
+  SPCOV.isVideo = !!isVideo;
+  SPCOV.frameW = head.clientWidth || 428;
+  SPCOV.frameH = head.clientHeight || 250;
+  if (!media) {
+    media = document.createElement(isVideo ? 'video' : 'img');
+    media.id = 'spaceCoverMedia';
+    media.className = 'head-cover-img';
+    head.insertBefore(media, head.firstChild);
+  }
+  SPCOV.origSrc = media.getAttribute('src') || '';
+  SPCOV.origStyle = media.getAttribute('style') || '';
+  head.classList.add('sp-editing');
+  if (file) {
+    if (SPCOV.url) URL.revokeObjectURL(SPCOV.url);
+    SPCOV.url = URL.createObjectURL(file);
+    media.src = SPCOV.url;
+    if (isVideo) media.onloadedmetadata = function () { computeFromMedia(media); };
+    else media.onload = function () { computeFromMedia(media); };
+  } else {
+    // 调整现有封面：不换源，直接用当前媒体（已加载则立即计算）
+    if (isVideo) {
+      if (media.readyState >= 1) computeFromMedia(media);
+      else media.onloadedmetadata = function () { computeFromMedia(media); };
+    } else {
+      if (media.complete && media.naturalWidth) computeFromMedia(media);
+      else media.onload = function () { computeFromMedia(media); };
+    }
+  }
+}
+function computeFromMedia(media) {
+  var nw = media.videoWidth || media.naturalWidth || 0;
+  var nh = media.videoHeight || media.naturalHeight || 0;
+  if (!nw || !nh) return;
+  SPCOV.nw = nw; SPCOV.nh = nh;
+  // 切为“手动编辑”模式：自然尺寸 + translate/scale
+  media.style.cssText = 'position:absolute;left:0;top:0;width:' + nw + 'px;height:' + nh + 'px;object-fit:none;z-index:0;transform-origin:0 0;';
+  var cs = Math.max(SPCOV.frameW / nw, SPCOV.frameH / nh);
+  var cx = (SP_COVER_SAVED.posX / 100) * nw, cy = (SP_COVER_SAVED.posY / 100) * nh;
+  // 新封面从非镜像开始；调整现有封面沿用已保存的镜像状态
+  SPCOV.flip = (SPCOV.mode === 'adjust' && SP_COVER_SAVED.flip) ? 1 : 0;
+  SPCOV.sx = Math.max(cs, (SP_COVER_SAVED.zoom || 1) * cs);
+  SPCOV.ox = SPCOV.frameW / 2 - cx * SPCOV.sx;
+  SPCOV.oy = SPCOV.frameH / 2 - cy * SPCOV.sx;
+  clampCover(); renderCover();
+  showEditBar();
+  if (SPCOV.isVideo) { var p = media.play(); if (p && p.catch) p.catch(function () {}); }
+}
+function renderCover() {
+  var media = document.getElementById('spaceCoverMedia');
+  if (!media) return;
+  media.style.transformOrigin = '0 0';
+  if (SPCOV.flip) {
+    media.style.transform = 'translate(' + (SPCOV.frameW - SPCOV.ox) + 'px,' + SPCOV.oy + 'px) scale(' + (-SPCOV.sx) + ',' + SPCOV.sx + ')';
+  } else {
+    media.style.transform = 'translate(' + SPCOV.ox + 'px,' + SPCOV.oy + 'px) scale(' + SPCOV.sx + ')';
+  }
+}
+function clampCover() {
+  var w = SPCOV.nw * SPCOV.sx, h = SPCOV.nh * SPCOV.sx;
+  SPCOV.ox = Math.min(0, Math.max(SPCOV.frameW - w, SPCOV.ox));
+  SPCOV.oy = Math.min(0, Math.max(SPCOV.frameH - h, SPCOV.oy));
+}
+function coverZoomAt(cx, cy, k) {
+  var oldS = SPCOV.sx;
+  var wx = (cx - SPCOV.ox) / oldS, wy = (cy - SPCOV.oy) / oldS;
+  var ns = Math.min(5, Math.max(oldS * 0.2, oldS * k));
+  SPCOV.sx = ns;
+  SPCOV.ox = cx - wx * ns;
+  SPCOV.oy = cy - wy * ns;
+  clampCover(); renderCover();
+}
+function spCoverZoom(dir) { coverZoomAt(SPCOV.frameW / 2, SPCOV.frameH / 2, dir > 0 ? 1.25 : 0.8); }
+function spCoverFlip() {
+  SPCOV.flip = SPCOV.flip ? 0 : 1;
+  var b = document.getElementById('spEbFlip'); if (b) b.classList.toggle('active', !!SPCOV.flip);
+  renderCover();
+}
+function spCoverConfirm() {
+  if (!SPCOV.active) return;
+  var nw = SPCOV.nw, nh = SPCOV.nh;
+  if (!nw || !nh) return;
+  var cs = Math.max(SPCOV.frameW / nw, SPCOV.frameH / nh);
+  var zoom = Math.max(1, SPCOV.sx / cs);
+  var cx = (-SPCOV.ox) / SPCOV.sx + SPCOV.frameW / (2 * SPCOV.sx);
+  var cy = (-SPCOV.oy) / SPCOV.sx + SPCOV.frameH / (2 * SPCOV.sx);
+  var data = {
+    pos_x: Math.round(Math.max(0, Math.min(100, cx / nw * 100))),
+    pos_y: Math.round(Math.max(0, Math.min(100, cy / nh * 100))),
+    zoom: +zoom.toFixed(2),
+    flip: SPCOV.flip ? 1 : 0
+  };
+  if (SPCOV.mode === 'file' && SPCOV.file) {
+    uploadBgFile(SPCOV.file, data, function () { location.reload(); });
+  } else {
+    saveFraming(data, function () { location.reload(); });
+  }
+}
+function uploadBgFile(file, data, ondone) {
+  var bar = document.getElementById('spEbProgress');
+  var xhr = new XMLHttpRequest();
+  var form = new FormData();
+  form.append('action', 'upload_profile_bg');
+  form.append('file', file);
+  form.append('pos_x', data.pos_x); form.append('pos_y', data.pos_y);
+  form.append('zoom', data.zoom); form.append('flip', data.flip);
+  xhr.open('POST', '../../api/settings.php');
+  xhr.onload = function () {
+    if (bar) bar.textContent = '';
+    if (xhr.status === 200) {
+      try { var d = JSON.parse(xhr.responseText); if (d && d.success) { ondone && ondone(d); return; } } catch (e) {}
+    }
+    if (bar) bar.textContent = '上传失败';
+    alert('上传失败');
+  };
+  xhr.onerror = function () { if (bar) bar.textContent = '上传失败'; alert('上传失败'); };
+  xhr.upload.onprogress = function (e) { if (e.lengthComputable && bar) bar.textContent = Math.round(e.loaded / e.total * 100) + '%'; };
+  xhr.send(form);
+}
+function saveFraming(data, ondone) {
+  var f = new URLSearchParams();
+  f.append('action', 'save_bg_framing');
+  f.append('pos_x', data.pos_x); f.append('pos_y', data.pos_y);
+  f.append('zoom', data.zoom); f.append('flip', data.flip);
+  fetch('../../api/settings.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { if (d && d.success) { ondone && ondone(); } else alert('保存失败'); })
+    .catch(function () { alert('保存失败'); });
+}
+function spCoverCancel() {
+  var head = document.getElementById('spaceCoverHead');
+  var media = document.getElementById('spaceCoverMedia');
+  if (head) head.classList.remove('sp-editing');
+  hideEditBar();
+  SPCOV.active = false;
+  if (media) {
+    media.onload = media.onloadedmetadata = null;
+    media.removeAttribute('style');
+    if (SPCOV.origStyle) media.setAttribute('style', SPCOV.origStyle);
+    if (SPCOV.mode === 'file') {
+      if (SPCOV.origSrc) media.src = SPCOV.origSrc;
+      else if (!SP_COVER_SAVED.hadCover && media.parentNode) media.parentNode.removeChild(media);
+    }
+  }
+  if (SPCOV.url) { URL.revokeObjectURL(SPCOV.url); SPCOV.url = ''; }
+}
+
+// 事件绑定：编辑态下 拖拽平移 + 双指缩放 + 滚轮缩放
+(function () {
+  var head = document.getElementById('spaceCoverHead');
+  if (!head) return;
+  function up(e) { delete SPCOV.pts[e.pointerId]; if (Object.keys(SPCOV.pts).length < 2) SPCOV.pinch = null; }
+  head.addEventListener('pointerdown', function (e) {
+    if (!SPCOV.active) return;
+    try { head.setPointerCapture(e.pointerId); } catch (err) {}
+    SPCOV.pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+    if (Object.keys(SPCOV.pts).length === 2) SPCOV.pinch = null;
+  });
+  head.addEventListener('pointermove', function (e) {
+    if (!SPCOV.active || SPCOV.pts[e.pointerId] == null) return;
+    var ks = Object.keys(SPCOV.pts);
+    if (ks.length === 1) {
+      var p = SPCOV.pts[e.pointerId];
+      SPCOV.ox += e.clientX - p.x; SPCOV.oy += e.clientY - p.y;
+      SPCOV.pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      clampCover(); renderCover();
+    } else if (ks.length === 2) {
+      var other = ks.find(function (k) { return k != e.pointerId; });
+      if (other == null) return;
+      var a = SPCOV.pts[other], b = SPCOV.pts[e.pointerId];
+      var nx = e.clientX, ny = e.clientY;
+      var d1 = Math.hypot(a.x - nx, a.y - ny);
+      if (SPCOV.pinch && SPCOV.pinch.d > 0) {
+        coverZoomAt(SPCOV.pinch.mx, SPCOV.pinch.my, d1 / SPCOV.pinch.d);
+      }
+      SPCOV.pinch = { d: d1, mx: (a.x + nx) / 2, my: (a.y + ny) / 2 };
+      SPCOV.pts[e.pointerId] = { x: nx, y: ny };
+    }
+  });
+  head.addEventListener('pointerup', up);
+  head.addEventListener('pointercancel', up);
+  head.addEventListener('wheel', function (e) {
+    if (!SPCOV.active) return;
+    e.preventDefault();
+    var r = head.getBoundingClientRect();
+    coverZoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.1 : 0.9);
+  }, { passive: false });
+  // 点击页面其它处关闭背景图菜单
+  document.addEventListener('click', function () { hideBgMenu(); });
+})();
 </script>
 </body>
 </html>

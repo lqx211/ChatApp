@@ -971,6 +971,26 @@ switch ($action) {
         echo json_encode(['success' => true]);
         break;
 
+    case 'save_bg_framing':
+        // 就地调整封面取景：只存 pos/zoom/flip，不改文件（个人空间封面编辑「调整封面」用）
+        $pdo = db();
+        db_add_column_if_missing('users', 'bg_pos_x', "INT NOT NULL DEFAULT 50");
+        db_add_column_if_missing('users', 'bg_pos_y', "INT NOT NULL DEFAULT 0");
+        db_add_column_if_missing('users', 'bg_zoom', "DECIMAL(4,2) NOT NULL DEFAULT 1.00");
+        db_add_column_if_missing('users', 'bg_flip', "TINYINT(1) NOT NULL DEFAULT 0");
+        $stmt = $pdo->prepare('SELECT user_id FROM users WHERE username = ?');
+        $stmt->execute([$_SESSION['username']]);
+        $uid = (int)$stmt->fetchColumn();
+        if (!$uid) { echo json_encode(['success' => false]); break; }
+        $posX = (int)($_POST['pos_x'] ?? 50); if ($posX < 0 || $posX > 100) $posX = 50;
+        $posY = (int)($_POST['pos_y'] ?? 0);  if ($posY < 0 || $posY > 100) $posY = 0;
+        $zoom = (float)($_POST['zoom'] ?? 1); if ($zoom < 1 || $zoom > 5) $zoom = 1;
+        $flip = (int)($_POST['flip'] ?? 0); if ($flip !== 1) $flip = 0;
+        $pdo->prepare("UPDATE users SET bg_pos_x = ?, bg_pos_y = ?, bg_zoom = ?, bg_flip = ? WHERE user_id = ?")
+            ->execute([$posX, $posY, $zoom, $flip, $uid]);
+        echo json_encode(['success' => true]);
+        break;
+
     case 'get_profile_bg':
         $pdo = db();
         $stmt = $pdo->prepare('SELECT profile_bg_image, profile_bg_updated_at FROM users WHERE username = ?');

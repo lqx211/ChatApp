@@ -344,6 +344,7 @@ $bgFrameStyle = 'object-position:' . $bgPosX . '% ' . $bgPosY . '%;transform-ori
       <button class="bgi-crop-btn" onclick="cancelCrop()"><?php echo t('btn_cancel');?></button>
       <button class="bgi-crop-btn bgi-crop-zoom" onclick="cropZoom(-1)">−</button>
       <button class="bgi-crop-btn bgi-crop-zoom" onclick="cropZoom(1)">＋</button>
+      <button class="bgi-crop-btn bgi-crop-flip" id="bgiCropFlipBtn" onclick="cropFlip()">⇄ 镜像</button>
       <button class="bgi-crop-btn bgi-crop-ok" onclick="confirmCrop()"><?php echo t('p_done');?></button>
     </div>
   </div>
@@ -585,6 +586,7 @@ function startBgUpload(media, framing) {
     form.append('pos_x', framing.pos_x);
     form.append('pos_y', framing.pos_y);
     form.append('zoom', framing.zoom);
+    if (framing.flip != null) form.append('flip', framing.flip);
   }
 
   var _loaded = 0, _total = (media.size) || 1;
@@ -640,7 +642,7 @@ function startBgUpload(media, framing) {
 
 // ================= 背景图剪裁（手机全屏 / 桌面居中窗口） =================
 // 剪裁框固定为封面比例 428:223；图片可拖拽平移 + 缩放，完成后按 2x 裁出上传
-var _crop = { img: null, url: '', sx: 1, ox: 0, oy: 0, frameW: 0, frameH: 0, isVideo: false, file: null, nw: 0, nh: 0 };
+var _crop = { img: null, url: '', sx: 1, ox: 0, oy: 0, frameW: 0, frameH: 0, isVideo: false, file: null, nw: 0, nh: 0, flip: 0 };
 var _cropPts = {}, _pinch0 = null;
 
 function openCrop(file, isVideo) {
@@ -658,6 +660,9 @@ function openCrop(file, isVideo) {
 
   _crop.url = URL.createObjectURL(file);
   _crop.isVideo = !!isVideo;
+  _crop.flip = 0;
+  var flipBtn = document.getElementById('bgiCropFlipBtn');
+  if (flipBtn) flipBtn.classList.remove('active');
   _crop.file = file;
   var media;
   if (isVideo) {
@@ -688,7 +693,12 @@ function openCrop(file, isVideo) {
 function renderCrop() {
   var im = _crop.img; if (!im) return;
   im.style.transformOrigin = '0 0';
-  im.style.transform = 'translate(' + _crop.ox + 'px,' + _crop.oy + 'px) scale(' + _crop.sx + ')';
+  if (_crop.flip) {
+    // 镜像：以取景框竖直中线为轴左右反转（translate(frameW-ox,oy) scale(-sx,sx)）
+    im.style.transform = 'translate(' + (_crop.frameW - _crop.ox) + 'px,' + _crop.oy + 'px) scale(' + (-_crop.sx) + ',' + _crop.sx + ')';
+  } else {
+    im.style.transform = 'translate(' + _crop.ox + 'px,' + _crop.oy + 'px) scale(' + _crop.sx + ')';
+  }
 }
 function clampCrop() {
   var im = _crop.img; if (!im) return;
@@ -713,6 +723,12 @@ function cropZoomAt(cx, cy, k) {
 function cropZoom(dir) {
   var fr = document.getElementById('bgiCropFrame').getBoundingClientRect();
   cropZoomAt(fr.left + fr.width / 2, fr.top + fr.height / 2, dir > 0 ? 1.25 : 0.8);
+}
+function cropFlip() {
+  _crop.flip = _crop.flip ? 0 : 1;
+  var btn = document.getElementById('bgiCropFlipBtn');
+  if (btn) btn.classList.toggle('active', !!_crop.flip);
+  renderCrop();
 }
 function cancelCrop() {
   var overlay = document.getElementById('bgiCropOverlay');
@@ -741,7 +757,7 @@ function confirmCrop() {
     _crop = { img: null, url: '', sx: 1, ox: 0, oy: 0, frameW: 0, frameH: 0, isVideo: false, file: null, nw: 0, nh: 0 };
     _cropPts = {}; _pinch0 = null;
     if (url) URL.revokeObjectURL(url);
-    if (file) startBgUpload(file, { pos_x: posX, pos_y: posY, zoom: parseFloat(zoom.toFixed(2)) });
+    if (file) startBgUpload(file, { pos_x: posX, pos_y: posY, zoom: parseFloat(zoom.toFixed(2)), flip: _crop.flip ? 1 : 0 });
     return;
   }
   var outW = Math.round(_crop.frameW * 2), outH = Math.round(_crop.frameH * 2);
@@ -749,6 +765,8 @@ function confirmCrop() {
   c.width = outW; c.height = outH;
   var ctx = c.getContext('2d');
   var s = _crop.sx;
+  // 镜像：绕画布竖直中线左右翻转输出
+  if (_crop.flip) { ctx.translate(outW, 0); ctx.scale(-1, 1); }
   // 源区域（图片自然像素）→ 输出 2x
   ctx.drawImage(im, -_crop.ox / s, -_crop.oy / s, _crop.frameW / s, _crop.frameH / s, 0, 0, outW, outH);
   var overlay = document.getElementById('bgiCropOverlay');

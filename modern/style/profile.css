@@ -558,7 +558,8 @@ body {
   box-shadow: 0 0 0 2px rgba(255,255,255,.7), 0 0 0 5000px rgba(0,0,0,.55);
   cursor: move;
 }
-.bgi-crop-frame img {
+.bgi-crop-frame img,
+.bgi-crop-frame video {
   position: absolute;
   top: 0;
   left: 0;
@@ -591,6 +592,14 @@ body {
 .bgi-crop-btn.bgi-crop-zoom {
   min-width: 44px;
   font-size: 18px;
+}
+.bgi-crop-btn.bgi-crop-flip {
+  min-width: 56px;
+  font-size: 13px;
+}
+.bgi-crop-btn.bgi-crop-flip.active {
+  background: #3b82f6;
+  color: #fff;
 }
 .bgi-crop-btn:active {
   filter: brightness(1.25);

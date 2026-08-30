@@ -79,7 +79,7 @@ img{border:0;vertical-align:middle}
 .visit-module .visit-today{margin-bottom:4px}
 .visit-module .count{font-size:16px;font-weight:700;color:var(--q-accent);margin-left:4px}
 /* 头部动作按钮（加好友/发消息/编辑空间） */
-.actions.profile-hd-actions{position:absolute;right:16px;top:14px;z-index:4;display:flex;gap:8px}
+.actions.profile-hd-actions{position:absolute;right:16px;top:52px;z-index:4;display:flex;gap:8px}
 .btn-head a{display:inline-block;background:rgba(255,255,255,.92);color:#333;border-radius:6px;padding:6px 16px;font-size:13px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .btn-head a:hover{color:var(--q-blue);background:#fff}
 .btn-head.btn-primary a{background:var(--q-blue);color:#fff}
@@ -193,3 +193,27 @@ body.embed .layout-background{min-height:0}
 .fix-layout{position:fixed;right:16px;bottom:30px;z-index:900}
 .fix-layout .to-top{width:40px;height:40px;border-radius:50%;background:#fff;border:1px solid var(--q-border);box-shadow:0 2px 8px rgba(0,0,0,.15);display:flex;align-items:center;justify-content:center;font-size:16px;color:#666;cursor:pointer}
 .fix-layout .to-top:hover{color:var(--q-blue)}
+
+/* ============ 封面就地编辑 ============ */
+/* 编辑态：隐藏标题/导航/遮罩/动作，保留头像与封面媒体，便于就地取景 */
+.layout-head-inner.sp-editing{cursor:move;touch-action:none}
+.layout-head-inner.sp-editing .head-cover-tint,
+.layout-head-inner.sp-editing .head-info,
+.layout-head-inner.sp-editing #menuContainer,
+.layout-head-inner.sp-editing .profile-hd-actions{display:none!important}
+.layout-head-inner.sp-editing .head-cover-img{object-fit:none}
+
+/* 背景图操作菜单（固定定位，避开头 overflow:hidden 裁剪） */
+.sp-bg-menu{position:fixed;z-index:2000;background:#fff;border:1px solid #e3e5e8;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.18);padding:6px 0;display:none;min-width:180px}
+.sp-bg-menu-item{padding:9px 16px;font-size:13px;color:#333;cursor:pointer;white-space:nowrap}
+.sp-bg-menu-item:hover{background:#f2f4f7}
+.sp-bg-menu-item.danger{color:#e74c3c}
+
+/* 就地编辑控制条（浮在封面下缘） */
+.sp-cover-edit-bar{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:30;display:none;align-items:center;gap:8px;background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.25);border-radius:10px;padding:8px 12px;backdrop-filter:blur(4px);box-sizing:border-box;max-width:96%}
+.sp-eb-hint{color:#e8ecf3;font-size:12px;margin-right:4px;white-space:nowrap}
+.sp-eb-btn{background:#2a3140;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;line-height:1.2}
+.sp-eb-btn:hover{filter:brightness(1.2)}
+.sp-eb-btn.active{background:#3b82f6;color:#fff}
+.sp-eb-btn.sp-eb-ok{background:#3b82f6;color:#fff}
+.sp-eb-progress{color:#9be8ff;font-size:12px;white-space:nowrap}
