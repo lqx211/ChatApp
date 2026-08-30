@@ -183,13 +183,13 @@ $__mysqlOk = chatapp_portal_mysql_ok();
   @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
   /* 门户卡片与表单（沿用深色主题） */
   .portal{padding:18px 22px;overflow-y:auto;flex:1}
-  .pcard{background:rgba(42,42,42,.8);border:1px solid #3a3a3a;border-radius:10px;padding:16px 18px;margin-bottom:14px}
+  .pcard{background:rgba(42,42,42,.8);border:1px solid #3a3a3a;border-radius:0;padding:16px 18px;margin-bottom:14px}
   .pcard h3{margin:0 0 10px;font-size:.95em;color:#d0d0d0;font-weight:600;display:flex;align-items:center;gap:8px}
   .prow{display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px dashed #2f2f2f;font-size:.84em;color:#aaa}
   .prow:last-child{border-bottom:none}
   .prow .k{width:180px;color:#888;flex-shrink:0}
   .prow .v{color:#d8d8d8;word-break:break-all}
-  .pbtn{display:inline-block;background:#2d4a6e;border:1px solid #3d5a7e;color:#e8f0fa;padding:8px 18px;border-radius:7px;cursor:pointer;font-size:.85em;font-family:inherit;text-decoration:none}
+  .pbtn{display:inline-block;background:#2d4a6e;border:1px solid #3d5a7e;color:#e8f0fa;padding:8px 18px;border-radius:0;cursor:pointer;font-size:.85em;font-family:inherit;text-decoration:none}
   .pbtn:hover{background:#37608a}
   .pbtn.green{background:#2e5d43;border-color:#3a704f}
   .pbtn.green:hover{background:#3a704f}
@@ -199,21 +199,21 @@ $__mysqlOk = chatapp_portal_mysql_ok();
   .pbtn:disabled{opacity:.5;cursor:not-allowed}
   .pfield{margin-bottom:12px}
   .pfield label{display:block;color:#999;font-size:.76em;margin-bottom:5px}
-  .pfield input[type=text],.pfield input[type=password],.pfield select{width:100%;max-width:360px;padding:8px 12px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-size:.85em;font-family:inherit;outline:none;border-radius:6px}
+  .pfield input[type=text],.pfield input[type=password],.pfield select{width:100%;max-width:360px;padding:8px 12px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-size:.85em;font-family:inherit;outline:none;border-radius:0}
   .pfield input:focus,.pfield select:focus{border-color:#4a6a8e}
   .pcheck{display:flex;align-items:center;gap:8px;color:#bbb;font-size:.84em;padding:6px 0;cursor:pointer}
   .pcheck input{width:16px;height:16px;accent-color:#4a8a6a}
   .stat-big{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-  .stat-big .pill{font-size:1.05em;font-weight:700;padding:8px 20px;border-radius:20px}
+  .stat-big .pill{font-size:1.05em;font-weight:700;padding:8px 20px;border-radius:0}
   .pill.on{background:#2e5d43;color:#7ddb9a;border:1px solid #3a704f}
   .pill.off{background:#6e2d2d;color:#ff9a9a;border:1px solid #8a3a3a}
   .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
-  .ok-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:1px}
+  .ok-dot{display:inline-block;width:9px;height:9px;border-radius:0;margin-right:6px;vertical-align:1px}
   .ok-dot.g{background:#5ec87a}.ok-dot.r{background:#e06666}
-  .linkbtn{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;margin-bottom:8px;background:rgba(42,42,42,.8);border:1px solid #3a3a3a;border-radius:8px;color:#c8c8c8;text-decoration:none;font-size:.85em}
+  .linkbtn{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;margin-bottom:8px;background:rgba(42,42,42,.8);border:1px solid #3a3a3a;border-radius:0;color:#c8c8c8;text-decoration:none;font-size:.85em}
   .linkbtn:hover{border-color:#4a6a8e;color:#fff}
   .note{color:#666;font-size:.72em;line-height:1.6;margin-top:6px}
-  .flash{position:fixed;top:16px;right:16px;z-index:1000;padding:10px 16px;border-radius:8px;font-size:.84em;display:none}
+  .flash{position:fixed;top:16px;right:16px;z-index:1000;padding:10px 16px;border-radius:0;font-size:.84em;display:none}
   .flash.ok{background:#2e5d43;color:#c8f5d8;border:1px solid #3a704f}
   .flash.err{background:#6e2d2d;color:#ffd0d0;border:1px solid #8a3a3a}
   .maint-nav-ico{font-size:16px;margin-right:8px;vertical-align:-2px}
@@ -223,9 +223,8 @@ $__mysqlOk = chatapp_portal_mysql_ok();
  <!-- 加载动画 -->
  <div id="loader-wrapper"><div class="loader"><div class="circle"></div><div style="margin-top:26px">Maintenance Portal</div></div></div>
 
- <div style="display:flex;width:100%;height:100vh">
-  <!-- ============ 侧边栏（复刻 chat.php，替换为门户导航） ============ -->
-  <div class="sidebar">
+ <!-- ============ 侧边栏（复刻 chat.php，替换为门户导航） ============ -->
+ <div class="sidebar">
    <div class="sidebar-profile">
     <div class="sa" style="background:linear-gradient(135deg,#3a4a6a,#1f2937);display:flex;align-items:center;justify-content:center;font-size:22px">🛠</div>
     <div class="sun">Maintenance Portal</div>
@@ -353,7 +352,6 @@ $__mysqlOk = chatapp_portal_mysql_ok();
     </div>
    </div>
 
-  </div>
  </div>
 
  <div class="flash" id="flash"></div>
