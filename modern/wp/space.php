@@ -203,12 +203,12 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
       <div class="shop-item cs">
         <div class="head-nav">
           <ul class="head-nav-menu" id="coverTabs">
-            <li class="cur"><a title="主页">主页</a></li>
-            <li><a title="日志">日志</a></li>
-            <li><a title="相册">相册</a></li>
-            <li><a title="留言板">留言板</a></li>
-            <li><a title="说说">说说</a></li>
-            <li><a title="个人档">个人档</a></li>
+            <li class="cur" data-tab="home"><a title="主页">主页</a></li>
+            <li data-tab="blog"><a title="日志">日志</a></li>
+            <li data-tab="album"><a title="相册">相册</a></li>
+            <li data-tab="board"><a title="留言板">留言板</a></li>
+            <li data-tab="say"><a title="说说">说说</a></li>
+            <li data-tab="profile"><a title="个人档">个人档</a></li>
           </ul>
         </div>
       </div>
@@ -222,10 +222,11 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
             <div class="hd">动态</div>
             <div class="inner"><div class="bd">
               <ul class="sn-list" id="feedTypes">
-                <li class="current" data-f="all"><a><span class="sn-ico c1"><?php echo sp_ic('people');?></span><span class="sn-title">好友动态</span></a></li>
-                <li data-f="me"><a><span class="sn-ico c2"><?php echo sp_ic('me');?></span><span class="sn-title">与我相关</span></a></li>
-                <li data-f="photo"><a><span class="sn-ico c3"><?php echo sp_ic('photo');?></span><span class="sn-title">我的相册</span></a></li>
-                <li data-f="say"><a><span class="sn-ico c4"><?php echo sp_ic('say');?></span><span class="sn-title">我的说说</span></a></li>
+                <li class="current" data-f="all"><a onclick="spNavFeed('all')"><span class="sn-ico c1"><?php echo sp_ic('people');?></span><span class="sn-title">好友动态</span></a></li>
+                <li data-f="care"><a onclick="spAlert('特别关心')"><span class="sn-ico c2"><?php echo sp_ic('star');?></span><span class="sn-title">特别关心</span></a></li>
+                <li data-f="me"><a onclick="spAlert('与我相关')"><span class="sn-ico c3"><?php echo sp_ic('me');?></span><span class="sn-title">与我相关</span></a></li>
+                <li data-f="memory"><a onclick="spAlert('那年今日')"><span class="sn-ico c4"><?php echo sp_ic('top');?></span><span class="sn-title">那年今日</span></a></li>
+                <li data-f="fav"><a onclick="spAlert('我的收藏')"><span class="sn-ico c5"><?php echo sp_ic('star');?></span><span class="sn-title">我的收藏</span></a></li>
               </ul>
             </div></div>
           </div>
@@ -233,8 +234,9 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
             <div class="hd">个人资料</div>
             <div class="inner"><div class="bd">
               <ul class="sn-list">
-                <li><a><span class="sn-ico c5"><?php echo sp_ic('card');?></span><span class="sn-title textoverflow"><?php echo htmlspecialchars($displayName);?></span></a></li>
-                <li><a><span class="sn-ico c6"><?php echo sp_ic('star');?></span><span class="sn-title">等级 Lv.<?php echo $level;?></span></a></li>
+                <li><a onclick="spGoTab('profile')"><span class="sn-ico c1"><?php echo sp_ic('card');?></span><span class="sn-title">个人档案</span></a></li>
+                <li><a onclick="spGoTab('album')"><span class="sn-ico c2"><?php echo sp_ic('photo');?></span><span class="sn-title">我的相册</span></a></li>
+                <li><a onclick="spGoTab('say')"><span class="sn-ico c3"><?php echo sp_ic('say');?></span><span class="sn-title">我的说说</span></a></li>
               </ul>
             </div></div>
           </div>
@@ -246,7 +248,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 
             <!-- 发表说说（仅自己） -->
             <?php if ($isSelf): ?>
-            <div class="qz-poster">
+            <div class="qz-poster" id="spPosterBox">
               <div class="qz-poster-bd">
                 <?php if ($avatarUrl):?><img class="poster-av" src="<?php echo htmlspecialchars($avatarUrl);?>" alt=""><?php endif;?>
                 <div class="qz-inputer" data-ph="说点什么吧..." contenteditable="true" id="spPoster"></div>
@@ -286,6 +288,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
             </div>
             <?php endif; ?>
 
+            <div id="spFeedArea">
             <!-- 动态流 tab -->
             <div class="feed-control">
               <div class="feed-control-tab">
@@ -331,7 +334,55 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
                 </div>
               </li>
               <?php endforeach; ?>
+              <li class="f-single" id="feedFilterEmpty" style="display:none"><div class="f-single-content"><div class="f-ct-text" style="color:#777">该分类下暂无动态</div></div></li>
             </ul>
+            </div>
+
+            <!-- ===== 日志面板 ===== -->
+            <section class="sp-tab" id="spTabBlog" style="display:none">
+              <div class="sp-tab-head"><h3>日志</h3><button class="btn-post" onclick="spAlert('写日志')">写日志</button></div>
+              <div class="sp-empty"><div class="sp-empty-ic"><?php echo sp_ic('say');?></div><p>还没有日志，写第一篇吧～</p></div>
+            </section>
+
+            <!-- ===== 相册面板 ===== -->
+            <section class="sp-tab" id="spTabAlbum" style="display:none">
+              <div class="sp-tab-head"><h3>相册</h3><span class="sp-tab-sub">精选相片（示例，接入相册后替换）</span></div>
+              <ul class="sp-album-grid">
+                <?php for ($ai = 0; $ai < 12; $ai++): $aph = $samplePhotos[$ai % count($samplePhotos)]; ?>
+                <li><div class="sp-album-item" onclick="spAlert('查看大图')"><img src="<?php echo $aph['src'];?>" alt=""><span class="cap"><?php echo htmlspecialchars($aph['cap']);?></span></div></li>
+                <?php endfor; ?>
+              </ul>
+            </section>
+
+            <!-- ===== 留言板面板 ===== -->
+            <section class="sp-tab" id="spTabBoard" style="display:none">
+              <div class="sp-tab-head"><h3>留言板</h3></div>
+              <div class="sp-empty"><div class="sp-empty-ic"><?php echo sp_ic('comment');?></div><p><?php echo $isSelf ? '还没有留言，把空间分享给朋友吧～' : 'TA 还没有留言，来留个言吧～';?></p></div>
+            </section>
+
+            <!-- ===== 个人档案面板 ===== -->
+            <section class="sp-tab" id="spTabProfile" style="display:none">
+              <div class="sp-tab-head"><h3>个人档案</h3></div>
+              <div class="sp-profile-card">
+                <div class="sp-profile-top">
+                  <?php if ($avatarUrl):?><img class="sp-profile-av" src="<?php echo htmlspecialchars($avatarUrl);?>" alt=""><?php else:?><div class="sp-profile-av"><?php echo htmlspecialchars($ch);?></div><?php endif;?>
+                  <div class="sp-profile-id">
+                    <div class="sp-profile-name"><?php echo htmlspecialchars($displayName);?></div>
+                    <div class="sp-profile-sub">@<?php echo htmlspecialchars($u['username']);?> · Lv.<?php echo $level;?></div>
+                    <span class="sp-profile-status <?php echo (int)$u['dnd'] ? 'dnd' : 'on';?>"><?php echo (int)$u['dnd'] ? '忙碌' : '在线';?></span>
+                  </div>
+                </div>
+                <ul class="sp-profile-list">
+                  <li><span class="k">个性签名</span><span class="v"><?php echo $sig !== '' ? htmlspecialchars($sig) : '这个人很懒，什么都没写';?></span></li>
+                  <li><span class="k">性别</span><span class="v"><?php echo htmlspecialchars($genderLabel);?></span></li>
+                  <?php if ($birthday):?><li><span class="k">生日</span><span class="v"><?php echo htmlspecialchars($birthday);?></span></li><?php endif;?>
+                  <li><span class="k">等级</span><span class="v">Lv.<?php echo $level;?>（<?php echo $exp;?> 经验）</span></li>
+                  <li><span class="k">获赞</span><span class="v"><?php echo $likes;?></span></li>
+                  <li><span class="k">空间ID</span><span class="v"><?php echo $uid;?></span></li>
+                  <li><span class="k">注册时间</span><span class="v"><?php echo date('Y-m-d', strtotime((string)($u['created_at'] ?? '')));?></span></li>
+                </ul>
+              </div>
+            </section>
           </div>
 
           <!-- ===== 右栏 ===== -->
@@ -339,7 +390,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 
             <!-- 精选相片（来自个人空间/朋友圈） -->
             <div class="icenter-right-mod icenter-right-photo">
-              <div class="hd">精选相片<span class="more" onclick="spGoto('album')">更多相册 ›</span></div>
+              <div class="hd">精选相片<span class="more" onclick="spGoTab('album')">更多相册 ›</span></div>
               <div class="bd">
                 <ul class="photo-grid" id="photoGrid">
                   <?php foreach ($samplePhotos as $pi => $ph): ?>
@@ -399,26 +450,69 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 
 <script>
 var SP_USER = <?php echo json_encode(['self' => $isSelf, 'username' => $u['username'], 'display' => $displayName]);?>;
-// 封面 tab 切换（UI 高亮）
-document.getElementById('coverTabs').addEventListener('click', function (e) {
-    var li = e.target.closest('li');
-    if (!li) return;
-    [].forEach.call(this.children, function (x) { x.classList.remove('cur'); });
-    li.classList.add('cur');
-});
-// 左侧/顶部动态类型切换
-function bindFeedFilter(sel) {
-    var box = document.querySelector(sel);
-    if (!box) return;
-    box.addEventListener('click', function (e) {
-        var el = e.target.closest('[data-f]');
-        if (!el) return;
-        [].forEach.call(this.children, function (x) { x.classList.remove('current', 'on'); });
-        el.classList.add('current', 'on');
-    });
+
+/* ===== Tab 切换 ===== */
+function spGoTab(name) {
+  // 顶部 tab 高亮
+  [].forEach.call(document.querySelectorAll('#coverTabs li'), function (li) {
+    li.classList.toggle('cur', li.getAttribute('data-tab') === name);
+  });
+  // 隐藏所有 Tab 面板
+  ['spTabBlog', 'spTabAlbum', 'spTabBoard', 'spTabProfile'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  var poster = document.getElementById('spPosterBox');
+  var feedArea = document.getElementById('spFeedArea');
+  // 主页/说说显示动态区；主页(自己)显示发表框
+  if (poster) poster.style.display = (name === 'home' && SP_USER.self) ? 'block' : 'none';
+  if (feedArea) feedArea.style.display = (name === 'home' || name === 'say') ? 'block' : 'none';
+  // 显示目标面板（日志/相册/留言板/个人档案）——.sp-tab 有 CSS display:none，必须显式 block
+  var panelMap = { blog: 'spTabBlog', album: 'spTabAlbum', board: 'spTabBoard', profile: 'spTabProfile' };
+  if (panelMap[name]) {
+    var panel = document.getElementById(panelMap[name]);
+    if (panel) panel.style.display = 'block';
+  }
+  // 说说/主页 联动过滤
+  if (name === 'say') setFeedFilter('say');
+  if (name === 'home') setFeedFilter('all');
 }
-bindFeedFilter('#feedTypes');
-bindFeedFilter('.feed-control-tab');
+document.getElementById('coverTabs').addEventListener('click', function (e) {
+  var li = e.target.closest('li');
+  if (!li) return;
+  spGoTab(li.getAttribute('data-tab') || 'home');
+});
+
+/* ===== 动态流过滤（全部/相册/说说） ===== */
+function setFeedFilter(f) {
+  // 高亮 feed-control
+  [].forEach.call(document.querySelectorAll('.feed-control-tab a'), function (a) {
+    a.classList.toggle('on', a.getAttribute('data-f') === f);
+  });
+  // 高亮左侧菜单
+  [].forEach.call(document.querySelectorAll('#feedTypes li'), function (li) {
+    li.classList.toggle('current', li.getAttribute('data-f') === f);
+  });
+  // 过滤列表
+  var items = document.querySelectorAll('#feedList .f-single:not(#feedFilterEmpty)');
+  [].forEach.call(items, function (li) {
+    var hasImg = !!li.querySelector('.f-ct-txtimg');
+    var show = (f === 'all') || (f === 'say' && !hasImg) || (f === 'photo' && hasImg);
+    li.style.display = show ? '' : 'none';
+  });
+  var empty = document.getElementById('feedFilterEmpty');
+  var anyVisible = [].some.call(items, function (li) { return li.style.display !== 'none'; });
+  if (empty) empty.style.display = anyVisible ? 'none' : '';
+}
+document.querySelector('.feed-control-tab').addEventListener('click', function (e) {
+  var a = e.target.closest('a');
+  if (!a) return;
+  setFeedFilter(a.getAttribute('data-f') || 'all');
+});
+function spNavFeed(f) {
+  spGoTab('home');
+  setFeedFilter(f);
+}
 // 返回顶部
 var toTop = document.getElementById('spToTop');
 toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
