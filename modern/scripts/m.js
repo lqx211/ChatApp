@@ -342,7 +342,7 @@
                 var a = ann[j];
                 html += '<div class="li"><div class="li-main">'
                     + '<div class="li-row"><span class="li-name">' + esc(a.display_name || a.username || 'System') + '</span><span class="li-time">' + esc(fmtTime(a.time)) + '</span></div>'
-                    + '<div class="li-msg" style="white-space:normal;padding-right:0">' + esc(a.message) + '</div>'
+                    + '<div class="li-msg" style="white-space:normal;padding-right:0">' + (a.is_markdown ? renderMd(a.message) : esc(a.message)) + '</div>'
                     + '</div></div>';
             }
             box.innerHTML = html;
@@ -503,7 +503,7 @@
         } else if (m.msg_type === 'file' || m.attachment_url) {
             body += '<a class="file" href="' + esc(m.attachment_url || '#') + '" target="_blank" rel="noopener"><img src="../../data/res/cil/cil-paperclip.svg" style="width:12px;height:12px;vertical-align:-1px;margin-right:3px;filter:brightness(0) invert(1)" alt=""> ' + esc(m.attachment_name || t('m_file', 'File')) + '</a>';
         } else {
-            body += renderEmoji(esc(m.message || ''));
+            body += m.is_markdown ? renderMd(m.message) : renderEmoji(esc(m.message || ''));
         }
         return '<div class="bubble">' + body + '</div>';
     }

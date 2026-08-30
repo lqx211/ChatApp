@@ -646,6 +646,7 @@ var MYSELF_PIN=<?php echo (int)($currentUser['pin_self'] ?? 1);?>;
 <script src="../scripts/vendor/nacl-util.min.js"></script>
 <script src="../scripts/e2ee.js?v=<?php echo time();?>"></script>
 <script src="../scripts/chat.js?v=<?php echo time();?>"></script>
+<script src="../scripts/markdown.js?v=<?php echo time();?>"></script>
 <script src="../scripts/wss_client.js?v=<?php echo time();?>"></script>
 <script>try{wssInit();}catch(e){}</script>
 <script>try{if(window.E2EE)E2EE.init().catch(function(){});}catch(e){}</script>

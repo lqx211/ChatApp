@@ -164,6 +164,7 @@ var M_USER=<?php echo json_encode([
     'avatar' => $meAvatar,
 ]);?>;
 </script>
+<script src="../scripts/markdown.js?v=<?php echo time();?>"></script>
 <script src="../scripts/m.js?v=<?php echo time();?>"></script>
 </body>
 </html>
