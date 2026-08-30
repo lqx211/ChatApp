@@ -234,7 +234,7 @@ switch ($action) {
 
     case 'list':
         $stmt = $pdo->prepare("
-            SELECT u.username, COALESCE(u.display_name, u.username) AS display_name, u.avatar,
+            SELECT u.username, u.user_id, COALESCE(u.display_name, u.username) AS display_name, u.avatar,
                    c_my.note AS note, c_my.pinned AS pinned,
                    MAX(m.datetime) AS last_msg_time
             FROM users u
@@ -250,7 +250,7 @@ switch ($action) {
                 )
             )
             WHERE u.user_id != ?
-            GROUP BY u.username, COALESCE(u.display_name, u.username), u.avatar, c_my.note, c_my.pinned, u.user_id
+            GROUP BY u.username, u.user_id, COALESCE(u.display_name, u.username), u.avatar, c_my.note, c_my.pinned, u.user_id
             ORDER BY c_my.pinned DESC, last_msg_time IS NULL ASC, last_msg_time DESC
         ");
         $stmt->execute([$myUid, $myUid, $myUid, $myUid, $myUid, $myUid]);

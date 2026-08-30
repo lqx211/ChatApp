@@ -498,6 +498,64 @@ function chatapp_ensure_sig_columns(): void {
     db_add_column_if_missing('users', 'sig_hidden_text', "VARCHAR(100) DEFAULT ''");
 }
 
+/* ================= 个人空间 · 朋友圈 ================= */
+
+/** 确保朋友圈表存在（幂等 CREATE TABLE IF NOT EXISTS） */
+function ensure_space_feeds_table(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $pdo = db();
+    $pdo->exec("CREATE TABLE IF NOT EXISTS space_feeds (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        user_id INT UNSIGNED NOT NULL,
+        content TEXT NULL,
+        images TEXT NULL,
+        visibility TINYINT NOT NULL DEFAULT 0,
+        visible_to TEXT NULL,
+        likes INT NOT NULL DEFAULT 0,
+        liked_by TEXT NULL,
+        enabled TINYINT(1) NOT NULL DEFAULT 1,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_user (user_id),
+        KEY idx_time (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+/** 两人是否为好友（contacts 双向 accepted） */
+function space_is_friend(PDO $pdo, int $a, int $b): bool {
+    $s = $pdo->prepare("SELECT COUNT(*) FROM contacts WHERE status='accepted' AND ((user_from=? AND user_to=?) OR (user_from=? AND user_to=?))");
+    $s->execute([$a, $b, $b, $a]);
+    return (int)$s->fetchColumn() > 0;
+}
+
+/** 相对时间文案 */
+function space_fmt_time(string $dt): string {
+    $t = strtotime($dt);
+    if (!$t) return '';
+    $d = time() - $t;
+    if ($d < 60) return '刚刚';
+    if ($d < 3600) return floor($d / 60) . ' 分钟前';
+    if ($d < 86400) return floor($d / 3600) . ' 小时前';
+    if ($d < 86400 * 7) return floor($d / 86400) . ' 天前';
+    return date('m月d日 H:i', $t);
+}
+
+/** 解析 uid 数组（支持 JSON 或逗号分隔字符串） */
+function space_parse_ids($raw): array {
+    $arr = is_string($raw) ? json_decode($raw, true) : null;
+    if (!is_array($arr)) $arr = array_filter(array_map('trim', explode(',', (string)$raw)));
+    $ids = array_filter(array_map('intval', $arr), function ($x) { return $x > 0; });
+    return array_values(array_unique($ids));
+}
+
+/** 可见性标签 */
+function space_vis_label(int $vis): string {
+    return [0 => '所有人可见', 1 => '好友可见', 2 => '部分好友可见', 3 => '部分好友不可见', 4 => '仅自己可见'][$vis] ?? '所有人可见';
+}
+
+
 function chatapp_client_ip(): string {
     $remote = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
     $cf = trim($_SERVER['HTTP_CF_CONNECTING_IP'] ?? '');

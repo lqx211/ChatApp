@@ -68,18 +68,44 @@ function sp_ic(string $n): string {
         'comment' => '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 3C6.5 3 2 6.7 2 11.3c0 2.5 1.3 4.8 3.4 6.3L4 21.2l3.8-1.9c1.3.4 2.7.6 4.2.6 5.5 0 10-3.7 10-8.3S17.5 3 12 3z"/></svg>',
         'like'    => '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 21s-7.5-4.7-10-9.2C.6 9 2 5.6 5.2 5c1.8-.3 3.6.5 4.8 2L12 9l2-2c1.2-1.5 3-2.3 4.8-2C22 5.6 23.4 9 22 11.8 19.5 16.3 12 21 12 21z"/></svg>',
         'top'     => '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="m12 4 7 8h-4v8h-6v-8H5z"/></svg>',
+        'globe'   => '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" stroke-linecap="round"/></svg>',
+        'lock'    => '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="1"/><path d="M8 11V7a4 4 0 0 1 8 0v4" stroke-linecap="round"/></svg>',
     ];
     return $map[$n] ?? '';
 }
 $ch = mb_strtoupper(mb_substr($displayName, 0, 1));
-// 示例精选相片（后续从 api/space.php?action=photos 读取）
+// 精选相片（暂为示例占位，后续接相册）
 $samplePhotos = [];
 for ($i = 0; $i < 9; $i++) { $samplePhotos[] = ['src' => sp_ph($i, $ch, '#ffb300','#ff7043'), 'cap' => '相册 ' . ($i + 1)]; }
-// 示例说说（后续从 api/space.php?action=feed 读取）
-$sampleFeeds = [
-    ['text' => '这里是 ' . $displayName . ' 的个人空间，欢迎来做客～（示例内容，接入朋友圈后替换）', 'photos' => [0, 1, 2], 'time' => '刚刚', 'likes' => 0],
-    ['text' => '晒一张今天拍的照片', 'photos' => [3], 'time' => '昨天', 'likes' => 2],
-];
+
+// ===== 朋友圈：读取并过滤可见性 =====
+ensure_space_feeds_table();
+$isFriendView = $isSelf || space_is_friend($pdo, $meUid, $uid);
+$feedRows = [];
+if ($uid) {
+    $fstmt = $pdo->prepare("SELECT id, content, images, visibility, visible_to, likes, liked_by, created_at FROM space_feeds WHERE user_id=? AND enabled=1 ORDER BY id DESC LIMIT 200");
+    $fstmt->execute([$uid]);
+    foreach ($fstmt->fetchAll() as $f) {
+        $vis = (int)$f['visibility'];
+        if (!$isSelf) {
+            if ($vis === 4) continue;                                  // 仅自己
+            if ($vis === 1 && !$isFriendView) continue;                // 好友可见
+            $vt = space_parse_ids($f['visible_to']);
+            if ($vis === 2 && !in_array($meUid, $vt, true)) continue;  // 部分好友可见
+            if ($vis === 3 && in_array($meUid, $vt, true)) continue;   // 部分好友不可见
+        }
+        $likedBy = space_parse_ids($f['liked_by']);
+        $feedRows[] = [
+            'id' => (int)$f['id'],
+            'text' => (string)$f['content'],
+            'images' => $f['images'] ? (json_decode($f['images'], true) ?: []) : [],
+            'likes' => (int)$f['likes'],
+            'liked' => in_array($meUid, $likedBy, true),
+            'time' => space_fmt_time($f['created_at']),
+            'vis' => $vis,
+        ];
+    }
+}
 $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 ?>
 <!DOCTYPE html>
@@ -218,7 +244,8 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
         <div class="col-main" id="main_feed_container">
           <div class="col-main-feed">
 
-            <!-- 发表说说 -->
+            <!-- 发表说说（仅自己） -->
+            <?php if ($isSelf): ?>
             <div class="qz-poster">
               <div class="qz-poster-bd">
                 <?php if ($avatarUrl):?><img class="poster-av" src="<?php echo htmlspecialchars($avatarUrl);?>" alt=""><?php endif;?>
@@ -226,14 +253,20 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
               </div>
               <div class="qz-poster-ft">
                 <div class="attach-icons">
-                  <span title="照片"><?php echo sp_ic('image');?></span>
-                  <span title="表情"><?php echo sp_ic('smile');?></span>
-                  <span title="@好友">@</span>
-                  <span title="话题">#</span>
+                  <span title="照片" onclick="spAlert('照片')"><?php echo sp_ic('image');?></span>
+                  <span title="表情" onclick="spAlert('表情')"><?php echo sp_ic('smile');?></span>
+                  <span title="@好友" onclick="spAlert('@好友')">@</span>
+                  <span title="话题" onclick="spAlert('话题')">#</span>
+                </div>
+                <div class="vis-select" id="spVisBtn" onclick="spVisToggle(event)">
+                  <span class="vis-ic"><?php echo sp_ic('globe');?></span>
+                  <span class="vis-label" id="spVisLabel">所有人可见</span>
+                  <span class="vis-arrow">▾</span>
                 </div>
                 <div class="op"><button class="btn-post" id="spPostBtn" onclick="spPost()">发表</button></div>
               </div>
             </div>
+            <?php endif; ?>
 
             <!-- 动态流 tab -->
             <div class="feed-control">
@@ -242,37 +275,40 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
                 <a data-f="photo">相册</a>
                 <a data-f="say">说说</a>
               </div>
-              <div class="feed-control-op"><span>刷新</span><span>设置</span></div>
+              <div class="feed-control-op"><span onclick="location.reload()" title="刷新">刷新</span><span onclick="spAlert('设置')">设置</span></div>
             </div>
 
             <!-- 说说列表 -->
             <ul class="feed-list" id="feedList">
-              <?php foreach ($sampleFeeds as $fi => $fd): ?>
-              <li class="f-single">
+              <?php if (!$feedRows): ?>
+              <li class="f-single"><div class="f-single-content"><div class="f-ct-text" style="color:#777"><?php echo $isSelf ? '还没有动态，发第一条说说吧～' : 'TA 还没有动态';?></div></div></li>
+              <?php endif; ?>
+              <?php foreach ($feedRows as $f): ?>
+              <li class="f-single" data-id="<?php echo (int)$f['id'];?>">
                 <div class="f-single-head">
                   <?php if ($avatarUrl):?><img class="user-avatar" src="<?php echo htmlspecialchars($avatarUrl);?>" alt=""><?php endif;?>
                   <div class="user-info">
                     <div class="f-nick"><?php echo htmlspecialchars($displayName);?></div>
-                    <div class="info-detail"><?php echo htmlspecialchars($fd['time']);?></div>
+                    <div class="info-detail"><?php echo htmlspecialchars($f['time']);?><?php if ($isSelf):?> · <span class="f-vis"><?php echo space_vis_label((int)$f['vis']);?></span><?php endif;?></div>
                   </div>
                 </div>
                 <div class="f-single-content">
-                  <div class="f-ct-text"><?php echo htmlspecialchars($fd['text']);?></div>
-                  <?php if (!empty($fd['photos'])): ?>
-                  <div class="f-ct-txtimg">
-                    <div class="img-box<?php echo count($fd['photos']) === 1 ? ' one' : '';?>">
-                      <?php foreach ($fd['photos'] as $pi): $ph = $samplePhotos[$pi % count($samplePhotos)]; ?>
-                      <a class="img-item"><img src="<?php echo $ph['src'];?>" alt=""></a>
-                      <?php endforeach; ?>
-                    </div>
-                  </div>
+                  <div class="f-ct-text"><?php echo nl2br(htmlspecialchars($f['text']));?></div>
+                  <?php if (!empty($f['images'])): ?>
+                  <div class="f-ct-txtimg"><div class="img-box<?php echo count($f['images']) === 1 ? ' one' : '';?>">
+                    <?php foreach ($f['images'] as $im): ?>
+                    <a class="img-item"><img src="<?php echo htmlspecialchars($im);?>" alt=""></a>
+                    <?php endforeach; ?>
+                  </div></div>
                   <?php endif; ?>
                 </div>
                 <div class="f-single-foot">
                   <ul class="op-list">
-                    <li class="op-share"><span class="op-ic"><?php echo sp_ic('share');?></span> 转发</li>
-                    <li class="op-comment"><span class="op-ic"><?php echo sp_ic('comment');?></span> 评论</li>
-                    <li class="op-like<?php echo $fd['likes'] > 0 ? ' liked' : '';?>" data-n="<?php echo (int)$fd['likes'];?>"><span class="op-ic"><?php echo sp_ic('like');?></span> 赞<?php echo $fd['likes'] > 0 ? ' (' . (int)$fd['likes'] . ')' : '';?></li>
+                    <li class="op-like<?php echo $f['liked'] ? ' liked' : '';?>" data-id="<?php echo (int)$f['id'];?>"><span class="op-ic"><?php echo sp_ic('like');?></span> 赞<?php if ((int)$f['likes'] > 0):?> (<?php echo (int)$f['likes'];?>)<?php endif;?></li>
+                    <li class="op-comment" onclick="spAlert('评论')"><span class="op-ic"><?php echo sp_ic('comment');?></span> 评论</li>
+                    <?php if ($isSelf): ?>
+                    <li class="op-del" data-id="<?php echo (int)$f['id'];?>"><span class="op-ic"><?php echo sp_ic('top');?></span> 删除</li>
+                    <?php endif; ?>
                   </ul>
                 </div>
               </li>
@@ -334,6 +370,34 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
   <div class="to-top" id="spToTop" title="返回顶部"><?php echo sp_ic('top');?></div>
 </div>
 
+<!-- 可见范围下拉 -->
+<div class="sp-vis-menu" id="spVisMenu" style="display:none">
+  <div class="sp-vis-item" data-v="0"><span class="v-ic"><?php echo sp_ic('globe');?></span>所有人可见</div>
+  <div class="sp-vis-item" data-v="1"><span class="v-ic"><?php echo sp_ic('people');?></span>好友可见</div>
+  <div class="sp-vis-item" data-v="2"><span class="v-ic"><?php echo sp_ic('me');?></span>部分好友可见</div>
+  <div class="sp-vis-item" data-v="3"><span class="v-ic"><?php echo sp_ic('me');?></span>部分好友不可见</div>
+  <div class="sp-vis-item" data-v="4"><span class="v-ic"><?php echo sp_ic('lock');?></span>仅自己可见</div>
+</div>
+
+<!-- 选择好友弹窗 -->
+<div class="sp-fm-mask" id="spFmMask" style="display:none" onclick="if(event.target===this)spFmClose()">
+  <div class="sp-fm-box">
+    <div class="sp-fm-head"><span>选择好友</span><span class="sp-fm-x" onclick="spFmClose()">×</span></div>
+    <div class="sp-fm-body">
+      <div class="sp-fm-left">
+        <div class="sp-fm-search"><input id="spFmSearch" placeholder="搜索好友"><span class="sp-fm-sbtn"><?php echo sp_ic('search');?></span></div>
+        <label class="sp-fm-g"><input type="checkbox" id="spFmAll" onchange="spFmSetAll(this.checked)"> 全部好友</label>
+        <div class="sp-fm-hint">最多可勾选 1000 位好友</div>
+      </div>
+      <div class="sp-fm-right" id="spFmList"></div>
+    </div>
+    <div class="sp-fm-foot">
+      <span class="sp-fm-count" id="spFmCount">已选 0 位</span>
+      <button class="sp-fm-ok" onclick="spFmConfirm()">确定</button>
+    </div>
+  </div>
+</div>
+
 <script>
 var SP_USER = <?php echo json_encode(['self' => $isSelf, 'username' => $u['username'], 'display' => $displayName]);?>;
 // 封面 tab 切换（UI 高亮）
@@ -359,14 +423,145 @@ bindFeedFilter('.feed-control-tab');
 // 返回顶部
 var toTop = document.getElementById('spToTop');
 toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
-// 发表（占位）
-function spPost() {
-    var p = document.getElementById('spPoster');
-    var t = (p.textContent || '').trim();
-    if (!t) return;
-    alert('个人空间/朋友圈发布功能即将上线（示例 UI）。已输入：' + t);
-}
+var SP_SPACE = <?php echo json_encode(['self' => $isSelf, 'uid' => $uid, 'meUid' => $meUid]);?>;
+var SP_POST_VIS = 0, SP_POST_FRIENDS = [], SP_FRIENDS = [];
+
+function spAlert(what) { alert('「' + what + '」功能即将上线。'); }
 function spGoto(where) { alert('「' + where + '」模块即将上线（示例 UI）。'); }
+
+/* ===== 可见范围下拉 ===== */
+function spVisToggle(e) {
+  e && e.stopPropagation();
+  var m = document.getElementById('spVisMenu');
+  if (!m) return;
+  if (m.style.display === 'block') { m.style.display = 'none'; return; }
+  m.style.display = 'block';
+  var r = document.getElementById('spVisBtn').getBoundingClientRect();
+  m.style.left = Math.min(window.innerWidth - 170, r.left) + 'px';
+  m.style.top = (r.bottom + 6) + 'px';
+  [].forEach.call(m.children, function (it) { it.classList.toggle('cur', +(it.getAttribute('data-v')) === SP_POST_VIS); });
+}
+document.addEventListener('click', function () { var m = document.getElementById('spVisMenu'); if (m) m.style.display = 'none'; });
+document.getElementById('spVisMenu').addEventListener('click', function (e) {
+  var it = e.target.closest('.sp-vis-item');
+  if (!it) return;
+  SP_POST_VIS = +it.getAttribute('data-v');
+  this.style.display = 'none';
+  if (SP_POST_VIS === 2 || SP_POST_VIS === 3) { spFmOpen(); return; }
+  SP_POST_FRIENDS = [];
+  var lbl = document.getElementById('spVisLabel');
+  if (lbl) lbl.textContent = it.textContent.replace(/\s+/g, ' ').trim();
+});
+
+/* ===== 好友选择弹窗 ===== */
+function spFmOpen() {
+  var mask = document.getElementById('spFmMask');
+  if (!mask) return;
+  mask.style.display = 'flex';
+  if (SP_FRIENDS.length) { renderFmList(); return; }
+  fetch('../../api/contacts.php?action=list', { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { if (d && d.success) { SP_FRIENDS = d.contacts || []; renderFmList(); } })
+    .catch(function () {});
+}
+function renderFmList() {
+  var q = (document.getElementById('spFmSearch').value || '').trim().toLowerCase();
+  var list = document.getElementById('spFmList');
+  var html = '';
+  SP_FRIENDS.forEach(function (f) {
+    var name = (f.display_name || f.username || '');
+    if (q && name.toLowerCase().indexOf(q) < 0 && (f.username || '').toLowerCase().indexOf(q) < 0) return;
+    var uid = +(f.user_id || 0);
+    if (!uid) return;
+    var checked = SP_POST_FRIENDS.indexOf(uid) >= 0;
+    html += '<label class="sp-fm-item"><input type="checkbox" data-uid="' + uid + '"' + (checked ? ' checked' : '') + '>'
+      + '<img src="' + (f.avatar || '') + '" alt="" onerror="this.style.visibility=\'hidden\'">'
+      + '<span class="sp-fm-name">' + String(name).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }) + '</span></label>';
+  });
+  list.innerHTML = html || '<div class="sp-fm-empty">无匹配好友</div>';
+  updateFmCount();
+}
+function spFmSetAll(on) {
+  [].forEach.call(document.querySelectorAll('#spFmList input[type=checkbox]'), function (c) { c.checked = on; });
+  updateFmCount();
+}
+function updateFmCount() {
+  var ids = [];
+  [].forEach.call(document.querySelectorAll('#spFmList input:checked'), function (c) { ids.push(+(c.getAttribute('data-uid'))); });
+  var c = document.getElementById('spFmCount');
+  if (c) c.textContent = '已选 ' + ids.length + ' 位';
+  var all = document.getElementById('spFmAll');
+  if (all) all.checked = ids.length > 0 && ids.length === SP_FRIENDS.length;
+}
+function spFmConfirm() {
+  var ids = [];
+  [].forEach.call(document.querySelectorAll('#spFmList input:checked'), function (c) { ids.push(+(c.getAttribute('data-uid'))); });
+  SP_POST_FRIENDS = ids;
+  document.getElementById('spFmMask').style.display = 'none';
+  var lbl = document.getElementById('spVisLabel');
+  if (lbl) lbl.textContent = (SP_POST_VIS === 3 ? '部分好友不可见' : '部分好友可见') + (ids.length ? '（' + ids.length + '）' : '');
+}
+function spFmClose() { document.getElementById('spFmMask').style.display = 'none'; }
+(function () {
+  var s = document.getElementById('spFmSearch'); if (s) s.addEventListener('input', renderFmList);
+  var l = document.getElementById('spFmList'); if (l) l.addEventListener('change', updateFmCount);
+})();
+
+/* ===== 发表 ===== */
+function spPost() {
+  var p = document.getElementById('spPoster');
+  if (!p) return;
+  var t = (p.textContent || '').replace(/\u00a0/g, ' ').trim();
+  if (!t) { p.focus(); return; }
+  var btn = document.getElementById('spPostBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '发表中…'; }
+  var f = new URLSearchParams();
+  f.append('action', 'post');
+  f.append('content', t);
+  f.append('visibility', SP_POST_VIS);
+  if (SP_POST_VIS === 2 || SP_POST_VIS === 3) f.append('visible_to', JSON.stringify(SP_POST_FRIENDS));
+  fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d && d.success) { location.reload(); }
+      else { if (btn) { btn.disabled = false; btn.textContent = '发表'; } alert('发表失败'); }
+    })
+    .catch(function () { if (btn) { btn.disabled = false; btn.textContent = '发表'; } alert('网络错误'); });
+}
+
+/* ===== 点赞 / 删除（事件委托） ===== */
+(function () {
+  var feed = document.getElementById('feedList');
+  if (!feed) return;
+  feed.addEventListener('click', function (e) {
+    var like = e.target.closest('.op-like');
+    if (like) {
+      var id = +(like.getAttribute('data-id'));
+      var f = new URLSearchParams(); f.append('action', 'toggle_like'); f.append('id', id);
+      fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d && d.success) {
+            like.classList.toggle('liked', !!d.liked);
+            var ic = like.querySelector('.op-ic');
+            like.innerHTML = (ic ? ic.outerHTML : '') + ' 赞' + (d.likes ? ' (' + d.likes + ')' : '');
+          }
+        });
+      return;
+    }
+    var del = e.target.closest('.op-del');
+    if (del) {
+      var id2 = +(del.getAttribute('data-id'));
+      if (window.confirm('删除这条说说？')) {
+        var f2 = new URLSearchParams(); f2.append('action', 'delete'); f2.append('id', id2);
+        fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f2.toString() })
+          .then(function () { location.reload(); });
+      }
+      return;
+    }
+  });
+})();
+
 // 搜索用户
 document.getElementById('spSearchInput').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') {
