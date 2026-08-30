@@ -91,6 +91,10 @@ img{border:0;vertical-align:middle}
 .head-avatar{position:absolute;left:20px;top:-64px}
 .head-avatar img{width:120px;height:120px;border-radius:8px;object-fit:cover;border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.3);background:#fff}
 .head-avatar .av-empty{width:120px;height:120px;border-radius:8px;border:3px solid #fff;background:#cfd8e3;display:flex;align-items:center;justify-content:center;font-size:48px;color:#fff;font-weight:700}
+/* 头像旁昵称（Qzone 风格） */
+.layout-nav-inner .head-detail{position:absolute;left:156px;top:-56px;z-index:5;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+.layout-nav-inner .head-detail .user-name{font-size:24px;font-weight:700;line-height:1.2}
+.layout-nav-inner .head-detail .head-detail-sub{margin-top:4px;font-size:12px;opacity:.85}
 
 /* ---------- 内容背景 ---------- */
 .layout-background{background:#f0f1f3;min-height:calc(100vh - var(--q-cover-h))}
@@ -175,6 +179,10 @@ img{border:0;vertical-align:middle}
 .info-list .v{flex:1}
 /* 版权 */
 .layout-copyright{text-align:center;color:#999;font-size:12px;padding:20px 0 8px}
+
+/* embed 模式：内嵌聊天面板时隐藏自带顶栏（避免双层工具栏） */
+body.embed .top-fix-bar{display:none}
+body.embed .layout-background{min-height:0}
 
 /* 返回顶部 */
 .fix-layout{position:fixed;right:16px;bottom:30px;z-index:900}

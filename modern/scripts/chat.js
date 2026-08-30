@@ -653,7 +653,7 @@ function switchPanel(n) {
     if (n === 'users') adminList(1);
     if (n === 'reports') loadReports();
     if (n === 'roles') loadRoleList();
-    if (n === 'music' || n === 'dscview' || n === 'midi' || n === 'proxy' || n === 'filemgr' || n === 'spessasynth') loadAppPanel(n);
+    if (n === 'music' || n === 'dscview' || n === 'midi' || n === 'proxy' || n === 'filemgr' || n === 'spessasynth' || n === 'space') loadAppPanel(n);
     if (n === 'donations') loadDonations(1);
     if (n === 'profile-mgmt') loadPm();
     if (n === 'logs') loadAdminLogs(1);

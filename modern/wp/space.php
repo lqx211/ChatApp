@@ -8,6 +8,9 @@ require_once __DIR__ . '/../../api/config.php';
 chatapp_require_login();
 $currentUser = chatapp_get_user();
 
+// embed=1：内嵌在聊天面板(iframe)时隐藏自带顶栏，避免双层工具栏
+$embedMode = isset($_GET['embed']) ? 1 : 0;
+
 $viewUsername = isset($_GET['user']) ? trim((string)$_GET['user']) : '';
 $isSelf = ($viewUsername === '' || $viewUsername === ($currentUser['username'] ?? ''));
 $target = $isSelf ? ($currentUser['username'] ?? '') : $viewUsername;
@@ -70,7 +73,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 <title><?php echo htmlspecialchars($spaceTitle);?> - ChatApp</title>
 <link rel="stylesheet" href="../style/space.css?v=<?php echo time();?>">
 </head>
-<body class="bg-body mode-theme">
+<body class="bg-body mode-theme<?php echo $embedMode ? ' embed' : '';?>">
 
 <!-- ================= 顶部工具栏 ================= -->
 <div class="top-fix-bar">
@@ -158,6 +161,10 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
     <div class="layout-nav-inner">
       <div class="head-avatar">
         <?php if ($avatarUrl):?><img src="<?php echo htmlspecialchars($avatarUrl);?>" alt=""><?php else:?><div class="av-empty"><?php echo htmlspecialchars($ch);?></div><?php endif;?>
+      </div>
+      <div class="head-detail">
+        <div class="head-detail-name"><span class="user-name"><?php echo htmlspecialchars($displayName);?></span></div>
+        <div class="head-detail-sub">Lv.<?php echo $level;?> · 空间ID <?php echo $uid;?></div>
       </div>
     </div>
   </div>
