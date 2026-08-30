@@ -248,6 +248,10 @@ $__mysqlOk = chatapp_portal_mysql_ok();
     <div class="ng"><div class="ngh" onclick="showPanel('dash')" style="cursor:pointer"><span>Dashboard</span></div></div>
     <div class="ng"><div class="ngh" onclick="showPanel('settings')" style="cursor:pointer"><span>Settings</span></div></div>
     <div class="ng"><div class="ngh" onclick="showPanel('creds')" style="cursor:pointer"><span>Credentials</span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('upgrade')" style="cursor:pointer"><span>Upgrade</span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('downgrade')" style="cursor:pointer"><span>Downgrade</span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('factory')" style="cursor:pointer"><span>Factory Reset</span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('uninstall')" style="cursor:pointer"><span>Uninstall</span></div></div>
     <div class="ng"><div class="ngh" onclick="showPanel('links')" style="cursor:pointer"><span>Quick Links</span></div></div>
    </div>
    <div class="sidebar-footer">
@@ -287,11 +291,11 @@ $__mysqlOk = chatapp_portal_mysql_ok();
      </div>
      <div class="pcard"><h3>Quick Actions</h3>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-       <a class="pbtn" href="index.php">Maintenance Login</a>
-       <button class="pbtn gray" onclick="location.href='../modern/wp/chat.php'">Open ChatApp</button>
-       <button class="pbtn gray" onclick="location.href='../modern/wp/settings-factory.php'">Factory Reset</button>
-       <button class="pbtn gray" onclick="location.href='../modern/wp/settings-upgrade.php'">Upgrade</button>
-       <button class="pbtn gray" onclick="location.href='../modern/wp/settings-downgrade.php'">Downgrade</button>
+       <button class="pbtn" onclick="showPanel('upgrade')">Upgrade</button>
+       <button class="pbtn" onclick="showPanel('downgrade')">Downgrade</button>
+       <button class="pbtn red" onclick="showPanel('factory')">Factory Reset</button>
+       <button class="pbtn red" onclick="showPanel('uninstall')">Uninstall</button>
+       <a class="pbtn gray" href="index.php">Maintenance Login</a>
       </div>
      </div>
     </div>
@@ -354,14 +358,103 @@ $__mysqlOk = chatapp_portal_mysql_ok();
     <div class="ch"><h2>Quick Links</h2></div>
     <div class="portal">
      <div class="pcard">
-      <h3>Admin Entries</h3>
-      <a class="linkbtn" href="../modern/wp/chat.php"><span>ChatApp Main</span><span>→</span></a>
-      <a class="linkbtn" href="../modern/wp/settings-factory.php"><span>Factory Reset</span><span>→</span></a>
-      <a class="linkbtn" href="../modern/wp/settings-upgrade.php"><span>Upgrade</span><span>→</span></a>
-      <a class="linkbtn" href="../modern/wp/settings-downgrade.php"><span>Downgrade</span><span>→</span></a>
-      <a class="linkbtn" href="../modern/wp/settings-uninstall.php"><span>Uninstall</span><span>→</span></a>
+      <h3>Shortcuts</h3>
       <a class="linkbtn" href="index.php"><span>Maintenance Login (re-login)</span><span>→</span></a>
-      <p class="note">Danger pages require admin password + maintenance credentials + git hash verification.</p>
+      <p class="note">Danger operations (Upgrade / Downgrade / Factory Reset / Uninstall) are handled directly in this portal via the sidebar.</p>
+     </div>
+    </div>
+   </div>
+
+   <!-- Upgrade -->
+   <div class="panel" id="panel-upgrade">
+    <div class="ch"><h2>Upgrade</h2></div>
+    <div class="portal">
+     <div class="pcard" style="max-width:560px">
+      <h3>Upgrade ChatApp</h3>
+      <p class="note" style="margin-top:0">Pulls from github.com/lqx211/ChatApp and overwrites code. config/ data/ maintenance/ are kept. Uncommitted changes will be overwritten.</p>
+      <div class="prow"><span class="k">Branch</span><span class="v" id="upBranch">…</span></div>
+      <div class="prow"><span class="k">Current</span><span class="v" id="upLocal">…</span></div>
+      <div class="prow"><span class="k">Remote</span><span class="v" id="upRemote">…</span></div>
+      <div class="prow"><span class="k">Uncommitted</span><span class="v" id="upDirty">…</span></div>
+      <div style="margin-top:12px"><button class="pbtn" id="upCheckBtn" onclick="upgradeCheck()">Check for updates</button></div>
+      <div id="upForm" style="display:none;margin-top:16px">
+       <div class="pfield"><label>Administrator Password (10000)</label><input type="password" id="upPwd" autocomplete="current-password"></div>
+       <div class="pfield"><label>Maintenance Username</label><input type="text" id="upMUser" autocomplete="off"></div>
+       <div class="pfield"><label>Maintenance Passphrase</label><input type="password" id="upMSecret" autocomplete="off"></div>
+       <div class="pfield"><label>Current git hash</label><input type="text" id="upHash1" spellcheck="false" placeholder="git log -1 --format=%H"></div>
+       <div class="pfield"><label>Re-enter git hash</label><input type="text" id="upHash2" spellcheck="false"></div>
+       <label class="pcheck"><input type="checkbox" id="upConfirm"> I understand and accept the risk</label>
+       <div style="margin-top:12px"><button class="pbtn red" onclick="upgradeRun()">Upgrade now</button></div>
+      </div>
+      <div id="upProgress" style="display:none;margin-top:16px">
+       <div id="upStep" style="color:#6fa8dc;font-weight:700">Starting…</div>
+       <div style="height:14px;border:1px solid #3a6a8a;margin:10px 0"><div id="upBar" style="height:100%;width:0%;background:#4a9dd8"></div></div>
+       <div id="upPct" style="color:#888;font-size:.8em">0%</div>
+      </div>
+     </div>
+    </div>
+   </div>
+
+   <!-- Downgrade -->
+   <div class="panel" id="panel-downgrade">
+    <div class="ch"><h2>Downgrade</h2></div>
+    <div class="portal">
+     <div class="pcard" style="max-width:560px">
+      <h3>Downgrade System</h3>
+      <p class="note" style="margin-top:0;color:#ff9a9a">EXTREMELY DANGEROUS: reverts the entire codebase to an older version. Database schema and code may become incompatible. Effectively one-way.</p>
+      <div class="pfield"><label>Current version</label><input type="text" id="dgHead" readonly placeholder="Loading versions…"></div>
+      <div class="pfield"><label>Select target version</label><select id="dgTarget" style="width:100%;padding:8px 12px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-size:.85em;font-family:inherit;outline:none"></select></div>
+      <div class="pfield"><label>Administrator Password (10000)</label><input type="password" id="dgPwd" autocomplete="current-password"></div>
+      <div class="pfield"><label>Maintenance Username</label><input type="text" id="dgMUser" autocomplete="off"></div>
+      <div class="pfield"><label>Maintenance Passphrase</label><input type="password" id="dgMSecret" autocomplete="off"></div>
+      <div class="pfield"><label>Current git hash</label><input type="text" id="dgHash1" spellcheck="false" placeholder="git log -1 --format=%H"></div>
+      <div class="pfield"><label>Re-enter git hash</label><input type="text" id="dgHash2" spellcheck="false"></div>
+      <label class="pcheck"><input type="checkbox" id="dgConfirm"> I understand this is extremely dangerous</label>
+      <div style="margin-top:12px"><button class="pbtn red" onclick="downgradeRun()">Downgrade now</button></div>
+      <div id="dgResult" style="display:none;margin-top:10px;color:#7ddb9a"></div>
+     </div>
+    </div>
+   </div>
+
+   <!-- Factory Reset -->
+   <div class="panel" id="panel-factory">
+    <div class="ch"><h2>Factory Reset</h2></div>
+    <div class="portal">
+     <div class="pcard" style="max-width:560px">
+      <h3>Factory Reset ChatApp</h3>
+      <p class="note" style="margin-top:0;color:#ff9a9a">Drops and rebuilds the database, creates a new administrator, and wipes all users/data. A mysqldump backup is taken automatically unless skipped.</p>
+      <div class="pfield"><label>Administrator Password (10000)</label><input type="password" id="frPwd" autocomplete="current-password"></div>
+      <div class="pfield"><label>Maintenance Username</label><input type="text" id="frMUser" autocomplete="off"></div>
+      <div class="pfield"><label>Maintenance Passphrase</label><input type="password" id="frMSecret" autocomplete="off"></div>
+      <div class="pfield"><label>Current git hash</label><input type="text" id="frHash" spellcheck="false" placeholder="git log -1 --format=%H"></div>
+      <div class="pfield"><label>New Admin Username (3-20)</label><input type="text" id="frNewUser" autocomplete="off"></div>
+      <div class="pfield"><label>New Admin Password (min 8)</label><input type="password" id="frNewPass" autocomplete="new-password"></div>
+      <div class="pfield"><label>New Maintenance Username (optional)</label><input type="text" id="frNewMUser" autocomplete="off"></div>
+      <div class="pfield"><label>New Maintenance Password (optional)</label><input type="password" id="frNewMPass" autocomplete="new-password"></div>
+      <label class="pcheck"><input type="checkbox" id="frSkipDump"> Skip automatic database backup</label>
+      <label class="pcheck"><input type="checkbox" id="frConfirm"> I understand all data will be wiped</label>
+      <div style="margin-top:12px"><button class="pbtn red" onclick="factoryRun()">Factory Reset now</button></div>
+      <div id="frProgress" style="display:none;margin-top:12px;color:#6fa8dc;font-weight:700"></div>
+     </div>
+    </div>
+   </div>
+
+   <!-- Uninstall -->
+   <div class="panel" id="panel-uninstall">
+    <div class="ch"><h2>Uninstall</h2></div>
+    <div class="portal">
+     <div class="pcard" style="max-width:560px">
+      <h3>Uninstall ChatApp</h3>
+      <p class="note" style="margin-top:0;color:#ff9a9a">Permanently removes ChatApp from this server: deployed files, database (unless unchecked), and the WebSocket service. This cannot be undone.</p>
+      <div class="pfield"><label>Administrator Password (10000)</label><input type="password" id="unPwd" autocomplete="current-password"></div>
+      <div class="pfield"><label>Maintenance Username</label><input type="text" id="unMUser" autocomplete="off"></div>
+      <div class="pfield"><label>Maintenance Passphrase</label><input type="password" id="unMSecret" autocomplete="off"></div>
+      <div class="pfield"><label>Current git hash</label><input type="text" id="unHash1" spellcheck="false" placeholder="git log -1 --format=%H"></div>
+      <div class="pfield"><label>Re-enter git hash</label><input type="text" id="unHash2" spellcheck="false"></div>
+      <label class="pcheck"><input type="checkbox" id="unDbDel" checked> Delete database chatapp (uncheck to keep data)</label>
+      <label class="pcheck"><input type="checkbox" id="unConfirm"> I understand: everything will be deleted</label>
+      <div style="margin-top:12px"><button class="pbtn red" onclick="uninstallRun()">Uninstall ChatApp</button></div>
+      <div id="unDone" style="display:none;margin-top:14px;color:#7ddb9a;font-weight:700;text-align:center">ChatApp has been uninstalled.<br><span style="color:#bbb;font-weight:400;font-size:.8em">Remaining files are being removed in the background. You can close this page now.</span></div>
      </div>
     </div>
    </div>
@@ -377,6 +470,7 @@ function showPanel(id){
   document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
   var el = document.getElementById('panel-' + id);
   if (el) el.classList.add('active');
+  if (id === 'downgrade') downgradeLoad();
 }
 function flash(msg, ok){
   var f = document.getElementById('flash');
@@ -447,6 +541,125 @@ function saveCreds(){
 }
 function doLogout(){
   api('logout', [], function(){ location.href = 'index.php'; });
+}
+
+/* ================= 危险操作（门户内直接执行，三重验证） ================= */
+function $(id){ return document.getElementById(id); }
+function dangerApi(ep, action, extra){
+  var fd = new URLSearchParams();
+  fd.append('action', action);
+  (extra || []).forEach(function(kv){ fd.append(kv[0], kv[1]); });
+  return fetch('/api/' + ep + '.php', {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: fd.toString(), credentials: 'same-origin'
+  }).then(function(r){ return r.json(); });
+}
+
+/* ---- Upgrade ---- */
+function upgradeCheck(){
+  var btn = $('upCheckBtn');
+  btn.disabled = true; btn.textContent = 'Checking...';
+  dangerApi('upgrade', 'check').then(function(d){
+    btn.disabled = false; btn.textContent = 'Check for updates';
+    if (!d.success){ flash(d.error || 'Check failed', false); return; }
+    $('upBranch').textContent = d.branch || 'main';
+    $('upLocal').textContent = (d.local || '').slice(0, 12);
+    $('upRemote').textContent = d.remote ? d.remote.slice(0, 12) : '?';
+    $('upDirty').textContent = d.dirty_count;
+    if (d.has_update){ $('upForm').style.display = 'block'; flash('Update available → ' + (d.remote || '').slice(0, 12), true); }
+    else { $('upForm').style.display = 'none'; flash('Already up to date', true); }
+  }).catch(function(){ btn.disabled = false; btn.textContent = 'Check for updates'; flash('Network error', false); });
+}
+function upgradeRun(){
+  var pwd = $('upPwd').value, mu = $('upMUser').value.trim(), ms = $('upMSecret').value;
+  var h1 = $('upHash1').value.trim().toUpperCase(), h2 = $('upHash2').value.trim().toUpperCase();
+  if (!pwd || !mu || !ms || !h1 || !h2){ flash('All fields are required', false); return; }
+  if (h1 !== h2){ flash('Git hash mismatch', false); return; }
+  if (!$('upConfirm').checked){ flash('Please accept the risk', false); return; }
+  dangerApi('upgrade', 'perform', [['password', pwd], ['maint_user', mu], ['maint_secret', ms], ['git_hash', h1], ['git_hash2', h2]]).then(function(d){
+    if (d.success){ $('upForm').style.display = 'none'; $('upCheckBtn').style.display = 'none'; $('upProgress').style.display = 'block'; flash('Upgrade started — maintenance armed', true); upgradePoll(); }
+    else flash(d.error || 'Upgrade failed', false);
+  }).catch(function(){ flash('Network error', false); });
+}
+function upgradePoll(){
+  dangerApi('upgrade', 'progress').then(function(d){
+    if (!d.success){ setTimeout(upgradePoll, 1500); return; }
+    if (d.step) $('upStep').textContent = d.step;
+    if (typeof d.pct === 'number'){ $('upBar').style.width = d.pct + '%'; $('upPct').textContent = d.pct + '%'; }
+    if (d.status === 'done'){ $('upStep').textContent = 'Upgrade complete'; $('upBar').style.width = '100%'; $('upPct').textContent = '100%'; flash('Upgrade complete — service restored', true); setTimeout(function(){ location.reload(); }, 2500); return; }
+    if (d.status === 'error'){ $('upStep').textContent = 'Upgrade failed'; $('upCheckBtn').style.display = 'block'; flash('Upgrade failed — maintenance released', false); return; }
+    setTimeout(upgradePoll, 1000);
+  }).catch(function(){ setTimeout(upgradePoll, 2000); });
+}
+
+/* ---- Downgrade ---- */
+function downgradeLoad(){
+  dangerApi('downgrade', 'list').then(function(d){
+    if (!d.success){ flash(d.error || 'Failed to load versions', false); return; }
+    $('dgHead').value = d.head ? d.head.slice(0, 12) : '';
+    var sel = $('dgTarget');
+    sel.innerHTML = '';
+    (d.commits || []).forEach(function(c){
+      var o = document.createElement('option');
+      o.value = c.hash;
+      o.textContent = (c.current ? '★ ' : '') + c.short + '  ' + c.subject + '  (' + c.date + ')';
+      sel.appendChild(o);
+    });
+  }).catch(function(){ flash('Failed to load versions', false); });
+}
+function downgradeRun(){
+  var pwd = $('dgPwd').value, mu = $('dgMUser').value.trim(), ms = $('dgMSecret').value;
+  var h1 = $('dgHash1').value.trim().toUpperCase(), h2 = $('dgHash2').value.trim().toUpperCase();
+  var target = $('dgTarget').value;
+  if (!pwd || !mu || !ms || !h1 || !h2 || !target){ flash('All fields are required', false); return; }
+  if (h1 !== h2){ flash('Git hash mismatch', false); return; }
+  if (!$('dgConfirm').checked){ flash('Please confirm before downgrading', false); return; }
+  dangerApi('downgrade', 'perform', [['password', pwd], ['maint_user', mu], ['maint_secret', ms], ['git_hash', h1], ['git_hash2', h2], ['target', target]]).then(function(d){
+    if (d.success){ $('dgResult').style.display = 'block'; $('dgResult').textContent = 'Downgrade done: ' + (d.from || '').slice(0, 8) + ' → ' + (d.to || '').slice(0, 8); flash('Downgrade complete', true); setTimeout(function(){ location.reload(); }, 1800); }
+    else flash(d.error || 'Downgrade failed', false);
+  }).catch(function(){ flash('Network error', false); });
+}
+
+/* ---- Factory Reset ---- */
+function factoryRun(){
+  var pwd = $('frPwd').value, mu = $('frMUser').value.trim(), ms = $('frMSecret').value, h = $('frHash').value.trim().toUpperCase();
+  var nu = $('frNewUser').value.trim(), np = $('frNewPass').value;
+  if (!pwd || !mu || !ms || !h){ flash('All fields are required', false); return; }
+  if (!/^[a-zA-Z0-9_]{3,20}$/.test(nu)){ flash('New admin username 3-20 letters/numbers/underscore', false); return; }
+  if (np.length < 8){ flash('New admin password min 8', false); return; }
+  if (!$('frConfirm').checked){ flash('Please confirm before factory reset', false); return; }
+  var st = $('frProgress'); st.style.display = 'block'; st.textContent = 'Step 1/4: verifying credentials...';
+  dangerApi('factory_reset', 'start', [['password', pwd], ['maint_user', mu], ['maint_secret', ms], ['git_hash', h]]).then(function(d){
+    if (!d.success){ st.style.display = 'none'; flash(d.error || 'Verify failed', false); return; }
+    st.textContent = 'Step 2/4: expiring all session tokens...';
+    return dangerApi('factory_reset', 'expire_tokens').then(function(d2){
+      if (!d2.success){ st.style.display = 'none'; flash(d2.error || 'Step 2 failed', false); throw 'stop'; }
+      st.textContent = 'Step 3/4: setting new administrator...';
+      return dangerApi('factory_reset', 'setup_creds', [['username', nu], ['password', np], ['skip_dump', $('frSkipDump').checked ? '1' : '0'], ['maint_user', $('frNewMUser').value.trim()], ['maint_pass', $('frNewMPass').value]]);
+    }).then(function(d3){
+      if (!d3.success){ st.style.display = 'none'; flash(d3.error || 'Step 3 failed', false); throw 'stop'; }
+      st.textContent = 'Step 4/4: rebuilding database...';
+      return dangerApi('factory_reset', 'rebuild');
+    }).then(function(d4){
+      if (!d4.success){ st.style.display = 'none'; flash(d4.error || 'Rebuild failed', false); return; }
+      st.textContent = 'Factory reset complete ✓';
+      flash('Factory reset complete', true);
+      setTimeout(function(){ location.reload(); }, 2000);
+    });
+  }).catch(function(e){ if (e !== 'stop'){ st.style.display = 'none'; flash('Network error', false); } });
+}
+
+/* ---- Uninstall ---- */
+function uninstallRun(){
+  var pwd = $('unPwd').value, mu = $('unMUser').value.trim(), ms = $('unMSecret').value;
+  var h1 = $('unHash1').value.trim().toUpperCase(), h2 = $('unHash2').value.trim().toUpperCase();
+  if (!pwd || !mu || !ms || !h1 || !h2){ flash('All fields are required', false); return; }
+  if (h1 !== h2){ flash('Git hash mismatch', false); return; }
+  if (!$('unConfirm').checked){ flash('Please confirm before uninstalling', false); return; }
+  if (!confirm('Are you absolutely sure? This permanently deletes ChatApp and (by default) its database. This cannot be undone.')) return;
+  dangerApi('uninstall', 'perform', [['password', pwd], ['maint_user', mu], ['maint_secret', ms], ['git_hash', h1], ['git_hash2', h2], ['db_delete', $('unDbDel').checked ? '1' : '0']]).then(function(d){
+    if (d.success){ $('unDone').style.display = 'block'; flash('ChatApp has been uninstalled', true); }
+    else flash(d.error || 'Uninstall failed', false);
+  }).catch(function(){ flash('Network error', false); });
 }
 window.addEventListener('load', function(){
   var w = document.getElementById('loader-wrapper');

@@ -8,16 +8,16 @@
  */
 require_once __DIR__ . '/config.php';
 chatapp_session_start();
-if (!isset($_SESSION['username'])) {
-    echo json_encode(['success' => false, 'error' => 'Not logged in.']); exit;
-}
 header('Content-Type: application/json');
+// 工厂重置仅限 root：聊天会话 或 维护门户 token
+if (chatapp_portal_admin_role() === '') { echo json_encode(['success' => false, 'error' => 'Access denied.']); exit; }
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 $root = dirname(__DIR__);
 $lock = $root . '/data/upgrade.lock';
 $stateFile = $root . '/data/factory_reset_state.json';
 
 function fr_root_uid(): int {
+    if (chatapp_portal_admin_role() === 'root') return 10000; // 门户 token = root
     $s = db()->prepare('SELECT user_id FROM users WHERE username = ?');
     $s->execute([$_SESSION['username'] ?? '']);
     return (int)($s->fetchColumn() ?: 0);

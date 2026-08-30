@@ -236,6 +236,33 @@ function chatapp_get_user(): ?array {
     return null;
 }
 
+/** 门户级管理员身份：返回 'root' | 'admin' | ''。
+ *  来源①：已登录的聊天管理员（root/admin 角色）
+ *  来源②：有效的维护门户 token（MT_TOKEN）→ 视为 root
+ *  供维护门户直接调用升级/降级/工厂重置/卸载等危险接口。 */
+function chatapp_portal_admin_role(): string {
+    // ① 聊天会话管理员
+    if (isset($_SESSION['username'])) {
+        $stmt = db()->prepare('SELECT user_id FROM users WHERE username = ?');
+        $stmt->execute([$_SESSION['username']]);
+        $__uid = (int)($stmt->fetchColumn() ?: 0);
+        if ($__uid > 0) {
+            $__role = chatapp_get_role($__uid);
+            if ($__role === 'root' || $__role === 'admin') return $__role;
+        }
+    }
+    // ② 维护门户 token = root 级
+    require_once __DIR__ . '/../maintenance/creds.php';
+    $__c = chatapp_maint_creds();
+    $__secret = (string)$__c['secret'];
+    $__h = floor(time() / 3600);
+    $__tok = $_COOKIE['MT_TOKEN'] ?? ($_GET['token'] ?? '');
+    if ($__secret !== '' && $__tok !== '' && hash_equals(hash_hmac('sha256', 'mt:' . $__h, $__secret), (string)$__tok)) {
+        return 'root';
+    }
+    return '';
+}
+
 function chatapp_require_login(): void {
     chatapp_session_start();
     if (!isset($_SESSION['username'])) { header('Location: login.php'); exit; }

@@ -8,11 +8,9 @@
 require_once __DIR__ . '/config.php';
 chatapp_session_start();
 header('Content-Type: application/json');
-if (!isset($_SESSION['username'])) { echo json_encode(['success' => false, 'error' => 'Not logged in.']); exit; }
-$__s = db()->prepare('SELECT user_id FROM users WHERE username = ?');
-$__s->execute([$_SESSION['username']]);
-$__role = chatapp_get_role((int)($__s->fetchColumn() ?: 0));
-if ($__role !== 'root' && $__role !== 'admin') { echo json_encode(['success' => false, 'error' => 'Access denied.']); exit; }
+// 降级接口仅限 admin/root：聊天会话 或 维护门户 token 均可
+$__role = chatapp_portal_admin_role();
+if ($__role === '') { echo json_encode(['success' => false, 'error' => 'Access denied.']); exit; }
 
 $root = dirname(__DIR__); // 运行所在仓库根（VM: /var/www/html，本地: 源码目录）
 function dg_git(string $cmd, string $root): array {

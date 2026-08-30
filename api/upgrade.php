@@ -7,16 +7,10 @@
 require_once __DIR__ . '/config.php';
 
 chatapp_session_start();
-if (!isset($_SESSION['username'])) {
-    echo json_encode(['success' => false, 'error' => 'Something went wrong.']);
-    exit;
-}
 header('Content-Type: application/json');
-// 升级接口仅限 admin/root：避免普通登录用户读取 git 版本/升级进度等部署信息
-$__s = db()->prepare('SELECT user_id FROM users WHERE username = ?');
-$__s->execute([$_SESSION['username']]);
-$__role = chatapp_get_role((int)($__s->fetchColumn() ?: 0));
-if ($__role !== 'root' && $__role !== 'admin') {
+// 升级接口仅限 admin/root：聊天会话 或 维护门户 token 均可
+$__role = chatapp_portal_admin_role();
+if ($__role === '') {
     echo json_encode(['success' => false, 'error' => 'Access denied.']);
     exit;
 }
