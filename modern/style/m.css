@@ -252,3 +252,9 @@ input{font-family:inherit;border:none;outline:none}
 .bubble img { max-width: 100%; max-height: 220px; border-radius: 4px; display: block; margin: 4px 0; }
 .tok-c { color: #7f9f7f; } .tok-s { color: #d19a66; } .tok-n { color: #d19a66; }
 .tok-k { color: #c678dd; } .tok-f { color: #61afef; }
+
+/* ===== 移动端群组 ===== */
+.contacts-scroll { flex: 1; overflow-y: auto; }
+.m-section-hdr { padding: 10px 16px 4px; color: #888; font-size: .78em; font-weight: 600; }
+.msg-sender { font-size: .7em; color: #8fb6d9; margin-bottom: 2px; line-height: 1.3; }
+.li-group-av { background: #2a3a4a; color: #8fb6d9; display: flex; align-items: center; justify-content: center; font-weight: 700; }

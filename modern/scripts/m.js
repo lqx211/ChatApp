@@ -182,7 +182,7 @@
             tabs[i].classList.toggle('active', tabs[i].getAttribute('data-tab') === name);
         }
         if (name === 'msg') loadConversations();
-        if (name === 'contacts') loadContacts();
+        if (name === 'contacts') { loadContacts(); loadGroups(); }
         if (name === 'discover') loadDiscover();
     }
     [].forEach.call(tabs, function (btn) {
@@ -232,7 +232,11 @@
 
     /* ---------------- 消息页头部交互 ---------------- */
     var hdrAvatarBtn = $('hdrAvatarBtn');
-    if (hdrAvatarBtn) hdrAvatarBtn.addEventListener('click', function () { showTab('me'); });
+    // 点头像 → 打开自己的个人主页（随处可点头像进自己主页）
+    function openSelfProfile() {
+        openFrame('profile.php?user=' + encodeURIComponent(ME.username), ME.display_name || ME.username);
+    }
+    if (hdrAvatarBtn) hdrAvatarBtn.addEventListener('click', openSelfProfile);
     var hdrPlusBtn = $('hdrPlusBtn');
     if (hdrPlusBtn) hdrPlusBtn.addEventListener('click', function () { showSheet('quickSheet'); });
     var msgSearchInput = $('msgSearchInput');
@@ -243,7 +247,42 @@
 
     /* ---------------- 「+」快捷入口 ---------------- */
     $('quickCancel').addEventListener('click', function () { hideSheet('quickSheet'); });
-    $('quickNewGroup').addEventListener('click', function () { closeSheets(); toast(t('m_coming_soon', '敬请期待')); });
+    $('quickNewGroup').addEventListener('click', function () { closeSheets(); createGroup(); });
+    /* App 内输入弹窗（移动端不支持原生 prompt()） */
+    var _inputCb = null;
+    function openInputModal(title, placeholder, cb) {
+        $('inputTitle').textContent = title;
+        $('inputField').placeholder = placeholder || '';
+        $('inputField').value = '';
+        _inputCb = cb;
+        $('inputOverlay').style.display = 'flex';
+        setTimeout(function () { $('inputField').focus(); }, 120);
+    }
+    $('inputCancel').addEventListener('click', function () { $('inputOverlay').style.display = 'none'; _inputCb = null; });
+    $('inputOk').addEventListener('click', function () {
+        var v = $('inputField').value.trim();
+        var cb = _inputCb;
+        _inputCb = null;
+        $('inputOverlay').style.display = 'none';
+        if (cb && v) cb(v);
+    });
+    $('inputField').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); $('inputOk').click(); }
+    });
+    function createGroup() {
+        openInputModal(t('m_group_name', 'Group name'), t('m_group_name', 'Group name'), function (name) {
+            var f = new URLSearchParams();
+            f.append('action', 'create');
+            f.append('name', name);
+            fetch('../../api/group.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (d && d.success) { toast(t('m_group_created', 'Group created')); showTab('contacts'); loadGroups(); }
+                    else toast((d && d.error) || t('m_send_fail', 'Failed'));
+                })
+                .catch(function () { toast(t('m_send_fail', 'Failed')); });
+        });
+    }
     $('quickScan').addEventListener('click', function () { closeSheets(); toast(t('m_coming_soon', '敬请期待')); });
     $('quickQr').addEventListener('click', function () { closeSheets(); toast(t('m_coming_soon', '敬请期待')); });
     $('quickAddFriend').addEventListener('click', openAddFriend);
@@ -299,6 +338,38 @@
                     toast((d && d.error) || t('m_send_fail', '发送失败'));
                 }
             });
+    }
+
+    /* ---------------- 群组 ---------------- */
+    var myGroups = [];
+    function loadGroups() {
+        apiGet('../../api/group.php?action=list_my').then(function (d) {
+            myGroups = (d && d.groups) || [];
+            renderGroups();
+        });
+    }
+    function renderGroups() {
+        var box = $('groupList');
+        if (!box) return;
+        if (!myGroups.length) { box.innerHTML = '<div class="empty">' + t('m_no_groups', 'No groups yet') + '</div>'; return; }
+        var html = '';
+        for (var i = 0; i < myGroups.length; i++) {
+            var g = myGroups[i];
+            var av = g.avatar_url
+                ? '<img class="li-avatar" src="' + esc(g.avatar_url) + '" alt="">'
+                : '<div class="li-avatar li-group-av">' + letterAvatar(g.name) + '</div>';
+            var roleTxt = g.role === 'owner' ? ' <span style="color:#c0a020;font-size:.7em">[群主]</span>' : (g.role === 'admin' ? ' <span style="color:#6fb3e8;font-size:.7em">[管理员]</span>' : '');
+            html += '<div class="li" data-gid="' + g.group_id + '" data-name="' + esc(g.name) + '">'
+                + av
+                + '<div class="li-main"><div class="li-name">' + esc(g.name) + roleTxt + '</div></div>'
+                + '<span style="color:var(--m-sub);font-size:14px">›</span></div>';
+        }
+        box.innerHTML = html;
+        [].forEach.call(box.querySelectorAll('.li[data-gid]'), function (el) {
+            el.addEventListener('click', function () {
+                openGroupChat(parseInt(el.getAttribute('data-gid'), 10), el.getAttribute('data-name'));
+            });
+        });
     }
 
     /* ---------------- 联系人 ---------------- */
@@ -361,6 +432,7 @@
 
     /* ---------------- 聊天窗口 ---------------- */
     var currentPartner = null;
+    var currentGroupId = 0;   // >0 = 群聊模式
     var lastMsgId = 0;
     var beforeId = 0;
     var hasMore = true;
@@ -373,31 +445,43 @@
 
     function openChat(username, displayName, avatar) {
         currentPartner = { username: username, display_name: displayName, avatar: avatar || '' };
-        $('chatTitle').textContent = displayName || username;
+        currentGroupId = 0;
+        showChatScreen(displayName || username, currentPartner.avatar || ('../../api/avatar.php?u=' + encodeURIComponent(username)));
+        loadChatHistory();
+        markRead(username);
+        startPolling();
+    }
+    function openGroupChat(gid, name) {
+        currentGroupId = gid;
+        currentPartner = { username: '', display_name: name, avatar: '' };
+        showChatScreen(name, '');
+        loadChatHistory();
+        startPolling();
+    }
+    function showChatScreen(title, avatarUrl) {
+        $('chatTitle').textContent = title;
         $('chatHdrStatus').textContent = t('msg_online_status');
         var av = $('chatHdrAvatar');
         av.onerror = function () { av.style.display = 'none'; };
-        av.src = currentPartner.avatar || ('../../api/avatar.php?u=' + encodeURIComponent(username));
-        av.style.display = 'block';
+        if (avatarUrl) { av.src = avatarUrl; av.style.display = 'block'; }
+        else { av.style.display = 'none'; }
         closeEmojiPanel();
         $('chatBody').innerHTML = '<div class="empty">' + t('msg_loading') + '</div>';
         $('chatScreen').style.display = 'flex';
         lastMsgId = 0; beforeId = 0; hasMore = true; lastRenderedTime = 0;
-        loadChatHistory();
-        markRead(username);
-        startPolling();
     }
     function closeChat() {
         stopPolling();
         closeEmojiPanel();
         currentPartner = null;
+        currentGroupId = 0;
         $('chatScreen').style.display = 'none';
         loadConversations();
     }
     $('chatBackBtn').addEventListener('click', closeChat);
     // 点头像/聊天气泡头像 → 查看资料（全屏 iframe）
     $('chatHdrAvatar').addEventListener('click', function () {
-        if (!currentPartner) return;
+        if (!currentPartner || currentGroupId) return;
         openFrame('profile.php?user=' + encodeURIComponent(currentPartner.username), currentPartner.display_name || currentPartner.username);
     });
     $('chatBody').addEventListener('click', function (e) {
@@ -410,7 +494,7 @@
     $('chatMoreBtn').addEventListener('click', function () { showSheet('chatMenuSheet'); });
     $('menuSheetCancel').addEventListener('click', function () { hideSheet('chatMenuSheet'); });
     $('menuViewProfile').addEventListener('click', function () {
-        if (!currentPartner) return;
+        if (!currentPartner || currentGroupId) return;
         hideSheet('chatMenuSheet');
         openFrame('profile.php?user=' + encodeURIComponent(currentPartner.username), currentPartner.display_name || currentPartner.username);
     });
@@ -420,11 +504,15 @@
     });
 
     function chatQuery() {
+        if (currentGroupId) return 'group_id=' + currentGroupId;
         return 'dm=' + encodeURIComponent(currentPartner.username);
     }
     function loadChatHistory() {
         if (!currentPartner) return;
-        apiGet('../../api/chat.php?action=all&' + chatQuery() + '&limit=50').then(function (d) {
+        var url = currentGroupId
+            ? '../../api/group.php?action=history&' + chatQuery() + '&limit=50'
+            : '../../api/chat.php?action=all&' + chatQuery() + '&limit=50';
+        apiGet(url).then(function (d) {
             var msgs = (d && d.messages) || [];
             $('chatBody').innerHTML = '';
             if (d && d.has_more) {
@@ -439,7 +527,10 @@
     function loadMore() {
         if (!currentPartner || loadingMore || !hasMore || !beforeId) return;
         loadingMore = true;
-        apiGet('../../api/chat.php?action=all&' + chatQuery() + '&before=' + beforeId + '&limit=50').then(function (d) {
+        var url = currentGroupId
+            ? '../../api/group.php?action=history&' + chatQuery() + '&before=' + beforeId + '&limit=50'
+            : '../../api/chat.php?action=all&' + chatQuery() + '&before=' + beforeId + '&limit=50';
+        apiGet(url).then(function (d) {
             loadingMore = false;
             var msgs = (d && d.messages) || [];
             if (!msgs.length) { hasMore = false; return; }
@@ -471,11 +562,12 @@
             }
             if (tSec) prev = tSec;
             var mine = (m.sender_id === ME.uid) || (m.username === ME.username);
+            var gSender = (currentGroupId && !mine) ? (m.display_name || m.username || '') : '';
             chunks.push('<div class="msg ' + (mine ? 'out' : 'in') + '">'
                 + (mine
                     ? '<img class="av" data-u="' + esc(ME.username) + '" src="' + (ME.avatar ? esc(ME.avatar) : '') + '" alt="">'
                     : (m.avatar ? '<img class="av" data-u="' + esc(m.username) + '" src="' + esc(m.avatar) + '" alt="">' : '<div class="av" data-u="' + esc(m.username) + '" style="display:flex;align-items:center;justify-content:center;color:#4aa9d8">' + letterAvatar(m.display_name || m.username) + '</div>'))
-                + bubbleHTML(m)
+                + bubbleHTML(m, gSender)
                 + '</div>');
         }
         var html = chunks.join('');
@@ -495,9 +587,10 @@
         }
     }
 
-    function bubbleHTML(m) {
+    function bubbleHTML(m, groupSender) {
         if (m.is_deleted) return '<div class="bubble revoked">' + t('m_revoked') + '</div>';
         var body = '';
+        if (groupSender) body += '<div class="msg-sender">' + esc(groupSender) + '</div>';
         if (m.attachment_url && m.msg_type !== 'file' && /\.(png|jpe?g|gif|webp)(\?|$)/i.test(m.attachment_url)) {
             body += '<img src="' + esc(m.attachment_url) + '" style="max-width:210px;max-height:260px;border-radius:6px;display:block">';
         } else if (m.msg_type === 'file' || m.attachment_url) {
@@ -520,11 +613,19 @@
         if (!text || !currentPartner || sending) return;
         sending = true;
         var f = new URLSearchParams();
-        f.append('action', 'send');
-        f.append('recipient', currentPartner.username);
+        var url;
+        if (currentGroupId) {
+            url = '../../api/group.php';
+            f.append('action', 'send');
+            f.append('group_id', currentGroupId);
+        } else {
+            url = '../../api/chat.php';
+            f.append('action', 'send');
+            f.append('recipient', currentPartner.username);
+            f.append('msg_type', '');
+        }
         f.append('message', text);
-        f.append('msg_type', '');
-        fetch('../../api/chat.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+        fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
             .then(function (r) { return r.json(); })
             .then(function (d) {
                 sending = false;
@@ -543,7 +644,10 @@
     /* ---------------- 实时（HTTP 轮询） ---------------- */
     function pullNew() {
         if (!currentPartner) return Promise.resolve();
-        return apiGet('../../api/chat.php?action=fetch&after=' + lastMsgId + '&' + chatQuery()).then(function (d) {
+        var url = currentGroupId
+            ? '../../api/group.php?action=fetch&' + chatQuery() + '&after=' + lastMsgId
+            : '../../api/chat.php?action=fetch&after=' + lastMsgId + '&' + chatQuery();
+        return apiGet(url).then(function (d) {
             var msgs = (d && d.messages) || [];
             if (!msgs.length) return;
             renderMessages(msgs, 'append');
@@ -581,6 +685,11 @@
     // 我的页 → 设置/编辑资料（iframe 全屏，避免整页跳转导致返回黑屏）
     $('meSettingsBtn').addEventListener('click', function () { openFrame('settings.php', t('title_settings')); });
     $('meEditProfileBtn').addEventListener('click', function () { openFrame('editinfo.php', t('set_edit_profile')); });
+    // 我的页头像/名字 → 打开自己的个人主页
+    var meAvatarEl = document.querySelector('.me-avatar');
+    if (meAvatarEl) meAvatarEl.addEventListener('click', openSelfProfile);
+    var meNameEl = document.querySelector('.me-name');
+    if (meNameEl) meNameEl.addEventListener('click', openSelfProfile);
 
     /* ---------------- 启动 ---------------- */
     showTab('msg');

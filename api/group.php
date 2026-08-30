@@ -411,7 +411,8 @@ switch ($action) {
     case 'fetch':
         $gid = (int)($_GET['group_id'] ?? 0);
         $after = (int)($_GET['after'] ?? 0);
-        if (!$gid || !$after) { echo json_encode(['success' => false]); exit; }
+        // after=0 允许：新群无历史时客户端 lastMsgId=0，此时返回该群全部消息
+        if (!$gid) { echo json_encode(['success' => false]); exit; }
         if (!$pdo->query("SELECT 1 FROM group_members WHERE group_id=$gid AND user_id=$myUid")->fetch()) {
             echo json_encode(['success' => false]); exit;
         }

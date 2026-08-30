@@ -76,6 +76,18 @@ if (!empty($meAvatar) && strpos($meAvatar, 'data:') !== 0 && preg_match('/^[0-9a
   </div>
 </div>
 
+<!-- 文本输入弹窗（群名等，移动端不支持 prompt()） -->
+<div class="modal-overlay" id="inputOverlay" style="display:none">
+  <div class="modal-box">
+    <h3 id="inputTitle">Input</h3>
+    <input type="text" id="inputField" maxlength="40" autocomplete="off">
+    <div class="modal-actions">
+      <button class="bsm" id="inputCancel"><?php echo t('btn_cancel');?></button>
+      <button class="bsm" id="inputOk"><?php echo t('btn_ok');?></button>
+    </div>
+  </div>
+</div>
+
 <!-- 轻提示 -->
 <div class="m-toast" id="mToast"></div>
 
@@ -98,7 +110,12 @@ if (!empty($meAvatar) && strpos($meAvatar, 'data:') !== 0 && preg_match('/^[0-9a
 <!-- ================= 联系人 ================= -->
 <section class="screen" id="screenContacts" style="display:none">
   <header class="m-header"><span><?php echo t('title_contacts');?></span></header>
-  <div class="list" id="contactList"><div class="empty"><?php echo t('msg_loading');?></div></div>
+  <div class="contacts-scroll">
+    <div class="m-section-hdr">My Groups 我的群聊</div>
+    <div class="list" id="groupList"><div class="empty"><?php echo t('msg_loading');?></div></div>
+    <div class="m-section-hdr"><?php echo t('title_contacts');?></div>
+    <div class="list" id="contactList"><div class="empty"><?php echo t('msg_loading');?></div></div>
+  </div>
 </section>
 
 <!-- ================= 动态 ================= -->
