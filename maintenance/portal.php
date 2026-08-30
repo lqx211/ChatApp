@@ -71,12 +71,12 @@ function chatapp_portal_write_status(array $st): bool {
 }
 
 $__maintPages = [
-    '/errors/unavailable_erepair.html' => '紧急修复 Emergency Repair',
-    '/errors/unavailable_offline.html'  => '离线维护 Offline',
-    '/errors/unavailable_upgrade.html'  => '升级中 Upgrade',
-    '/errors/unavailable_breakdb.html'  => '数据库损坏 DB Broken',
-    '/errors/unavailable_limit.html'    => '人数上限 Limit',
-    '/errors/unavailable_spam.html'     => '风控拦截 Spam',
+    '/errors/unavailable_erepair.html' => 'Emergency Repair',
+    '/errors/unavailable_offline.html'  => 'Offline',
+    '/errors/unavailable_upgrade.html'  => 'Upgrade',
+    '/errors/unavailable_breakdb.html'  => 'DB Broken',
+    '/errors/unavailable_limit.html'    => 'Limit Reached',
+    '/errors/unavailable_spam.html'     => 'Spam Filter',
 ];
 $__codes = [200, 401, 403, 429, 500, 503];
 
@@ -170,7 +170,7 @@ $__mysqlOk = chatapp_portal_mysql_ok();
 <html lang="zh-Hans">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Maintenance Portal · 维护门户</title>
+<title>Maintenance Portal</title>
 <link rel="stylesheet" href="../css/global.css">
 <link rel="stylesheet" href="../modern/style/chat.css?v=<?php echo time();?>">
 <style>
@@ -227,16 +227,16 @@ $__mysqlOk = chatapp_portal_mysql_ok();
    <div class="sidebar-profile">
     <div class="sa"></div>
     <div class="sun">Maintenance Portal</div>
-    <div class="sdnd <?php echo $__st['is_maintenance'] ? 'rstr' : 'on'; ?>" id="maintStatusBadge"><?php echo $__st['is_maintenance'] ? '维护中' : '运行中'; ?></div>
+    <div class="sdnd <?php echo $__st['is_maintenance'] ? 'rstr' : 'on'; ?>" id="maintStatusBadge"><?php echo $__st['is_maintenance'] ? 'Maintenance' : 'Online'; ?></div>
    </div>
    <div class="sidebar-nav">
-    <div class="ng"><div class="ngh" onclick="showPanel('dash')" style="cursor:pointer"><span>仪表盘 Dashboard</span></div></div>
-    <div class="ng"><div class="ngh" onclick="showPanel('settings')" style="cursor:pointer"><span>维护设置 Settings</span></div></div>
-    <div class="ng"><div class="ngh" onclick="showPanel('creds')" style="cursor:pointer"><span>门户凭据 Credentials</span></div></div>
-    <div class="ng"><div class="ngh" onclick="showPanel('links')" style="cursor:pointer"><span>快捷链接 Quick Links</span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('dash')" style="cursor:pointer"><span>Dashboard</span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('settings')" style="cursor:pointer"><span>Settings</span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('creds')" style="cursor:pointer"><span>Credentials</span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('links')" style="cursor:pointer"><span>Quick Links</span></div></div>
    </div>
    <div class="sidebar-footer">
-    <div class="ngh" onclick="doLogout()" style="cursor:pointer"><span>退出门户 Logout</span></div>
+    <div class="ngh" onclick="doLogout()" style="cursor:pointer"><span>Logout</span></div>
    </div>
   </div>
 
@@ -245,38 +245,38 @@ $__mysqlOk = chatapp_portal_mysql_ok();
 
    <!-- 仪表盘 -->
    <div class="panel active" id="panel-dash">
-    <div class="ch"><h2>仪表盘 Dashboard</h2><span style="color:#666;font-size:.75em">Maintenance Portal</span></div>
+    <div class="ch"><h2>Dashboard</h2><span style="color:#666;font-size:.75em">Maintenance Portal</span></div>
     <div class="portal">
      <div class="pcard">
-      <h3>🔴 维护开关</h3>
+      <h3>Maintenance Mode</h3>
       <div class="stat-big">
-       <span class="pill <?php echo $__st['is_maintenance'] ? 'on' : 'off'; ?>" id="dashPill"><?php echo $__st['is_maintenance'] ? '维护中' : '运行中'; ?></span>
-       <button class="pbtn <?php echo $__st['is_maintenance'] ? 'green' : 'red'; ?>" id="dashToggle" onclick="toggleMaint()"><?php echo $__st['is_maintenance'] ? '关闭维护' : '开启维护'; ?></button>
-       <span class="note" style="margin-left:6px">开启后所有访问显示维护页；门户与管理凭据仍可登录。</span>
+       <span class="pill <?php echo $__st['is_maintenance'] ? 'on' : 'off'; ?>" id="dashPill"><?php echo $__st['is_maintenance'] ? 'Maintenance' : 'Online'; ?></span>
+       <button class="pbtn <?php echo $__st['is_maintenance'] ? 'green' : 'red'; ?>" id="dashToggle" onclick="toggleMaint()"><?php echo $__st['is_maintenance'] ? 'Disable Maintenance' : 'Enable Maintenance'; ?></button>
+       <span class="note" style="margin-left:6px">All visitors see the maintenance page. Portal and admin credentials can still log in.</span>
       </div>
      </div>
      <div class="grid2">
-      <div class="pcard"><h3>📋 当前设置</h3>
-       <div class="prow"><span class="k">返回码 Return Code</span><span class="v" id="dashCode"><?php echo (int)$__st['mt_return_code']; ?></span></div>
-       <div class="prow"><span class="k">维护页面 Page</span><span class="v" id="dashPage"><?php echo htmlspecialchars($__st['maintenance_page']); ?></span></div>
-       <div class="prow"><span class="k">允许维护登录 Allow Login</span><span class="v" id="dashAllowLogin"><?php echo $__st['allow_mt_login'] ? '是 Yes' : '否 No'; ?></span></div>
-       <div class="prow"><span class="k">使用 MySQL 凭据</span><span class="v" id="dashMysqlCreds"><?php echo $__st['mt_login_use_mysql_creds'] ? '是 Yes' : '否 No'; ?></span></div>
+      <div class="pcard"><h3>Current Settings</h3>
+       <div class="prow"><span class="k">Return Code</span><span class="v" id="dashCode"><?php echo (int)$__st['mt_return_code']; ?></span></div>
+       <div class="prow"><span class="k">Maintenance Page</span><span class="v" id="dashPage"><?php echo htmlspecialchars($__st['maintenance_page']); ?></span></div>
+       <div class="prow"><span class="k">Allow Maintenance Login</span><span class="v" id="dashAllowLogin"><?php echo $__st['allow_mt_login'] ? 'Yes' : 'No'; ?></span></div>
+       <div class="prow"><span class="k">Use MySQL Credentials</span><span class="v" id="dashMysqlCreds"><?php echo $__st['mt_login_use_mysql_creds'] ? 'Yes' : 'No'; ?></span></div>
       </div>
-      <div class="pcard"><h3>🖥 服务器信息</h3>
+      <div class="pcard"><h3>Server Info</h3>
        <div class="prow"><span class="k">PHP</span><span class="v"><?php echo htmlspecialchars(PHP_VERSION); ?></span></div>
-       <div class="prow"><span class="k">MySQL</span><span class="v"><span class="ok-dot <?php echo $__mysqlOk ? 'g' : 'r'; ?>"></span><?php echo $__mysqlOk ? '可达 Reachable' : '不可达 Down'; ?></span></div>
+       <div class="prow"><span class="k">MySQL</span><span class="v"><span class="ok-dot <?php echo $__mysqlOk ? 'g' : 'r'; ?>"></span><?php echo $__mysqlOk ? 'Reachable' : 'Down'; ?></span></div>
        <div class="prow"><span class="k">Git HEAD</span><span class="v"><?php echo htmlspecialchars($__git ?: '?'); ?></span></div>
-       <div class="prow"><span class="k">磁盘可用 Free</span><span class="v"><?php echo htmlspecialchars($__dfTxt); ?></span></div>
-       <div class="prow"><span class="k">服务器时间 Time</span><span class="v"><?php echo date('Y-m-d H:i:s'); ?></span></div>
+       <div class="prow"><span class="k">Free Disk</span><span class="v"><?php echo htmlspecialchars($__dfTxt); ?></span></div>
+       <div class="prow"><span class="k">Server Time</span><span class="v"><?php echo date('Y-m-d H:i:s'); ?></span></div>
       </div>
      </div>
-     <div class="pcard"><h3>⚡ 快速操作</h3>
+     <div class="pcard"><h3>Quick Actions</h3>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-       <a class="pbtn" href="index.php">维护登录页</a>
-       <button class="pbtn gray" onclick="location.href='../modern/wp/chat.php'">进入 ChatApp</button>
-       <button class="pbtn gray" onclick="location.href='../modern/wp/settings-factory.php'">工厂重置</button>
-       <button class="pbtn gray" onclick="location.href='../modern/wp/settings-upgrade.php'">升级</button>
-       <button class="pbtn gray" onclick="location.href='../modern/wp/settings-downgrade.php'">降级</button>
+       <a class="pbtn" href="index.php">Maintenance Login</a>
+       <button class="pbtn gray" onclick="location.href='../modern/wp/chat.php'">Open ChatApp</button>
+       <button class="pbtn gray" onclick="location.href='../modern/wp/settings-factory.php'">Factory Reset</button>
+       <button class="pbtn gray" onclick="location.href='../modern/wp/settings-upgrade.php'">Upgrade</button>
+       <button class="pbtn gray" onclick="location.href='../modern/wp/settings-downgrade.php'">Downgrade</button>
       </div>
      </div>
     </div>
@@ -284,36 +284,36 @@ $__mysqlOk = chatapp_portal_mysql_ok();
 
    <!-- 维护设置 -->
    <div class="panel" id="panel-settings">
-    <div class="ch"><h2>维护设置 Settings</h2></div>
+    <div class="ch"><h2>Settings</h2></div>
     <div class="portal">
      <div class="pcard" style="max-width:520px">
-      <h3>⚙️ 维护模式配置</h3>
-      <div class="pfield"><label>维护模式 Maintenance Mode</label>
+      <h3>Maintenance Mode Settings</h3>
+      <div class="pfield"><label>Maintenance Mode</label>
        <select id="setIsMaint">
-        <option value="0" <?php echo $__st['is_maintenance'] ? '' : 'selected'; ?>>运行中 Running（关闭维护）</option>
-        <option value="1" <?php echo $__st['is_maintenance'] ? 'selected' : ''; ?>>维护中 Maintenance（开启维护）</option>
+        <option value="0" <?php echo $__st['is_maintenance'] ? '' : 'selected'; ?>>Running (disable maintenance)</option>
+        <option value="1" <?php echo $__st['is_maintenance'] ? 'selected' : ''; ?>>Maintenance (enable maintenance)</option>
        </select>
       </div>
-      <div class="pfield"><label>返回码 Return Code</label>
+      <div class="pfield"><label>Return Code</label>
        <select id="setCode">
         <?php foreach ($__codes as $__c): ?>
         <option value="<?php echo $__c; ?>" <?php echo (int)$__st['mt_return_code'] === $__c ? 'selected' : ''; ?>><?php echo $__c; ?> — <?php echo ['200'=>'OK','401'=>'Unauthorized','403'=>'Forbidden','429'=>'Too Many Requests','500'=>'Internal Server Error','503'=>'Service Unavailable'][$__c]; ?></option>
         <?php endforeach; ?>
        </select>
       </div>
-      <div class="pfield"><label>维护页面 Maintenance Page</label>
+      <div class="pfield"><label>Maintenance Page</label>
        <select id="setPage">
         <?php foreach ($__maintPages as $__p => $__pl): ?>
         <option value="<?php echo $__p; ?>" <?php echo $__st['maintenance_page'] === $__p ? 'selected' : ''; ?>><?php echo $__pl; ?></option>
         <?php endforeach; ?>
        </select>
       </div>
-      <label class="pcheck"><input type="checkbox" id="setAllowLogin" <?php echo $__st['allow_mt_login'] ? 'checked' : ''; ?>> 允许维护登录（维护页显示「Admin Login」入口）</label>
-      <label class="pcheck"><input type="checkbox" id="setMysqlCreds" <?php echo $__st['mt_login_use_mysql_creds'] ? 'checked' : ''; ?>> 维护登录使用 MySQL 凭据（账号密码入库校验）</label>
+      <label class="pcheck"><input type="checkbox" id="setAllowLogin" <?php echo $__st['allow_mt_login'] ? 'checked' : ''; ?>> Allow maintenance login (shows the Admin Login link on the maintenance page)</label>
+      <label class="pcheck"><input type="checkbox" id="setMysqlCreds" <?php echo $__st['mt_login_use_mysql_creds'] ? 'checked' : ''; ?>> Use MySQL credentials for maintenance login (validate account in DB)</label>
       <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
-       <button class="pbtn green" onclick="saveSettings()">保存 Save</button>
-       <button class="pbtn gray" onclick="previewPage()">预览维护页 Preview</button>
-       <span class="note">保存后立即生效；预览在新标签打开所选维护页。</span>
+       <button class="pbtn green" onclick="saveSettings()">Save</button>
+       <button class="pbtn gray" onclick="previewPage()">Preview Page</button>
+       <span class="note">Changes take effect immediately. Preview opens the selected page in a new tab.</span>
       </div>
      </div>
     </div>
@@ -321,32 +321,32 @@ $__mysqlOk = chatapp_portal_mysql_ok();
 
    <!-- 门户凭据 -->
    <div class="panel" id="panel-creds">
-    <div class="ch"><h2>门户凭据 Credentials</h2></div>
+    <div class="ch"><h2>Credentials</h2></div>
     <div class="portal">
      <div class="pcard" style="max-width:520px">
-      <h3>🔑 修改维护门户用户名 / 密码</h3>
-      <p class="note" style="margin-top:0">修改前必须验证当前管理员密码（uid 10000）。保存后旧维护 token 失效，需重新登录。</p>
-      <div class="pfield"><label>当前管理员密码 Current Admin Password（必填）</label><input type="password" id="cCur" autocomplete="current-password"></div>
-      <div class="pfield"><label>维护门户用户名 Maintenance Username（3-20）</label><input type="text" id="cUser" autocomplete="off" placeholder="admin"></div>
-      <div class="pfield"><label>维护门户密码 Maintenance Password（≥8）</label><input type="password" id="cPass" autocomplete="new-password"></div>
-      <button class="pbtn green" onclick="saveCreds()">保存并重新登录</button>
+      <h3>Change Maintenance Portal Username / Password</h3>
+      <p class="note" style="margin-top:0">You must verify the current administrator password (uid 10000). Saving invalidates old maintenance tokens and you will need to log in again.</p>
+      <div class="pfield"><label>Current Admin Password (required)</label><input type="password" id="cCur" autocomplete="current-password"></div>
+      <div class="pfield"><label>Maintenance Username (3-20)</label><input type="text" id="cUser" autocomplete="off" placeholder="admin"></div>
+      <div class="pfield"><label>Maintenance Password (≥8)</label><input type="password" id="cPass" autocomplete="new-password"></div>
+      <button class="pbtn green" onclick="saveCreds()">Save &amp; Re-login</button>
      </div>
     </div>
    </div>
 
    <!-- 快捷链接 -->
    <div class="panel" id="panel-links">
-    <div class="ch"><h2>快捷链接 Quick Links</h2></div>
+    <div class="ch"><h2>Quick Links</h2></div>
     <div class="portal">
      <div class="pcard">
-      <h3>🔗 管理入口</h3>
-      <a class="linkbtn" href="../modern/wp/chat.php"><span>💬 ChatApp 主界面</span><span>→</span></a>
-      <a class="linkbtn" href="../modern/wp/settings-factory.php"><span>♻️ 工厂重置 Factory Reset</span><span>→</span></a>
-      <a class="linkbtn" href="../modern/wp/settings-upgrade.php"><span>⬆️ 升级 Upgrade</span><span>→</span></a>
-      <a class="linkbtn" href="../modern/wp/settings-downgrade.php"><span>⬇️ 降级 Downgrade</span><span>→</span></a>
-      <a class="linkbtn" href="../modern/wp/settings-uninstall.php"><span>🗑 卸载 Uninstall</span><span>→</span></a>
-      <a class="linkbtn" href="index.php"><span>🔐 维护登录页（重新登录）</span><span>→</span></a>
-      <p class="note">危险操作页面本身带有管理员密码 + 维护门户凭据 + git hash 三重验证。</p>
+      <h3>Admin Entries</h3>
+      <a class="linkbtn" href="../modern/wp/chat.php"><span>ChatApp Main</span><span>→</span></a>
+      <a class="linkbtn" href="../modern/wp/settings-factory.php"><span>Factory Reset</span><span>→</span></a>
+      <a class="linkbtn" href="../modern/wp/settings-upgrade.php"><span>Upgrade</span><span>→</span></a>
+      <a class="linkbtn" href="../modern/wp/settings-downgrade.php"><span>Downgrade</span><span>→</span></a>
+      <a class="linkbtn" href="../modern/wp/settings-uninstall.php"><span>Uninstall</span><span>→</span></a>
+      <a class="linkbtn" href="index.php"><span>Maintenance Login (re-login)</span><span>→</span></a>
+      <p class="note">Danger pages require admin password + maintenance credentials + git hash verification.</p>
      </div>
     </div>
    </div>
@@ -377,29 +377,29 @@ function api(action, extra, cb){
   fetch('portal.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:fd.toString(), credentials:'same-origin' })
     .then(function(r){ return r.json(); })
     .then(function(d){ cb(d); })
-    .catch(function(){ flash('网络错误 / 服务器无响应', false); });
+    .catch(function(){ flash('Network error / no response', false); });
 }
 function applyStatus(d){
   STATUS = d.status || STATUS;
   var mt = !!STATUS.is_maintenance;
   var pill = document.getElementById('dashPill');
-  pill.textContent = mt ? '维护中' : '运行中';
+  pill.textContent = mt ? 'Maintenance' : 'Online';
   pill.className = 'pill ' + (mt ? 'on' : 'off');
-  document.getElementById('dashToggle').textContent = mt ? '关闭维护' : '开启维护';
+  document.getElementById('dashToggle').textContent = mt ? 'Disable Maintenance' : 'Enable Maintenance';
   document.getElementById('dashToggle').className = 'pbtn ' + (mt ? 'green' : 'red');
   var b = document.getElementById('maintStatusBadge');
-  b.textContent = mt ? '维护中' : '运行中';
+  b.textContent = mt ? 'Maintenance' : 'Online';
   b.className = 'sdnd ' + (mt ? 'rstr' : 'on');
   document.getElementById('dashCode').textContent = STATUS.mt_return_code;
   document.getElementById('dashPage').textContent = STATUS.maintenance_page;
-  document.getElementById('dashAllowLogin').textContent = STATUS.allow_mt_login ? '是 Yes' : '否 No';
-  document.getElementById('dashMysqlCreds').textContent = STATUS.mt_login_use_mysql_creds ? '是 Yes' : '否 No';
+  document.getElementById('dashAllowLogin').textContent = STATUS.allow_mt_login ? 'Yes' : 'No';
+  document.getElementById('dashMysqlCreds').textContent = STATUS.mt_login_use_mysql_creds ? 'Yes' : 'No';
 }
 function toggleMaint(){
   var next = !STATUS.is_maintenance;
   api('set', [['is_maintenance', next ? '1' : '0']], function(d){
-    if (d.success){ applyStatus(d); flash(next ? '维护模式已开启' : '维护模式已关闭', true); }
-    else flash(d.error || '失败', false);
+    if (d.success){ applyStatus(d); flash(next ? 'Maintenance mode enabled' : 'Maintenance mode disabled', true); }
+    else flash(d.error || 'Failed', false);
   });
 }
 function saveSettings(){
@@ -410,8 +410,8 @@ function saveSettings(){
     ['allow_mt_login', document.getElementById('setAllowLogin').checked ? '1' : '0'],
     ['mt_login_use_mysql_creds', document.getElementById('setMysqlCreds').checked ? '1' : '0'],
   ], function(d){
-    if (d.success){ applyStatus(d); flash('设置已保存', true); }
-    else flash(d.error || '保存失败', false);
+    if (d.success){ applyStatus(d); flash('Settings saved', true); }
+    else flash(d.error || 'Save failed', false);
   });
 }
 function previewPage(){
@@ -422,12 +422,12 @@ function saveCreds(){
   var cur = document.getElementById('cCur').value;
   var mu  = document.getElementById('cUser').value.trim();
   var mp  = document.getElementById('cPass').value;
-  if (!cur){ flash('请输入当前管理员密码', false); return; }
-  if (!/^[a-zA-Z0-9_]{3,20}$/.test(mu)){ flash('维护门户用户名 3-20 位字母数字下划线', false); return; }
-  if (mp.length < 8){ flash('维护门户密码至少 8 位', false); return; }
+  if (!cur){ flash('Please enter the current admin password', false); return; }
+  if (!/^[a-zA-Z0-9_]{3,20}$/.test(mu)){ flash('Maintenance username must be 3-20 letters/numbers/underscore', false); return; }
+  if (mp.length < 8){ flash('Maintenance password must be at least 8 chars', false); return; }
   api('set_creds', [['current_password', cur], ['maint_user', mu], ['maint_pass', mp]], function(d){
-    if (d.success && d.relogin){ flash('凭据已更新，正在重新登录…', true); setTimeout(function(){ location.href = 'index.php'; }, 900); }
-    else flash(d.error || '失败', false);
+    if (d.success && d.relogin){ flash('Credentials updated, re-logging in...', true); setTimeout(function(){ location.href = 'index.php'; }, 900); }
+    else flash(d.error || 'Failed', false);
   });
 }
 function doLogout(){
