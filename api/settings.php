@@ -897,10 +897,11 @@ switch ($action) {
     case 'upload_profile_bg':
         // 支持图片（png/jpeg/jpg/webp 转 PNG）或视频（mp4/webm 存原件），存 data/bgi/<uid>.{png|mp4|webm}
         $pdo = db();
-        // 封面存景字段（视频封面的位置/缩放）：pos_x/pos_y = 可视区中心百分比，zoom = 放大倍数
+        // 封面存景字段（视频封面的位置/缩放）：pos_x/pos_y = 可视区中心百分比，zoom = 放大倍数，flip = 左右镜像
         db_add_column_if_missing('users', 'bg_pos_x', "INT NOT NULL DEFAULT 50");
         db_add_column_if_missing('users', 'bg_pos_y', "INT NOT NULL DEFAULT 0");
         db_add_column_if_missing('users', 'bg_zoom', "DECIMAL(4,2) NOT NULL DEFAULT 1.00");
+        db_add_column_if_missing('users', 'bg_flip', "TINYINT(1) NOT NULL DEFAULT 0");
         $b64 = $_POST['image'] ?? '';
         $raw = null;
         $isVideo = false; $fmt = 'png';
@@ -946,8 +947,9 @@ switch ($action) {
         $posX = (int)($_POST['pos_x'] ?? 50); if ($posX < 0 || $posX > 100) $posX = 50;
         $posY = (int)($_POST['pos_y'] ?? 0);  if ($posY < 0 || $posY > 100) $posY = 0;
         $zoom = (float)($_POST['zoom'] ?? 1); if ($zoom < 1 || $zoom > 5) $zoom = 1;
-        $pdo->prepare("UPDATE users SET bg_pos_x = ?, bg_pos_y = ?, bg_zoom = ? WHERE user_id = ?")
-            ->execute([$posX, $posY, $zoom, $uid]);
+        $flip = (int)($_POST['flip'] ?? 0); if ($flip !== 1) $flip = 0;
+        $pdo->prepare("UPDATE users SET bg_pos_x = ?, bg_pos_y = ?, bg_zoom = ?, bg_flip = ? WHERE user_id = ?")
+            ->execute([$posX, $posY, $zoom, $flip, $uid]);
         $ver = time();
         $url = '../../api/file.php?type=bgi&u=' . $uid . '&v=' . $ver;
         echo json_encode(['success' => true, 'url' => $url, 'version' => $ver, 'video' => $isVideo]);
@@ -965,7 +967,7 @@ switch ($action) {
             foreach (glob($dir . '/' . $uid . '.mp4') as $old) @unlink($old);
             foreach (glob($dir . '/' . $uid . '.webm') as $old) @unlink($old);
         }
-        $pdo->prepare("UPDATE users SET profile_bg_image = NULL, profile_bg_updated_at = NULL, bg_pos_x = 50, bg_pos_y = 0, bg_zoom = 1.00 WHERE user_id = ?")->execute([$uid]);
+        $pdo->prepare("UPDATE users SET profile_bg_image = NULL, profile_bg_updated_at = NULL, bg_pos_x = 50, bg_pos_y = 0, bg_zoom = 1.00, bg_flip = 0 WHERE user_id = ?")->execute([$uid]);
         echo json_encode(['success' => true]);
         break;
 

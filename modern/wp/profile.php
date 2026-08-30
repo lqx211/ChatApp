@@ -180,16 +180,23 @@ $statusClass = $restricted ? 'rstr' : ($dnd ? 'dnd' : 'on');
 $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? '');
 // 封面存景参数（视频位置/缩放；默认 pos_x=50,pos_y=0,zoom=1 ≈ 原 center-top 行为）
 $pdo = db();
-$bgPosStmt = $pdo->prepare("SELECT bg_pos_x, bg_pos_y, bg_zoom FROM users WHERE user_id = ?");
+// 兜底建列（幂等）：旧库可能没有这些列，直接 SELECT 会 500；上传接口也会自愈，但页面加载要先保证可读
+db_add_column_if_missing('users', 'bg_pos_x', "INT NOT NULL DEFAULT 50");
+db_add_column_if_missing('users', 'bg_pos_y', "INT NOT NULL DEFAULT 0");
+db_add_column_if_missing('users', 'bg_zoom', "DECIMAL(4,2) NOT NULL DEFAULT 1.00");
+db_add_column_if_missing('users', 'bg_flip', "TINYINT(1) NOT NULL DEFAULT 0");
+$bgPosStmt = $pdo->prepare("SELECT bg_pos_x, bg_pos_y, bg_zoom, bg_flip FROM users WHERE user_id = ?");
 $bgPosStmt->execute([$userId]);
 $bgPosRow = $bgPosStmt->fetch();
 $bgPosX = (int)($bgPosRow['bg_pos_x'] ?? 50);
 $bgPosY = (int)($bgPosRow['bg_pos_y'] ?? 0);
 $bgZoom = (float)($bgPosRow['bg_zoom'] ?? 1);
+$bgFlip = (int)($bgPosRow['bg_flip'] ?? 0);
 if ($bgPosX < 0 || $bgPosX > 100) $bgPosX = 50;
 if ($bgPosY < 0 || $bgPosY > 100) $bgPosY = 0;
 if ($bgZoom < 1 || $bgZoom > 5) $bgZoom = 1;
-$bgFrameStyle = 'object-position:' . $bgPosX . '% ' . $bgPosY . '%;transform-origin:' . $bgPosX . '% ' . $bgPosY . '%;transform:scale(' . number_format($bgZoom, 2, '.', '') . ')';
+$bgTransform = 'scale(' . number_format($bgZoom, 2, '.', '') . ')' . ($bgFlip ? ' scaleX(-1)' : '');
+$bgFrameStyle = 'object-position:' . $bgPosX . '% ' . $bgPosY . '%;transform-origin:' . $bgPosX . '% ' . $bgPosY . '%;transform:' . $bgTransform;
 ?>
 <!DOCTYPE html>
 <html lang="zh">
