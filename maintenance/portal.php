@@ -216,25 +216,24 @@ $__mysqlOk = chatapp_portal_mysql_ok();
   .flash{position:fixed;top:16px;right:16px;z-index:1000;padding:10px 16px;border-radius:0;font-size:.84em;display:none}
   .flash.ok{background:#2e5d43;color:#c8f5d8;border:1px solid #3a704f}
   .flash.err{background:#6e2d2d;color:#ffd0d0;border:1px solid #8a3a3a}
-  .maint-nav-ico{font-size:16px;margin-right:8px;vertical-align:-2px}
 </style>
 </head>
 <body>
  <!-- 加载动画 -->
  <div id="loader-wrapper"><div class="loader"><div class="circle"></div><div style="margin-top:26px">Maintenance Portal</div></div></div>
 
- <!-- ============ 侧边栏（复刻 chat.php，替换为门户导航） ============ -->
+ <!-- ============ 侧边栏（与 chat.php 完全一致的类与结构，无 emoji） ============ -->
  <div class="sidebar">
    <div class="sidebar-profile">
-    <div class="sa" style="background:linear-gradient(135deg,#3a4a6a,#1f2937);display:flex;align-items:center;justify-content:center;font-size:22px">🛠</div>
+    <div class="sa"></div>
     <div class="sun">Maintenance Portal</div>
     <div class="sdnd <?php echo $__st['is_maintenance'] ? 'rstr' : 'on'; ?>" id="maintStatusBadge"><?php echo $__st['is_maintenance'] ? '维护中' : '运行中'; ?></div>
    </div>
    <div class="sidebar-nav">
-    <div class="ng"><div class="ngh" onclick="showPanel('dash')" style="cursor:pointer"><span><span class="maint-nav-ico">📊</span><?php echo '仪表盘 Dashboard'; ?></span></div></div>
-    <div class="ng"><div class="ngh" onclick="showPanel('settings')" style="cursor:pointer"><span><span class="maint-nav-ico">⚙️</span><?php echo '维护设置 Settings'; ?></span></div></div>
-    <div class="ng"><div class="ngh" onclick="showPanel('creds')" style="cursor:pointer"><span><span class="maint-nav-ico">🔑</span><?php echo '门户凭据 Credentials'; ?></span></div></div>
-    <div class="ng"><div class="ngh" onclick="showPanel('links')" style="cursor:pointer"><span><span class="maint-nav-ico">🔗</span><?php echo '快捷链接 Quick Links'; ?></span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('dash')" style="cursor:pointer"><span>仪表盘 Dashboard</span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('settings')" style="cursor:pointer"><span>维护设置 Settings</span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('creds')" style="cursor:pointer"><span>门户凭据 Credentials</span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('links')" style="cursor:pointer"><span>快捷链接 Quick Links</span></div></div>
    </div>
    <div class="sidebar-footer">
     <div class="ngh" onclick="doLogout()" style="cursor:pointer"><span>退出门户 Logout</span></div>
