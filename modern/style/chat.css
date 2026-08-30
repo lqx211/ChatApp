@@ -1060,3 +1060,11 @@ input[type="date"]:focus {
   transition: transform .28s cubic-bezier(.4,0,.2,1); transform-origin: left;
 }
 .uinput:focus-within::after { transform: scaleX(1); }
+
+/* ===== 批量文件发送（多选/拖拽预览） ===== */
+.drop-target { outline: 2px dashed #4a9dd8 !important; outline-offset: -4px; }
+.batch-file { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #2f2f2f; font-size: .8em; color: #ddd; word-break: break-all; }
+.batch-file:last-child { border-bottom: none; }
+.batch-file .bf-ico { flex-shrink: 0; font-size: 1em; }
+.batch-file .bf-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.batch-file .bf-size { flex-shrink: 0; color: #888; font-size: .9em; }

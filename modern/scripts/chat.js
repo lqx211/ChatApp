@@ -450,6 +450,103 @@ function cancelAttachment() {
     attBtnId = null;
 }
 
+/* ==================== 批量文件：多选/拖拽 → 预览数量 → 确认 → 逐个普通发送 ==================== */
+function mediaFilesChosen(input, kind) {
+    var files = input.files ? Array.prototype.slice.call(input.files) : [];
+    if (!files.length) return;
+    if (files.length === 1) {
+        // 单文件保持原行为：普通附件预览 → 确认发送
+        previewAttachment(input, kind === 'ann' ? sendAnnouncement : sendDmMessage, kind === 'ann' ? 'sendBtn' : 'dmSendBtn');
+        return;
+    }
+    input.value = '';
+    openBatchPreview(files, kind);
+}
+
+var _batchFiles = [];
+var _batchKind = '';
+function openBatchPreview(files, kind) {
+    _batchFiles = files;
+    _batchKind = kind;
+    var recipient = (kind === 'ann') ? T('title_announcements', 'Announcements') : (D || 'this chat');
+    document.getElementById('batchTitle').textContent = T('batch_title', 'Send files');
+    document.getElementById('batchTo').textContent = T('batch_to', 'Send %s files to').replace('%s', files.length) + ' ' + recipient;
+    var list = document.getElementById('batchList');
+    list.innerHTML = '';
+    var total = 0;
+    for (var i = 0; i < files.length; i++) {
+        total += (files[i].size || 0);
+        var li = document.createElement('div');
+        li.className = 'batch-file';
+        li.innerHTML = '<span class="bf-ico">📄</span><span class="bf-name">' + eh(files[i].name) + '</span><span class="bf-size">' + fmtSize(files[i].size || 0) + '</span>';
+        list.appendChild(li);
+    }
+    document.getElementById('batchInfo').textContent = T('batch_total', 'Total: %s').replace('%s', fmtSize(total));
+    document.getElementById('batchModal').classList.add('active');
+}
+function cancelBatch() {
+    document.getElementById('batchModal').classList.remove('active');
+    _batchFiles = []; _batchKind = '';
+}
+function confirmBatch() {
+    var files = _batchFiles, kind = _batchKind;
+    _batchFiles = []; _batchKind = '';
+    document.getElementById('batchModal').classList.remove('active');
+    sendFilesOneByOne(files, kind);
+}
+async function sendFilesOneByOne(files, kind) {
+    for (var i = 0; i < files.length; i++) {
+        await sendOneNormalAttachment(files[i], kind);
+    }
+}
+function sendOneNormalAttachment(file, kind) {
+    return new Promise(function(resolve) {
+        var reader = new FileReader();
+        reader.onerror = function() { resolve(false); };
+        reader.onload = async function(ev) {
+            var obj = { data: ev.target.result, name: file.name, type: file.type };
+            try {
+                if (kind === 'ann') { pendingMedia = obj; await sendAnnouncement(); }
+                else { pendingDmMedia = obj; await sendDmMessage(); }
+            } catch (e) {}
+            resolve(true);
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+/* 拖拽文件到消息区 → 批量预览 */
+function setupDropZone(el, kind) {
+    if (!el) return;
+    ['dragenter', 'dragover'].forEach(function(evt) {
+        el.addEventListener(evt, function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            el.classList.add('drop-target');
+        });
+    });
+    ['dragleave', 'drop'].forEach(function(evt) {
+        el.addEventListener(evt, function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            el.classList.remove('drop-target');
+        });
+    });
+    el.addEventListener('drop', function(e) {
+        e.preventDefault();
+        var files = (e.dataTransfer && e.dataTransfer.files) ? Array.prototype.slice.call(e.dataTransfer.files) : [];
+        if (!files.length) return;
+        if (kind === 'dm' && !D) { xalert(T('batch_need_chat', '请先选择一个聊天对象')); return; }
+        openBatchPreview(files, kind);
+    });
+}
+function initDropZones() {
+    setupDropZone(document.getElementById('dmMessagesArea'), 'dm');
+    setupDropZone(document.getElementById('messagesArea'), 'ann');
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initDropZones);
+else initDropZones();
+
 /* ============ 语音消息（MediaRecorder → 音频附件） ============ */
 var _voiceRec = null;
 var _voiceTimerInt = null;
@@ -5555,9 +5652,15 @@ document.addEventListener('click', function (e) {
 });
 
 function flashFileChosen(input, target) {
-    var f = input.files[0];
+    var files = input.files ? Array.prototype.slice.call(input.files) : [];
     input.value = '';
-    if (!f) return;
+    if (!files.length) return;
+    if (files.length > 1) {
+        // 多文件：走批量预览 → 逐个普通发送
+        openBatchPreview(files, target === 'dm' ? 'dm' : 'ann');
+        return;
+    }
+    var f = files[0];
     if (f.size > 8 * 1024 * 1024 * 1024) {
         xalert(T('flash_too_large', '文件过大'));
         return;
