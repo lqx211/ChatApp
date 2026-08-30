@@ -11,6 +11,7 @@ return [
     'login_username_toooo_long' => '你这用户名不对劲，咋这么长呢？',
     'login_username_too_short' => '你这用户名这么短，老实交代你吃了多少？',
     'msg_too_many_attempts' => 'Too many attempts!',
+    'msg_account_locked' => 'Account temporarily locked due to too many failed attempts. Try again in about %s min.',
     // General
     'enterchat_loading_pagename' => 'ChatApp',
     'enterchat_loading_loadstr'  => 'Loading',

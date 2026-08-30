@@ -608,10 +608,29 @@ $bgWallpaper = (int)$_SESSION['wallpaper'];
             el.classList.add('show');
         }
 
+        // 账号锁定：显示剩余时间实时倒计时（mm:ss）
+        function showLockedError(data) {
+            var el = document.getElementById('errorMsg');
+            var remaining = Math.max(0, (data.locked_seconds || 0));
+            var base = data.error || 'Account locked.';
+            clearInterval(window._lockTimer);
+            function tick() {
+                var m = Math.floor(remaining / 60), ss = remaining % 60;
+                el.textContent = base + ' (' + m + ':' + ('0' + ss).slice(-2) + ')';
+                el.classList.add('show');
+                if (remaining <= 0) { clearInterval(window._lockTimer); window._lockTimer = null; return; }
+                remaining--;
+            }
+            tick();
+            window._lockTimer = setInterval(tick, 1000);
+        }
+
         function hideError() {
             var el = document.getElementById('errorMsg');
             el.classList.remove('show');
             el.textContent = '';
+            clearInterval(window._lockTimer);
+            window._lockTimer = null;
         }
 
         function renderRestricted(displayName, reason) {
@@ -789,6 +808,9 @@ $bgWallpaper = (int)$_SESSION['wallpaper'];
                 } else if (data.restricted) {
                     resetButton(btn, origLabel);
                     showRestricted(data);
+                } else if (data.locked) {
+                    resetButton(btn, origLabel);
+                    showLockedError(data);
                 } else {
                     resetButton(btn, origLabel);
                     showError(powErrorText(data));

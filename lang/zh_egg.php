@@ -16,6 +16,7 @@ return [
     'login_username_toooo_long' => '你这用户名不对劲，咋这么长呢？',
     'login_username_too_short' => '你这用户名这么短，老实交代你吃了多少？',
     'msg_too_many_attempts' => '请求过多',
+    'msg_account_locked' => '因密码错误次数过多，账号已临时锁定，请约 %s 分钟后重试',
 
     // General
     'enterchat_loading_pagename' => 'ChatApp',

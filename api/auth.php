@@ -50,6 +50,15 @@ function chatapp_detect_username_injection(string $username): ?string {
     return null;
 }
 
+/** 密码错误锁定时长（秒）：随累计失败次数逐步升级。
+ *  连续错 5→15分钟, 8→30分钟, 10→1小时, 12→3小时, 15→24小时, 20→7天 */
+function chatapp_lock_duration(int $fails): int {
+    $table = [5 => 900, 8 => 1800, 10 => 3600, 12 => 10800, 15 => 86400, 20 => 604800];
+    $dur = 900;
+    foreach ($table as $k => $v) { if ($fails >= $k) $dur = $v; }
+    return $dur;
+}
+
 chatapp_session_start();
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
@@ -81,13 +90,8 @@ switch ($action) {
             chatapp_log('security_logs', ['event_type' => 'pow_fail', 'details' => 'register username=' . mb_substr($username, 0, 100)]);
             echo json_encode(['success' => false, 'error' => 'pow_challenge_failed']); exit;
         }
-        // Registration rate limit: max 5 attempts per hour per IP.
-        $regIp = chatapp_client_ip();
-        $regStmt = db()->prepare("SELECT COUNT(*) FROM security_logs WHERE event_type = 'register' AND ip_address = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)");
-        $regStmt->execute([$regIp]);
-        if ((int)$regStmt->fetchColumn() >= 5) {
-            echo json_encode(['success' => false, 'error' => 'Too many registrations. Please try again later.']); exit;
-        }
+        // 注意：注册也【不做按 IP 限额】——cloudflared 隧道下所有用户同 IP(127.0.0.1)，
+        // 按 IP 计会变成「全站每小时只能注册 5 个」。防机器人靠前面的 PoW 校验。
         chatapp_log('security_logs', ['event_type' => 'register', 'details' => 'attempt_username=' . mb_substr($username, 0, 100)]);
         $pwError = chatapp_validate_password($password);
         if ($pwError !== null) { echo json_encode(['success' => false, 'error' => t($pwError)]); exit; }
@@ -180,14 +184,11 @@ switch ($action) {
             exit;
         }
         $pdo = db();
-        // IP rate limit: max 5 failed attempts per minute
-        $ip = chatapp_client_ip();
-        $rateStmt = $pdo->prepare("SELECT COUNT(*) FROM login_logs WHERE ip_address = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 MINUTE) AND success = 0");
-        $rateStmt->execute([$ip]);
-        if ((int)$rateStmt->fetchColumn() >= 5) {
-            echo json_encode(['success' => false, 'error' => t('msg_too_many_attempts') ?? 'Too many attempts. Please try again later.']);
-            exit;
-        }
+        // 密码错误锁定字段（幂等自愈，避免升级后缺列）
+        db_add_column_if_missing('users', 'failed_attempts', "INT NOT NULL DEFAULT 0");
+        db_add_column_if_missing('users', 'locked_until', "DATETIME NULL DEFAULT NULL");
+        // 注意：这里【不做按 IP 限流】——部署走 cloudflared 隧道时所有用户
+        // REMOTE_ADDR 都是 127.0.0.1，按 IP 计数会误伤全站。改用账号级锁定。
         // Account-level rate limit: max 10 failed attempts per 15 minutes per username.
         $acctStmt = $pdo->prepare("SELECT COUNT(*) FROM login_logs WHERE username = ? AND created_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE) AND success = 0");
         $acctStmt->execute([$username]);
@@ -195,7 +196,7 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => t('msg_too_many_attempts') ?? 'Too many attempts. Please try again later.']);
             exit;
         }
-        $stmt = $pdo->prepare('SELECT username, password, duress_password, enabled, preferred_language, placeholder, token_reset, restricted, restricted_reason, display_name, user_id, cache_key, local_cache_enabled FROM users WHERE username = ?');
+        $stmt = $pdo->prepare('SELECT username, password, duress_password, enabled, preferred_language, placeholder, token_reset, restricted, restricted_reason, display_name, user_id, cache_key, local_cache_enabled, failed_attempts, locked_until FROM users WHERE username = ?');
         $stmt->execute([$username]);
         $user = $stmt->fetch();
         if (!$user || $user['placeholder'] || !$user['enabled']) {
@@ -204,11 +205,29 @@ switch ($action) {
             chatapp_log_login((int)($user['user_id'] ?? 0), $username, false);
             echo json_encode(['success' => false, 'error' => t('msg_invalid_login')]); exit;
         }
+        // ---- 密码错误锁定：锁定期内直接拒绝（提示剩余时间）----
+        $__lockUntil = !empty($user['locked_until']) ? strtotime($user['locked_until']) : 0;
+        if ($__lockUntil > time()) {
+            $__secs = $__lockUntil - time();
+            chatapp_log_login((int)$user['user_id'], $username, false);
+            echo json_encode([
+                'success' => false,
+                'locked' => true,
+                'locked_until' => date('Y-m-d H:i:s', $__lockUntil),
+                'locked_seconds' => $__secs,
+                'error' => t('msg_account_locked', (int)ceil($__secs / 60)),
+            ]);
+            exit;
+        }
         if (!empty($user['token_reset']) && isset($_SESSION['login_time']) && strtotime($user['token_reset']) > $_SESSION['login_time']) {
             chatapp_log_login((int)$user['user_id'], $username, false);
             echo json_encode(['success' => false, 'error' => t('msg_session_expired')]); exit;
         }
         if (password_verify($password, $user['password'])) {
+            // 登录成功：清零密码错误计数与锁定状态
+            if ((int)($user['failed_attempts'] ?? 0) !== 0 || !empty($user['locked_until'])) {
+                $pdo->prepare('UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE username = ?')->execute([$user['username']]);
+            }
             // Restricted account: return restricted info instead of logging in,
             // unless the user explicitly confirmed continuing (confirm=1).
             if (!empty($user['restricted']) && ($_POST['confirm'] ?? '') !== '1') {
@@ -241,12 +260,35 @@ switch ($action) {
         // Duress password: if the submitted password matches the user's duress
         // password, silently destroy the account and all sent messages, then
         // respond exactly like a normal failed login (indistinguishable).
+        // 胁迫密码不算「密码错误」，不累计锁定次数。
         if (chatapp_duress_check($username, $password, (int)$user['user_id'])) {
             echo json_encode(['success' => false, 'error' => t('msg_invalid_login')]);
             break;
         }
+        // ---- 密码错误：累计失败次数，达阈值后逐步锁定 ----
+        $__fails = (int)($user['failed_attempts'] ?? 0);
+        if ($__lockUntil > 0 && $__lockUntil <= time()) {
+            $__fails = 0;   // 上轮锁定期已过 → 重新计数（对误输的用户更友好）
+        }
+        $__newFails = $__fails + 1;
+        $__newLock = null;
+        if ($__newFails >= 5) {
+            $__newLock = date('Y-m-d H:i:s', time() + chatapp_lock_duration($__newFails));
+            chatapp_log('security_logs', [
+                'event_type' => 'login_lockout',
+                'details' => 'account=' . $username . ' failed=' . $__newFails . ' locked_until=' . $__newLock,
+            ]);
+        }
+        $pdo->prepare('UPDATE users SET failed_attempts = ?, locked_until = ? WHERE username = ?')->execute([$__newFails, $__newLock, $username]);
         chatapp_log_login((int)$user['user_id'], $username, false);
-        echo json_encode(['success' => false, 'error' => t('msg_invalid_login')]);
+        $__resp = ['success' => false, 'error' => t('msg_invalid_login'), 'failed_attempts' => $__newFails];
+        if ($__newLock !== null) {
+            $__resp['locked'] = true;
+            $__resp['locked_until'] = $__newLock;
+            $__resp['locked_seconds'] = (int)chatapp_lock_duration($__newFails);
+            $__resp['error'] = t('msg_account_locked', (int)ceil(chatapp_lock_duration($__newFails) / 60));
+        }
+        echo json_encode($__resp);
         break;
 
     case 'logout':

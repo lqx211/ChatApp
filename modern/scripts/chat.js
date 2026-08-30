@@ -1600,6 +1600,9 @@ async function openUserDetail(username) {
     h += '<div class="ng"><div class="ngh" onclick="usAction(\'us_set_restrict_reason\')" style="cursor:pointer"><span>Set restrict reason</span></div></div>';
     h += '<div class="ng"><div class="ngh" onclick="usAction(\'us_toggle_dnd\')" style="cursor:pointer"><span>Toggle DND</span></div></div>';
     h += '<div class="ng"><div class="ngh" onclick="usAction(\'us_expire_tokens\')" style="cursor:pointer"><span>Expire all login tokens</span></div></div>';
+    if (u.locked) {
+        h += '<div class="ng"><div class="ngh" onclick="usAction(\'us_unlock\')" style="cursor:pointer"><span>Unlock account (reset failed attempts)</span></div></div>';
+    }
     h += '<div class="ng"><div class="ngh" onclick="usAction(\'us_send_friend_request\')" style="cursor:pointer"><span>Send friend request</span></div></div>';
     if (u.friend_relation === 'accepted') {
         h += '<div class="ng"><div class="ngh" onclick="usAction(\'us_remove_friend\')" style="cursor:pointer"><span>Remove friend</span></div></div>';
@@ -1624,7 +1627,8 @@ async function openUserDetail(username) {
         'Restrict reason: ' + eh(u.restricted_reason || '-') + '<br>' +
         'Level: ' + eh(u.level || 1) + '<br>' +
         'Total Exp: ' + eh(u.exp || 0) + '<br>' +
-        'DND: ' + (u.dnd ? 'Yes' : 'No') + '</div>';
+        'DND: ' + (u.dnd ? 'Yes' : 'No') + '<br>' +
+        (u.locked ? ('Locked: Yes (until ' + eh(u.locked_until || '-') + ')') : ('Failed attempts: ' + eh(String(u.failed_attempts || 0)))) + '</div>';
     nav.innerHTML = h;
     document.getElementById('sidebarNavDefault').style.display = 'none';
 }
@@ -1734,6 +1738,23 @@ async function usAction(type) {
         });
         var d = await r.json();
         xalert(d.success ? 'Logged out.' : 'Failed.');
+        return;
+    }
+    if (type === 'us_unlock') {
+        if ((await xconfirm('Unlock account ' + u + '? This resets failed login attempts.')) !== true) return;
+        var f = new URLSearchParams();
+        f.append('action', 'unlock_account');
+        f.append('username', u);
+        var r = await fetch('../../api/admin.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: f.toString()
+        });
+        var d = await r.json();
+        if (d.success) openUserDetail(u);
+        else xalert('Failed.');
         return;
     }
     if (type === 'us_login_as') {

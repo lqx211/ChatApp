@@ -181,7 +181,7 @@ switch ($action) {
     case 'user_detail':
         $username = trim($_GET['username'] ?? '');
         if (empty($username)) { echo json_encode(['success'=>false]); exit; }
-        $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, enabled, restricted, restricted_reason, placeholder, dnd, role, created_at, last_login, exp, level FROM users WHERE username = ?");
+        $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, enabled, restricted, restricted_reason, placeholder, dnd, role, created_at, last_login, exp, level, failed_attempts, locked_until FROM users WHERE username = ?");
         $stmt->execute([$username]);
         $u = $stmt->fetch();
         if (!$u) { echo json_encode(['success'=>false]); exit; }
@@ -191,6 +191,10 @@ switch ($action) {
         elseif ($u['restricted']) $st = 'Restricted';
         elseif (!$u['enabled']) $st = 'Disabled';
         $u['status_label'] = $st;
+        // 密码错误锁定状态（供管理员查看/解锁）
+        $u['failed_attempts'] = (int)($u['failed_attempts'] ?? 0);
+        $u['locked'] = (!empty($u['locked_until']) && strtotime((string)$u['locked_until']) > time()) ? 1 : 0;
+        $u['locked_until'] = $u['locked_until'] ?? null;
         $cs = $pdo->prepare("SELECT status FROM contacts WHERE (user_from=? AND user_to=?) OR (user_from=? AND user_to=?)");
         $cs->execute([$myUid, (int)$u['user_id'], (int)$u['user_id'], $myUid]);
         $rel = $cs->fetch();
@@ -263,6 +267,16 @@ switch ($action) {
         }
         echo json_encode(['success'=>true]);
         chatapp_log_admin('change_status', $uid, $username, ['new' => $status]);
+        break;
+
+    case 'unlock_account':
+        if (!chatapp_has_permission($myUid, 'users.edit_role')) { echo json_encode(['success'=>false]); exit; }
+        $username = trim($_POST['username'] ?? '');
+        $uid = _uid($pdo, $username);
+        if ($uid <= 0) { echo json_encode(['success'=>false]); exit; }
+        $pdo->prepare("UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE user_id = ?")->execute([$uid]);
+        echo json_encode(['success' => true]);
+        chatapp_log_admin('unlock_account', $uid, $username, []);
         break;
 
     case 'set_restrict_reason':
