@@ -171,6 +171,7 @@ img{border:0;vertical-align:middle}
 .f-single{background:var(--q-card);border-radius:0;border:1px solid var(--q-border);padding:16px 16px 10px;margin-bottom:12px}
 .f-single .f-single-head{display:flex;gap:10px;margin-bottom:10px}
 .f-single .user-avatar{width:50px;height:50px;border-radius:50%;object-fit:cover;flex:none;background:#333;cursor:pointer}
+.f-single .user-avatar.av-empty{display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;background:#5b616b;cursor:default}
 .f-single .user-info{flex:1;min-width:0}
 .f-single .f-nick{font-size:14px;font-weight:700;color:var(--q-blue);cursor:pointer}
 .f-single .info-detail{margin-top:2px;font-size:12px;color:#888}

@@ -339,7 +339,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
               <?php foreach ($feedRows as $f): ?>
               <li class="f-single" data-id="<?php echo (int)$f['id'];?>">
                 <div class="f-single-head">
-                  <?php if ($avatarUrl):?><img class="user-avatar" src="<?php echo htmlspecialchars($avatarUrl);?>" alt=""><?php endif;?>
+                  <?php if ($avatarUrl):?><img class="user-avatar" src="<?php echo htmlspecialchars($avatarUrl);?>" alt=""><?php else:?><span class="user-avatar av-empty"><?php echo htmlspecialchars($ch);?></span><?php endif;?>
                   <div class="user-info">
                     <div class="f-nick"><?php echo htmlspecialchars($displayName);?></div>
                     <div class="info-detail"><?php echo htmlspecialchars($f['time']);?><?php if ($isSelf):?> · <span class="f-vis"><?php echo space_vis_label((int)$f['vis']);?></span><?php endif;?></div>
