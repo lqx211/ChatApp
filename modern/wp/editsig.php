@@ -47,6 +47,14 @@ $sig = $currentUser['custom_title'] ?? '';
   </div>
   <div class="sig-count"><span id="countVal"><?php echo mb_strlen($sig);?></span>/100</div>
 
+  <!-- 同步到个人空间：保存签名时发布一条内容为签名的朋友圈 -->
+  <div class="form-row" style="cursor:default">
+    <span class="row-label">同步到个人空间</span>
+    <input type="checkbox" class="ios-switch" id="sigSync">
+    <label for="sigSync" class="ios-switch-label" style="margin-left:auto"></label>
+  </div>
+  <div class="hint-text" style="padding-top:4px">开启后，保存签名时会发布一条内容为签名的朋友圈</div>
+
   <div class="section-divider"></div>
   <div class="form-row" onclick="openSigPrivacy()">
     <span class="row-label">签名隐私设置</span>
@@ -96,12 +104,25 @@ function saveSig() {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: f.toString()
   }).then(function (r) { return r.json(); }).then(function (d) {
-    if (d.success) {
-      showToast();
-      setTimeout(goBack, 650);
-    } else {
-      alert('保存失败');
+    if (!d.success) { alert('保存失败'); return; }
+    // 同步到个人空间：开启且签名非空时，发布一条内容为签名的朋友圈
+    var sync = document.getElementById('sigSync');
+    if (sync && sync.checked && v) {
+      var f2 = new URLSearchParams();
+      f2.append('action', 'post');
+      f2.append('content', v);
+      fetch('../../api/space.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: f2.toString()
+      }).then(function (r) { return r.json(); }).then(function (d2) {
+        showToast();
+        setTimeout(goBack, 650);
+      }).catch(function () { showToast(); setTimeout(goBack, 650); });
+      return;
     }
+    showToast();
+    setTimeout(goBack, 650);
   });
 }
 </script>
