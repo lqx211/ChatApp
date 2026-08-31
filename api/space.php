@@ -192,11 +192,14 @@ switch ($action) {
 
     /* ============ 动态中心聚合流（我的/好友/特别关心） ============ */
     case 'stream':
-        // filter: mine=我的动态  friends=所有好友  special=特别关心好友
+        // filter: mine=我的动态  friends=所有好友  special=特别关心好友  user=指定用户(TA的动态)
         $filter = trim($_GET['filter'] ?? 'mine');
+        $targetUid = (int)($_GET['uid'] ?? 0);   // 仅 filter=user 时有效
         $authorIds = [];
         if ($filter === 'mine') {
             $authorIds = [$myUid];
+        } elseif ($filter === 'user') {
+            $authorIds = $targetUid > 0 ? [$targetUid] : [];
         } else {
             $fq = $pdo->query("SELECT user_to AS uid FROM contacts WHERE user_from=$myUid AND status='accepted' "
                 . "UNION SELECT user_from AS uid FROM contacts WHERE user_to=$myUid AND status='accepted'");
@@ -206,6 +209,9 @@ switch ($action) {
                 $authorIds = array_map('intval', array_filter($spq->fetchAll(PDO::FETCH_COLUMN)));
             }
         }
+        // 「TA的动态」非本人时：仅好友可见(vis=1)的动态需好友关系校验
+        $isFriendTarget = ($filter === 'user' && $targetUid > 0 && $targetUid !== $myUid)
+            ? space_is_friend($pdo, $myUid, $targetUid) : true;
         $authorIds = array_values(array_unique($authorIds));
         // 我特别关心的好友集合
         $specialSet = [];
@@ -234,6 +240,7 @@ switch ($action) {
                 $vis = (int)$f['visibility'];
                 // 可见度过滤（viewer = myUid）
                 if ($vis === 4 && $auid !== $myUid) continue;                          // 仅自己
+                if ($vis === 1 && $auid !== $myUid && !$isFriendTarget) continue;      // 仅好友可见
                 if ($vis === 2) { $vt = space_parse_ids($f['visible_to']); if (!in_array($myUid, $vt, true)) continue; }  // 部分好友可见
                 if ($vis === 3) { $vt = space_parse_ids($f['visible_to']); if (in_array($myUid, $vt, true)) continue; }  // 部分好友不可见
                 $likedBy = space_parse_ids($f['liked_by']);

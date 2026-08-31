@@ -63,6 +63,7 @@ $uid = (int)$u['user_id'];
 // 页面展示的 UID：优先用 URL 传入的 ?uid= 值（非数字→0），未知/已删除用户也显示所访问的 UID
 $displayUid = $viewUid > 0 ? $viewUid : $uid;
 $meUid = (int)($currentUser['user_id'] ?? 0);
+$meAvatarUrl = chatapp_avatar_url($currentUser['avatar'] ?? '', $meName, $meUid);
 $spaceTitle = $displayName . '的空间';
 
 // 桌面版个人空间：不用个人上传封面（缩放观感差），从 modern/bg/ 随机选默认壁纸
@@ -177,7 +178,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
       </div>
       <div class="user-info">
         <a class="user-home" href="space.php">
-          <?php if ($avatarUrl):?><img class="user-avatar" src="<?php echo htmlspecialchars($avatarUrl);?>" alt=""><?php endif;?>
+          <?php if ($meAvatarUrl):?><img class="user-avatar" src="<?php echo htmlspecialchars($meAvatarUrl);?>" alt=""><?php endif;?>
           <span class="user-name textoverflow"><?php echo htmlspecialchars($currentUser['display_name'] ?: $currentUser['username']);?></span>
         </a>
         <a class="logout-new" onclick="spLogout()">退出</a>
@@ -269,7 +270,10 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
             <div class="hd">动态</div>
             <div class="inner"><div class="bd">
               <ul class="sn-list" id="feedTypes">
-                <li class="current" data-f="mine"><a onclick="spStream('mine')"><span class="sn-ico c1"><?php echo sp_ic('people');?></span><span class="sn-title">我的动态</span></a></li>
+                <?php if (!$isSelf): ?>
+                <li class="current" data-f="their"><a onclick="spStream('user')"><span class="sn-ico c1"><?php echo sp_ic('people');?></span><span class="sn-title">TA的动态</span></a></li>
+                <?php endif; ?>
+                <li class="<?php echo $isSelf ? 'current' : '';?>" data-f="mine"><a onclick="spStream('mine')"><span class="sn-ico c1"><?php echo sp_ic('people');?></span><span class="sn-title">我的动态</span></a></li>
                 <li data-f="friends"><a onclick="spStream('friends')"><span class="sn-ico c2"><?php echo sp_ic('people');?></span><span class="sn-title">好友动态</span></a></li>
                 <li data-f="me"><a onclick="spLoadMentions()"><span class="sn-ico c3"><?php echo sp_ic('me');?></span><span class="sn-title">与我相关</span><span class="sn-badge" id="spMeBadge" style="display:none"></span></a></li>
                 <li data-f="care"><a onclick="spStream('special')"><span class="sn-ico c4"><?php echo sp_ic('star');?></span><span class="sn-title">特别关心</span></a></li>
@@ -625,12 +629,14 @@ function spStream(filter) {
   spGoTab('home');
   // 未知/已删除用户：动态全空
   if (!SP_SPACE.uid) { renderStreamFeeds([]); return; }
-  // 高亮左侧 feedTypes：mine/friends → 对应 data-f，special → care
-  var map = { mine: 'mine', friends: 'friends', special: 'care' };
+  // 高亮左侧 feedTypes：mine/friends/special → 对应 data-f；user(TA的动态) → their
+  var map = { mine: 'mine', friends: 'friends', special: 'care', user: 'their' };
   [].forEach.call(document.querySelectorAll('#feedTypes li'), function (li) {
     li.classList.toggle('current', li.getAttribute('data-f') === (map[filter] || 'mine'));
   });
-  fetch('../../api/space.php?action=stream&filter=' + encodeURIComponent(filter), { credentials: 'same-origin' })
+  var url = '../../api/space.php?action=stream&filter=' + encodeURIComponent(filter);
+  if (filter === 'user') url += '&uid=' + SP_SPACE.uid;
+  fetch(url, { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (d) { if (d && d.success) { renderStreamFeeds(d.feeds || []); } })
     .catch(function () {});
