@@ -225,7 +225,7 @@ function chatapp_read_actions(array $readOnly, string $action): void {
 function chatapp_get_user(): ?array {
     chatapp_session_start();
     if (isset($_SESSION['username'])) {
-        $stmt = db()->prepare('SELECT user_id, username, display_name, preferred_language, avatar, custom_title, searchable, searchable_by_uid, timezone, data_saver, dnd, placeholder, restricted, role, emoji_panel_mode, emoji_chat_mode, exp, level, likes, pin_self, created_at, cache_key, local_cache_enabled, gender, birthday, gender_privacy, bg_image, bg_updated_at, bg_privacy, bg_blacklist, bg_whitelist, bg_no_friend, bg_private_image, profile_bg_image, profile_bg_updated_at, notif_system, notif_banner, typing_visible, stranger_invite_group, stranger_like, anyone_add_friend, sig_privacy, sig_blacklist, sig_whitelist, sig_no_friend, sig_hidden_text FROM users WHERE username = ?');
+        $stmt = db()->prepare('SELECT user_id, username, display_name, preferred_language, avatar, custom_title, searchable, searchable_by_uid, timezone, data_saver, dnd, placeholder, restricted, role, emoji_panel_mode, emoji_chat_mode, exp, level, likes, pin_self, created_at, cache_key, local_cache_enabled, gender, birthday, gender_privacy, bg_image, bg_updated_at, bg_privacy, bg_blacklist, bg_whitelist, bg_no_friend, bg_private_image, profile_bg_image, profile_bg_updated_at, notif_system, notif_banner, typing_visible, stranger_invite_group, stranger_like, anyone_add_friend, sig_privacy, sig_blacklist, sig_whitelist, sig_no_friend, sig_hidden_text, space_ears FROM users WHERE username = ?');
         $stmt->execute([$_SESSION['username']]);
         $user = $stmt->fetch();
         if ($user) {
@@ -969,6 +969,8 @@ function init_db(): void {
     db_add_column_if_missing('users', 'likes', "INT NOT NULL DEFAULT 0");
     db_add_column_if_missing('users', 'auto_focus_input', "TINYINT(1) NOT NULL DEFAULT 1");
     db_add_column_if_missing('users', 'pin_self', "TINYINT(1) NOT NULL DEFAULT 1");
+    // ---- 个人空间：电脑版耳朵挂件开关（默认开） ----
+    db_add_column_if_missing('users', 'space_ears', "TINYINT(1) NOT NULL DEFAULT 1");
     // ---- 黑名单（设置页 · 黑名单管理） ----
     $pdo->exec("CREATE TABLE IF NOT EXISTS user_blocks (
         user_id INT UNSIGNED NOT NULL,

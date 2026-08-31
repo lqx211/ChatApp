@@ -649,6 +649,7 @@ return [
     'e_done' => '完成',
     'e_hint' => '设置为公开的内容，会用作社交信息对外公开展示。',
     'e_avatar' => '头像',
+    'e_space_ears' => '电脑版开启耳朵效果',
     'e_not_set' => '未设置',
     'e_signature' => '签名',
     'e_nickname' => '昵称',

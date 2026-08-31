@@ -232,6 +232,17 @@ switch ($action) {
         echo json_encode(['success' => true]);
         break;
 
+    case 'save_space_ears':
+        // 个人空间「电脑版开启耳朵效果」开关
+        $on = $_POST['enabled'] ?? '';
+        if ($on !== '0' && $on !== '1') { echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit; }
+        $oldE = chatapp_profile_old('space_ears');
+        $newE = (int)$on;
+        db()->prepare('UPDATE users SET space_ears = ? WHERE username = ?')->execute([$newE, $_SESSION['username']]);
+        if ((string)($oldE ?? '') !== (string)$newE) chatapp_log_profile_edit('space_ears', $oldE, $newE);
+        echo json_encode(['success' => true]);
+        break;
+
     case 'save_birthday':
         $b = trim($_POST['birthday'] ?? '');
         if ($b === '') {

@@ -12,6 +12,7 @@ $genderPrivacy = (int)($currentUser['gender_privacy'] ?? 0);
 $privacyLabels = [0 => t('e_privacy_all'), 1 => t('e_privacy_friends'), 2 => t('e_privacy_none')];
 $birthday = $currentUser['birthday'] ?? '';
 $location = $currentUser['location'] ?? '';
+$spaceEars = (int)($currentUser['space_ears'] ?? 1);
 
 function val($v, $placeholder = null) {
     if ($placeholder === null) $placeholder = t('e_not_set');
@@ -25,7 +26,7 @@ function ph($v) { return $v === '' || $v === null ? ' placeholder' : ''; }
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
 <title><?php echo t('e_title');?></title>
-<link rel="stylesheet" href="/plan/editinfo.css?v=20260809">
+<link rel="stylesheet" href="/plan/editinfo.css?v=<?php echo time();?>">
 </head>
 <body>
 
@@ -45,6 +46,15 @@ function ph($v) { return $v === '' || $v === null ? ' placeholder' : ''; }
     <span class="row-arrow">›</span>
   </div>
   <input type="file" id="avatarInput" accept="image/*" style="display:none" onchange="onAvatarChange(this)">
+
+  <!-- 电脑版开启耳朵效果（iOS 风格开关） -->
+  <div class="form-row" onclick="event.stopPropagation()">
+    <span class="row-label"><?php echo t('e_space_ears');?></span>
+    <span class="row-value" style="display:flex;justify-content:flex-end;align-items:center;gap:6px">
+      <input type="checkbox" id="earsSwitch" class="ios-switch"<?php echo $spaceEars ? ' checked' : '';?> onchange="saveEars(this.checked)">
+      <label for="earsSwitch" class="ios-switch-label"></label>
+    </span>
+  </div>
 
   <!-- 签名（点击进入专用签名编辑页 editsig.php） -->
   <div class="form-row" onclick="openEditSig()">
@@ -164,6 +174,20 @@ function saveProfile() {
     var f = new URLSearchParams();
     f.append('action', 'change_display_name');
     f.append('display_name', document.getElementById('nicknameInput').value.trim());
+    fetch('../../api/settings.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: f.toString()
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.success) showToast();
+    });
+}
+
+// 电脑版耳朵开关（iOS 风格，切换即时保存）
+function saveEars(on) {
+    var f = new URLSearchParams();
+    f.append('action', 'save_space_ears');
+    f.append('enabled', on ? '1' : '0');
     fetch('../../api/settings.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

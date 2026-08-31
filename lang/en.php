@@ -649,6 +649,7 @@ return [
     'e_done' => 'Done',
     'e_hint' => 'Content set to public will be shown publicly as your social info.',
     'e_avatar' => 'Avatar',
+    'e_space_ears' => 'Enable ears on desktop',
     'e_not_set' => 'Not set',
     'e_signature' => 'Signature',
     'e_nickname' => 'Nickname',

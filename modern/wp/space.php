@@ -16,7 +16,8 @@ $isSelf = ($viewUsername === '' || $viewUsername === ($currentUser['username'] ?
 $target = $isSelf ? ($currentUser['username'] ?? '') : $viewUsername;
 
 $pdo = db();
-$stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, custom_title, gender, gender_privacy, birthday, profile_bg_image, profile_bg_updated_at, level, exp, likes, created_at, dnd, enabled, placeholder FROM users WHERE username = ?");
+db_add_column_if_missing('users', 'space_ears', "TINYINT(1) NOT NULL DEFAULT 1");
+$stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, custom_title, gender, gender_privacy, birthday, profile_bg_image, profile_bg_updated_at, level, exp, likes, created_at, dnd, enabled, placeholder, space_ears FROM users WHERE username = ?");
 $stmt->execute([$target]);
 $u = $stmt->fetch();
 if (!$u || !(int)$u['enabled'] || (int)$u['placeholder']) {
@@ -198,6 +199,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
     <div class="layout-nav-inner">
       <div class="head-avatar">
         <?php if ($avatarUrl):?><img src="<?php echo htmlspecialchars($avatarUrl);?>" alt=""><?php else:?><div class="av-empty"><?php echo htmlspecialchars($ch);?></div><?php endif;?>
+        <?php if ((int)($u['space_ears'] ?? 1)): ?><img class="av-widget" src="../../data/res/space-widget/ears.apng" alt=""><?php endif; ?>
       </div>
       <div class="head-detail">
         <div class="head-detail-name"><span class="user-name"><?php echo htmlspecialchars($displayName);?></span></div>
