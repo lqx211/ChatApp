@@ -145,6 +145,7 @@ td.enabled .badge{padding:2px 8px;font-size:.7em;color:#fff}
  </div>
 </div>
 
+<script src="../scripts/ears.js?v=<?php echo time();?>"></script>
 <script>
 var U=<?php echo json_encode($currentUser['username']);?>;
 var currentPage=1,selectedUser=null;

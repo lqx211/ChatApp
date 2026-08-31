@@ -93,7 +93,26 @@ img{border:0;vertical-align:middle}
 /* 头像挂件（透明 APNG 动画，叠在头像上方，不挡点击）
    必须覆盖 .head-avatar img 的头像样式：无背景/无边框/无阴影/高度自动，保持全透明且不变形 */
 .head-avatar .av-widget{position:absolute;left:50%;bottom:71px;transform:translateX(-50%);width:112px;height:auto;pointer-events:none;z-index:6;background:transparent!important;border:none!important;box-shadow:none!important;border-radius:0!important}
-/* 头像旁昵称 */
+/* ============ 通用头像耳朵挂件（全站头像复用） ============
+   公式由 space.php 头像(120px)精调坐标反推：挂件底边在头像顶下方 57px*scale，
+   耳朵宽 = min(112px, 112px*scale)，scale = 头像直径/120px（封顶1，即不超过 space.php 尺寸）。
+   用法：头像容器 position:relative，放入 <img class="av-ear">（脚本按容器实际宽度自动设 --av-size） */
+.av-ear {
+  --av: var(--av-size, 120px);
+  --s: min(calc(var(--av) / 120px), 1);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% - 57px * var(--s));
+  width: min(112px, calc(112px * var(--s))) !important;
+  height: auto !important;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 6;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}/* 头像旁昵称 */
 .layout-nav-inner .head-detail{position:absolute;left:156px;top:-56px;z-index:5;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
 .layout-nav-inner .head-detail .user-name{font-size:24px;font-weight:700;line-height:1.2}
 .layout-nav-inner .head-detail .head-detail-sub{margin-top:4px;font-size:12px;opacity:.85}

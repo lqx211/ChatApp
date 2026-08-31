@@ -208,7 +208,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
     <div class="layout-nav-inner">
       <div class="head-avatar">
         <?php if ($avatarUrl):?><img src="<?php echo htmlspecialchars($avatarUrl);?>" alt=""><?php else:?><div class="av-empty"><?php echo htmlspecialchars($ch);?></div><?php endif;?>
-        <?php if ((int)($u['space_ears'] ?? 1)): ?><img class="av-widget" src="../../data/res/space-widget/ears.apng" alt=""><?php endif; ?>
+        <?php if ((int)($u['space_ears'] ?? 1)): ?><img class="av-ear" style="--av-size:120px" src="../../data/res/space-widget/ears.apng" alt=""><?php endif; ?>
       </div>
       <div class="head-detail">
         <div class="head-detail-name"><span class="user-name"><?php echo htmlspecialchars($displayName);?></span></div>
@@ -513,6 +513,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
   <span class="sp-lb-close" onclick="spLbClose()"><?php echo sp_ic('close');?></span>
 </div>
 
+<script src="../scripts/ears.js?v=<?php echo time();?>"></script>
 <script>
 var SP_USER = <?php echo json_encode(['self' => $isSelf, 'username' => $u['username'], 'display' => $displayName]);?>;
 
