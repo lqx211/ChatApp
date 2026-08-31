@@ -28,7 +28,62 @@ if ($viewUid > 0) {
 }
 $u = $stmt->fetch();
 if (!$u || !(int)$u['enabled'] || (int)$u['placeholder']) {
-    header('Location: chat.php');
+    // 目标用户不存在/已被删除/占位账号 → 显示「不存在」页面，而不是跳回聊天
+    $nfName = (string)($currentUser['username'] ?? '');
+    $nfDisp = (string)($currentUser['display_name'] ?: $nfName);
+    $nfAvatar = chatapp_avatar_url($currentUser['avatar'] ?? '', $nfName);
+    $nfTitle = '用户不存在 - ChatApp';
+    ?>
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title><?php echo htmlspecialchars($nfTitle);?></title>
+<link rel="stylesheet" href="../style/space.css?v=<?php echo time();?>">
+<style>
+  .sp-notfound{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 20px;}
+  .sp-notfound .nf-ico{width:96px;height:96px;border-radius:50%;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;font-size:44px;margin-bottom:20px;color:#8fa3b8;}
+  .sp-notfound h1{font-size:22px;color:#e8eef5;margin:0 0 10px;}
+  .sp-notfound p{font-size:14px;color:#8fa3b8;margin:0 0 28px;}
+  .sp-notfound .nf-btns{display:flex;gap:12px;}
+  .sp-notfound .nf-btn{display:inline-block;padding:9px 22px;border-radius:8px;text-decoration:none;font-size:14px;cursor:pointer;}
+  .sp-notfound .nf-btn.primary{background:#3f6fb5;color:#fff;}
+  .sp-notfound .nf-btn.ghost{border:1px solid rgba(255,255,255,.18);color:#c9d6e4;}
+  .sp-notfound .nf-btn:hover{opacity:.88;}
+</style>
+</head>
+<body class="bg-body mode-theme<?php echo $embedMode ? ' embed' : '';?>">
+<div class="top-fix-bar">
+  <div class="top-fix-inner">
+    <div class="top-fix-wrap">
+      <a class="logo" href="chat.php" title="返回聊天"><span class="logo-ico">🏠</span>个人空间</a>
+      <ul class="top-nav">
+        <li class="nav-list"><a href="space.php" class="on">主页</a></li>
+        <li class="nav-list"><a href="chat.php">聊天</a></li>
+        <li class="nav-list"><a href="settings.php">设置</a></li>
+      </ul>
+      <div class="user-info">
+        <a class="user-home" href="space.php">
+          <?php if ($nfAvatar):?><img class="user-avatar" src="<?php echo htmlspecialchars($nfAvatar);?>" alt=""><?php endif;?>
+          <span class="user-name textoverflow"><?php echo htmlspecialchars($nfDisp);?></span>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="sp-notfound">
+  <div class="nf-ico">👤</div>
+  <h1>该用户不存在</h1>
+  <p>用户不存在或已被删除</p>
+  <div class="nf-btns">
+    <a class="nf-btn primary" href="space.php">返回我的空间</a>
+    <a class="nf-btn ghost" href="chat.php">回到聊天</a>
+  </div>
+</div>
+</body>
+</html>
+    <?php
     exit;
 }
 // 是否本人空间（按 user_id 判断，兼容 uid/user 两种访问方式）
@@ -848,7 +903,7 @@ function renderFmList() {
     var uid = +(f.user_id || 0);
     if (!uid) return;
     var on = SP_FM_SELECTED.indexOf(uid) >= 0;
-    html += '<div class="sp-fm-item' + (on ? ' on' : '') + '" data-uid="' + uid + '" onclick="spFmToggle(' + uid + ')">'
+    html += '<div class="sp-fm-item' + (on ? ' on' : '') + '" data-uid="' + uid + '" onclick="spFmToggle(event,' + uid + ')">'
       + '<img src="' + (f.avatar || '') + '" alt="" onerror="this.style.visibility=\'hidden\'">'
       + '<span class="sp-fm-name">' + spEsc(name) + '</span>'
       + (on ? '<span class="sp-fm-ck">' + SP_X_IC + '</span>' : '')
@@ -869,7 +924,7 @@ function renderFmPicked() {
       var uid = +(f.user_id || 0);
       if (SP_FM_SELECTED.indexOf(uid) >= 0) {
         var name = (f.display_name || f.username || '');
-        html += '<span class="sp-fm-pick" data-uid="' + uid + '" title="移除" onclick="spFmToggle(' + uid + ')">'
+        html += '<span class="sp-fm-pick" data-uid="' + uid + '" title="移除" onclick="spFmToggle(event,' + uid + ')">'
           + '<img src="' + (f.avatar || '') + '" alt="" onerror="this.style.visibility=\'hidden\'">'
           + '<span>' + spEsc(name) + '</span>' + SP_X_IC + '</span>';
       }
@@ -878,7 +933,9 @@ function renderFmPicked() {
   }
   if (c) c.textContent = SP_FM_SELECTED.length;
 }
-function spFmToggle(uid) {
+function spFmToggle(e, uid) {
+  // 阻止冒泡：重建列表后原元素脱离 DOM，document 的「点面板外关闭」会误关面板
+  if (e && e.stopPropagation) e.stopPropagation();
   uid = +uid;
   var idx = SP_FM_SELECTED.indexOf(uid);
   if (idx >= 0) SP_FM_SELECTED.splice(idx, 1);
