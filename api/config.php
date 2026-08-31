@@ -744,11 +744,11 @@ function space_fmt_time(string $dt): string {
     $t = strtotime($dt);
     if (!$t) return '';
     $d = time() - $t;
-    if ($d < 60) return '刚刚';
-    if ($d < 3600) return floor($d / 60) . ' 分钟前';
-    if ($d < 86400) return floor($d / 3600) . ' 小时前';
-    if ($d < 86400 * 7) return floor($d / 86400) . ' 天前';
-    return date('m月d日 H:i', $t);
+    if ($d < 60) return t('sp_time_just', '刚刚');
+    if ($d < 3600) return t('sp_time_min', '%s 分钟前', floor($d / 60));
+    if ($d < 86400) return t('sp_time_hour', '%s 小时前', floor($d / 3600));
+    if ($d < 86400 * 7) return t('sp_time_day', '%s 天前', floor($d / 86400));
+    return t('sp_time_date', '%s月%s日 %s:%s', date('m', $t), date('d', $t), date('H', $t), date('i', $t));
 }
 
 /** 解析 uid 数组（支持 JSON 或逗号分隔字符串） */
@@ -761,7 +761,7 @@ function space_parse_ids($raw): array {
 
 /** 可见性标签 */
 function space_vis_label(int $vis): string {
-    return [0 => '所有人可见', 1 => '好友可见', 2 => '部分好友可见', 3 => '部分好友不可见', 4 => '仅自己可见'][$vis] ?? '所有人可见';
+    return [0 => t('sp_vis_label_public', '所有人可见'), 1 => t('sp_vis_label_friend', '好友可见'), 2 => t('sp_vis_label_some', '部分好友可见'), 3 => t('sp_vis_label_not', '部分好友不可见'), 4 => t('sp_vis_label_private', '仅自己可见')][$vis] ?? t('sp_vis_label_public', '所有人可见');
 }
 
 /** 内联 SVG 图标（灰线风格，currentColor 着色，禁止 emoji/文字当图标） */
