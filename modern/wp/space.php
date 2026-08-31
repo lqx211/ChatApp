@@ -1042,7 +1042,7 @@ function renderPostImgs() {
   var box = document.getElementById('spPostImgs');
   if (!box) return;
   if (!SP_POST_IMAGES.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
-  box.style.display = 'flex';
+  box.style.display = '';   // 恢复 CSS grid（每行 3 个，各占约 32%）
   var html = '';
   SP_POST_IMAGES.forEach(function (u, i) {
     html += '<div class="sp-post-img"><img src="' + u + '" alt=""><span class="sp-post-img-x" title="移除" onclick="spDropImg(' + i + ')">' + SP_X_IC + '</span></div>';
