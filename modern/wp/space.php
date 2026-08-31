@@ -186,7 +186,9 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
         <?php if ($isSelf):?>
           <span class="btn-head"><a href="editinfo.php">编辑资料</a></span>
         <?php else:?>
-          <span class="btn-head btn-primary"><a>加好友</a></span>
+          <?php if (!$isFriendView): ?>
+            <span class="btn-head btn-primary"><a>加好友</a></span>
+          <?php endif; ?>
           <span class="btn-head"><a href="chat.php?user=<?php echo urlencode($u['username']);?>" target="_blank">发消息</a></span>
         <?php endif;?>
       </div>
