@@ -86,3 +86,7 @@ data/maintenance_status.php
 
 # =================== Vendored icon source (not used at runtime) ===================
 data/res/brand/src/
+
+# Python
+__pycache__/
+*.pyc
