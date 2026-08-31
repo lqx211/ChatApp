@@ -2111,7 +2111,11 @@ function closeDm() {
 
 function toggleDmOptions(e) {
     e.stopPropagation();
-    document.getElementById('dmOptionsMenu').classList.toggle('active');
+    var m = document.getElementById('dmOptionsMenu');
+    var opening = !m.classList.contains('active');
+    m.classList.toggle('active');
+    // 每次打开菜单时按当前会话用户刷新「特别关心」文案
+    if (opening && D) refreshSpecialBtn('dmSpecialBtn', D);
 }
 
 function viewDmProfile(u) {
@@ -7230,7 +7234,7 @@ function openUserCtxMenu(e, username) {
 function closeUserCtxMenu() {
     if (_userCtxEl) _userCtxEl.classList.remove('active');
 }
-// 特别关心：联系人右键菜单切换 + 文本刷新（已开显示「取消特别关心」）
+// 特别关心：切换 + 文本刷新（已开显示「取消特别关心」）
 function toggleSpecialContact(u) {
     var f = new URLSearchParams();
     f.append('action', 'toggle_special');
@@ -7238,16 +7242,26 @@ function toggleSpecialContact(u) {
     fetch('../../api/contacts.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, credentials: 'same-origin', body: f.toString() })
         .then(function (r) { return r.json(); })
         .then(function (d) {
-            if (d && d.success) { refreshContactMenuSpecial(u); }
+            if (d && d.success) {
+                refreshSpecialBtn('ctxSpecialBtn', u);
+                if (D === u) refreshSpecialBtn('dmSpecialBtn', u);
+            }
             else alert('操作失败');
         });
 }
-function refreshContactMenuSpecial(u) {
-    var b = document.getElementById('ctxSpecialBtn');
+function refreshSpecialBtn(btnId, u) {
+    var b = document.getElementById(btnId);
     if (!b) return;
     fetch('../../api/space.php?action=special_state&username=' + encodeURIComponent(u), { credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
         .then(function (d) { if (d && d.success) b.textContent = d.special ? T('d_unspecial', '取消特别关心') : T('d_special', '特别关心'); });
+}
+function refreshContactMenuSpecial(u) { refreshSpecialBtn('ctxSpecialBtn', u); }
+// Options 菜单：特别关心（作用于当前会话用户 D）
+function toggleDmSpecial() {
+    var m = document.getElementById('dmOptionsMenu');
+    if (m) m.classList.remove('active');
+    if (D) toggleSpecialContact(D);
 }
 document.addEventListener('click', function() { closeUserCtxMenu(); });
 document.addEventListener('contextmenu', function(e) {
