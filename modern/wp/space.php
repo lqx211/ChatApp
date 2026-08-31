@@ -12,18 +12,27 @@ $currentUser = chatapp_get_user();
 $embedMode = isset($_GET['embed']) ? 1 : 0;
 
 $viewUsername = isset($_GET['user']) ? trim((string)$_GET['user']) : '';
-$isSelf = ($viewUsername === '' || $viewUsername === ($currentUser['username'] ?? ''));
-$target = $isSelf ? ($currentUser['username'] ?? '') : $viewUsername;
+$viewUid = (int)($_GET['uid'] ?? 0);
+$meName = (string)($currentUser['username'] ?? '');
 
+// 支持 ?uid=<数字> 按用户ID访问空间，或 ?user=<用户名>，缺省为本人
 $pdo = db();
 db_add_column_if_missing('users', 'space_ears', "TINYINT(1) NOT NULL DEFAULT 1");
-$stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, custom_title, gender, gender_privacy, birthday, profile_bg_image, profile_bg_updated_at, level, exp, likes, created_at, dnd, enabled, placeholder, space_ears FROM users WHERE username = ?");
-$stmt->execute([$target]);
+if ($viewUid > 0) {
+    $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, custom_title, gender, gender_privacy, birthday, profile_bg_image, profile_bg_updated_at, level, exp, likes, created_at, dnd, enabled, placeholder, space_ears FROM users WHERE user_id = ?");
+    $stmt->execute([$viewUid]);
+} else {
+    $target = $viewUsername !== '' ? $viewUsername : $meName;
+    $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, custom_title, gender, gender_privacy, birthday, profile_bg_image, profile_bg_updated_at, level, exp, likes, created_at, dnd, enabled, placeholder, space_ears FROM users WHERE username = ?");
+    $stmt->execute([$target]);
+}
 $u = $stmt->fetch();
 if (!$u || !(int)$u['enabled'] || (int)$u['placeholder']) {
     header('Location: chat.php');
     exit;
 }
+// 是否本人空间（按 user_id 判断，兼容 uid/user 两种访问方式）
+$isSelf = ((int)$u['user_id'] === (int)($currentUser['user_id'] ?? 0));
 
 $displayName = $u['display_name'] ?: $u['username'];
 $avatarUrl = chatapp_avatar_url($u['avatar'] ?? '', $u['username']);
