@@ -513,6 +513,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
   <span class="sp-lb-close" onclick="spLbClose()"><?php echo sp_ic('close');?></span>
 </div>
 
+<script>window.EARS_ON = <?php echo (int)($currentUser['space_ears'] ?? 0) ? 'true' : 'false'; ?>;</script>
 <script src="../scripts/ears.js?v=<?php echo time();?>"></script>
 <script>
 var SP_USER = <?php echo json_encode(['self' => $isSelf, 'username' => $u['username'], 'display' => $displayName]);?>;

@@ -12,7 +12,7 @@
   'use strict';
 
   var EAR_SRC = '../../data/res/space-widget/ears.apng';
-  // 需要挂耳朵的头像容器选择器（按实际渲染宽度自动取 --av-size）
+  // 需要挂耳朵的头像容器选择器（仅圆形头像会真正挂上）
   var SELECTORS = [
     '.head-avatar',
     '.sp-profile-av',
@@ -27,7 +27,24 @@
     '.req-av'
   ];
 
+  // 默认关闭：各页面按用户 space_ears 设置输出 window.EARS_ON=true 才注入
+  var ENABLED = window.EARS_ON === true;
+
+  // 仅圆形头像（border-radius 50%）才挂耳朵；方形头像不挂（避免视觉杂乱）
+  function isRound(el) {
+    if (!el) return false;
+    var br = getComputedStyle(el).borderRadius;
+    if (br === '50%') return true;
+    var w = el.offsetWidth;
+    if (w > 0 && /px/.test(br)) {
+      var px = parseFloat(br);
+      if (px >= w / 2 - 1) return true;
+    }
+    return false;
+  }
+
   function inject(root) {
+    if (!ENABLED) return;
     var doc = (root && root.querySelectorAll) ? root : document;
     if (!doc.querySelectorAll) return;
     SELECTORS.forEach(function (sel) {
@@ -56,6 +73,8 @@
         }
         // 幂等：宿主已挂耳朵则跳过
         if (host.getAttribute('data-av-ear') === '1' || host.querySelector('.av-ear')) continue;
+        // 仅圆形头像显示耳朵
+        if (!isRound(c)) continue;
         // 宿主需相对定位
         if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
         // 头像容器若 overflow:hidden 会裁掉伸出头外的耳朵 → 改为可见

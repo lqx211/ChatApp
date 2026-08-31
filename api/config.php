@@ -969,8 +969,8 @@ function init_db(): void {
     db_add_column_if_missing('users', 'likes', "INT NOT NULL DEFAULT 0");
     db_add_column_if_missing('users', 'auto_focus_input', "TINYINT(1) NOT NULL DEFAULT 1");
     db_add_column_if_missing('users', 'pin_self', "TINYINT(1) NOT NULL DEFAULT 1");
-    // ---- 个人空间：电脑版耳朵挂件开关（默认开） ----
-    db_add_column_if_missing('users', 'space_ears', "TINYINT(1) NOT NULL DEFAULT 1");
+    // ---- 个人空间：电脑版耳朵挂件开关（默认关，用户在 editinfo 手动开启） ----
+    db_add_column_if_missing('users', 'space_ears', "TINYINT(1) NOT NULL DEFAULT 0");
     // ---- 黑名单（设置页 · 黑名单管理） ----
     $pdo->exec("CREATE TABLE IF NOT EXISTS user_blocks (
         user_id INT UNSIGNED NOT NULL,
