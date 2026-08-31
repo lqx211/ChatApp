@@ -28,6 +28,17 @@ if (empty($_SESSION['wallpaper']) || (int)$_SESSION['wallpaper'] < 1 || (int)$_S
     $_SESSION['wallpaper'] = rand(1, 10);
 }
 $bgWallpaper = (int)$_SESSION['wallpaper'];
+
+// ChatApp 运行时长：上线时间在 config/uptime.php 里配置，这里按当前时间计算「运行了 N 天 N 小时」
+$__uptimeCfg = @include __DIR__ . '/../../config/uptime.php';
+$__upSince = is_array($__uptimeCfg) ? strtotime((string)($__uptimeCfg['since'] ?? '')) : 0;
+$__upDays = 0; $__upHours = 0;
+if ($__upSince > 0) {
+    $__upSec = max(0, time() - $__upSince);
+    $__upDays = (int)floor($__upSec / 86400);
+    $__upHours = (int)floor(($__upSec % 86400) / 3600);
+}
+$__upText = $__upSince > 0 ? 'ChatApp 已运行 ' . $__upDays . ' 天 ' . $__upHours . ' 小时' : '';
 ?><!DOCTYPE html>
 <html lang="<?php echo $currentLang === 'zh' ? 'zh-Hans' : 'en'; ?>">
 <head>
@@ -479,6 +490,7 @@ $bgWallpaper = (int)$_SESSION['wallpaper'];
             <a href="../../tablet/index.html" class="home-tablet-link">点这里看看已废弃的「尝试兼容 IE9」版本</a>
             <br><br>
             <a href="login.php" class="home-login-link">不想看主页？直接登录 →</a>
+            <?php if ($__upText): ?><p class="home-credit" style="margin-top:14px"><?php echo htmlspecialchars($__upText); ?></p><?php endif; ?>
             <p class="home-credit">(14 岁 + Deepseek V4 Flash 写的)</p>
         </div>
     </div>
