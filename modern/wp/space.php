@@ -469,6 +469,9 @@ function spGoTab(name) {
   });
   var poster = document.getElementById('spPosterBox');
   var feedArea = document.getElementById('spFeedArea');
+  // 左侧菜单（动态/个人资料）仅主页显示
+  var leftMenu = document.getElementById('leftMenu');
+  if (leftMenu) leftMenu.style.display = (name === 'home') ? '' : 'none';
   // 主页/说说显示动态区；主页(自己)显示发表框
   if (poster) poster.style.display = (name === 'home' && SP_USER.self) ? 'block' : 'none';
   if (feedArea) feedArea.style.display = (name === 'home' || name === 'say') ? 'block' : 'none';
