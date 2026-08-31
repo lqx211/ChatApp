@@ -1382,6 +1382,11 @@ function customDialog(title, msg, type) {
             ok.textContent = T('btn_ok');
             ok.style.display = 'block';
         }
+        // 关键修复：确保每次打开对话框时 OK/Cancel 都可用——
+        // 某些流程（如 showReloadStatusDialog）会设 ok.disabled=true，若对话框在禁用状态被关闭会残留，
+        // 导致后续所有弹窗的 OK 按不了（按钮 disabled，点击无效）
+        ok.disabled = false;
+        cancel.disabled = false;
         ok.onclick = function() {
             closeCustomDialog(true)
         };
