@@ -679,6 +679,53 @@ function space_album_vis_label(int $vis): string {
     return [0 => '公开', 1 => '好友', 2 => '部分好友可见', 3 => '部分好友不可见', 4 => '私密'][$vis] ?? '私密';
 }
 
+/** 确保空间访客表存在（幂等）——viewer 看过 target；同一天同一人只记一次 */
+function ensure_space_visits_table(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $pdo = db();
+    $pdo->exec("CREATE TABLE IF NOT EXISTS space_visits (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        viewer_uid INT UNSIGNED NOT NULL,
+        target_uid INT UNSIGNED NOT NULL,
+        hidden TINYINT(1) NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_target (target_uid, hidden, created_at),
+        KEY idx_viewer (viewer_uid, hidden, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+/** 星座：生日 YYYY-MM-DD（也可 MM-DD）→ 星座名；无效返回 '' */
+function space_zodiac(string $birthday): string {
+    $b = trim((string)$birthday);
+    if ($b === '') return '';
+    $p = explode('-', $b);
+    $m = (int)($p[1] ?? 0); $d = (int)($p[2] ?? 0);
+    if ($m < 1 || $m > 12 || $d < 1 || $d > 31) return '';
+    $cut = [20, 19, 21, 20, 21, 22, 23, 23, 23, 24, 23, 22];
+    $names = ['摩羯', '水瓶', '双鱼', '白羊', '金牛', '双子', '巨蟹', '狮子', '处女', '天秤', '天蝎', '射手', '摩羯'];
+    $idx = $d < $cut[$m - 1] ? $m - 1 : $m;
+    return $names[$idx] . '座';
+}
+
+/** 两人共同好友数（双向 accepted） */
+function space_common_friends(PDO $pdo, int $a, int $b): int {
+    if ($a <= 0 || $b <= 0 || $a === $b) return 0;
+    $q = $pdo->query("SELECT user_to FROM contacts WHERE user_from=$a AND status='accepted' "
+        . "UNION SELECT user_from FROM contacts WHERE user_to=$a AND status='accepted'");
+    $setA = array_flip(array_map('intval', array_filter($q->fetchAll(PDO::FETCH_COLUMN))));
+    if (!$setA) return 0;
+    $q2 = $pdo->query("SELECT user_to FROM contacts WHERE user_from=$b AND status='accepted' "
+        . "UNION SELECT user_from FROM contacts WHERE user_to=$b AND status='accepted'");
+    $n = 0;
+    foreach (array_map('intval', array_filter($q2->fetchAll(PDO::FETCH_COLUMN))) as $f) {
+        if (isset($setA[$f])) $n++;
+    }
+    return $n;
+}
+
 /** 两人是否为好友（contacts 双向 accepted） */
 function space_is_friend(PDO $pdo, int $a, int $b): bool {
     $s = $pdo->prepare("SELECT COUNT(*) FROM contacts WHERE status='accepted' AND ((user_from=? AND user_to=?) OR (user_from=? AND user_to=?))");

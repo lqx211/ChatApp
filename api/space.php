@@ -15,6 +15,7 @@ ensure_space_blogs_table();
 ensure_space_mentions_table();
 ensure_space_albums_table();
 ensure_space_album_photos_table();
+ensure_space_visits_table();
 $pdo = db();
 $me = chatapp_get_user();
 $myUid = (int)($me['user_id'] ?? 0);
@@ -171,7 +172,66 @@ switch ($action) {
             'photos' => $photos]);
         break;
 
-    case 'list':        $user = trim((string)($_GET['user'] ?? $_POST['user'] ?? ''));
+    /* ============ 访客 ============ */
+    case 'visitor_list':
+        // type: me=谁看过我(我被人看)  you=我看过谁(我看别人)  refuse=被挡访客(预留空)
+        $type = trim($_GET['type'] ?? 'me');
+        if ($type === 'refuse') {
+            $q = null;   // 被挡访客功能未开放，预留空列表
+        } elseif ($type === 'you') {
+            $q = $pdo->query("SELECT target_uid AS other_uid, MAX(created_at) AS at FROM space_visits WHERE viewer_uid=$myUid GROUP BY target_uid ORDER BY at DESC LIMIT 30");
+        } else {
+            $q = $pdo->query("SELECT viewer_uid AS other_uid, MAX(created_at) AS at FROM space_visits WHERE target_uid=$myUid AND hidden=0 GROUP BY viewer_uid ORDER BY at DESC LIMIT 30");
+        }
+        $list = [];
+        if ($q) {
+            foreach ($q->fetchAll() as $r) {
+            $ouid = (int)$r['other_uid'];
+            if ($ouid <= 0) continue;
+            $u = $pdo->prepare("SELECT user_id, username, display_name, avatar, gender, birthday FROM users WHERE user_id=? AND enabled=1 AND placeholder=0 AND deleted_at IS NULL");
+            $u->execute([$ouid]);
+            $uu = $u->fetch();
+            if (!$uu) continue;
+            $special = (int)($pdo->query("SELECT special FROM contacts WHERE user_from=$myUid AND user_to=$ouid")->fetchColumn() ?: 0);
+            $list[] = [
+                'uid' => $ouid,
+                'username' => (string)$uu['username'],
+                'name' => (string)($uu['display_name'] ?: $uu['username']),
+                'avatar' => chatapp_avatar_url($uu['avatar'] ?? '', $uu['username'], $ouid),
+                'gender' => (int)$uu['gender'],
+                'zodiac' => space_zodiac((string)($uu['birthday'] ?? '')),
+                'common' => ($type === 'me') ? space_common_friends($pdo, $myUid, $ouid) : 0,
+                'special' => $special,
+                'time' => space_fmt_time($r['at']),
+            ];
+            }
+        }
+        echo json_encode(['success' => true, 'list' => $list]);
+        break;
+
+    case 'visit_count':
+        $today = date('Y-m-d 00:00:00');
+        $t = $pdo->prepare("SELECT COUNT(DISTINCT viewer_uid) FROM space_visits WHERE target_uid=? AND created_at>=?");
+        $t->execute([$myUid, $today]);
+        $total = $pdo->prepare("SELECT COUNT(DISTINCT viewer_uid) FROM space_visits WHERE target_uid=?");
+        $total->execute([$myUid]);
+        echo json_encode(['success' => true, 'today' => (int)$t->fetchColumn(), 'total' => (int)$total->fetchColumn()]);
+        break;
+
+    case 'visitor_delete':
+        $ouid = (int)($_POST['uid'] ?? 0);
+        if ($ouid > 0) $pdo->prepare("DELETE FROM space_visits WHERE target_uid=? AND viewer_uid=?")->execute([$myUid, $ouid]);
+        echo json_encode(['success' => true]);
+        break;
+
+    case 'visitor_hide':
+        $ouid = (int)($_POST['uid'] ?? 0);
+        if ($ouid > 0) $pdo->prepare("UPDATE space_visits SET hidden=1 WHERE target_uid=? AND viewer_uid=?")->execute([$myUid, $ouid]);
+        echo json_encode(['success' => true]);
+        break;
+
+    case 'list':
+        $user = trim((string)($_GET['user'] ?? $_POST['user'] ?? ''));
         $targetUid = 0;
         if ($user !== '') {
             $s = $pdo->prepare("SELECT user_id FROM users WHERE username=?");

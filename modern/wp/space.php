@@ -22,6 +22,7 @@ $meName = (string)($currentUser['username'] ?? '');
 $pdo = db();
 ensure_space_albums_table();
 ensure_space_album_photos_table();
+ensure_space_visits_table();
 db_add_column_if_missing('users', 'space_ears', "TINYINT(1) NOT NULL DEFAULT 1");
 if ($hasViewUid) {
     $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, custom_title, gender, gender_privacy, birthday, profile_bg_image, profile_bg_updated_at, level, exp, likes, created_at, dnd, enabled, placeholder, space_ears, deleted_at FROM users WHERE user_id = ?");
@@ -65,6 +66,14 @@ $uid = (int)$u['user_id'];
 // 页面展示的 UID：优先用 URL 传入的 ?uid= 值（非数字→0），未知/已删除用户也显示所访问的 UID
 $displayUid = $viewUid > 0 ? $viewUid : $uid;
 $meUid = (int)($currentUser['user_id'] ?? 0);
+// 记录访客（本人看自己不记；未知/已删除用户不记；同一天同一人只记一次）
+if ($uid > 0 && $meUid > 0 && $meUid !== $uid) {
+    $vq = $pdo->prepare("SELECT COUNT(*) FROM space_visits WHERE viewer_uid=? AND target_uid=? AND created_at>=?");
+    $vq->execute([$meUid, $uid, date('Y-m-d 00:00:00')]);
+    if (!(int)$vq->fetchColumn()) {
+        $pdo->prepare("INSERT INTO space_visits (viewer_uid, target_uid) VALUES (?,?)")->execute([$meUid, $uid]);
+    }
+}
 $meAvatarUrl = chatapp_avatar_url($currentUser['avatar'] ?? '', $meName, $meUid);
 $spaceTitle = $displayName . '的空间';
 
@@ -173,6 +182,11 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title><?php echo htmlspecialchars($spaceTitle);?> - ChatApp</title>
 <link rel="stylesheet" href="../style/space.css?v=<?php echo time();?>">
+<!--[if IE]>
+<script type="text/javascript">
+    window.Aegis = null;// 待兼容
+</script>
+<![endif]-->
 </head>
 <body class="bg-body mode-theme<?php echo $embedMode ? ' embed' : '';?>">
 
@@ -234,15 +248,17 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
         <?php endif;?>
       </div>
 
-      <!-- 访客统计 -->
+      <!-- 访客统计（仅本人空间可见） -->
+      <?php if ($isSelf): ?>
       <div class="layout-shop-item" id="visitorsDiv">
         <div class="visit-module">
           <div class="other-info">
-            <p class="visit-today">今日访客 <span class="count">0</span></p>
-            <p class="visit-count">访客总量 <span class="count">0</span></p>
+            <p class="visit-today">今日访客 <span class="count" id="spVisitToday">0</span></p>
+            <p class="visit-count">访客总量 <span class="count" id="spVisitTotal">0</span></p>
           </div>
         </div>
       </div>
+      <?php endif; ?>
     </div>
   </div>
 
@@ -514,15 +530,15 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
               </div>
             </div>
 
-            <!-- 谁看过我 -->
+            <!-- 谁看过我（仅本人空间可见） -->
+            <?php if ($isSelf): ?>
             <div class="icenter-right-mod">
-              <div class="hd">谁看过我<span class="more"><?php echo sp_ic('right');?></span></div>
+              <div class="hd">谁看过我<span class="more" onclick="location.href='visitors.php'"><?php echo sp_ic('right');?></span></div>
               <div class="bd">
-                <ul class="visitor-list" id="visitorList">
-                  <li><div class="av-empty" style="width:52px;height:52px;border-radius:50%;background:#e3e8ef;display:flex;align-items:center;justify-content:center;margin:0 auto 3px;color:#fff;font-size:20px">?</div><div class="un">暂无访客</div></li>
-                </ul>
+                <ul class="visitor-list" id="visitorList"><li class="sp-vis-empty">加载中…</li></ul>
               </div>
             </div>
+            <?php endif; ?>
 
             <!-- 个人信息 -->
             <div class="icenter-right-mod">
@@ -551,6 +567,17 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 <!-- 返回顶部 -->
 <div class="fix-layout">
   <div class="to-top" id="spToTop" title="返回顶部"><?php echo sp_ic('top');?></div>
+</div>
+
+<!-- hover 名片 -->
+<div class="sp-namecard" id="spNameCard" style="display:none">
+  <div class="nc-av"><img id="ncAv" src="" alt=""></div>
+  <div class="nc-info">
+    <div class="nc-name" id="ncName"></div>
+    <div class="nc-meta" id="ncMeta"></div>
+    <div class="nc-common" id="ncCommon"></div>
+    <button class="nc-care" id="ncCare" onclick="ncToggleCare(event)">特别关心</button>
+  </div>
 </div>
 
 <!-- 新建相册 -->
@@ -840,6 +867,7 @@ function spLoadMentionCount() {
     .catch(function () {});
 }
 spLoadMentionCount();
+spLoadVisitors();
 initSpecialBtn();
 // 从「查看原说说」带 #feed-<id> 进入：加载后滚动定位并高亮
 (function () {
@@ -1321,6 +1349,98 @@ function spBoardPost() {
         .then(function (res) { if (res && res.success) { SP_BOARD_LOADED = false; spLoadBoard(); } });
     }
   });
+})();
+
+/* ===== 访客（谁看过我） ===== */
+var SP_NC_USERNAME = '';
+function spLoadVisitors() {
+  var list = document.getElementById('visitorList');
+  fetch('../../api/space.php?action=visitor_list&type=me', { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.success) { if (list) list.innerHTML = '<li class="sp-vis-empty">暂无访客</li>'; return; }
+      if (list) renderVisitorList(list, d.list || [], 'me');
+    })
+    .catch(function () { if (list) list.innerHTML = '<li class="sp-vis-empty">暂无访客</li>'; });
+  fetch('../../api/space.php?action=visit_count', { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.success) return;
+      var t = document.getElementById('spVisitToday'); if (t) t.textContent = d.today;
+      var t2 = document.getElementById('spVisitTotal'); if (t2) t2.textContent = d.total;
+    })
+    .catch(function () {});
+}
+function renderVisitorList(list, arr, type) {
+  if (!arr.length) { list.innerHTML = '<li class="sp-vis-empty">暂无访客</li>'; return; }
+  var h = '';
+  arr.forEach(function (v) {
+    var av = v.avatar ? '<img src="' + v.avatar + '" alt="">' : '<div class="av-empty">' + esc((v.name || '?').charAt(0)) + '</div>';
+    var del = (type === 'me') ? '<span class="sp-vis-del" data-uid="' + v.uid + '" onclick="event.stopPropagation();spVisitorDel(' + v.uid + ')">×</span>' : '';
+    h += '<li class="sp-vis-item" data-uid="' + v.uid + '" data-username="' + esc(v.username) + '" data-name="' + esc(v.name) + '" data-avatar="' + (v.avatar || '') + '" data-gender="' + v.gender + '" data-zodiac="' + esc(v.zodiac) + '" data-common="' + v.common + '" data-special="' + v.special + '" onmouseenter="spNameCardShow(this)">'
+      + '<div class="sp-vis-av">' + av + del + '</div>'
+      + '<div class="sp-vis-name">' + esc(v.name) + '</div>'
+      + '<div class="sp-vis-time">' + esc(v.time) + '</div>'
+      + '</li>';
+  });
+  list.innerHTML = h;
+}
+function spVisitorDel(uid) {
+  if (!window.confirm('删除本次访问记录？')) return;
+  var f = new URLSearchParams(); f.append('action', 'visitor_delete'); f.append('uid', uid);
+  fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+    .then(function (r) { return r.json(); })
+    .then(function () { spLoadVisitors(); });
+}
+/* hover 名片 */
+function spNameCardShow(el) {
+  var nc = document.getElementById('spNameCard');
+  if (!nc) return;
+  SP_NC_USERNAME = el.getAttribute('data-username') || '';
+  document.getElementById('ncAv').src = el.getAttribute('data-avatar') || '';
+  document.getElementById('ncName').textContent = el.getAttribute('data-name') || '';
+  var g = +el.getAttribute('data-gender');
+  var meta = (g === 1 ? '男' : (g === 2 ? '女' : '未设置'));
+  var zod = el.getAttribute('data-zodiac');
+  if (zod) meta += ' · ' + zod;
+  document.getElementById('ncMeta').textContent = meta;
+  var common = +el.getAttribute('data-common');
+  var ce = document.getElementById('ncCommon');
+  if (common > 0) { ce.style.display = ''; ce.textContent = '你们有 ' + common + ' 个共同好友'; }
+  else { ce.style.display = 'none'; ce.textContent = ''; }
+  var care = document.getElementById('ncCare');
+  care.textContent = (+el.getAttribute('data-special')) ? '已关心' : '特别关心';
+  care.classList.toggle('on', !!+el.getAttribute('data-special'));
+  nc.style.display = 'block';
+  var r = el.getBoundingClientRect();
+  var ncw = 230, nch = 150;
+  var x = Math.min(Math.max(r.left + r.width / 2 - ncw / 2, 8), window.innerWidth - ncw - 8);
+  var y = r.bottom + 10;
+  if (y + nch > window.innerHeight - 8) y = Math.max(8, r.top - nch - 10);
+  nc.style.left = x + 'px';
+  nc.style.top = y + 'px';
+}
+function ncToggleCare(e) {
+  e && e.stopPropagation();
+  if (!SP_NC_USERNAME) return;
+  var f = new URLSearchParams();
+  f.append('action', 'toggle_special');
+  f.append('username', SP_NC_USERNAME);
+  fetch('../../api/contacts.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d && d.success) {
+        var care = document.getElementById('ncCare');
+        if (!care) return;
+        var on = care.classList.contains('on');
+        care.textContent = on ? '特别关心' : '已关心';
+        care.classList.toggle('on', !on);
+      } else alert('操作失败');
+    });
+}
+(function () {
+  var list = document.getElementById('visitorList');
+  if (list) list.addEventListener('mouseleave', function () { var nc = document.getElementById('spNameCard'); if (nc) nc.style.display = 'none'; });
 })();
 
 /* ===== 相册 ===== */
