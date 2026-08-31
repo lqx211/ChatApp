@@ -845,4 +845,6 @@ return [
     'sup_prev' => '上一頁',
     'sup_next' => '下一頁',
     'sup_showing' => '顯示 %s-%s / 共 %s',
+    'role_admin' => '管理員',
+    'role_root' => '站主',
 ];

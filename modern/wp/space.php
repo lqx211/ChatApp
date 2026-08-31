@@ -25,11 +25,11 @@ ensure_space_album_photos_table();
 ensure_space_visits_table();
 db_add_column_if_missing('users', 'space_ears', "TINYINT(1) NOT NULL DEFAULT 1");
 if ($hasViewUid) {
-    $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, custom_title, gender, gender_privacy, birthday, profile_bg_image, profile_bg_updated_at, level, exp, likes, created_at, dnd, enabled, placeholder, space_ears, deleted_at FROM users WHERE user_id = ?");
+    $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, custom_title, gender, gender_privacy, birthday, profile_bg_image, profile_bg_updated_at, level, exp, likes, created_at, dnd, enabled, placeholder, space_ears, restricted, role, deleted_at FROM users WHERE user_id = ?");
     $stmt->execute([$viewUid]);
 } else {
     $target = $viewUsername !== '' ? $viewUsername : $meName;
-    $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, custom_title, gender, gender_privacy, birthday, profile_bg_image, profile_bg_updated_at, level, exp, likes, created_at, dnd, enabled, placeholder, space_ears, deleted_at FROM users WHERE username = ?");
+    $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, custom_title, gender, gender_privacy, birthday, profile_bg_image, profile_bg_updated_at, level, exp, likes, created_at, dnd, enabled, placeholder, space_ears, restricted, role, deleted_at FROM users WHERE username = ?");
     $stmt->execute([$target]);
 }
 $u = $stmt->fetch();
@@ -63,6 +63,17 @@ $level = (int)$u['level']; $exp = (int)$u['exp']; $likes = (int)$u['likes'];
 $gender = $u['gender']; // 0/1/2? 按现有 profile 语义显示
 $birthday = $u['birthday'] ?? '';
 $uid = (int)$u['user_id'];
+// 角色与状态（个人信息区 / Lv·UID 标签）：站主黄、管理员红、普通白；状态 正常绿/受限黄/禁用红/占位灰
+$viewRole = ($uid > 0) ? chatapp_get_role($uid) : '';
+$roleLabel = $viewRole === 'root' ? '站主' : ($viewRole === 'admin' ? '管理员' : '普通用户');
+$roleClass = $viewRole === 'root' ? 'sp-role-root' : ($viewRole === 'admin' ? 'sp-role-admin' : 'sp-role-user');
+$viewStatus = ''; $statusLabel = '';
+if ($uid > 0) {
+    if ((int)$u['placeholder']) { $viewStatus = 'placeholder'; $statusLabel = '占位'; }
+    elseif (!(int)$u['enabled']) { $viewStatus = 'disabled'; $statusLabel = '禁用'; }
+    elseif ((int)($u['restricted'] ?? 0)) { $viewStatus = 'restricted'; $statusLabel = '受限'; }
+    else { $viewStatus = 'normal'; $statusLabel = '正常'; }
+}
 // 页面展示的 UID：优先用 URL 传入的 ?uid= 值（非数字→0），未知/已删除用户也显示所访问的 UID
 $displayUid = $viewUid > 0 ? $viewUid : $uid;
 $meUid = (int)($currentUser['user_id'] ?? 0);
@@ -271,7 +282,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
       </div>
       <div class="head-detail">
         <div class="head-detail-name"><span class="user-name"><?php echo htmlspecialchars($displayName);?></span></div>
-        <div class="head-detail-sub">Lv.<?php echo $level;?> · UID <?php echo $displayUid;?></div>
+        <div class="head-detail-sub">Lv.<?php echo $level;?> · UID <?php echo $displayUid;?><?php if ($viewRole === 'admin' || $viewRole === 'root'): ?> <span class="sp-role-tag <?php echo $roleClass;?>"><?php echo htmlspecialchars($roleLabel);?></span><?php endif; ?></div>
       </div>
     </div>
   </div>
@@ -564,6 +575,8 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
                   <li><span class="k">等级</span><span class="v">Lv.<?php echo $level;?>（<?php echo $exp;?> 经验）</span></li>
                   <li><span class="k">获赞</span><span class="v"><?php echo $likes;?></span></li>
                   <li><span class="k">UID</span><span class="v"><?php echo $displayUid;?></span></li>
+                  <li><span class="k">角色</span><span class="v <?php echo $roleClass;?>"><?php echo htmlspecialchars($roleLabel);?></span></li>
+                  <li><span class="k">状态</span><span class="v sp-status-<?php echo $viewStatus;?>"><?php echo htmlspecialchars($statusLabel);?></span></li>
                 </ul>
               </div>
             </div>
@@ -1462,7 +1475,7 @@ var SP_VP_TYPE = 'me';
 function spVpToggle() {
   var m = document.getElementById('spVisitorMod');
   if (!m) return;
-  var show = m.style.display === 'none';
+  var show = getComputedStyle(m).display === 'none';
   m.style.display = show ? 'block' : 'none';
   if (show) spVpLoad();
 }

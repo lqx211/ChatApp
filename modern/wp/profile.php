@@ -177,6 +177,9 @@ $bgFetchSrc = ($bgImg !== '../gx.jpg') ? $bgImg : '';
 
 $statusLabel = $restricted ? t('admin_restricted_status') : ($dnd ? t('msg_dnd_status') : t('msg_online_status'));
 $statusClass = $restricted ? 'rstr' : ($dnd ? 'dnd' : 'on');
+// 角色：普通用户不显示；admin 显示「管理员」名字变黄；root 显示「站主」名字变红
+$role = chatapp_get_role((int)($profileUser['user_id'] ?? 0));
+$roleLabel = $role === 'root' ? '站主' : ($role === 'admin' ? '管理员' : '');
 $targetUsername = htmlspecialchars($profileUser['username'] ?? $viewUsername ?? '');
 // 封面存景参数（视频位置/缩放；默认 pos_x=50,pos_y=0,zoom=1 ≈ 原 center-top 行为）
 $pdo = db();
@@ -244,8 +247,8 @@ $bgFrameStyle = 'object-position:' . $bgPosX . '% ' . $bgPosY . '%;transform-ori
     <div class="avatar"><?php if($avatar):?><img src="<?php echo htmlspecialchars($avatar);?>" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%"><?php endif;?></div>
     <div class="name-col">
       <div class="nickname-row">
-        <span class="nickname"><?php echo htmlspecialchars($displayName);?></span>
-        <span class="status-tag <?php echo $statusClass;?>"><?php echo htmlspecialchars($statusLabel);?></span>
+        <span class="nickname<?php echo $role === 'root' ? ' role-root' : ($role === 'admin' ? ' role-admin' : '');?>"><?php echo htmlspecialchars($displayName);?></span>
+        <?php if ($role === 'root' || $role === 'admin'): ?><span class="status-tag <?php echo $statusClass;?> role-<?php echo $role;?>"><?php echo $role === 'root' ? '站主' : '管理员';?></span><?php endif; ?>
       </div>
       <?php if(!$isSelf):?>
       <div class="uid-row"><span class="uid"><?php echo t('label_username');?>: <?php echo $targetUsername;?></span></div>

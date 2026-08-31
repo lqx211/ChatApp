@@ -999,4 +999,6 @@ return [
     'frf_s6_maint_pass' => 'Maintenance password: ',
     'frf_s6_backup' => 'Backup file: ',
     'frf_s6_relogin' => 'Log in again',
+    'role_admin' => 'Administrator',
+    'role_root' => 'Owner',
 ];

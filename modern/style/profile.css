@@ -183,6 +183,8 @@ body {
 .nickname {
   font-size: 17px; font-weight: 600; color: #e8eaed;
 }
+.nickname.role-admin { color: #f0c94a; }
+.nickname.role-root { color: #e5534b; }
 .status-tag {
   font-size: 11px; color: #8b93a1;
   background: rgba(255,255,255,.08);

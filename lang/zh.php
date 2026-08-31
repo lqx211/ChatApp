@@ -999,4 +999,6 @@ return [
     'frf_s6_maint_pass' => '维护密码: ',
     'frf_s6_backup' => '备份文件: ',
     'frf_s6_relogin' => '重新登录',
+    'role_admin' => '管理员',
+    'role_root' => '站主',
 ];
