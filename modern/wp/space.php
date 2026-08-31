@@ -280,7 +280,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
                 <div class="attach-icons">
                   <span title="照片" onclick="spPickImages()"><?php echo sp_ic('image');?></span>
                   <span title="表情" onclick="spAlert('表情')"><?php echo sp_ic('smile');?></span>
-                  <span title="@好友" onclick="spAlert('@好友')"><?php echo sp_ic('at');?></span>
+                  <span title="@好友" onclick="spMentionOpen()"><?php echo sp_ic('at');?></span>
                   <span title="话题" onclick="spAlert('话题')"><?php echo sp_ic('hash');?></span>
                 </div>
                 <div class="vis-select" id="spVisBtn" onclick="spVisToggle(event)">
@@ -290,13 +290,15 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
                 </div>
                 <div class="op"><button class="btn-post" id="spPostBtn" onclick="spPost()">发表</button></div>
               </div>
+              <!-- 艾特好友条：显示已 @ 的好友 (名字) -->
+              <div class="sp-mention-bar" id="spMentionBar" style="display:none"></div>
               <!-- 图片预览 + 文件选择 -->
               <div class="sp-post-imgs" id="spPostImgs" style="display:none"></div>
               <input type="file" id="spImgInput" multiple accept="image/*" style="display:none">
               <!-- 好友选择面板：贴在发表框底部，随页面滚动，动画伸出 -->
               <div class="sp-fm-mask" id="spFmMask" style="display:none">
                 <div class="sp-fm-box">
-                  <div class="sp-fm-head"><span>选择好友</span><span class="sp-fm-x" onclick="spFmClose()"><?php echo sp_ic('close');?></span></div>
+                  <div class="sp-fm-head"><span id="spFmTitle">选择好友</span><span class="sp-fm-x" onclick="spFmClose()"><?php echo sp_ic('close');?></span></div>
                   <div class="sp-fm-body">
                     <div class="sp-fm-left">
                       <div class="sp-fm-search"><input id="spFmSearch" placeholder="搜索好友"><span class="sp-fm-sbtn"><?php echo sp_ic('search');?></span></div>
@@ -593,6 +595,7 @@ var toTop = document.getElementById('spToTop');
 toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
 var SP_SPACE = <?php echo json_encode(['self' => $isSelf, 'uid' => $uid, 'meUid' => $meUid]);?>;
 var SP_POST_VIS = 0, SP_POST_FRIENDS = [], SP_FRIENDS = [], SP_POST_IMAGES = [];
+var SP_FM_MODE = 'vis', SP_MENTIONS = [];
 var SP_ICONS = { say: '<?php echo sp_ic('say');?>', comment: '<?php echo sp_ic('comment');?>' };
 var SP_X_IC = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 
@@ -622,6 +625,7 @@ document.getElementById('spVisMenu').addEventListener('click', function (e) {
   e.stopPropagation(); // 阻止冒泡到 document 立即关掉刚打开的好友面板
   SP_POST_VIS = +it.getAttribute('data-v');
   this.style.display = 'none';
+  SP_FM_MODE = 'vis';
   spFmClose(); // 先收起好友面板
   if (SP_POST_VIS === 2 || SP_POST_VIS === 3) { spFmOpen(); return; }
   SP_POST_FRIENDS = [];
@@ -633,6 +637,16 @@ document.getElementById('spVisMenu').addEventListener('click', function (e) {
 function spFmOpen() {
   var mask = document.getElementById('spFmMask');
   if (!mask) return;
+  // 标题/按钮随模式变化：vis=部分可见选人，mention=艾特
+  var fT = document.getElementById('spFmTitle');
+  var fOk = document.querySelector('#spFmMask .sp-fm-ok');
+  if (SP_FM_MODE === 'mention') {
+    if (fT) fT.textContent = '选择要 @ 的好友';
+    if (fOk) fOk.textContent = '确定艾特';
+  } else {
+    if (fT) fT.textContent = '选择好友';
+    if (fOk) fOk.textContent = '确定';
+  }
   // 面板贴发表框底部（absolute 定位随页面滚动），无需手动设置坐标
   mask.style.display = 'flex';
   mask.classList.remove('sp-open');
@@ -676,10 +690,70 @@ function updateFmCount() {
 function spFmConfirm() {
   var ids = [];
   [].forEach.call(document.querySelectorAll('#spFmList input:checked'), function (c) { ids.push(+(c.getAttribute('data-uid'))); });
+  if (SP_FM_MODE === 'mention') { spMentionConfirm(ids); return; }
   SP_POST_FRIENDS = ids;
   document.getElementById('spFmMask').style.display = 'none';
   var lbl = document.getElementById('spVisLabel');
   if (lbl) lbl.textContent = (SP_POST_VIS === 3 ? '部分好友不可见' : '部分好友可见') + (ids.length ? '（' + ids.length + '）' : '');
+}
+
+/* ===== 艾特（@好友） ===== */
+function spMentionOpen() {
+  SP_FM_MODE = 'mention';
+  spFmOpen();
+}
+function spEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+}
+function spMentionConfirm(ids) {
+  var mask = document.getElementById('spFmMask');
+  if (mask) mask.style.display = 'none';
+  if (!ids.length) return;
+  var names = [];
+  ids.forEach(function (uid) {
+    var f = null;
+    SP_FRIENDS.forEach(function (x) { if (+(x.user_id) === uid) f = x; });
+    var n = (f && (f.display_name || f.username)) || ('用户' + uid);
+    names.push(n);
+  });
+  if (!names.length) return;
+  // 把 @名字 追加进说说内容（纯 string）
+  var p = document.getElementById('spPoster');
+  if (p) {
+    var cur = (p.textContent || '').replace(/\u00a0/g, ' ');
+    var add = names.map(function (n) { return '@' + n; }).join(' ');
+    p.textContent = (cur ? cur + ' ' : '') + add;
+  }
+  // 合并进艾特列表（按 uid 去重）
+  var seen = {};
+  SP_MENTIONS.forEach(function (m) { seen[m.uid] = 1; });
+  names.forEach(function (n, i) {
+    var uid = ids[i];
+    if (!seen[uid]) { seen[uid] = 1; SP_MENTIONS.push({ uid: uid, name: n }); }
+  });
+  renderMentionBar();
+}
+function renderMentionBar() {
+  var bar = document.getElementById('spMentionBar');
+  if (!bar) return;
+  if (!SP_MENTIONS.length) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+  bar.style.display = 'flex';
+  bar.innerHTML = SP_MENTIONS.map(function (m, i) {
+    return '<span class="sp-mention-tag">(' + spEsc(m.name) + ')<span class="sp-mention-x" title="移除" onclick="spMentionRemove(' + i + ')">' + SP_X_IC + '</span></span>';
+  }).join('');
+}
+function spMentionRemove(i) {
+  var m = SP_MENTIONS[i];
+  if (!m) return;
+  SP_MENTIONS.splice(i, 1);
+  // 同步从内容里删掉对应的 @名字
+  var p = document.getElementById('spPoster');
+  if (p) {
+    var cur = (p.textContent || '').replace(/\u00a0/g, ' ');
+    cur = cur.split('@' + m.name).join('').replace(/\s{2,}/g, ' ').trim();
+    p.textContent = cur;
+  }
+  renderMentionBar();
 }
 function spFmClose() {
   var m = document.getElementById('spFmMask');
