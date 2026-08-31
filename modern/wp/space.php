@@ -12,13 +12,16 @@ $currentUser = chatapp_get_user();
 $embedMode = isset($_GET['embed']) ? 1 : 0;
 
 $viewUsername = isset($_GET['user']) ? trim((string)$_GET['user']) : '';
-$viewUid = (int)($_GET['uid'] ?? 0);
+$viewUidRaw = $_GET['uid'] ?? null;
+$hasViewUid = ($viewUidRaw !== null && trim((string)$viewUidRaw) !== '');
+$viewUid = $hasViewUid ? (int)$viewUidRaw : 0;
 $meName = (string)($currentUser['username'] ?? '');
 
 // 支持 ?uid=<数字> 按用户ID访问空间，或 ?user=<用户名>，缺省为本人
+// 注意：?uid= 只要出现（即使非数字转为 0）就按 UID 访问——非数字 → UID 0（未知用户），而不是回落为本人
 $pdo = db();
 db_add_column_if_missing('users', 'space_ears', "TINYINT(1) NOT NULL DEFAULT 1");
-if ($viewUid > 0) {
+if ($hasViewUid) {
     $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, custom_title, gender, gender_privacy, birthday, profile_bg_image, profile_bg_updated_at, level, exp, likes, created_at, dnd, enabled, placeholder, space_ears, deleted_at FROM users WHERE user_id = ?");
     $stmt->execute([$viewUid]);
 } else {
@@ -57,6 +60,8 @@ $level = (int)$u['level']; $exp = (int)$u['exp']; $likes = (int)$u['likes'];
 $gender = $u['gender']; // 0/1/2? 按现有 profile 语义显示
 $birthday = $u['birthday'] ?? '';
 $uid = (int)$u['user_id'];
+// 页面展示的 UID：优先用 URL 传入的 ?uid= 值（非数字→0），未知/已删除用户也显示所访问的 UID
+$displayUid = $viewUid > 0 ? $viewUid : $uid;
 $meUid = (int)($currentUser['user_id'] ?? 0);
 $spaceTitle = $displayName . '的空间';
 
@@ -233,7 +238,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
       </div>
       <div class="head-detail">
         <div class="head-detail-name"><span class="user-name"><?php echo htmlspecialchars($displayName);?></span></div>
-        <div class="head-detail-sub">Lv.<?php echo $level;?> · UID <?php echo $uid;?></div>
+        <div class="head-detail-sub">Lv.<?php echo $level;?> · UID <?php echo $displayUid;?></div>
       </div>
     </div>
   </div>
@@ -461,7 +466,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
                   <?php if ($birthday):?><li><span class="k">生日</span><span class="v"><?php echo htmlspecialchars($birthday);?></span></li><?php endif;?>
                   <li><span class="k">等级</span><span class="v">Lv.<?php echo $level;?>（<?php echo $exp;?> 经验）</span></li>
                   <li><span class="k">获赞</span><span class="v"><?php echo $likes;?></span></li>
-                  <li><span class="k">UID</span><span class="v"><?php echo $uid;?></span></li>
+                  <li><span class="k">UID</span><span class="v"><?php echo $displayUid;?></span></li>
                   <li><span class="k">注册时间</span><span class="v"><?php echo date('Y-m-d', strtotime((string)($u['created_at'] ?? '')));?></span></li>
                 </ul>
               </div>
@@ -504,7 +509,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
                   <?php if ($birthday):?><li><span class="k">生日</span><span class="v"><?php echo htmlspecialchars($birthday);?></span></li><?php endif;?>
                   <li><span class="k">等级</span><span class="v">Lv.<?php echo $level;?>（<?php echo $exp;?> 经验）</span></li>
                   <li><span class="k">获赞</span><span class="v"><?php echo $likes;?></span></li>
-                  <li><span class="k">UID</span><span class="v"><?php echo $uid;?></span></li>
+                  <li><span class="k">UID</span><span class="v"><?php echo $displayUid;?></span></li>
                 </ul>
               </div>
             </div>
