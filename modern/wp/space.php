@@ -509,22 +509,6 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
                 </ul>
               </div>
             </section>
-
-            <!-- ===== 访客大框（谁看过我左边，深灰贴合） ===== -->
-            <?php if ($isSelf): ?>
-            <div class="sp-vp-mod" id="spVisitorMod">
-              <div class="sp-vp-hd">
-                <b class="sp-vp-title">访客</b>
-                <div class="sp-vp-tabs">
-                  <a class="on" data-t="me" onclick="spVpTab('me')">谁看过我</a><i>|</i>
-                  <a data-t="you" onclick="spVpTab('you')">我看过谁</a><i>|</i>
-                  <a data-t="refuse" onclick="spVpTab('refuse')">被挡访客</a>
-                </div>
-                <span class="sp-vp-stat">今日浏览 <b id="spVpToday">0</b> · 总浏览 <b id="spVpTotal">0</b></span>
-              </div>
-              <ul class="sp-vp-list" id="spVpList"><li class="sp-vis-empty">加载中…</li></ul>
-            </div>
-            <?php endif; ?>
           </div>
 
           <!-- ===== 右栏 ===== -->
@@ -546,12 +530,24 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
               </div>
             </div>
 
-            <!-- 谁看过我（仅本人空间可见；点击在当前 window 打开访客画面） -->
+            <!-- 谁看过我（仅本人空间可见）；右侧浮层大框右上角对准本模块左上角 -->
             <?php if ($isSelf): ?>
-            <div class="icenter-right-mod">
-              <div class="hd" style="cursor:pointer" onclick="spVpScroll()">谁看过我<span class="more" onclick="event.stopPropagation();spVpScroll()"><?php echo sp_ic('right');?></span></div>
+            <div class="icenter-right-mod" id="spWhoMod">
+              <div class="hd" style="cursor:pointer" onclick="spVpToggle()">谁看过我<span class="more" onclick="event.stopPropagation();spVpToggle()"><?php echo sp_ic('right');?></span></div>
               <div class="bd">
                 <ul class="visitor-list" id="visitorList"><li class="sp-vis-empty">加载中…</li></ul>
+              </div>
+              <div class="sp-vp-mod" id="spVisitorMod">
+                <div class="sp-vp-hd">
+                  <b class="sp-vp-title">访客</b>
+                  <div class="sp-vp-tabs">
+                    <a class="on" data-t="me" onclick="spVpTab('me')">谁看过我</a><i>|</i>
+                    <a data-t="you" onclick="spVpTab('you')">我看过谁</a><i>|</i>
+                    <a data-t="refuse" onclick="spVpTab('refuse')">被挡访客</a>
+                  </div>
+                  <span class="sp-vp-stat">今日浏览 <b id="spVpToday">0</b> · 总浏览 <b id="spVpTotal">0</b></span>
+                </div>
+                <ul class="sp-vp-list" id="spVpList"><li class="sp-vis-empty">加载中…</li></ul>
               </div>
             </div>
             <?php endif; ?>
@@ -1463,9 +1459,12 @@ function ncToggleCare(e) {
 })();
 /* 访客大框（主栏，深灰） */
 var SP_VP_TYPE = 'me';
-function spVpScroll() {
+function spVpToggle() {
   var m = document.getElementById('spVisitorMod');
-  if (m) m.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (!m) return;
+  var show = m.style.display === 'none';
+  m.style.display = show ? 'block' : 'none';
+  if (show) spVpLoad();
 }
 function spVpTab(t) {
   SP_VP_TYPE = t;

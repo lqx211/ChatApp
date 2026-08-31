@@ -575,8 +575,9 @@ body.embed .layout-background{min-height:0}
 .sp-vis-hide{position:absolute;bottom:-4px;right:-4px;font-size:10px;background:rgba(0,0,0,.6);color:#fff;border-radius:4px;padding:1px 5px;cursor:pointer;z-index:3}
 .sp-vis-loading{grid-column:1/-1;text-align:center;color:#8fa3b8;font-size:13px;padding:30px 0}
 
-/* ===== 访客大框（主栏，深灰贴合，无圆角） ===== */
-.sp-vp-mod{background:rgba(255,255,255,.03);border:1px solid var(--q-border);margin-bottom:16px}
+/* ===== 访客浮层大框（紧贴谁看过我：右上角对准其左上角，覆盖所有图层） ===== */
+#spWhoMod{position:relative}
+.sp-vp-mod{position:absolute;top:0;right:100%;z-index:9999;width:520px;max-width:calc(100vw - 24px);background:#20242c;border:1px solid #3a4250;box-shadow:0 8px 28px rgba(0,0,0,.55)}
 .sp-vp-hd{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:12px 14px;border-bottom:1px solid var(--q-border)}
 .sp-vp-title{font-size:15px;color:#e8eef5}
 .sp-vp-tabs{display:flex;align-items:center;gap:6px}
@@ -595,4 +596,4 @@ body.embed .layout-background{min-height:0}
 .sp-vp-list .date{font-size:11px;color:#6f7f92;display:block;margin-top:2px}
 .sp-vp-list .top_del{position:absolute;top:-6px;right:4px;width:18px;height:18px;line-height:16px;text-align:center;background:#3a4250;border:1px solid #4a5461;color:#c9d6e4;font-size:12px;cursor:pointer;text-decoration:none}
 .sp-vp-list .top_del:hover{background:#d9534f;color:#fff;border-color:#d9534f}
-@media (max-width:720px){.sp-vp-list{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:720px){.sp-vp-mod{position:static;right:auto;width:auto;margin-top:10px;box-shadow:none}.sp-vp-list{grid-template-columns:repeat(3,1fr)}}
