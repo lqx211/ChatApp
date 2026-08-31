@@ -7200,6 +7200,7 @@ function ensureUserCtxMenu() {
         '<button onclick="closeUserCtxMenu();reportDmUser(_ctxUser)">' + T('btn_report_user') + '</button>' +
         '<button onclick="closeUserCtxMenu();openDmSearch(_ctxUser)">' + T('d_search_history') + '</button>' +
         '<button id="ctxPinBtn" onclick="closeUserCtxMenu();togglePinContact(_ctxUser)">' + T('d_pin') + '</button>' +
+        '<button id="ctxSpecialBtn" onclick="closeUserCtxMenu();toggleSpecialContact(_ctxUser)">' + T('d_special', '特别关心') + '</button>' +
         '<button onclick="closeUserCtxMenu();changeNickname(_ctxUser)">' + T('d_change_nickname') + '</button>' +
         (ADMIN ? '<button onclick="closeUserCtxMenu();reloadClient(_ctxUser)">' + T('opt_reload_client') + '</button>' : '') +
         '<button class="danger" onclick="closeUserCtxMenu();deleteDmContact(_ctxUser)">' + T('btn_delete_contact') + '</button>';
@@ -7215,6 +7216,7 @@ function openUserCtxMenu(e, username) {
     _ctxUser = username;
     var pinBtn = document.getElementById('ctxPinBtn');
     if (pinBtn) pinBtn.textContent = ((username === U) ? _pinnedSelf : _pinned[username]) ? T('d_unpin') : T('d_pin');
+    refreshContactMenuSpecial(username);
     el.classList.add('active');
     var x = e.clientX,
         y = e.clientY;
@@ -7227,6 +7229,25 @@ function openUserCtxMenu(e, username) {
 }
 function closeUserCtxMenu() {
     if (_userCtxEl) _userCtxEl.classList.remove('active');
+}
+// 特别关心：联系人右键菜单切换 + 文本刷新（已开显示「取消特别关心」）
+function toggleSpecialContact(u) {
+    var f = new URLSearchParams();
+    f.append('action', 'toggle_special');
+    f.append('username', u);
+    fetch('../../api/contacts.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, credentials: 'same-origin', body: f.toString() })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            if (d && d.success) { refreshContactMenuSpecial(u); }
+            else alert('操作失败');
+        });
+}
+function refreshContactMenuSpecial(u) {
+    var b = document.getElementById('ctxSpecialBtn');
+    if (!b) return;
+    fetch('../../api/space.php?action=special_state&username=' + encodeURIComponent(u), { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) { if (d && d.success) b.textContent = d.special ? T('d_unspecial', '取消特别关心') : T('d_special', '特别关心'); });
 }
 document.addEventListener('click', function() { closeUserCtxMenu(); });
 document.addEventListener('contextmenu', function(e) {

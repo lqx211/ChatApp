@@ -262,8 +262,16 @@ switch ($action) {
         break;
 
     case 'special_state':
-        // 某用户是否被我特别关心（空间页按钮状态）
+        // 某用户是否被我特别关心（空间页按钮/联系人右键菜单状态）
         $targetUid = (int)($_GET['uid'] ?? 0);
+        if ($targetUid <= 0) {
+            $un = trim((string)($_GET['username'] ?? ''));
+            if ($un !== '') {
+                $us = $pdo->prepare("SELECT user_id FROM users WHERE username=?");
+                $us->execute([$un]);
+                $targetUid = (int)$us->fetchColumn();
+            }
+        }
         if ($targetUid <= 0) { echo json_encode(['success' => false]); break; }
         $st = $pdo->prepare("SELECT special FROM contacts WHERE user_from=? AND user_to=? LIMIT 1");
         $st->execute([$myUid, $targetUid]);
