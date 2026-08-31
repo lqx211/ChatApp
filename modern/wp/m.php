@@ -41,7 +41,7 @@ if (!empty($meAvatar) && strpos($meAvatar, 'data:') !== 0 && preg_match('/^[0-9a
   </div>
   <div class="reply-bar" id="replyBar" style="display:none">
     <span id="replyBarText"></span>
-    <button class="reply-bar-close" id="replyBarClose">✕</button>
+    <button class="reply-bar-close" id="replyBarClose"><?php echo svg_ic('close', 14);?></button>
   </div>
   <div class="chat-inputbar">
     <input type="file" id="chatMediaFile" multiple style="display:none">
@@ -118,7 +118,7 @@ if (!empty($meAvatar) && strpos($meAvatar, 'data:') !== 0 && preg_match('/^[0-9a
 <!-- 图片全屏预览 -->
 <div class="img-viewer" id="imgViewer" style="display:none">
   <img id="imgViewerImg" alt="">
-  <button class="img-viewer-close" id="imgViewerClose">✕</button>
+  <button class="img-viewer-close" id="imgViewerClose"><?php echo svg_ic('close', 20);?></button>
 </div>
 
 <!-- 轻提示 -->

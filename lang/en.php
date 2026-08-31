@@ -918,7 +918,7 @@ return [
     'up_k_remote' => 'Remote latest',
     'up_k_dirty' => 'Uncommitted changes',
     'up_btn_check' => 'Check for updates',
-    'up_warn_title' => '⚠ Upgrade at your own risk',
+    'up_warn_title' => 'Upgrade at your own risk',
     'up_warn_b1' => 'Pulls from <b>github.com/lqx211/ChatApp</b> and <b>overwrites code</b>.',
     'up_warn_b2' => '<b>config/</b>, <b>data/</b> (user data) and <b>maintenance/</b> are <b>kept</b>.',
     'up_warn_b3' => 'Any <b>uncommitted local changes</b> will be <b>overwritten</b>. Commit them first or accept the loss.',

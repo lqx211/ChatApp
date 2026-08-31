@@ -237,14 +237,23 @@ function L(e, z) { return LANG === 'en' ? e : z; }
 
 var STEP = -1;         // -1 splash, 0 lang, 1 tour, 2 security, 3 done
 var SLIDE = 0;
+var OOBE_IC = {
+  chat: '<svg viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
+  users: '<svg viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  award: '<svg viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"/><path d="M8.21 13.89 7 23l5-3 5 3-1.21-9.11"/></svg>',
+  lock: '<svg viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  zap: '<svg viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+  wrench: '<svg viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
+  database: '<svg viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>'
+};
 var SLIDES = [
-  { ic:'💬', en:['Chat & DMs','Real-time DMs, groups, attachments, stickers, doodles and flash transfers — all synced instantly.'], zh:['聊天与私信','实时私聊、群组、附件、表情、涂鸦与闪传，全部即时同步。'] },
-  { ic:'👥', en:['Groups','Create groups, invite members, assign admins, pin, mute-all and dissolve when done.'], zh:['群组','建群、邀请成员、设置管理员、置顶、全员禁言，随时解散。'] },
-  { ic:'🏅', en:['Levels & EXP','Chat, sign in daily and give likes to earn EXP. Unlock level titles and per-level limits.'], zh:['等级与经验','聊天、每日签到、点赞赚经验，解锁等级头衔与各级上限。'] },
-  { ic:'🔒', en:['Security','End-to-end encryption for DMs, plus a duress password that silently wipes the account under coercion.'], zh:['安全','私聊端到端加密；还有胁迫密码，被胁迫时静默销毁账号自保。'] },
-  { ic:'⚡', en:['Realtime','WebSocket pushes messages, typing indicators, presence and read receipts in real time.'], zh:['实时','WebSocket 实时推送消息、正在输入、在线状态与已读回执。'] },
-  { ic:'🛠️', en:['Admin tools','User & role management, audit logs, maintenance mode, DB admin and Factory Reset.'], zh:['管理工具','用户与角色管理、审计日志、维护模式、数据库管理与工厂重置。'] },
-  { ic:'💾', en:['Backups','Data lives in MySQL + data/. Back up regularly. Next step sets your maintenance portal password.'], zh:['备份','数据在 MySQL + data/ 目录。请定期备份。下一步设置维护门户密码。'] }
+  { ic:'chat', en:['Chat & DMs','Real-time DMs, groups, attachments, stickers, doodles and flash transfers — all synced instantly.'], zh:['聊天与私信','实时私聊、群组、附件、表情、涂鸦与闪传，全部即时同步。'] },
+  { ic:'users', en:['Groups','Create groups, invite members, assign admins, pin, mute-all and dissolve when done.'], zh:['群组','建群、邀请成员、设置管理员、置顶、全员禁言，随时解散。'] },
+  { ic:'award', en:['Levels & EXP','Chat, sign in daily and give likes to earn EXP. Unlock level titles and per-level limits.'], zh:['等级与经验','聊天、每日签到、点赞赚经验，解锁等级头衔与各级上限。'] },
+  { ic:'lock', en:['Security','End-to-end encryption for DMs, plus a duress password that silently wipes the account under coercion.'], zh:['安全','私聊端到端加密；还有胁迫密码，被胁迫时静默销毁账号自保。'] },
+  { ic:'zap', en:['Realtime','WebSocket pushes messages, typing indicators, presence and read receipts in real time.'], zh:['实时','WebSocket 实时推送消息、正在输入、在线状态与已读回执。'] },
+  { ic:'wrench', en:['Admin tools','User & role management, audit logs, maintenance mode, DB admin and Factory Reset.'], zh:['管理工具','用户与角色管理、审计日志、维护模式、数据库管理与工厂重置。'] },
+  { ic:'database', en:['Backups','Data lives in MySQL + data/. Back up regularly. Next step sets your maintenance portal password.'], zh:['备份','数据在 MySQL + data/ 目录。请定期备份。下一步设置维护门户密码。'] }
 ];
 
 function $(id){ return document.getElementById(id); }
@@ -309,7 +318,7 @@ function stepTour(){
 function drawSlide(){
   var s = SLIDES[SLIDE];
   body('<div class="slide">'+
-       '<span class="ic">'+s.ic+'</span>'+
+       '<span class="ic">'+(OOBE_IC[s.ic]||'')+'</span>'+
        '<h2 id="slideTitle"></h2>'+
        '<p id="slideDesc"></p>'+
        '<div class="cnt">'+(SLIDE+1)+' / '+SLIDES.length+'</div>'+

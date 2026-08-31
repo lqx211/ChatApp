@@ -153,7 +153,7 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
    <div class="ng"><div class="ngh" onclick="switchPanel('dbadmin')" style="cursor:pointer"><span><?php echo t('sb_dbadmin');?></span></div></div>
    <div class="ng"><div class="ngh" onclick="switchPanel('wssettings');loadWssSettings()" style="cursor:pointer"><span>WebSocket Settings</span></div></div>
    <div class="ng"><div class="ngh" onclick="switchPanel('oobe')" style="cursor:pointer"><span>OOBE 引导</span></div></div>
-   <div class="ng"><div class="ngh" onclick="location.href='/maintenance/portal.php'" style="cursor:pointer"><span>🛠 维护门户</span></div></div>
+   <div class="ng"><div class="ngh" onclick="location.href='/maintenance/portal.php'" style="cursor:pointer"><span><?php echo svg_ic('wrench', 14);?> 维护门户</span></div></div>
    <?php endif;?>
    <div class="ng"><div class="ngh" onclick="switchPanel('level')" style="cursor:pointer"><span><?php echo t('title_level');?></span></div></div>
    <div class="ng"><div class="ngh" onclick="openSettings()" style="cursor:pointer"><span><?php echo t('title_settings');?></span></div></div>
@@ -353,9 +353,9 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
   <div style="padding:12px">
    <div style="font-size:.75em;color:#888;margin-bottom:10px">三个通讯模式分别填地址（host:port 或完整 ws:// / wss:// URL）。前端按当前访问来源自动选择：localhost 走「本地」，私网 IP 走「私网」，公网域名走「公网」。留空 = 该模式不启用。</div>
    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px">
-    <div style="display:flex;gap:8px;align-items:flex-end"><span style="width:64px;font-size:.78em;color:#ccc;padding-bottom:8px;white-space:nowrap">🖥 本地</span><div class="uinput" style="flex:1;min-width:0"><input type="text" id="wssLocalInput" placeholder="127.0.0.1:9090"></div></div>
-    <div style="display:flex;gap:8px;align-items:flex-end"><span style="width:64px;font-size:.78em;color:#ccc;padding-bottom:8px;white-space:nowrap">🏠 私网</span><div class="uinput" style="flex:1;min-width:0"><input type="text" id="wssPrivateInput" placeholder="0.0.0.0:9090"></div></div>
-    <div style="display:flex;gap:8px;align-items:flex-end"><span style="width:64px;font-size:.78em;color:#ccc;padding-bottom:8px;white-space:nowrap">🌐 公网</span><div class="uinput" style="flex:1;min-width:0"><input type="text" id="wssPublicInput" placeholder="wss://wss.lqx211.com"></div></div>
+    <div style="display:flex;gap:8px;align-items:flex-end"><span style="width:64px;font-size:.78em;color:#ccc;padding-bottom:8px;white-space:nowrap"><?php echo svg_ic('monitor', 13);?> 本地</span><div class="uinput" style="flex:1;min-width:0"><input type="text" id="wssLocalInput" placeholder="127.0.0.1:9090"></div></div>
+    <div style="display:flex;gap:8px;align-items:flex-end"><span style="width:64px;font-size:.78em;color:#ccc;padding-bottom:8px;white-space:nowrap"><?php echo svg_ic('home', 13);?> 私网</span><div class="uinput" style="flex:1;min-width:0"><input type="text" id="wssPrivateInput" placeholder="0.0.0.0:9090"></div></div>
+    <div style="display:flex;gap:8px;align-items:flex-end"><span style="width:64px;font-size:.78em;color:#ccc;padding-bottom:8px;white-space:nowrap"><?php echo svg_ic('globe', 13);?> 公网</span><div class="uinput" style="flex:1;min-width:0"><input type="text" id="wssPublicInput" placeholder="wss://wss.lqx211.com"></div></div>
    </div>
    <div style="display:flex;gap:8px;align-items:center">
     <button type="button" class="bsm" onclick="saveWssSettings()" style="background:#2a4a2a;border-color:#3a6a3a">保存</button>
@@ -979,8 +979,8 @@ try {
 <div id="shareOverlay" style="display:none">
   <div class="share-top">
     <span class="share-title" id="shareTitle"><?php echo t('share_sharing');?></span>
-    <button class="bsm share-audio-btn" id="shareAudioBtn" onclick="ChatShare.toggleAudio()" style="display:none">🔊</button>
-    <button class="bsm share-audio-btn" id="shareMuteBtn" onclick="ChatShare.toggleMute()" style="display:none" title="静音对方屏幕声音">🔊</button>
+    <button class="bsm share-audio-btn" id="shareAudioBtn" onclick="ChatShare.toggleAudio()" style="display:none"><?php echo svg_ic('volume', 14);?></button>
+    <button class="bsm share-audio-btn" id="shareMuteBtn" onclick="ChatShare.toggleMute()" style="display:none" title="静音对方屏幕声音"><?php echo svg_ic('volume', 14);?></button>
     <button class="bsm share-min-btn" id="shareMinBtn" onclick="ChatShare.minimize()" title="<?php echo t('share_minimize');?>">－</button>
     <button class="bsm danger" id="shareStopBtn" onclick="ChatShare.stopShare()" style="display:none"><?php echo t('share_stop');?></button>
     <button class="bsm" id="shareCloseBtn" onclick="ChatShare.closeViewer()" style="display:none"><?php echo t('share_exit');?></button>

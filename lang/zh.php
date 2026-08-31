@@ -918,7 +918,7 @@ return [
     'up_k_remote' => '远程最新',
     'up_k_dirty' => '未提交改动',
     'up_btn_check' => '检查更新',
-    'up_warn_title' => '⚠ 升级风险自负',
+    'up_warn_title' => '升级风险自负',
     'up_warn_b1' => '从 <b>github.com/lqx211/ChatApp</b> 拉取并<b>覆盖代码</b>。',
     'up_warn_b2' => '<b>config/</b>、<b>data/</b>（用户数据）与 <b>maintenance/</b> 会<b>保留</b>。',
     'up_warn_b3' => '任何<b>未提交的本地改动</b>将被<b>覆盖</b>。请先提交，或接受丢失。',

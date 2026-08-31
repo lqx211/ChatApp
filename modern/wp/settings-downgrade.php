@@ -93,7 +93,7 @@ try {
   </div>
 
   <div class="dg-result" id="dgResult">
-    <div style="font-size:34px">⚠️</div>
+    <div style="font-size:34px"><?php echo svg_ic('warning', 34);?></div>
     <div class="ok" id="dgResultText"></div>
     <div class="sub"><?php echo t('dg_done_sub', 'The codebase has been reverted. Reloading the page will show the selected (older) version.'); ?></div>
   </div>

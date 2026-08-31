@@ -84,10 +84,10 @@ try {
   </div>
 
   <div id="unDone">
-    <div style="font-size:40px">🗑️</div>
+    <div style="font-size:40px"><?php echo svg_ic('trash', 40);?></div>
     <div class="ok">✓ <?php echo t('un_done_title', 'ChatApp has been uninstalled'); ?></div>
     <div class="sub"><?php echo t('un_done_sub', 'The remaining files are being removed in the background.<br>Apache may be stopped if this server hosted no other website.<br>You can close this page / tab now.'); ?></div>
-    <div style="margin-top:16px;color:#8aa6c8;font-size:.85em">💙 <?php echo t('un_thanks', 'Thanks for using ChatApp!'); ?></div>
+    <div style="margin-top:16px;color:#8aa6c8;font-size:.85em"><?php echo svg_ic('heart', 13);?> <?php echo t('un_thanks', 'Thanks for using ChatApp!'); ?></div>
   </div>
 
 </div>
@@ -95,7 +95,7 @@ try {
 <!-- 二次确认弹窗（强调不可恢复） -->
 <div id="unModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:20000;align-items:center;justify-content:center;padding:20px">
   <div style="background:#2a2a2a;border:1px solid #7c3434;border-radius:12px;padding:22px 20px;width:320px;max-width:100%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,0.6)">
-    <div style="font-size:34px">⚠️</div>
+    <div style="font-size:34px"><?php echo svg_ic('warning', 34);?></div>
     <div style="color:#ff8a8a;font-weight:700;margin:10px 0 6px;font-size:.95em"><?php echo t('un_modal_title', 'Are you absolutely sure?'); ?></div>
     <div style="color:#bbb;font-size:.78em;line-height:1.65;margin-bottom:16px"><?php echo t('un_modal_body', 'This will <b>permanently delete</b> the deployed ChatApp and (by default) its database. <b>This cannot be undone</b> — there is no recovery.'); ?></div>
     <div style="display:flex;gap:8px">

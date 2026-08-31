@@ -105,7 +105,7 @@ try {
 
 <!-- 内嵌工厂重置流程（iframe，替代新开窗口） -->
 <div id="frFrameWrap">
-  <button id="frFrameClose" onclick="closeFactoryReset()" title="关闭">✕</button>
+  <button id="frFrameClose" onclick="closeFactoryReset()" title="关闭"><?php echo svg_ic('close', 16);?></button>
   <iframe id="frFrame" src="about:blank"></iframe>
 </div>
 
@@ -161,7 +161,7 @@ function ensureFrOverlay(){
     wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2147483000;display:none;align-items:center;justify-content:center;padding:16px;';
     var close = topWin.document.createElement('button');
     close.id = 'frFrameClose';
-    close.textContent = '✕';
+    close.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
     close.title = 'Close';
     close.style.cssText = 'position:fixed;top:14px;right:18px;background:rgba(60,60,60,0.9);color:#ddd;border:1px solid #555;border-radius:50%;width:34px;height:34px;font-size:16px;line-height:1;cursor:pointer;z-index:2147483001;';
     close.onclick = frCloseTop;
@@ -241,7 +241,7 @@ function frSimulate(){
       step.textContent = '';
       ov.innerHTML =
         '<div style="text-align:center;padding:20px">' +
-          '<div style="font-size:1.15em;color:#ff6b6b;font-weight:800;letter-spacing:1px">JUST KIDDING 😎</div>' +
+          '<div style="font-size:1.15em;color:#ff6b6b;font-weight:800;letter-spacing:1px">JUST KIDDING</div>' +
           '<div style="margin-top:10px;color:#bbb;font-size:.82em;line-height:1.6">This was a <b style="color:#ff8a8a">simulation</b>.<br>Your data is 100% safe.</div>' +
           '<button onclick="location.reload()" style="margin-top:20px;padding:11px 30px;background:#2a2a2a;border:1px solid #ff6b6b;color:#ff6b6b;border-radius:9px;font-size:.9em">OK</button>' +
         '</div>';

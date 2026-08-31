@@ -70,7 +70,7 @@ try {
   <!-- 升级区块（有更新时显示） -->
   <div id="upPanel" style="display:none">
     <div class="up-warn">
-      <b><?php echo t('up_warn_title', '⚠ Upgrade at your own risk'); ?></b><br>
+      <b><?php echo svg_ic('warning', 14);?> <?php echo t('up_warn_title', 'Upgrade at your own risk'); ?></b><br>
       · <?php echo t('up_warn_b1', 'Pulls from <b>github.com/lqx211/ChatApp</b> and <b>overwrites code</b>.'); ?><br>
       · <?php echo t('up_warn_b2', '<b>config/</b>, <b>data/</b> (user data) and <b>maintenance/</b> are <b>kept</b>.'); ?><br>
       · <?php echo t('up_warn_b3', 'Any <b>uncommitted local changes</b> will be <b>overwritten</b>. Commit them first or accept the loss.'); ?><br>
