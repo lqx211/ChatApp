@@ -119,18 +119,36 @@ switch ($action) {
         else { array_splice($likedBy, $idx, 1); }
         $pdo->prepare("UPDATE space_feeds SET likes=?, liked_by=? WHERE id=?")
             ->execute([count($likedBy), $likedBy ? json_encode($likedBy) : null, $id]);
+        // 赞/取消赞 → 写入/清理「赞了我的说说」通知
+        $oStmt = $pdo->prepare("SELECT user_id FROM space_feeds WHERE id=?");
+        $oStmt->execute([$id]);
+        $owner = (int)$oStmt->fetchColumn();
+        if ($owner && $owner !== $myUid) {
+            if ($liked) {
+                $dup = $pdo->prepare("SELECT id FROM space_mentions WHERE feed_id=? AND mentioned_uid=? AND by_uid=? AND type='like' LIMIT 1");
+                $dup->execute([$id, $owner, $myUid]);
+                if (!$dup->fetchColumn()) {
+                    $pdo->prepare("INSERT INTO space_mentions (feed_id, mentioned_uid, by_uid, type) VALUES (?,?,?,'like')")->execute([$id, $owner, $myUid]);
+                }
+            } else {
+                $pdo->prepare("DELETE FROM space_mentions WHERE feed_id=? AND mentioned_uid=? AND by_uid=? AND type='like'")
+                    ->execute([$id, $owner, $myUid]);
+            }
+        }
         echo json_encode(['success' => true, 'liked' => $liked, 'likes' => count($likedBy)]);
         break;
 
     /* ============ 艾特通知（与我相关） ============ */
     case 'mentions':
-        // 我收到的 @ 通知列表（含发送者、对应说说）
-        $mStmt = $pdo->prepare("SELECT m.id, m.feed_id, m.by_uid, m.is_read, m.created_at,
+        // 我收到的通知列表（@/赞/评论），含发送者、对应说说、评论内容
+        $mStmt = $pdo->prepare("SELECT m.id, m.feed_id, m.by_uid, m.type, m.comment_id, m.is_read, m.created_at,
             u.username AS by_username, COALESCE(u.display_name, u.username) AS by_display, u.avatar AS by_avatar,
-            f.content AS feed_content, f.enabled AS feed_enabled
+            f.content AS feed_content, f.enabled AS feed_enabled,
+            c.content AS comment_content
             FROM space_mentions m
             JOIN users u ON u.user_id = m.by_uid
             LEFT JOIN space_feeds f ON f.id = m.feed_id
+            LEFT JOIN space_comments c ON c.id = m.comment_id
             WHERE m.mentioned_uid = ?
             ORDER BY m.id DESC LIMIT 100");
         $mStmt->execute([$myUid]);
@@ -140,10 +158,12 @@ switch ($action) {
                 'id' => (int)$m['id'],
                 'feed_id' => (int)$m['feed_id'],
                 'by_uid' => (int)$m['by_uid'],
+                'type' => (string)($m['type'] ?? 'mention'),
                 'by_username' => $m['by_username'],
                 'by_display' => $m['by_display'],
                 'by_avatar' => chatapp_avatar_url($m['by_avatar'] ?? '', (string)($m['by_username'] ?? ''), (int)$m['by_uid']),
                 'feed_content' => (string)($m['feed_content'] ?? ''),
+                'comment_content' => (string)($m['comment_content'] ?? ''),
                 'feed_enabled' => (int)($m['feed_enabled'] ?? 0),
                 'is_read' => (int)$m['is_read'],
                 'time' => space_fmt_time((string)$m['created_at']),
@@ -213,7 +233,8 @@ switch ($action) {
         $content = mb_substr($content, 0, 500);
         $s = $pdo->prepare("SELECT user_id FROM space_feeds WHERE id=? AND enabled=1");
         $s->execute([$feedId]);
-        if (!(int)$s->fetchColumn()) { echo json_encode(['success' => false, 'error' => 'no_feed']); break; }
+        $feedOwner = (int)$s->fetchColumn();
+        if (!$feedOwner) { echo json_encode(['success' => false, 'error' => 'no_feed']); break; }
         if ($parentId) {
             $s2 = $pdo->prepare("SELECT id FROM space_comments WHERE id=? AND feed_id=? AND enabled=1");
             $s2->execute([$parentId, $feedId]);
@@ -221,7 +242,14 @@ switch ($action) {
         }
         $ins = $pdo->prepare("INSERT INTO space_comments (feed_id, user_id, parent_id, content) VALUES (?,?,?,?)");
         $ins->execute([$feedId, $myUid, $parentId, $content]);
-        echo json_encode(['success' => true, 'id' => (int)$pdo->lastInsertId(), 'parent_id' => $parentId, 'card' => space_user_card($pdo, $myUid), 'time' => space_fmt_time(date('Y-m-d H:i:s'))]);
+        $commentId = (int)$pdo->lastInsertId();
+        // 评论通知：通知被评论说说的作者（非自己）
+        if ($feedOwner !== $myUid) {
+            ensure_space_mentions_table();
+            $pdo->prepare("INSERT INTO space_mentions (feed_id, mentioned_uid, by_uid, type, comment_id) VALUES (?,?,?,'comment',?)")
+                ->execute([$feedId, $feedOwner, $myUid, $commentId]);
+        }
+        echo json_encode(['success' => true, 'id' => $commentId, 'parent_id' => $parentId, 'card' => space_user_card($pdo, $myUid), 'time' => space_fmt_time(date('Y-m-d H:i:s'))]);
         break;
 
     case 'list_comments':

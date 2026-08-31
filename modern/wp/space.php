@@ -295,20 +295,24 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
               <!-- 图片预览 + 文件选择 -->
               <div class="sp-post-imgs" id="spPostImgs" style="display:none"></div>
               <input type="file" id="spImgInput" multiple accept="image/*" style="display:none">
-              <!-- 好友选择面板：贴在发表框底部，随页面滚动，动画伸出 -->
+              <!-- 好友选择面板：贴在发表框底部，随页面滚动，动画伸出（分组侧栏 + 已选列表） -->
               <div class="sp-fm-mask" id="spFmMask" style="display:none">
                 <div class="sp-fm-box">
                   <div class="sp-fm-head"><span id="spFmTitle">选择好友</span><span class="sp-fm-x" onclick="spFmClose()"><?php echo sp_ic('close');?></span></div>
+                  <div class="sp-fm-search"><input id="spFmSearch" placeholder="搜索好友"><span class="sp-fm-sbtn"><?php echo sp_ic('search');?></span></div>
                   <div class="sp-fm-body">
-                    <div class="sp-fm-left">
-                      <div class="sp-fm-search"><input id="spFmSearch" placeholder="搜索好友"><span class="sp-fm-sbtn"><?php echo sp_ic('search');?></span></div>
-                      <label class="sp-fm-g"><input type="checkbox" id="spFmAll" onchange="spFmSetAll(this.checked)"> 全部好友</label>
-                      <div class="sp-fm-hint">最多可勾选 1000 位好友</div>
+                    <div class="sp-fm-side">
+                      <div class="sp-fm-group on" data-g="all" onclick="spFmGroup('all')">全部好友</div>
+                      <div class="sp-fm-group" data-g="mine" onclick="spFmGroup('mine')">我的好友</div>
+                      <div class="sp-fm-group" data-g="auth" onclick="spFmGroup('auth')">认证空间</div>
                     </div>
-                    <div class="sp-fm-right" id="spFmList"></div>
+                    <div class="sp-fm-right">
+                      <div class="sp-fm-picked" id="spFmPicked" style="display:none"></div>
+                      <div id="spFmList"></div>
+                    </div>
                   </div>
                   <div class="sp-fm-foot">
-                    <span class="sp-fm-count" id="spFmCount">已选 0 位</span>
+                    <span class="sp-fm-hint">你可以在下面添加最多 <b>30</b> 位好友（已选 <b id="spFmCount">0</b> 位）</span>
                     <button class="sp-fm-ok" onclick="spFmConfirm()">确定</button>
                   </div>
                 </div>
@@ -628,15 +632,18 @@ function renderMentions(list) {
   } else {
     list.forEach(function (m) {
       var ch = (m.by_display || '?').charAt(0);
+      var typeLabel = { mention: '在说说中提到了你', like: '赞了你的说说', comment: '评论了你的说说' }[m.type] || '提到了你';
+      var quoteText = (m.type === 'comment') ? (m.comment_content || m.feed_content || '') : (m.feed_content || '');
+      var delTxt = (m.type === 'comment') ? '（原说说已删除）' : '（原说说已删除）';
       html += '<li class="f-single sp-mention-item" data-mid="' + m.id + '" data-feed="' + m.feed_id + '">'
         + '<div class="f-single-head">'
         + (m.by_avatar ? '<img class="user-avatar" src="' + m.by_avatar + '" alt="">' : '<span class="sp-mention-avph">' + esc(ch) + '</span>')
         + '<div class="user-info">'
         + '<div class="f-nick">' + esc(m.by_display) + '</div>'
-        + '<div class="info-detail">' + esc(m.time) + ' · 在说说中提到了你</div>'
+        + '<div class="info-detail">' + esc(m.time) + ' · ' + esc(typeLabel) + '</div>'
         + '</div></div>'
         + '<div class="f-single-content"><div class="f-ct-text">'
-        + (m.feed_enabled ? '<span class="sp-mention-quote">' + esc(m.feed_content || '') + '</span>' : '<span class="sp-mention-quote">（原说说已删除）</span>')
+        + (quoteText ? '<span class="sp-mention-quote">' + esc(quoteText) + '</span>' : (m.feed_enabled ? '' : '<span class="sp-mention-quote">' + delTxt + '</span>'))
         + '</div></div>'
         + (m.feed_enabled ? '<div class="f-single-foot"><a class="sp-mention-go" data-feed="' + m.feed_id + '" data-user="' + esc(m.by_username) + '">查看原说说 ›</a></div>' : '')
         + '</li>';
@@ -722,6 +729,7 @@ document.getElementById('spVisMenu').addEventListener('click', function (e) {
 });
 
 /* ===== 好友选择弹窗 ===== */
+var SP_FM_GROUP = 'all', SP_FM_SELECTED = [];
 function spFmOpen() {
   var mask = document.getElementById('spFmMask');
   if (!mask) return;
@@ -731,9 +739,11 @@ function spFmOpen() {
   if (SP_FM_MODE === 'mention') {
     if (fT) fT.textContent = '选择要 @ 的好友';
     if (fOk) fOk.textContent = '确定艾特';
+    SP_FM_SELECTED = SP_MENTIONS.map(function (m) { return m.uid; });
   } else {
     if (fT) fT.textContent = '选择好友';
     if (fOk) fOk.textContent = '确定';
+    SP_FM_SELECTED = SP_POST_FRIENDS.slice();
   }
   // 面板贴发表框底部（absolute 定位随页面滚动），无需手动设置坐标
   mask.style.display = 'flex';
@@ -746,43 +756,72 @@ function spFmOpen() {
     .then(function (d) { if (d && d.success) { SP_FRIENDS = d.contacts || []; renderFmList(); } })
     .catch(function () {});
 }
+function spFmGroup(g) {
+  SP_FM_GROUP = g;
+  [].forEach.call(document.querySelectorAll('.sp-fm-group'), function (el) { el.classList.toggle('on', el.getAttribute('data-g') === g); });
+  renderFmList();
+}
 function renderFmList() {
   var q = (document.getElementById('spFmSearch').value || '').trim().toLowerCase();
   var list = document.getElementById('spFmList');
   var html = '';
+  if (SP_FM_GROUP === 'auth') {
+    list.innerHTML = '<div class="sp-fm-empty">暂无认证空间</div>';
+    renderFmPicked();
+    return;
+  }
   SP_FRIENDS.forEach(function (f) {
     var name = (f.display_name || f.username || '');
     if (q && name.toLowerCase().indexOf(q) < 0 && (f.username || '').toLowerCase().indexOf(q) < 0) return;
     var uid = +(f.user_id || 0);
     if (!uid) return;
-    var checked = SP_POST_FRIENDS.indexOf(uid) >= 0;
-    html += '<label class="sp-fm-item"><input type="checkbox" data-uid="' + uid + '"' + (checked ? ' checked' : '') + '>'
+    var on = SP_FM_SELECTED.indexOf(uid) >= 0;
+    html += '<div class="sp-fm-item' + (on ? ' on' : '') + '" data-uid="' + uid + '" onclick="spFmToggle(' + uid + ')">'
       + '<img src="' + (f.avatar || '') + '" alt="" onerror="this.style.visibility=\'hidden\'">'
-      + '<span class="sp-fm-name">' + String(name).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }) + '</span></label>';
+      + '<span class="sp-fm-name">' + spEsc(name) + '</span>'
+      + (on ? '<span class="sp-fm-ck">' + SP_X_IC + '</span>' : '')
+      + '</div>';
   });
   list.innerHTML = html || '<div class="sp-fm-empty">无匹配好友</div>';
-  updateFmCount();
+  renderFmPicked();
 }
-function spFmSetAll(on) {
-  [].forEach.call(document.querySelectorAll('#spFmList input[type=checkbox]'), function (c) { c.checked = on; });
-  updateFmCount();
-}
-function updateFmCount() {
-  var ids = [];
-  [].forEach.call(document.querySelectorAll('#spFmList input:checked'), function (c) { ids.push(+(c.getAttribute('data-uid'))); });
+function renderFmPicked() {
+  var box = document.getElementById('spFmPicked');
   var c = document.getElementById('spFmCount');
-  if (c) c.textContent = '已选 ' + ids.length + ' 位';
-  var all = document.getElementById('spFmAll');
-  if (all) all.checked = ids.length > 0 && ids.length === SP_FRIENDS.length;
+  if (!box) return;
+  if (!SP_FM_SELECTED.length) { box.style.display = 'none'; box.innerHTML = ''; }
+  else {
+    box.style.display = 'flex';
+    var html = '';
+    SP_FRIENDS.forEach(function (f) {
+      var uid = +(f.user_id || 0);
+      if (SP_FM_SELECTED.indexOf(uid) >= 0) {
+        var name = (f.display_name || f.username || '');
+        html += '<span class="sp-fm-pick" data-uid="' + uid + '" title="移除" onclick="spFmToggle(' + uid + ')">'
+          + '<img src="' + (f.avatar || '') + '" alt="" onerror="this.style.visibility=\'hidden\'">'
+          + '<span>' + spEsc(name) + '</span>' + SP_X_IC + '</span>';
+      }
+    });
+    box.innerHTML = html;
+  }
+  if (c) c.textContent = SP_FM_SELECTED.length;
+}
+function spFmToggle(uid) {
+  uid = +uid;
+  var idx = SP_FM_SELECTED.indexOf(uid);
+  if (idx >= 0) SP_FM_SELECTED.splice(idx, 1);
+  else {
+    if (SP_FM_SELECTED.length >= 30) { alert('最多添加 30 位好友'); return; }
+    SP_FM_SELECTED.push(uid);
+  }
+  renderFmList();
 }
 function spFmConfirm() {
-  var ids = [];
-  [].forEach.call(document.querySelectorAll('#spFmList input:checked'), function (c) { ids.push(+(c.getAttribute('data-uid'))); });
-  if (SP_FM_MODE === 'mention') { spMentionConfirm(ids); return; }
-  SP_POST_FRIENDS = ids;
+  if (SP_FM_MODE === 'mention') { spMentionConfirm(SP_FM_SELECTED); return; }
+  SP_POST_FRIENDS = SP_FM_SELECTED.slice();
   document.getElementById('spFmMask').style.display = 'none';
   var lbl = document.getElementById('spVisLabel');
-  if (lbl) lbl.textContent = (SP_POST_VIS === 3 ? '部分好友不可见' : '部分好友可见') + (ids.length ? '（' + ids.length + '）' : '');
+  if (lbl) lbl.textContent = (SP_POST_VIS === 3 ? '部分好友不可见' : '部分好友可见') + (SP_POST_FRIENDS.length ? '（' + SP_POST_FRIENDS.length + '）' : '');
 }
 
 /* ===== 艾特（@好友） ===== */
@@ -849,7 +888,6 @@ function spFmClose() {
 }
 (function () {
   var s = document.getElementById('spFmSearch'); if (s) s.addEventListener('input', renderFmList);
-  var l = document.getElementById('spFmList'); if (l) l.addEventListener('change', updateFmCount);
 })();
 
 /* ===== 发表 ===== */

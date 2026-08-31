@@ -602,6 +602,8 @@ function ensure_space_mentions_table(): void {
         KEY idx_mentioned (mentioned_uid, is_read),
         KEY idx_feed (feed_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    db_add_column_if_missing('space_mentions', 'type', "VARCHAR(16) NOT NULL DEFAULT 'mention'");
+    db_add_column_if_missing('space_mentions', 'comment_id', "BIGINT UNSIGNED NOT NULL DEFAULT 0");
 }
 
 /** 两人是否为好友（contacts 双向 accepted） */
