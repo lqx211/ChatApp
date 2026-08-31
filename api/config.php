@@ -463,9 +463,15 @@ function lang_load(): array {
     return file_exists($file) ? include $file : include __DIR__ . '/../lang/en.php';
 }
 
-function t(string $key, ...$args): string {
+function t(string $key, $default = null, ...$args): string {
     $lang = lang_load();
-    $msg = $lang[$key] ?? $key;
+    if (array_key_exists($key, $lang)) {
+        $msg = $lang[$key];
+    } elseif ($default !== null) {
+        $msg = $default;
+    } else {
+        $msg = $key;
+    }
     return $args ? sprintf($msg, ...$args) : $msg;
 }
 

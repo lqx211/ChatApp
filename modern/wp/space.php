@@ -65,14 +65,14 @@ $birthday = $u['birthday'] ?? '';
 $uid = (int)$u['user_id'];
 // 角色与状态（个人信息区 / Lv·UID 标签）：站主黄、管理员红、普通白；状态 正常绿/受限黄/禁用红/占位灰
 $viewRole = ($uid > 0) ? chatapp_get_role($uid) : '';
-$roleLabel = $viewRole === 'root' ? '站主' : ($viewRole === 'admin' ? '管理员' : '普通用户');
+$roleLabel = $viewRole === 'root' ? t('role_root') : ($viewRole === 'admin' ? t('role_admin') : t('role_user', '普通用户'));
 $roleClass = $viewRole === 'root' ? 'sp-role-root' : ($viewRole === 'admin' ? 'sp-role-admin' : 'sp-role-user');
 $viewStatus = ''; $statusLabel = '';
 if ($uid > 0) {
-    if ((int)$u['placeholder']) { $viewStatus = 'placeholder'; $statusLabel = '占位'; }
-    elseif (!(int)$u['enabled']) { $viewStatus = 'disabled'; $statusLabel = '禁用'; }
-    elseif ((int)($u['restricted'] ?? 0)) { $viewStatus = 'restricted'; $statusLabel = '受限'; }
-    else { $viewStatus = 'normal'; $statusLabel = '正常'; }
+    if ((int)$u['placeholder']) { $viewStatus = 'placeholder'; $statusLabel = t('status_placeholder', '占位'); }
+    elseif (!(int)$u['enabled']) { $viewStatus = 'disabled'; $statusLabel = t('status_disabled', '禁用'); }
+    elseif ((int)($u['restricted'] ?? 0)) { $viewStatus = 'restricted'; $statusLabel = t('status_restricted', '受限'); }
+    else { $viewStatus = 'normal'; $statusLabel = t('status_normal', '正常'); }
 }
 // 页面展示的 UID：优先用 URL 传入的 ?uid= 值（非数字→0），未知/已删除用户也显示所访问的 UID
 $displayUid = $viewUid > 0 ? $viewUid : $uid;
@@ -184,7 +184,7 @@ $cmtCount = [];if ($uid) {
         ];
     }
 }
-$genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
+$genderLabel = $gender === 1 ? t('sp_male', '男') : ($gender === 2 ? t('sp_female', '女') : t('sp_unset', '未设置'));
 ?>
 <!DOCTYPE html>
 <html lang="zh-cn">
@@ -205,16 +205,16 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 <div class="top-fix-bar">
   <div class="top-fix-inner">
     <div class="top-fix-wrap">
-      <a class="logo" href="chat.php" title="返回聊天"><span class="logo-ico"><?php echo sp_ic('home');?></span>个人空间</a>
+      <a class="logo" href="chat.php" title="<?php echo t('sp_logo_title', '返回聊天');?>"><span class="logo-ico"><?php echo sp_ic('home');?></span><?php echo t('sp_logo', '个人空间');?></a>
       <ul class="top-nav">
-        <li class="nav-list"><a href="space.php<?php echo ($isSelf || $u['username'] === '') ? '' : ('?user=' . urlencode($u['username']));?>" class="on">主页</a></li>
-        <li class="nav-list"><a href="chat.php">聊天</a></li>
-        <li class="nav-list"><a href="settings.php">设置</a></li>
+        <li class="nav-list"><a href="space.php<?php echo ($isSelf || $u['username'] === '') ? '' : ('?user=' . urlencode($u['username']));?>" class="on"><?php echo t('sp_home', '主页');?></a></li>
+        <li class="nav-list"><a href="chat.php"><?php echo t('sp_chat', '聊天');?></a></li>
+        <li class="nav-list"><a href="settings.php"><?php echo t('sp_settings', '设置');?></a></li>
       </ul>
       <div class="top-search">
         <div class="search-box">
-          <input class="search-input" placeholder="用户/动态" id="spSearchInput">
-          <a class="search-button" title="搜索用户"><?php echo sp_ic('search');?></a>
+          <input class="search-input" placeholder="<?php echo t('sp_search_ph', '用户/动态');?>" id="spSearchInput">
+          <a class="search-button" title="<?php echo t('sp_search_user', '搜索用户');?>"><?php echo sp_ic('search');?></a>
         </div>
       </div>
       <div class="user-info">
@@ -222,7 +222,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
           <?php if ($meAvatarUrl):?><img class="user-avatar" src="<?php echo htmlspecialchars($meAvatarUrl);?>" alt=""><?php endif;?>
           <span class="user-name textoverflow"><?php echo htmlspecialchars($currentUser['display_name'] ?: $currentUser['username']);?></span>
         </a>
-        <a class="logout-new" onclick="spLogout()">退出</a>
+        <a class="logout-new" onclick="spLogout()"><?php echo t('sp_logout', '退出');?></a>
       </div>
     </div>
   </div>
@@ -242,20 +242,20 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
           <span class="title-text"><?php echo htmlspecialchars($spaceTitle);?></span>
           <span class="qz-level-flag">Lv.<?php echo $level;?></span>
         </h1>
-        <div class="head-description"><span class="description-text"><?php echo $sig !== '' ? htmlspecialchars($sig) : '这个人很懒，什么都没写';?></span></div>
+        <div class="head-description"><span class="description-text"><?php echo $sig !== '' ? htmlspecialchars($sig) : t('sp_lazy_sig', '这个人很懒，什么都没写');?></span></div>
       </div>
 
       <div class="actions profile-hd-actions">
         <?php if ($isSelf):?>
-          <span class="btn-head"><a href="editinfo.php">编辑资料</a></span>
+          <span class="btn-head"><a href="editinfo.php"><?php echo t('sp_edit_info', '编辑资料');?></a></span>
         <?php elseif ($u['username'] !== ''):?>
           <?php if ($isFriendView): ?>
-          <span class="btn-head" id="spSpecialBtn"><a onclick="spToggleSpecial()">特别关心</a></span>
+          <span class="btn-head" id="spSpecialBtn"><a onclick="spToggleSpecial()"><?php echo t('sp_care', '特别关心');?></a></span>
           <?php endif; ?>
           <?php if (!$isFriendView): ?>
-            <span class="btn-head btn-primary"><a>加好友</a></span>
+            <span class="btn-head btn-primary"><a><?php echo t('sp_add_friend', '加好友');?></a></span>
           <?php endif; ?>
-          <span class="btn-head"><a href="chat.php?user=<?php echo urlencode($u['username']);?>" target="_blank">发消息</a></span>
+          <span class="btn-head"><a href="chat.php?user=<?php echo urlencode($u['username']);?>" target="_blank"><?php echo t('sp_send_msg', '发消息');?></a></span>
         <?php endif;?>
       </div>
 
@@ -264,8 +264,8 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
       <div class="layout-shop-item" id="visitorsDiv">
         <div class="visit-module">
           <div class="other-info">
-            <p class="visit-today">今日访客 <span class="count" id="spVisitToday">0</span></p>
-            <p class="visit-count">访客总量 <span class="count" id="spVisitTotal">0</span></p>
+            <p class="visit-today"><?php echo t('sp_visit_today', '今日访客');?> <span class="count" id="spVisitToday">0</span></p>
+            <p class="visit-count"><?php echo t('sp_visit_total', '访客总量');?> <span class="count" id="spVisitTotal">0</span></p>
           </div>
         </div>
       </div>
@@ -294,12 +294,12 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
       <div class="shop-item cs">
         <div class="head-nav">
           <ul class="head-nav-menu" id="coverTabs">
-            <li class="cur" data-tab="home"><a title="主页">主页</a></li>
-            <li data-tab="blog"><a title="日志">日志</a></li>
-            <li data-tab="album"><a title="相册">相册</a></li>
-            <li data-tab="board"><a title="留言板">留言板</a></li>
-            <li data-tab="say"><a title="说说">说说</a></li>
-            <li data-tab="profile"><a title="个人档">个人档</a></li>
+            <li class="cur" data-tab="home"><a title="<?php echo t('sp_tab_home', '主页');?>"><?php echo t('sp_tab_home', '主页');?></a></li>
+            <li data-tab="blog"><a title="<?php echo t('sp_tab_blog', '日志');?>"><?php echo t('sp_tab_blog', '日志');?></a></li>
+            <li data-tab="album"><a title="<?php echo t('sp_tab_album', '相册');?>"><?php echo t('sp_tab_album', '相册');?></a></li>
+            <li data-tab="board"><a title="<?php echo t('sp_tab_board', '留言板');?>"><?php echo t('sp_tab_board', '留言板');?></a></li>
+            <li data-tab="say"><a title="<?php echo t('sp_tab_say', '说说');?>"><?php echo t('sp_tab_say', '说说');?></a></li>
+            <li data-tab="profile"><a title="<?php echo t('sp_tab_profile', '个人档');?>"><?php echo t('sp_tab_profile', '个人档');?></a></li>
           </ul>
         </div>
       </div>
@@ -310,26 +310,26 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
         <!-- ===== 左侧导航 ===== -->
         <div class="col-menu" id="leftMenu">
           <div class="mod-side-nav mod-side-nav-message">
-            <div class="hd">动态</div>
+            <div class="hd"><?php echo t('sp_nav_dyn', '动态');?></div>
             <div class="inner"><div class="bd">
               <ul class="sn-list" id="feedTypes">
                 <?php if (!$isSelf): ?>
-                <li class="current" data-f="their"><a onclick="spStream('user')"><span class="sn-ico c1"><?php echo sp_ic('people');?></span><span class="sn-title">TA的动态</span></a></li>
+                <li class="current" data-f="their"><a onclick="spStream('user')"><span class="sn-ico c1"><?php echo sp_ic('people');?></span><span class="sn-title"><?php echo t('sp_their_feed', 'TA的动态');?></span></a></li>
                 <?php endif; ?>
-                <li class="<?php echo $isSelf ? 'current' : '';?>" data-f="mine"><a onclick="spStream('mine')"><span class="sn-ico c1"><?php echo sp_ic('people');?></span><span class="sn-title">我的动态</span></a></li>
-                <li data-f="friends"><a onclick="spStream('friends')"><span class="sn-ico c2"><?php echo sp_ic('people');?></span><span class="sn-title">好友动态</span></a></li>
-                <li data-f="me"><a onclick="spLoadMentions()"><span class="sn-ico c3"><?php echo sp_ic('me');?></span><span class="sn-title">与我相关</span><span class="sn-badge" id="spMeBadge" style="display:none"></span></a></li>
-                <li data-f="care"><a onclick="spStream('special')"><span class="sn-ico c4"><?php echo sp_ic('star');?></span><span class="sn-title">特别关心</span></a></li>
+                <li class="<?php echo $isSelf ? 'current' : '';?>" data-f="mine"><a onclick="spStream('mine')"><span class="sn-ico c1"><?php echo sp_ic('people');?></span><span class="sn-title"><?php echo t('sp_my_feed', '我的动态');?></span></a></li>
+                <li data-f="friends"><a onclick="spStream('friends')"><span class="sn-ico c2"><?php echo sp_ic('people');?></span><span class="sn-title"><?php echo t('sp_friend_feed', '好友动态');?></span></a></li>
+                <li data-f="me"><a onclick="spLoadMentions()"><span class="sn-ico c3"><?php echo sp_ic('me');?></span><span class="sn-title"><?php echo t('sp_about_me', '与我相关');?></span><span class="sn-badge" id="spMeBadge" style="display:none"></span></a></li>
+                <li data-f="care"><a onclick="spStream('special')"><span class="sn-ico c4"><?php echo sp_ic('star');?></span><span class="sn-title"><?php echo t('sp_care_feed', '特别关心');?></span></a></li>
               </ul>
             </div></div>
           </div>
           <div class="mod-side-nav mod-side-nav-recently-used">
-            <div class="hd">个人资料</div>
+            <div class="hd"><?php echo t('sp_nav_profile', '个人资料');?></div>
             <div class="inner"><div class="bd">
               <ul class="sn-list">
-                <li><a onclick="spGoTab('profile')"><span class="sn-ico c1"><?php echo sp_ic('card');?></span><span class="sn-title">个人档案</span></a></li>
-                <li><a onclick="spGoTab('album')"><span class="sn-ico c2"><?php echo sp_ic('photo');?></span><span class="sn-title">我的相册</span></a></li>
-                <li><a onclick="spGoTab('say')"><span class="sn-ico c3"><?php echo sp_ic('say');?></span><span class="sn-title">我的说说</span></a></li>
+                <li><a onclick="spGoTab('profile')"><span class="sn-ico c1"><?php echo sp_ic('card');?></span><span class="sn-title"><?php echo t('sp_my_profile', '个人档案');?></span></a></li>
+                <li><a onclick="spGoTab('album')"><span class="sn-ico c2"><?php echo sp_ic('photo');?></span><span class="sn-title"><?php echo t('sp_my_album', '我的相册');?></span></a></li>
+                <li><a onclick="spGoTab('say')"><span class="sn-ico c3"><?php echo sp_ic('say');?></span><span class="sn-title"><?php echo t('sp_my_say', '我的说说');?></span></a></li>
               </ul>
             </div></div>
           </div>
@@ -344,23 +344,23 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
             <div class="qz-poster" id="spPosterBox">
               <div class="qz-poster-bd">
                 <?php if ($avatarUrl):?><img class="poster-av" src="<?php echo htmlspecialchars($avatarUrl);?>" alt=""><?php endif;?>
-                <div class="qz-inputer" data-ph="说点什么吧..." contenteditable="true" id="spPoster"></div>
+                <div class="qz-inputer" data-ph="<?php echo t('sp_post_ph', '说点什么吧...');?>" contenteditable="true" id="spPoster"></div>
               </div>
               <div class="qz-poster-ft">
                 <div class="attach-icons">
-                  <span title="照片" onclick="spPickImages()"><?php echo sp_ic('image');?></span>
-                  <span title="表情" onclick="spAlert('表情')"><?php echo sp_ic('smile');?></span>
-                  <span title="@好友" onclick="spMentionOpen()"><?php echo sp_ic('at');?></span>
-                  <span title="话题" onclick="spAlert('话题')"><?php echo sp_ic('hash');?></span>
+                  <span title="<?php echo t('sp_pick_photo', '照片');?>" onclick="spPickImages()"><?php echo sp_ic('image');?></span>
+                  <span title="<?php echo t('sp_pick_emoji', '表情');?>" onclick="spAlert('表情')"><?php echo sp_ic('smile');?></span>
+                  <span title="<?php echo t('sp_pick_mention', '@好友');?>" onclick="spMentionOpen()"><?php echo sp_ic('at');?></span>
+                  <span title="<?php echo t('sp_pick_topic', '话题');?>" onclick="spAlert('话题')"><?php echo sp_ic('hash');?></span>
                 </div>
                 <div class="vis-select" id="spVisBtn" onclick="spVisToggle(event)">
                   <span class="vis-ic"><?php echo sp_ic('globe');?></span>
-                  <span class="vis-label" id="spVisLabel">所有人可见</span>
+                  <span class="vis-label" id="spVisLabel"><?php echo t('sp_vis_public', '所有人可见');?></span>
                   <span class="vis-arrow"><?php echo sp_ic('down');?></span>
                 </div>
                 <div class="op">
-                  <label class="sp-sync-featured" title="本次朋友圈的图片自动存入「动态」相册；勾选后同步到精选相片"><input type="checkbox" id="spSyncFeatured" checked> 同步精选</label>
-                  <button class="btn-post" id="spPostBtn" onclick="spPost()">发表</button>
+                  <label class="sp-sync-featured" title="<?php echo t('sp_sync_title', '本次朋友圈的图片自动存入「动态」相册；勾选后同步到精选相片');?>"><input type="checkbox" id="spSyncFeatured" checked> <?php echo t('sp_sync_featured', '同步精选');?></label>
+                  <button class="btn-post" id="spPostBtn" onclick="spPost()"><?php echo t('sp_post', '发表');?></button>
                 </div>
               </div>
               <!-- 艾特好友条：显示已 @ 的好友 (名字) -->
@@ -371,13 +371,13 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
               <!-- 好友选择面板：贴在发表框底部，随页面滚动，动画伸出（分组侧栏 + 已选列表） -->
               <div class="sp-fm-mask" id="spFmMask" style="display:none">
                 <div class="sp-fm-box">
-                  <div class="sp-fm-head"><span id="spFmTitle">选择好友</span><span class="sp-fm-x" onclick="spFmClose()"><?php echo sp_ic('close');?></span></div>
-                  <div class="sp-fm-search"><input id="spFmSearch" placeholder="搜索好友"><span class="sp-fm-sbtn"><?php echo sp_ic('search');?></span></div>
+                  <div class="sp-fm-head"><span id="spFmTitle"><?php echo t('sp_fm_title', '选择好友');?></span><span class="sp-fm-x" onclick="spFmClose()"><?php echo sp_ic('close');?></span></div>
+                  <div class="sp-fm-search"><input id="spFmSearch" placeholder="<?php echo t('sp_fm_search', '搜索好友');?>"><span class="sp-fm-sbtn"><?php echo sp_ic('search');?></span></div>
                   <div class="sp-fm-body">
                     <div class="sp-fm-side">
-                      <div class="sp-fm-group on" data-g="all" onclick="spFmGroup('all')">全部好友</div>
-                      <div class="sp-fm-group" data-g="mine" onclick="spFmGroup('mine')">我的好友</div>
-                      <div class="sp-fm-group" data-g="auth" onclick="spFmGroup('auth')">认证空间</div>
+                      <div class="sp-fm-group on" data-g="all" onclick="spFmGroup('all')"><?php echo t('sp_fm_all', '全部好友');?></div>
+                      <div class="sp-fm-group" data-g="mine" onclick="spFmGroup('mine')"><?php echo t('sp_fm_mine', '我的好友');?></div>
+                      <div class="sp-fm-group" data-g="auth" onclick="spFmGroup('auth')"><?php echo t('sp_fm_auth', '认证空间');?></div>
                     </div>
                     <div class="sp-fm-right">
                       <div class="sp-fm-picked" id="spFmPicked" style="display:none"></div>
@@ -385,8 +385,8 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
                     </div>
                   </div>
                   <div class="sp-fm-foot">
-                    <span class="sp-fm-hint">你可以在下面添加最多 <b>30</b> 位好友（已选 <b id="spFmCount">0</b> 位）</span>
-                    <button class="sp-fm-ok" onclick="spFmConfirm()">确定</button>
+                    <span class="sp-fm-hint"><?php echo t('sp_fm_hint', '你可以在下面添加最多 <b>30</b> 位好友（已选 <b id="spFmCount">0</b> 位）');?></span>
+                    <button class="sp-fm-ok" onclick="spFmConfirm()"><?php echo t('sp_fm_ok', '确定');?></button>
                   </div>
                 </div>
               </div>
@@ -397,17 +397,17 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
             <!-- 动态流 tab -->
             <div class="feed-control">
               <div class="feed-control-tab">
-                <a class="on" data-f="all">全部动态</a>
-                <a data-f="photo">相册</a>
-                <a data-f="say">说说</a>
+                <a class="on" data-f="all"><?php echo t('sp_feed_all', '全部动态');?></a>
+                <a data-f="photo"><?php echo t('sp_tab_album', '相册');?></a>
+                <a data-f="say"><?php echo t('sp_tab_say', '说说');?></a>
               </div>
-              <div class="feed-control-op"><span onclick="location.reload()" title="刷新">刷新</span><span onclick="spAlert('设置')">设置</span></div>
+              <div class="feed-control-op"><span onclick="location.reload()" title="<?php echo t('sp_refresh', '刷新');?>"><?php echo t('sp_refresh', '刷新');?></span><span onclick="spAlert('设置')"><?php echo t('sp_settings', '设置');?></span></div>
             </div>
 
             <!-- 说说列表 -->
             <ul class="feed-list" id="feedList">
               <?php if (!$feedRows): ?>
-              <li class="f-single"><div class="f-single-content"><div class="f-ct-text" style="color:#777"><?php echo $isSelf ? '还没有动态，发第一条说说吧～' : 'TA 还没有动态';?></div></div></li>
+              <li class="f-single"><div class="f-single-content"><div class="f-ct-text" style="color:#777"><?php echo $isSelf ? t('sp_empty_mine', '还没有动态，发第一条说说吧～') : t('sp_empty_other', 'TA 还没有动态');?></div></div></li>
               <?php endif; ?>
               <?php foreach ($feedRows as $f): ?>
               <li class="f-single" data-id="<?php echo (int)$f['id'];?>">
@@ -430,39 +430,39 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
                 </div>
                 <div class="f-single-foot">
                   <ul class="op-list">
-                    <li class="op-like<?php echo $f['liked'] ? ' liked' : '';?>" data-id="<?php echo (int)$f['id'];?>"><span class="op-ic"><?php echo sp_ic('like');?></span> 赞<?php if ((int)$f['likes'] > 0):?> (<?php echo (int)$f['likes'];?>)<?php endif;?></li>
-                    <li class="op-comment" data-id="<?php echo (int)$f['id'];?>"><span class="op-ic"><?php echo sp_ic('comment');?></span> 评论<?php if ((int)$f['cmt'] > 0):?> <span class="cmt-c">(<?php echo (int)$f['cmt'];?>)</span><?php endif;?></li>
+                    <li class="op-like<?php echo $f['liked'] ? ' liked' : '';?>" data-id="<?php echo (int)$f['id'];?>"><span class="op-ic"><?php echo sp_ic('like');?></span> <?php echo t('sp_like', '赞');?><?php if ((int)$f['likes'] > 0):?> (<?php echo (int)$f['likes'];?>)<?php endif;?></li>
+                    <li class="op-comment" data-id="<?php echo (int)$f['id'];?>"><span class="op-ic"><?php echo sp_ic('comment');?></span> <?php echo t('sp_comment', '评论');?><?php if ((int)$f['cmt'] > 0):?> <span class="cmt-c">(<?php echo (int)$f['cmt'];?>)</span><?php endif;?></li>
                     <?php if ($isSelf): ?>
-                    <li class="op-del" data-id="<?php echo (int)$f['id'];?>"><span class="op-ic"><?php echo sp_ic('top');?></span> 删除</li>
+                    <li class="op-del" data-id="<?php echo (int)$f['id'];?>"><span class="op-ic"><?php echo sp_ic('top');?></span> <?php echo t('sp_delete', '删除');?></li>
                     <?php endif; ?>
                   </ul>
                 </div>
                 <div class="f-comments" data-feed="<?php echo (int)$f['id'];?>" style="display:none">
                   <div class="f-comments-list"></div>
                   <div class="f-cmt-input">
-                    <input class="f-cmt-text" placeholder="评论一下..." maxlength="500">
+                    <input class="f-cmt-text" placeholder="<?php echo t('sp_cmt_ph', '评论一下...');?>" maxlength="500">
                     <button class="btn-post btn-sm" onclick="spCmtSend(this)">发表</button>
                   </div>
                 </div>
               </li>
               <?php endforeach; ?>
-              <li class="f-single" id="feedFilterEmpty" style="display:none"><div class="f-single-content"><div class="f-ct-text" style="color:#777">该分类下暂无动态</div></div></li>
+              <li class="f-single" id="feedFilterEmpty" style="display:none"><div class="f-single-content"><div class="f-ct-text" style="color:#777"><?php echo t('sp_feed_empty', '该分类下暂无动态');?></div></div></li>
             </ul>
             </div>
 
             <!-- ===== 日志面板 ===== -->
             <section class="sp-tab" id="spTabBlog" style="display:none">
-              <div class="sp-tab-head"><h3>日志</h3>
-                <?php if ($isSelf):?><button class="btn-post" onclick="spBlogCompose()">写日志</button><?php endif;?>
+              <div class="sp-tab-head"><h3><?php echo t('sp_tab_blog', '日志');?></h3>
+                <?php if ($isSelf):?><button class="btn-post" onclick="spBlogCompose()"><?php echo t('sp_blog_write', '写日志');?></button><?php endif;?>
               </div>
               <div id="spBlogList"></div>
               <div id="spBlogDetail" style="display:none"></div>
               <div id="spBlogEditor" style="display:none">
                 <div class="sp-blog-ed">
                   <div class="sp-blog-ed-head">
-                    <input id="spBlogTitle" placeholder="日志标题" maxlength="200">
-                    <select id="spBlogVis" title="可见范围">
-                      <option value="0">所有人可见</option>
+                    <input id="spBlogTitle" placeholder="<?php echo t('sp_blog_title', '日志标题');?>" maxlength="200">
+                    <select id="spBlogVis" title="<?php echo t('sp_vis_scope', '可见范围');?>">
+                      <option value="0"><?php echo t('sp_vis_public', '所有人可见');?></option>
                       <option value="1">好友可见</option>
                       <option value="4">仅自己可见</option>
                     </select>
@@ -479,19 +479,19 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
             <!-- ===== 相册面板 ===== -->
             <section class="sp-tab" id="spTabAlbum" style="display:none">
               <div class="sp-tab-head">
-                <h3>相册</h3><span class="sp-tab-sub" id="spAlbumSub">共 <b id="spAlbumCount">0</b> 个相册</span>
-                <?php if ($isSelf): ?><button class="btn-post sp-album-new" onclick="spAlbumNew()">新建相册</button><?php endif; ?>
+                <h3><?php echo t('sp_tab_album', '相册');?></h3><span class="sp-tab-sub" id="spAlbumSub"><?php echo t('sp_album_count', '共 <b id="spAlbumCount">0</b> 个相册');?></span>
+                <?php if ($isSelf): ?><button class="btn-post sp-album-new" onclick="spAlbumNew()"><?php echo t('sp_album_new', '新建相册');?></button><?php endif; ?>
               </div>
-              <div id="spAlbumWrap"><div class="sp-album-empty">加载中…</div></div>
+              <div id="spAlbumWrap"><div class="sp-album-empty"><?php echo t('sp_loading', '加载中…');?></div></div>
             </section>
 
             <!-- ===== 留言板面板 ===== -->
             <section class="sp-tab" id="spTabBoard" style="display:none">
-              <div class="sp-tab-head"><h3>留言板</h3><span class="sp-tab-sub"><?php echo $isSelf ? '把空间分享给朋友，让 TA 们来留言吧～' : '欢迎给 ' . htmlspecialchars($displayName) . ' 留言';?></span></div>
+              <div class="sp-tab-head"><h3><?php echo t('sp_tab_board', '留言板');?></h3><span class="sp-tab-sub"><?php echo $isSelf ? t('sp_board_sub_self', '把空间分享给朋友，让 TA 们来留言吧～') : t('sp_board_sub_other', '欢迎给 %s 留言', htmlspecialchars($displayName));?></span></div>
               <?php if ($u['username'] !== ''): ?>
               <div class="sp-board-input">
-                <textarea id="spBoardInput" placeholder="写下你的留言..." maxlength="500"></textarea>
-                <button class="btn-post" onclick="spBoardPost()">留言</button>
+                <textarea id="spBoardInput" placeholder="<?php echo t('sp_board_ph', '写下你的留言...');?>" maxlength="500"></textarea>
+                <button class="btn-post" onclick="spBoardPost()"><?php echo t('sp_board_post', '留言');?></button>
               </div>
               <?php endif; ?>
               <ul class="sp-board-list" id="spBoardList"></ul>
@@ -499,24 +499,24 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 
             <!-- ===== 个人档案面板 ===== -->
             <section class="sp-tab" id="spTabProfile" style="display:none">
-              <div class="sp-tab-head"><h3>个人档案</h3></div>
+              <div class="sp-tab-head"><h3><?php echo t('sp_my_profile', '个人档案');?></h3></div>
               <div class="sp-profile-card">
                 <div class="sp-profile-top">
                   <?php if ($avatarUrl):?><img class="sp-profile-av" src="<?php echo htmlspecialchars($avatarUrl);?>" alt=""><?php else:?><div class="sp-profile-av"><?php echo htmlspecialchars($ch);?></div><?php endif;?>
                   <div class="sp-profile-id">
                     <div class="sp-profile-name"><?php echo htmlspecialchars($displayName);?></div>
                     <div class="sp-profile-sub">@<?php echo htmlspecialchars($u['username']);?> · Lv.<?php echo $level;?></div>
-                    <span class="sp-profile-status <?php echo (int)$u['dnd'] ? 'dnd' : 'on';?>"><?php echo (int)$u['dnd'] ? '忙碌' : '在线';?></span>
+                    <span class="sp-profile-status <?php echo (int)$u['dnd'] ? 'dnd' : 'on';?>"><?php echo (int)$u['dnd'] ? t('sp_busy', '忙碌') : t('sp_online', '在线');?></span>
                   </div>
                 </div>
                 <ul class="sp-profile-list">
-                  <li><span class="k">个性签名</span><span class="v"><?php echo $sig !== '' ? htmlspecialchars($sig) : '这个人很懒，什么都没写';?></span></li>
-                  <li><span class="k">性别</span><span class="v"><?php echo htmlspecialchars($genderLabel);?></span></li>
-                  <?php if ($birthday):?><li><span class="k">生日</span><span class="v"><?php echo htmlspecialchars($birthday);?></span></li><?php endif;?>
-                  <li><span class="k">等级</span><span class="v">Lv.<?php echo $level;?>（<?php echo $exp;?> 经验）</span></li>
-                  <li><span class="k">获赞</span><span class="v"><?php echo $likes;?></span></li>
-                  <li><span class="k">UID</span><span class="v"><?php echo $displayUid;?></span></li>
-                  <li><span class="k">注册时间</span><span class="v"><?php echo date('Y-m-d', strtotime((string)($u['created_at'] ?? '')));?></span></li>
+                  <li><span class="k"><?php echo t('sp_sig', '个性签名');?></span><span class="v"><?php echo $sig !== '' ? htmlspecialchars($sig) : t('sp_lazy_sig', '这个人很懒，什么都没写');?></span></li>
+                  <li><span class="k"><?php echo t('sp_gender', '性别');?></span><span class="v"><?php echo htmlspecialchars($genderLabel);?></span></li>
+                  <?php if ($birthday):?><li><span class="k"><?php echo t('sp_birthday', '生日');?></span><span class="v"><?php echo htmlspecialchars($birthday);?></span></li><?php endif;?>
+                  <li><span class="k"><?php echo t('sp_level', '等级');?></span><span class="v"><?php echo t('sp_level_val', 'Lv.%s（%s 经验）', $level, $exp);?></span></li>
+                  <li><span class="k"><?php echo t('sp_likes', '获赞');?></span><span class="v"><?php echo $likes;?></span></li>
+                  <li><span class="k"><?php echo t('sp_uid', 'UID');?></span><span class="v"><?php echo $displayUid;?></span></li>
+                  <li><span class="k"><?php echo t('sp_reg_time', '注册时间');?></span><span class="v"><?php echo date('Y-m-d', strtotime((string)($u['created_at'] ?? '')));?></span></li>
                 </ul>
               </div>
             </section>
@@ -527,15 +527,15 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 
             <!-- 精选相片（来自个人空间/朋友圈） -->
             <div class="icenter-right-mod icenter-right-photo">
-              <div class="hd">精选相片<span class="more" onclick="spGoTab('album')">更多相册 <?php echo sp_ic('right');?></span></div>
+              <div class="hd"><?php echo t('sp_featured', '精选相片');?><span class="more" onclick="spGoTab('album')"><?php echo t('sp_more_album', '更多相册');?> <?php echo sp_ic('right');?></span></div>
               <div class="bd">
                 <ul class="photo-grid" id="photoGrid">
                   <?php if ($featuredPhotos): ?>
                     <?php foreach ($featuredPhotos as $fp): ?>
-                    <li onclick="spGoTab('album')" title="查看相册"><img src="<?php echo htmlspecialchars($fp);?>" alt=""></li>
+                    <li onclick="spGoTab('album')" title="<?php echo t('sp_view_album', '查看相册');?>"><img src="<?php echo htmlspecialchars($fp);?>" alt=""></li>
                     <?php endforeach; ?>
                   <?php else: ?>
-                    <li><div class="sp-ph-empty">暂无精选</div></li>
+                    <li><div class="sp-ph-empty"><?php echo t('sp_featured_empty', '暂无精选');?></div></li>
                   <?php endif; ?>
                 </ul>
               </div>
@@ -544,39 +544,39 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
             <!-- 谁看过我（仅本人空间可见）；右侧浮层大框右上角对准本模块左上角 -->
             <?php if ($isSelf): ?>
             <div class="icenter-right-mod" id="spWhoMod">
-              <div class="hd" style="cursor:pointer" onclick="spVpToggle()">谁看过我<span class="more" onclick="event.stopPropagation();spVpToggle()"><?php echo sp_ic('right');?></span></div>
+              <div class="hd" style="cursor:pointer" onclick="spVpToggle()"><?php echo t('sp_who_me', '谁看过我');?><span class="more" onclick="event.stopPropagation();spVpToggle()"><?php echo sp_ic('right');?></span></div>
               <div class="bd">
-                <ul class="visitor-list" id="visitorList"><li class="sp-vis-empty">加载中…</li></ul>
+                <ul class="visitor-list" id="visitorList"><li class="sp-vis-empty"><?php echo t('sp_loading', '加载中…');?></li></ul>
               </div>
               <div class="sp-vp-mod" id="spVisitorMod">
                 <div class="sp-vp-hd">
-                  <b class="sp-vp-title">访客</b>
+                  <b class="sp-vp-title"><?php echo t('sp_visitor', '访客');?></b>
                   <div class="sp-vp-tabs">
-                    <a class="on" data-t="me" onclick="spVpTab('me')">谁看过我</a><i>|</i>
-                    <a data-t="you" onclick="spVpTab('you')">我看过谁</a><i>|</i>
-                    <a data-t="refuse" onclick="spVpTab('refuse')">被挡访客</a>
+                    <a class="on" data-t="me" onclick="spVpTab('me')"><?php echo t('sp_who_me', '谁看过我');?></a><i>|</i>
+                    <a data-t="you" onclick="spVpTab('you')"><?php echo t('sp_i_saw', '我看过谁');?></a><i>|</i>
+                    <a data-t="refuse" onclick="spVpTab('refuse')"><?php echo t('sp_blocked', '被挡访客');?></a>
                   </div>
-                  <span class="sp-vp-stat">今日浏览 <b id="spVpToday">0</b> · 总浏览 <b id="spVpTotal">0</b></span>
+                  <span class="sp-vp-stat"><?php echo t('sp_today_view', '今日浏览');?> <b id="spVpToday">0</b> · <?php echo t('sp_total_view', '总浏览');?> <b id="spVpTotal">0</b></span>
                 </div>
-                <ul class="sp-vp-list" id="spVpList"><li class="sp-vis-empty">加载中…</li></ul>
+                <ul class="sp-vp-list" id="spVpList"><li class="sp-vis-empty"><?php echo t('sp_loading', '加载中…');?></li></ul>
               </div>
             </div>
             <?php endif; ?>
 
             <!-- 个人信息 -->
             <div class="icenter-right-mod">
-              <div class="hd">个人信息</div>
+              <div class="hd"><?php echo t('sp_personal_info', '个人信息');?></div>
               <div class="bd">
                 <ul class="info-list">
-                  <li><span class="k">昵称</span><span class="v textoverflow"><?php echo htmlspecialchars($displayName);?></span></li>
-                  <li><span class="k">用户名</span><span class="v textoverflow"><?php echo htmlspecialchars($u['username']);?></span></li>
-                  <li><span class="k">性别</span><span class="v"><?php echo htmlspecialchars($genderLabel);?></span></li>
-                  <?php if ($birthday):?><li><span class="k">生日</span><span class="v"><?php echo htmlspecialchars($birthday);?></span></li><?php endif;?>
-                  <li><span class="k">等级</span><span class="v">Lv.<?php echo $level;?>（<?php echo $exp;?> 经验）</span></li>
-                  <li><span class="k">获赞</span><span class="v"><?php echo $likes;?></span></li>
-                  <li><span class="k">UID</span><span class="v"><?php echo $displayUid;?></span></li>
-                  <li><span class="k">角色</span><span class="v <?php echo $roleClass;?>"><?php echo htmlspecialchars($roleLabel);?></span></li>
-                  <li><span class="k">状态</span><span class="v sp-status-<?php echo $viewStatus;?>"><?php echo htmlspecialchars($statusLabel);?></span></li>
+                  <li><span class="k"><?php echo t('sp_nick', '昵称');?></span><span class="v textoverflow"><?php echo htmlspecialchars($displayName);?></span></li>
+                  <li><span class="k"><?php echo t('sp_username', '用户名');?></span><span class="v textoverflow"><?php echo htmlspecialchars($u['username']);?></span></li>
+                  <li><span class="k"><?php echo t('sp_gender', '性别');?></span><span class="v"><?php echo htmlspecialchars($genderLabel);?></span></li>
+                  <?php if ($birthday):?><li><span class="k"><?php echo t('sp_birthday', '生日');?></span><span class="v"><?php echo htmlspecialchars($birthday);?></span></li><?php endif;?>
+                  <li><span class="k"><?php echo t('sp_level', '等级');?></span><span class="v"><?php echo t('sp_level_val', 'Lv.%s（%s 经验）', $level, $exp);?></span></li>
+                  <li><span class="k"><?php echo t('sp_likes', '获赞');?></span><span class="v"><?php echo $likes;?></span></li>
+                  <li><span class="k"><?php echo t('sp_uid', 'UID');?></span><span class="v"><?php echo $displayUid;?></span></li>
+                  <li><span class="k"><?php echo t('sp_role', '角色');?></span><span class="v <?php echo $roleClass;?>"><?php echo htmlspecialchars($roleLabel);?></span></li>
+                  <li><span class="k"><?php echo t('sp_status', '状态');?></span><span class="v sp-status-<?php echo $viewStatus;?>"><?php echo htmlspecialchars($statusLabel);?></span></li>
                 </ul>
               </div>
             </div>
@@ -584,14 +584,14 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
         </div>
       </div>
 
-      <div class="layout-copyright">© ChatApp 个人空间</div>
+      <div class="layout-copyright"><?php echo t('sp_copyright', '© ChatApp 个人空间');?></div>
     </div>
   </div>
 </div>
 
 <!-- 返回顶部 -->
 <div class="fix-layout">
-  <div class="to-top" id="spToTop" title="返回顶部"><?php echo sp_ic('top');?></div>
+  <div class="to-top" id="spToTop" title="<?php echo t('sp_to_top', '返回顶部');?>"><?php echo sp_ic('top');?></div>
 </div>
 
 <!-- hover 名片 -->
@@ -601,43 +601,43 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
     <div class="nc-name" id="ncName"></div>
     <div class="nc-meta" id="ncMeta"></div>
     <div class="nc-common" id="ncCommon"></div>
-    <button class="nc-care" id="ncCare" onclick="ncToggleCare(event)">特别关心</button>
+    <button class="nc-care" id="ncCare" onclick="ncToggleCare(event)"><?php echo t('sp_care', '特别关心');?></button>
   </div>
 </div>
 
 <!-- 新建相册 -->
 <div class="sp-album-mask" id="spAlbumMask" style="display:none" onclick="if(event.target===this)spAlbumModalClose()">
   <div class="sp-album-modal">
-    <div class="sp-album-modal-head"><h3>新建相册</h3><span class="sp-album-x" onclick="spAlbumModalClose()">✕</span></div>
+    <div class="sp-album-modal-head"><h3><?php echo t('sp_album_new', '新建相册');?></h3><span class="sp-album-x" onclick="spAlbumModalClose()">✕</span></div>
     <div class="sp-album-form">
-      <div class="sp-album-field"><label>相册名 *</label><input id="spAlbumName" maxlength="30" placeholder="输入相册名"></div>
-      <div class="sp-album-field"><label>描述</label><input id="spAlbumDesc" maxlength="200" placeholder="添加描述"></div>
-      <div class="sp-album-field"><label>类型 *</label>
+      <div class="sp-album-field"><label><?php echo t('sp_album_name', '相册名 *');?></label><input id="spAlbumName" maxlength="30" placeholder="<?php echo t('sp_album_name_ph', '输入相册名');?>"></div>
+      <div class="sp-album-field"><label><?php echo t('sp_album_desc', '描述');?></label><input id="spAlbumDesc" maxlength="200" placeholder="<?php echo t('sp_album_desc_ph', '添加描述');?>"></div>
+      <div class="sp-album-field"><label><?php echo t('sp_album_type', '类型 *');?></label>
         <div class="sp-album-opts" id="spAlbumTypes">
-          <span class="on" data-t="personal" onclick="spAlbumTypeSelect(this)">个人</span><span data-t="multi" onclick="spAlbumTypeSelect(this)">多人</span><span data-t="couple" onclick="spAlbumTypeSelect(this)">情侣</span><span data-t="family" onclick="spAlbumTypeSelect(this)">亲子</span><span data-t="travel" onclick="spAlbumTypeSelect(this)">旅行</span><span data-t="other" onclick="spAlbumTypeSelect(this)">其他</span>
+          <span class="on" data-t="personal" onclick="spAlbumTypeSelect(this)"><?php echo t('sp_type_personal', '个人');?></span><span data-t="multi" onclick="spAlbumTypeSelect(this)"><?php echo t('sp_type_multi', '多人');?></span><span data-t="couple" onclick="spAlbumTypeSelect(this)"><?php echo t('sp_type_couple', '情侣');?></span><span data-t="family" onclick="spAlbumTypeSelect(this)"><?php echo t('sp_type_family', '亲子');?></span><span data-t="travel" onclick="spAlbumTypeSelect(this)"><?php echo t('sp_type_travel', '旅行');?></span><span data-t="other" onclick="spAlbumTypeSelect(this)"><?php echo t('sp_type_other', '其他');?></span>
         </div>
       </div>
-      <div class="sp-album-field"><label>可见范围 *</label>
+      <div class="sp-album-field"><label><?php echo t('sp_vis_scope', '可见范围 *');?></label>
         <div class="sp-album-opts" id="spAlbumVis">
-          <span class="on" data-v="0" onclick="spAlbumVisSelect(this)">公开</span><span data-v="1" onclick="spAlbumVisSelect(this)">好友</span><span data-v="2" onclick="spAlbumVisSelect(this)">部分好友</span><span data-v="3" onclick="spAlbumVisSelect(this)">不给谁看</span><span data-v="4" onclick="spAlbumVisSelect(this)">私密</span>
+          <span class="on" data-v="0" onclick="spAlbumVisSelect(this)"><?php echo t('sp_vis_pub', '公开');?></span><span data-v="1" onclick="spAlbumVisSelect(this)"><?php echo t('sp_vis_friend', '好友');?></span><span data-v="2" onclick="spAlbumVisSelect(this)"><?php echo t('sp_vis_some', '部分好友');?></span><span data-v="3" onclick="spAlbumVisSelect(this)"><?php echo t('sp_vis_not', '不给谁看');?></span><span data-v="4" onclick="spAlbumVisSelect(this)"><?php echo t('sp_vis_private', '私密');?></span>
         </div>
       </div>
-      <div class="sp-album-field" id="spAlbumFriendsField" style="display:none"><label>选择好友</label><div class="sp-album-friends" id="spAlbumFriends"></div></div>
+      <div class="sp-album-field" id="spAlbumFriendsField" style="display:none"><label><?php echo t('sp_fm_title', '选择好友');?></label><div class="sp-album-friends" id="spAlbumFriends"></div></div>
     </div>
     <div class="sp-album-modal-foot">
       <span class="sp-album-err" id="spAlbumErr"></span>
-      <button class="sp-fm-ok" onclick="spAlbumCreate()">创建</button>
+      <button class="sp-fm-ok" onclick="spAlbumCreate()"><?php echo t('sp_album_create', '创建');?></button>
     </div>
   </div>
 </div>
 
 <!-- 可见范围下拉 -->
 <div class="sp-vis-menu" id="spVisMenu" style="display:none">
-  <div class="sp-vis-item" data-v="0"><span class="v-ic"><?php echo sp_ic('globe');?></span>所有人可见</div>
-  <div class="sp-vis-item" data-v="1"><span class="v-ic"><?php echo sp_ic('people');?></span>好友可见</div>
-  <div class="sp-vis-item" data-v="2"><span class="v-ic"><?php echo sp_ic('me');?></span>部分好友可见</div>
-  <div class="sp-vis-item" data-v="3"><span class="v-ic"><?php echo sp_ic('me');?></span>部分好友不可见</div>
-  <div class="sp-vis-item" data-v="4"><span class="v-ic"><?php echo sp_ic('lock');?></span>仅自己可见</div>
+  <div class="sp-vis-item" data-v="0"><span class="v-ic"><?php echo sp_ic('globe');?></span><?php echo t('sp_vis_public', '所有人可见');?></div>
+  <div class="sp-vis-item" data-v="1"><span class="v-ic"><?php echo sp_ic('people');?></span><?php echo t('sp_vis_friend', '好友可见');?></div>
+  <div class="sp-vis-item" data-v="2"><span class="v-ic"><?php echo sp_ic('me');?></span><?php echo t('sp_vis_some', '部分好友可见');?></div>
+  <div class="sp-vis-item" data-v="3"><span class="v-ic"><?php echo sp_ic('me');?></span><?php echo t('sp_vis_not', '部分好友不可见');?></div>
+  <div class="sp-vis-item" data-v="4"><span class="v-ic"><?php echo sp_ic('lock');?></span><?php echo t('sp_vis_private', '仅自己可见');?></div>
 </div>
 
 <!-- 图片大图查看 -->
@@ -653,6 +653,63 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 <script>window.EARS_ON = <?php echo (int)($currentUser['space_ears'] ?? 0) ? 'true' : 'false'; ?>;</script>
 <script src="../scripts/ears.js?v=<?php echo time();?>"></script>
 <script>
+<?php
+/* JS 侧翻译表：en 有 key 用英文，否则回退中文默认 */
+$spJsT = [
+    'sp_no_feed' => t('sp_no_feed', '暂无动态'),
+    'sp_no_notice' => t('sp_no_notice', '暂无相关通知'),
+    'sp_back_feed' => t('sp_back_feed', '返回动态'),
+    'sp_loading' => t('sp_loading', '加载中…'),
+    'sp_load_fail' => t('sp_load_fail', '加载失败'),
+    'sp_no_visitor' => t('sp_no_visitor', '暂无访客'),
+    'sp_no_blocked' => t('sp_no_blocked', '暂无被挡访客'),
+    'sp_no_board' => t('sp_no_board', '还没有留言～'),
+    'sp_no_cmt' => t('sp_no_cmt', '还没有评论，来说两句～'),
+    'sp_no_album' => t('sp_no_album', '暂无相册'),
+    'sp_no_photo' => t('sp_no_photo', '暂无照片'),
+    'sp_no_friend' => t('sp_no_friend', '暂无好友'),
+    'sp_no_auth' => t('sp_no_auth', '暂无认证空间'),
+    'sp_no_match' => t('sp_no_match', '无匹配好友'),
+    'sp_care' => t('sp_care', '特别关心'),
+    'sp_cared' => t('sp_cared', '已关心'),
+    'sp_like' => t('sp_like', '赞'),
+    'sp_comment' => t('sp_comment', '评论'),
+    'sp_delete' => t('sp_delete', '删除'),
+    'sp_reply' => t('sp_reply', '回复'),
+    'sp_view_orig' => t('sp_view_orig', '查看原说说'),
+    'sp_orig_del' => t('sp_orig_del', '原说说已删除）'),
+    'sp_posting' => t('sp_posting', '发表中…'),
+    'sp_post_fail' => t('sp_post_fail', '发表失败'),
+    'sp_net_err' => t('sp_net_err', '网络错误'),
+    'sp_op_fail' => t('sp_op_fail', '操作失败'),
+    'sp_cmt_fail' => t('sp_cmt_fail', '评论失败'),
+    'sp_board_fail' => t('sp_board_fail', '留言失败'),
+    'sp_img_max9' => t('sp_img_max9', '最多上传 9 张图片'),
+    'sp_img_size' => t('sp_img_size', '单张图片最大 10MB'),
+    'sp_upload_fail' => t('sp_upload_fail', '图片上传失败'),
+    'sp_del_feed' => t('sp_del_feed', '删除这条说说？'),
+    'sp_del_cmt' => t('sp_del_cmt', '删除这条评论？'),
+    'sp_del_board' => t('sp_del_board', '删除这条留言？'),
+    'sp_del_visit' => t('sp_del_visit', '删除本次访问记录？'),
+    'sp_hide_visit' => t('sp_hide_visit', '隐藏他的访问？以后他来访不再显示。'),
+    'sp_album_back' => t('sp_album_back', '返回相册'),
+    'sp_album_dyn' => t('sp_album_dyn', '动态相册'),
+    'sp_album_photos' => t('sp_album_photos', '共 %s 张'),
+    'sp_album_del' => t('sp_album_del', '删除这个相册？'),
+    'sp_album_name_req' => t('sp_album_name_req', '请输入相册名'),
+    'sp_album_name_exists' => t('sp_album_name_exists', '相册名已存在'),
+    'sp_album_friend_req' => t('sp_album_friend_req', '请选择好友'),
+    'sp_album_fail' => t('sp_album_fail', '创建失败'),
+    'sp_load_friends' => t('sp_load_friends', '加载好友…'),
+    'sp_no_friends' => t('sp_no_friends', '无好友'),
+    'sp_unset' => t('sp_unset', '未设置'),
+    'sp_common_friends' => t('sp_common_friends', '你们有 %s 个共同好友'),
+    'sp_blog_empty_self' => t('sp_blog_empty_self', '还没有日志，写第一篇吧～'),
+    'sp_blog_empty_other' => t('sp_blog_empty_other', '期待 TA 的第一篇日志～'),
+];
+?>
+var SP_T = <?php echo json_encode($spJsT, JSON_UNESCAPED_UNICODE);?>;
+function spT(k, d) { return SP_T[k] || d || k; }
 var SP_USER = <?php echo json_encode(['self' => $isSelf, 'username' => $u['username'], 'display' => $displayName]);?>;
 
 /* ===== Tab 切换 ===== */
@@ -751,13 +808,13 @@ function spToggleSpecial() {
   f.append('username', uname);
   fetch('../../api/contacts.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, credentials: 'same-origin', body: f.toString() })
     .then(function (r) { return r.json(); })
-    .then(function (d) { if (d && d.success) { renderSpecialBtn(d.special); } else { alert('操作失败'); } });
+    .then(function (d) { if (d && d.success) { renderSpecialBtn(d.special); } else { alert(spT('sp_op_fail', '操作失败')); } });
 }
 function renderSpecialBtn(sp) {
   var b = document.getElementById('spSpecialBtn');
   if (!b) return;
   var a = b.querySelector('a');
-  if (a) a.textContent = sp ? '已特别关心' : '特别关心';
+  if (a) a.textContent = sp ? spT('sp_cared', '已特别关心') : spT('sp_care', '特别关心');
   b.classList.toggle('btn-primary', !!sp);
 }
 function initSpecialBtn() {
@@ -771,7 +828,7 @@ function renderStreamFeeds(feeds) {
   if (!area) return;
   var html = '';
   if (!feeds.length) {
-    html = '<li class="f-single"><div class="f-single-content"><div class="f-ct-text" style="color:#777">暂无动态</div></div></li>';
+    html = '<li class="f-single"><div class="f-single-content"><div class="f-ct-text" style="color:#777">' + spT('sp_no_feed', '暂无动态') + '</div></div></li>';
   } else {
     feeds.forEach(function (f) {
       var ch = (f.author || '?').charAt(0);
@@ -780,22 +837,22 @@ function renderStreamFeeds(feeds) {
         + '<div class="f-single-head">'
         + (f.avatar ? '<img class="user-avatar" src="' + f.avatar + '" alt="">' : '<span class="user-avatar av-empty">' + esc(ch) + '</span>')
         + '<div class="user-info">'
-        + '<div class="f-nick">' + esc(f.author) + (f.special ? ' <span class="sp-special-tag">\u2665 特别关心</span>' : '') + '</div>'
+        + '<div class="f-nick">' + esc(f.author) + (f.special ? ' <span class="sp-special-tag">\u2665 ' + spT('sp_care', '特别关心') + '</span>' : '') + '</div>'
         + '<div class="info-detail">' + esc(f.time) + '</div>'
         + '</div></div>'
         + '<div class="f-single-content"><div class="f-ct-text">' + esc(f.content).replace(/\n/g, '<br>') + '</div>'
         + (f.images && f.images.length ? '<div class="f-ct-txtimg"><div class="img-box' + (f.images.length === 1 ? ' one' : '') + '" data-lb="' + f.id + '">' + f.images.map(function (im, i) { return '<a class="img-item" onclick="spOpenLightbox(' + f.id + ',' + i + ')"><img src="' + im + '" alt=""></a>'; }).join('') + '</div></div>' : '')
         + '</div>'
         + '<div class="f-single-foot"><ul class="op-list">'
-        + '<li class="op-like' + (f.liked ? ' liked' : '') + '" data-id="' + f.id + '">' + SP_ICONS.like + ' 赞' + (f.likes ? ' (' + f.likes + ')' : '') + '</li>'
-        + '<li class="op-comment" data-id="' + f.id + '">' + SP_ICONS.comment + ' 评论</li>'
-        + (isMine ? '<li class="op-del" data-id="' + f.id + '">' + SP_ICONS.top + ' 删除</li>' : '')
+        + '<li class="op-like' + (f.liked ? ' liked' : '') + '" data-id="' + f.id + '">' + SP_ICONS.like + ' ' + spT('sp_like', '赞') + (f.likes ? ' (' + f.likes + ')' : '') + '</li>'
+        + '<li class="op-comment" data-id="' + f.id + '">' + SP_ICONS.comment + ' ' + spT('sp_comment', '评论') + '</li>'
+        + (isMine ? '<li class="op-del" data-id="' + f.id + '">' + SP_ICONS.top + ' ' + spT('sp_delete', '删除') + '</li>' : '')
         + '</ul></div>'
-        + '<div class="f-comments" data-feed="' + f.id + '" style="display:none"><div class="f-comments-list"></div><div class="f-cmt-input"><input class="f-cmt-text" placeholder="评论一下..." maxlength="500"><button class="btn-post btn-sm" onclick="spCmtSend(this)">发表</button></div></div>'
+        + '<div class="f-comments" data-feed="' + f.id + '" style="display:none"><div class="f-comments-list"></div><div class="f-cmt-input"><input class="f-cmt-text" placeholder="' + spT('sp_cmt_ph', '评论一下...') + '" maxlength="500"><button class="btn-post btn-sm" onclick="spCmtSend(this)">' + spT('sp_post', '发表') + '</button></div></div>'
         + '</li>';
     });
   }
-  area.innerHTML = html + '<li class="f-single" id="feedFilterEmpty" style="display:none"><div class="f-single-content"><div class="f-ct-text" style="color:#777">该分类下暂无动态</div></div></li>';
+  area.innerHTML = html + '<li class="f-single" id="feedFilterEmpty" style="display:none"><div class="f-single-content"><div class="f-ct-text" style="color:#777">' + spT('sp_feed_empty', '该分类下暂无动态') + '</div></div></li>';
 }
 // 返回顶部
 var toTop = document.getElementById('spToTop');
@@ -833,13 +890,13 @@ function renderMentions(list) {
   if (!area) return;
   var html = '';
   if (!list.length) {
-    html = '<li class="f-single"><div class="f-single-content"><div class="f-ct-text" style="color:#777">暂无相关通知</div></div></li>';
+    html = '<li class="f-single"><div class="f-single-content"><div class="f-ct-text" style="color:#777">' + spT('sp_no_notice', '暂无相关通知') + '</div></div></li>';
   } else {
     list.forEach(function (m) {
       var ch = (m.by_display || '?').charAt(0);
-      var typeLabel = { mention: '在说说中提到了你', like: '赞了你的说说', comment: '评论了你的说说' }[m.type] || '提到了你';
+      var typeLabel = { mention: spT('sp_mention_mention', '在说说中提到了你'), like: spT('sp_mention_like', '赞了你的说说'), comment: spT('sp_mention_comment', '评论了你的说说') }[m.type] || spT('sp_mention_other', '提到了你');
       var quoteText = (m.type === 'comment') ? (m.comment_content || m.feed_content || '') : (m.feed_content || '');
-      var delTxt = (m.type === 'comment') ? '（原说说已删除）' : '（原说说已删除）';
+      var delTxt = spT('sp_orig_del', '（原说说已删除）');
       html += '<li class="f-single sp-mention-item" data-mid="' + m.id + '" data-feed="' + m.feed_id + '">'
         + '<div class="f-single-head">'
         + (m.by_avatar ? '<img class="user-avatar" src="' + m.by_avatar + '" alt="">' : '<span class="sp-mention-avph">' + esc(ch) + '</span>')
@@ -850,11 +907,11 @@ function renderMentions(list) {
         + '<div class="f-single-content"><div class="f-ct-text">'
         + (quoteText ? '<span class="sp-mention-quote">' + esc(quoteText) + '</span>' : (m.feed_enabled ? '' : '<span class="sp-mention-quote">' + delTxt + '</span>'))
         + '</div></div>'
-        + (m.feed_enabled ? '<div class="f-single-foot"><a class="sp-mention-go" data-feed="' + m.feed_id + '" data-user="' + esc(m.by_username) + '">查看原说说 ›</a></div>' : '')
+        + (m.feed_enabled ? '<div class="f-single-foot"><a class="sp-mention-go" data-feed="' + m.feed_id + '" data-user="' + esc(m.by_username) + '">' + spT('sp_view_orig', '查看原说说') + ' ›</a></div>' : '')
         + '</li>';
     });
   }
-  area.innerHTML = html + '<li class="f-single"><div class="f-single-content"><a class="sp-mention-back" onclick="spNavFeed(\'all\')">‹ 返回动态</a></div></li>';
+  area.innerHTML = html + '<li class="f-single"><div class="f-single-content"><a class="sp-mention-back" onclick="spNavFeed(\'all\')">‹ ' + spT('sp_back_feed', '返回动态') + '</a></div></li>';
   area.querySelectorAll('.sp-mention-go').forEach(function (a) {
     a.addEventListener('click', function () {
       var fid = +(a.getAttribute('data-feed'));
@@ -1109,7 +1166,7 @@ function spPost() {
   var t = (p.textContent || '').replace(/\u00a0/g, ' ').trim();
   if (!t && !SP_POST_IMAGES.length) { p.focus(); return; }
   var btn = document.getElementById('spPostBtn');
-  if (btn) { btn.disabled = true; btn.textContent = '发表中…'; }
+  if (btn) { btn.disabled = true; btn.textContent = spT('sp_posting', '发表中…'); }
   var f = new URLSearchParams();
   f.append('action', 'post');
   f.append('content', t);
@@ -1122,9 +1179,9 @@ function spPost() {
     .then(function (r) { return r.json(); })
     .then(function (d) {
       if (d && d.success) { location.reload(); }
-      else { if (btn) { btn.disabled = false; btn.textContent = '发表'; } alert('发表失败'); }
+      else { if (btn) { btn.disabled = false; btn.textContent = spT('sp_post', '发表'); } alert(spT('sp_post_fail', '发表失败')); }
     })
-    .catch(function () { if (btn) { btn.disabled = false; btn.textContent = '发表'; } alert('网络错误'); });
+    .catch(function () { if (btn) { btn.disabled = false; btn.textContent = spT('sp_post', '发表'); } alert(spT('sp_net_err', '网络错误')); });
 }
 
 /* ===== 点赞 / 删除（事件委托） ===== */
@@ -1144,7 +1201,7 @@ function spPost() {
           if (d && d.success) {
             like.classList.toggle('liked', !!d.liked);
             var ic = like.querySelector('.op-ic');
-            like.innerHTML = (ic ? ic.outerHTML : '') + ' 赞' + (d.likes ? ' (' + d.likes + ')' : '');
+            like.innerHTML = (ic ? ic.outerHTML : '') + ' ' + spT('sp_like', '赞') + (d.likes ? ' (' + d.likes + ')' : '');
           }
         });
       return;
@@ -1152,7 +1209,7 @@ function spPost() {
     var del = e.target.closest('.op-del');
     if (del) {
       var id2 = +(del.getAttribute('data-id'));
-      if (window.confirm('删除这条说说？')) {
+      if (window.confirm(spT('sp_del_feed', '删除这条说说？'))) {
         var f2 = new URLSearchParams(); f2.append('action', 'delete'); f2.append('id', id2);
         fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f2.toString() })
           .then(function () { location.reload(); });
@@ -1197,19 +1254,19 @@ function spDropImg(i) { SP_POST_IMAGES.splice(i, 1); renderPostImgs(); }
   inp.addEventListener('change', function () {
     var files = Array.prototype.slice.call(inp.files || []);
     if (!files.length) return;
-    if (SP_POST_IMAGES.length + files.length > 9) { alert('最多上传 9 张图片'); inp.value = ''; return; }
+    if (SP_POST_IMAGES.length + files.length > 9) { alert(spT('sp_img_max9', '最多上传 9 张图片')); inp.value = ''; return; }
     files.forEach(function (file) {
       if (file.type.indexOf('image/') !== 0) return;
-      if (file.size > 10 * 1024 * 1024) { alert('单张图片最大 10MB：' + file.name); return; }
+      if (file.size > 10 * 1024 * 1024) { alert(spT('sp_img_size', '单张图片最大 10MB') + '：' + file.name); return; }
       var fd = new FormData();
       fd.append('images', file);
       fetch('../../api/space.php?action=upload_image', { method: 'POST', credentials: 'same-origin', body: fd })
         .then(function (r) { return r.json(); })
         .then(function (d) {
           if (d && d.success && d.urls && d.urls.length) { SP_POST_IMAGES = SP_POST_IMAGES.concat(d.urls); renderPostImgs(); }
-          else alert('图片上传失败');
+          else alert(spT('sp_upload_fail', '图片上传失败'));
         })
-        .catch(function () { alert('图片上传失败'); });
+        .catch(function () { alert(spT('sp_upload_fail', '图片上传失败')); });
     });
     inp.value = '';
   });
@@ -1240,7 +1297,7 @@ function renderComments(box, comments, iAmOwner) {
   var feedId = +(box.getAttribute('data-feed'));
   var list = box.querySelector('.f-comments-list');
   if (!list) return;
-  if (!comments.length) { list.innerHTML = '<div class="f-cmt-empty">还没有评论，来说两句～</div>'; return; }
+  if (!comments.length) { list.innerHTML = '<div class="f-cmt-empty">' + spT('sp_no_cmt', '还没有评论，来说两句～') + '</div>'; return; }
   var tops = comments.filter(function (c) { return !c.parent_id; });
   var html = '';
   tops.forEach(function (c) {
@@ -1256,20 +1313,20 @@ function renderComments(box, comments, iAmOwner) {
   var btn = document.querySelector('.op-comment[data-id="' + feedId + '"]');
   if (btn) {
     var ic = btn.querySelector('.op-ic');
-    btn.innerHTML = (ic ? ic.outerHTML : '') + ' 评论' + (comments.length ? ' <span class="cmt-c">(' + comments.length + ')</span>' : '');
+    btn.innerHTML = (ic ? ic.outerHTML : '') + ' ' + spT('sp_comment', '评论') + (comments.length ? ' <span class="cmt-c">(' + comments.length + ')</span>' : '');
   }
 }
 function cmtTopHtml(c, iAmOwner) {
-  var del = (c.mine || iAmOwner) ? '<a class="f-cmt-del" data-id="' + c.id + '">删除</a>' : '';
+  var del = (c.mine || iAmOwner) ? '<a class="f-cmt-del" data-id="' + c.id + '">' + spT('sp_delete', '删除') + '</a>' : '';
   return '<div class="f-cmt" data-id="' + c.id + '">'
     + (c.card.avatar ? '<img class="f-cmt-av" src="' + c.card.avatar + '" alt="">' : '<div class="f-cmt-av av-empty">' + esc(c.card.name.charAt(0)) + '</div>')
     + '<div class="f-cmt-bd">'
     + '<div class="f-cmt-txt"><b>' + esc(c.card.name) + '</b>：' + esc(c.content).replace(/\n/g, '<br>') + '</div>'
-    + '<div class="f-cmt-meta">' + c.time + ' · <a class="f-cmt-reply" data-id="' + c.id + '" data-name="' + esc(c.card.name) + '">回复</a>' + del + '</div>'
+    + '<div class="f-cmt-meta">' + c.time + ' · <a class="f-cmt-reply" data-id="' + c.id + '" data-name="' + esc(c.card.name) + '">' + spT('sp_reply', '回复') + '</a>' + del + '</div>'
     + '</div></div>';
 }
 function cmtReplyHtml(r, iAmOwner) {
-  var del = (r.mine || iAmOwner) ? '<a class="f-cmt-del" data-id="' + r.id + '">删除</a>' : '';
+  var del = (r.mine || iAmOwner) ? '<a class="f-cmt-del" data-id="' + r.id + '">' + spT('sp_delete', '删除') + '</a>' : '';
   return '<div class="f-cmt-reply-item" data-id="' + r.id + '"><b>' + esc(r.card.name) + '</b>：' + esc(r.content).replace(/\n/g, '<br>') + ' <span class="f-cmt-meta">' + r.time + del + '</span></div>';
 }
 function spCmtSend(btn) {
@@ -1287,10 +1344,10 @@ function spCmtSend(btn) {
   fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
     .then(function (r) { return r.json(); })
     .then(function (d) {
-      if (d && d.success) { spCmtReload(box); input.value = ''; input.removeAttribute('data-reply'); input.placeholder = '评论一下...'; }
-      else alert('评论失败');
+      if (d && d.success) { spCmtReload(box); input.value = ''; input.removeAttribute('data-reply'); input.placeholder = spT('sp_cmt_ph', '评论一下...'); }
+      else alert(spT('sp_cmt_fail', '评论失败'));
     })
-    .catch(function () { alert('网络错误'); });
+    .catch(function () { alert(spT('sp_net_err', '网络错误')); });
 }
 (function () {
   var feed = document.getElementById('feedList');
@@ -1300,12 +1357,12 @@ function spCmtSend(btn) {
     if (r) {
       var box = e.target.closest('.f-comments');
       var input = box ? box.querySelector('.f-cmt-text') : null;
-      if (input) { input.setAttribute('data-reply', r.getAttribute('data-id')); input.placeholder = '回复 ' + r.getAttribute('data-name') + '：'; input.focus(); }
+      if (input) { input.setAttribute('data-reply', r.getAttribute('data-id')); input.placeholder = spT('sp_reply', '回复') + ' ' + r.getAttribute('data-name') + '：'; input.focus(); }
       return;
     }
     var d = e.target.closest('.f-cmt-del');
     if (d) {
-      if (window.confirm('删除这条评论？')) {
+      if (window.confirm(spT('sp_del_cmt', '删除这条评论？'))) {
         var f = new URLSearchParams(); f.append('action', 'delete_comment'); f.append('id', d.getAttribute('data-id'));
         fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
           .then(function (r) { return r.json(); })
@@ -1333,10 +1390,10 @@ function spLoadBoard() {
 function renderBoard(msgs, iAmOwner) {
   var list = document.getElementById('spBoardList');
   if (!list) return;
-  if (!msgs.length) { list.innerHTML = '<li class="sp-board-empty"><div class="sp-empty-ic">' + SP_ICONS.comment + '</div>还没有留言～</li>'; return; }
+  if (!msgs.length) { list.innerHTML = '<li class="sp-board-empty"><div class="sp-empty-ic">' + SP_ICONS.comment + '</div>' + spT('sp_no_board', '还没有留言～') + '</li>'; return; }
   var html = '';
   msgs.forEach(function (m) {
-    var del = (m.mine || iAmOwner) ? '<a class="sp-board-del" data-id="' + m.id + '">删除</a>' : '';
+    var del = (m.mine || iAmOwner) ? '<a class="sp-board-del" data-id="' + m.id + '">' + spT('sp_delete', '删除') + '</a>' : '';
     html += '<li class="sp-board-item" data-id="' + m.id + '">'
       + (m.card.avatar ? '<img class="sp-board-av" src="' + m.card.avatar + '" alt="">' : '<div class="sp-board-av av-empty">' + esc(m.card.name.charAt(0)) + '</div>')
       + '<div class="sp-board-bd">'
@@ -1348,7 +1405,7 @@ function renderBoard(msgs, iAmOwner) {
   list.innerHTML = html;
 }
 function spBoardPost() {
-  if (!SP_SPACE.uid) { alert('留言失败'); return; }
+  if (!SP_SPACE.uid) { alert(spT('sp_board_fail', '留言失败')); return; }
   var ta = document.getElementById('spBoardInput');
   var txt = (ta.value || '').trim();
   if (!txt) { ta.focus(); return; }
@@ -1358,9 +1415,9 @@ function spBoardPost() {
     .then(function (r) { return r.json(); })
     .then(function (d) {
       if (d && d.success) { ta.value = ''; SP_BOARD_LOADED = false; spLoadBoard(); }
-      else alert('留言失败');
+      else alert(spT('sp_board_fail', '留言失败'));
     })
-    .catch(function () { alert('网络错误'); });
+    .catch(function () { alert(spT('sp_net_err', '网络错误')); });
 }
 (function () {
   var list = document.getElementById('spBoardList');
@@ -1368,7 +1425,7 @@ function spBoardPost() {
   list.addEventListener('click', function (e) {
     var d = e.target.closest('.sp-board-del');
     if (!d) return;
-    if (window.confirm('删除这条留言？')) {
+    if (window.confirm(spT('sp_del_board', '删除这条留言？'))) {
       var f = new URLSearchParams(); f.append('action', 'delete_message'); f.append('id', d.getAttribute('data-id'));
       fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
         .then(function (r) { return r.json(); })
@@ -1384,10 +1441,10 @@ function spLoadVisitors() {
   fetch('../../api/space.php?action=visitor_list&type=me', { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (d) {
-      if (!d || !d.success) { if (list) list.innerHTML = '<li class="sp-vis-empty">暂无访客</li>'; return; }
+      if (!d || !d.success) { if (list) list.innerHTML = '<li class="sp-vis-empty">' + spT('sp_no_visitor', '暂无访客') + '</li>'; return; }
       if (list) renderVisitorList(list, d.list || [], 'me');
     })
-    .catch(function () { if (list) list.innerHTML = '<li class="sp-vis-empty">暂无访客</li>'; });
+    .catch(function () { if (list) list.innerHTML = '<li class="sp-vis-empty">' + spT('sp_no_visitor', '暂无访客') + '</li>'; });
   fetch('../../api/space.php?action=visit_count', { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (d) {
@@ -1398,7 +1455,7 @@ function spLoadVisitors() {
     .catch(function () {});
 }
 function renderVisitorList(list, arr, type) {
-  if (!arr.length) { list.innerHTML = '<li class="sp-vis-empty">暂无访客</li>'; return; }
+  if (!arr.length) { list.innerHTML = '<li class="sp-vis-empty">' + spT('sp_no_visitor', '暂无访客') + '</li>'; return; }
   var h = '';
   arr.forEach(function (v) {
     var av = v.avatar ? '<img src="' + v.avatar + '" alt="">' : '<div class="av-empty">' + esc((v.name || '?').charAt(0)) + '</div>';
@@ -1412,7 +1469,7 @@ function renderVisitorList(list, arr, type) {
   list.innerHTML = h;
 }
 function spVisitorDel(uid) {
-  if (!window.confirm('删除本次访问记录？')) return;
+  if (!window.confirm(spT('sp_del_visit', '删除本次访问记录？'))) return;
   var f = new URLSearchParams(); f.append('action', 'visitor_delete'); f.append('uid', uid);
   fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
     .then(function (r) { return r.json(); })
@@ -1426,16 +1483,16 @@ function spNameCardShow(el) {
   document.getElementById('ncAv').src = el.getAttribute('data-avatar') || '';
   document.getElementById('ncName').textContent = el.getAttribute('data-name') || '';
   var g = +el.getAttribute('data-gender');
-  var meta = (g === 1 ? '男' : (g === 2 ? '女' : '未设置'));
+  var meta = (g === 1 ? spT('sp_male', '男') : (g === 2 ? spT('sp_female', '女') : spT('sp_unset', '未设置')));
   var zod = el.getAttribute('data-zodiac');
   if (zod) meta += ' · ' + zod;
   document.getElementById('ncMeta').textContent = meta;
   var common = +el.getAttribute('data-common');
   var ce = document.getElementById('ncCommon');
-  if (common > 0) { ce.style.display = ''; ce.textContent = '你们有 ' + common + ' 个共同好友'; }
+  if (common > 0) { ce.style.display = ''; ce.textContent = spT('sp_common_friends', '你们有 %s 个共同好友').replace('%s', common); }
   else { ce.style.display = 'none'; ce.textContent = ''; }
   var care = document.getElementById('ncCare');
-  care.textContent = (+el.getAttribute('data-special')) ? '已关心' : '特别关心';
+  care.textContent = (+el.getAttribute('data-special')) ? spT('sp_cared', '已关心') : spT('sp_care', '特别关心');
   care.classList.toggle('on', !!+el.getAttribute('data-special'));
   nc.style.display = 'block';
   var r = el.getBoundingClientRect();
@@ -1459,9 +1516,9 @@ function ncToggleCare(e) {
         var care = document.getElementById('ncCare');
         if (!care) return;
         var on = care.classList.contains('on');
-        care.textContent = on ? '特别关心' : '已关心';
+        care.textContent = on ? spT('sp_care', '特别关心') : spT('sp_cared', '已关心');
         care.classList.toggle('on', !on);
-      } else alert('操作失败');
+      } else alert(spT('sp_op_fail', '操作失败'));
     });
 }
 (function () {
@@ -1487,12 +1544,12 @@ function spVpTab(t) {
 function spVpLoad() {
   var list = document.getElementById('spVpList');
   if (!list) return;
-  list.innerHTML = '<li class="sp-vis-empty">加载中…</li>';
+  list.innerHTML = '<li class="sp-vis-empty">' + spT('sp_loading', '加载中…') + '</li>';
   fetch('../../api/space.php?action=visitor_list&type=' + SP_VP_TYPE, { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (d) {
       var arr = (d && d.success) ? (d.list || []) : [];
-      if (!arr.length) { list.innerHTML = '<li class="sp-vis-empty">' + (SP_VP_TYPE === 'refuse' ? '暂无被挡访客' : '暂无访客') + '</li>'; return; }
+      if (!arr.length) { list.innerHTML = '<li class="sp-vis-empty">' + (SP_VP_TYPE === 'refuse' ? spT('sp_no_blocked', '暂无被挡访客') : spT('sp_no_visitor', '暂无访客')) + '</li>'; return; }
       var h = '';
       arr.forEach(function (v) {
         var av = v.avatar ? '<img src="' + v.avatar + '" alt="">' : '<span class="av-empty">' + esc((v.name || '?').charAt(0)) + '</span>';
@@ -1506,7 +1563,7 @@ function spVpLoad() {
       });
       list.innerHTML = h;
     })
-    .catch(function () { list.innerHTML = '<li class="sp-vis-empty">加载失败</li>'; });
+    .catch(function () { list.innerHTML = '<li class="sp-vis-empty">' + spT('sp_load_fail', '加载失败') + '</li>'; });
   if (SP_VP_TYPE === 'me') {
     fetch('../../api/space.php?action=visit_count', { credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
@@ -1518,42 +1575,42 @@ function spVpLoad() {
   }
 }
 function spVpDel(uid) {
-  if (!window.confirm('删除本次访问记录？')) return;
+  if (!window.confirm(spT('sp_del_visit', '删除本次访问记录？'))) return;
   var f = new URLSearchParams(); f.append('action', 'visitor_delete'); f.append('uid', uid);
   fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
     .then(function (r) { return r.json(); }).then(function () { spVpLoad(); spLoadVisitors(); });
 }
 
 /* ===== 相册 ===== */
-var SP_ALBUM_TYPES = { personal: '个人', multi: '多人', couple: '情侣', family: '亲子', travel: '旅行', other: '其他' };
+var SP_ALBUM_TYPES = { personal: spT('sp_type_personal', '个人'), multi: spT('sp_type_multi', '多人'), couple: spT('sp_type_couple', '情侣'), family: spT('sp_type_family', '亲子'), travel: spT('sp_type_travel', '旅行'), other: spT('sp_type_other', '其他') };
 var SP_ALBUM_VIEW = null;
 function spLoadAlbums() {
   var wrap = document.getElementById('spAlbumWrap');
   if (!wrap) return;
-  wrap.innerHTML = '<div class="sp-album-empty">加载中…</div>';
+  wrap.innerHTML = '<div class="sp-album-empty">' + spT('sp_loading', '加载中…') + '</div>';
   fetch('../../api/space.php?action=album_list&uid=' + SP_SPACE.uid, { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (d) {
-      if (!d || !d.success) { wrap.innerHTML = '<div class="sp-album-empty">加载失败</div>'; return; }
+      if (!d || !d.success) { wrap.innerHTML = '<div class="sp-album-empty">' + spT('sp_load_fail', '加载失败') + '</div>'; return; }
       SP_ALBUM_VIEW = null;
       renderAlbumList(d.albums || []);
     })
-    .catch(function () { wrap.innerHTML = '<div class="sp-album-empty">加载失败</div>'; });
+    .catch(function () { wrap.innerHTML = '<div class="sp-album-empty">' + spT('sp_load_fail', '加载失败') + '</div>'; });
 }
 function renderAlbumList(albums) {
   var wrap = document.getElementById('spAlbumWrap');
   if (!wrap) return;
   var cnt = document.getElementById('spAlbumCount');
   if (cnt) cnt.textContent = albums.length;
-  if (!albums.length) { wrap.innerHTML = '<div class="sp-album-empty">暂无相册</div>'; return; }
+  if (!albums.length) { wrap.innerHTML = '<div class="sp-album-empty">' + spT('sp_no_album', '暂无相册') + '</div>'; return; }
   var h = '<div class="sp-album-grid">';
   albums.forEach(function (a) {
     var cover = a.cover ? '<img src="' + a.cover + '" alt="">' : '<div class="sp-album-noimg">📷</div>';
-    var del = SP_SPACE.self ? '<span class="sp-album-del" title="删除相册" onclick="event.stopPropagation();spAlbumDel(' + a.id + ')">✕</span>' : '';
+    var del = SP_SPACE.self ? '<span class="sp-album-del" title="' + spT('sp_delete_album', '删除相册') + '" onclick="event.stopPropagation();spAlbumDel(' + a.id + ')">✕</span>' : '';
     h += '<div class="sp-album-card" onclick="spAlbumView(' + a.id + ')">'
       + '<div class="sp-album-cover">' + cover + del + '</div>'
-      + '<div class="sp-album-meta"><div class="sp-album-name">' + esc(a.name) + (a.is_dynamic ? ' <span class="sp-album-tag">动态</span>' : '') + '</div>'
-      + '<div class="sp-album-sub">' + esc(SP_ALBUM_TYPES[a.type] || a.type) + ' · ' + a.count + ' 张</div>'
+      + '<div class="sp-album-meta"><div class="sp-album-name">' + esc(a.name) + (a.is_dynamic ? ' <span class="sp-album-tag">' + spT('sp_album_dyn_tag', '动态') + '</span>' : '') + '</div>'
+      + '<div class="sp-album-sub">' + esc(SP_ALBUM_TYPES[a.type] || a.type) + ' · ' + a.count + ' ' + spT('sp_photos_unit', '张') + '</div>'
       + (a.description ? '<div class="sp-album-desc">' + esc(a.description) + '</div>' : '')
       + '</div></div>';
   });
@@ -1563,14 +1620,14 @@ function renderAlbumList(albums) {
 function spAlbumView(id) {
   var wrap = document.getElementById('spAlbumWrap');
   if (!wrap) return;
-  wrap.innerHTML = '<div class="sp-album-empty">加载中…</div>';
+  wrap.innerHTML = '<div class="sp-album-empty">' + spT('sp_loading', '加载中…') + '</div>';
   fetch('../../api/space.php?action=album_photos&id=' + id, { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (d) {
-      if (!d || !d.success) { wrap.innerHTML = '<div class="sp-album-empty">无法查看</div>'; return; }
+      if (!d || !d.success) { wrap.innerHTML = '<div class="sp-album-empty">' + spT('sp_load_fail', '无法查看') + '</div>'; return; }
       SP_ALBUM_VIEW = d.album;
-      var h = '<div class="sp-album-view-head"><span class="sp-album-back" onclick="spLoadAlbums()">‹ 返回相册</span><b>' + esc(d.album.name) + '</b><span class="sp-album-sub">' + esc(SP_ALBUM_TYPES[d.album.type] || d.album.type) + ' · ' + (d.album.is_dynamic ? '动态相册 · ' : '') + '共 ' + d.photos.length + ' 张</span></div>';
-      if (!d.photos.length) { h += '<div class="sp-album-empty">暂无照片</div>'; }
+      var h = '<div class="sp-album-view-head"><span class="sp-album-back" onclick="spLoadAlbums()">‹ ' + spT('sp_album_back', '返回相册') + '</span><b>' + esc(d.album.name) + '</b><span class="sp-album-sub">' + esc(SP_ALBUM_TYPES[d.album.type] || d.album.type) + ' · ' + (d.album.is_dynamic ? spT('sp_album_dyn', '动态相册') + ' · ' : '') + spT('sp_album_photos', '共 %s 张', d.photos.length) + '</span></div>';
+      if (!d.photos.length) { h += '<div class="sp-album-empty">' + spT('sp_no_photo', '暂无照片') + '</div>'; }
       else {
         h += '<div class="sp-album-grid">';
         d.photos.forEach(function (p) {
@@ -1580,10 +1637,10 @@ function spAlbumView(id) {
       }
       wrap.innerHTML = h;
     })
-    .catch(function () { wrap.innerHTML = '<div class="sp-album-empty">加载失败</div>'; });
+    .catch(function () { wrap.innerHTML = '<div class="sp-album-empty">' + spT('sp_load_fail', '加载失败') + '</div>'; });
 }
 function spAlbumDel(id) {
-  if (!window.confirm('删除这个相册？')) return;
+  if (!window.confirm(spT('sp_album_del', '删除这个相册？'))) return;
   var f = new URLSearchParams(); f.append('action', 'album_delete'); f.append('id', id);
   fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
     .then(function (r) { return r.json(); })
@@ -1603,15 +1660,15 @@ function spAlbumNew() {
   var box = document.getElementById('spAlbumFriends');
   if (SP_FRIENDS.length) { renderAlbumFriends(box, []); }
   else {
-    box.innerHTML = '<div class="sp-album-empty">加载好友…</div>';
+    box.innerHTML = '<div class="sp-album-empty">' + spT('sp_load_friends', '加载好友…') + '</div>';
     fetch('../../api/contacts.php?action=list').then(function (r) { return r.json(); }).then(function (d) {
       if (d && d.success) { SP_FRIENDS = d.contacts || []; renderAlbumFriends(box, []); }
-      else box.innerHTML = '<div class="sp-album-empty">无好友</div>';
+      else box.innerHTML = '<div class="sp-album-empty">' + spT('sp_no_friends', '无好友') + '</div>';
     });
   }
 }
 function renderAlbumFriends(box, selected) {
-  if (!SP_FRIENDS.length) { box.innerHTML = '<div class="sp-album-empty">暂无好友</div>'; return; }
+  if (!SP_FRIENDS.length) { box.innerHTML = '<div class="sp-album-empty">' + spT('sp_no_friend', '暂无好友') + '</div>'; return; }
   var h = '';
   SP_FRIENDS.forEach(function (f, i) {
     var on = selected.indexOf(+(f.user_id)) >= 0 ? ' on' : '';
@@ -1634,11 +1691,11 @@ function spAlbumCreate() {
   var type = typeEl ? typeEl.getAttribute('data-t') : 'personal';
   var vis = visEl ? visEl.getAttribute('data-v') : '0';
   var err = document.getElementById('spAlbumErr');
-  if (!name) { err.textContent = '请输入相册名'; return; }
+  if (!name) { err.textContent = spT('sp_album_name_req', '请输入相册名'); return; }
   var friends = [];
   if (vis === '2' || vis === '3') {
     Array.prototype.forEach.call(document.querySelectorAll('#spAlbumFriends span.on'), function (s) { friends.push(+(s.getAttribute('data-uid'))); });
-    if (!friends.length) { err.textContent = '请选择好友'; return; }
+    if (!friends.length) { err.textContent = spT('sp_album_friend_req', '请选择好友'); return; }
   }
   var f = new URLSearchParams();
   f.append('action', 'album_create');
@@ -1648,9 +1705,9 @@ function spAlbumCreate() {
     .then(function (r) { return r.json(); })
     .then(function (d) {
       if (d && d.success) { spAlbumModalClose(); spLoadAlbums(); }
-      else err.textContent = (d && d.error === 'name_exists') ? '相册名已存在' : ((d && d.error === 'friends_required') ? '请选择好友' : '创建失败');
+      else err.textContent = (d && d.error === 'name_exists') ? spT('sp_album_name_exists', '相册名已存在') : ((d && d.error === 'friends_required') ? spT('sp_album_friend_req', '请选择好友') : spT('sp_album_fail', '创建失败'));
     })
-    .catch(function () { err.textContent = '网络错误'; });
+    .catch(function () { err.textContent = spT('sp_net_err', '网络错误'); });
 }
 function spAlbumModalClose() { var m = document.getElementById('spAlbumMask'); if (m) m.style.display = 'none'; }
 /* 相册大图查看（复用全局 lightbox） */
@@ -1676,7 +1733,7 @@ function renderBlogList(blogs) {
   var list = document.getElementById('spBlogList');
   if (!list) return;
   if (!blogs.length) {
-    list.innerHTML = '<div class="sp-empty"><div class="sp-empty-ic">' + SP_ICONS.say + '</div><p>' + (SP_SPACE.self ? '还没有日志，写第一篇吧～' : '期待 TA 的第一篇日志～') + '</p></div>';
+    list.innerHTML = '<div class="sp-empty"><div class="sp-empty-ic">' + SP_ICONS.say + '</div><p>' + (SP_SPACE.self ? spT('sp_blog_empty_self', '还没有日志，写第一篇吧～') : spT('sp_blog_empty_other', '期待 TA 的第一篇日志～')) + '</p></div>';
     return;
   }
   var html = '';
