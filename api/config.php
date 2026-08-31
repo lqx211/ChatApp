@@ -606,6 +606,79 @@ function ensure_space_mentions_table(): void {
     db_add_column_if_missing('space_mentions', 'comment_id', "BIGINT UNSIGNED NOT NULL DEFAULT 0");
 }
 
+/** 确保相册表存在（幂等）——相册本身 */
+function ensure_space_albums_table(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $pdo = db();
+    $pdo->exec("CREATE TABLE IF NOT EXISTS space_albums (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        user_id INT UNSIGNED NOT NULL,
+        name VARCHAR(60) NOT NULL,
+        description TEXT NULL,
+        type VARCHAR(20) NOT NULL DEFAULT 'personal',
+        visibility TINYINT NOT NULL DEFAULT 4,
+        visible_to TEXT NULL,
+        is_dynamic TINYINT(1) NOT NULL DEFAULT 0,
+        enabled TINYINT(1) NOT NULL DEFAULT 1,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_user (user_id),
+        KEY idx_dynamic (user_id, is_dynamic)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+/** 确保相册照片表存在（幂等）——media 为图片/视频 URL，featured=是否同步精选 */
+function ensure_space_album_photos_table(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $pdo = db();
+    $pdo->exec("CREATE TABLE IF NOT EXISTS space_album_photos (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        album_id BIGINT UNSIGNED NOT NULL,
+        user_id INT UNSIGNED NOT NULL,
+        media TEXT NOT NULL,
+        featured TINYINT(1) NOT NULL DEFAULT 0,
+        enabled TINYINT(1) NOT NULL DEFAULT 1,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_album (album_id),
+        KEY idx_featured (user_id, featured, enabled)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+/**
+ * 相册可见性判断（与朋友圈可见度枚举一致）：0公开 1好友 2部分好友可见 3部分好友不可见 4私密
+ * 本人总是可见。
+ */
+function space_album_allowed(PDO $pdo, int $viewerUid, array $album): bool {
+    $owner = (int)($album['user_id'] ?? 0);
+    if ($owner === $viewerUid) return true;
+    $vis = (int)($album['visibility'] ?? 0);
+    if ($vis === 4) return false;                                       // 私密：仅自己
+    if ($vis === 0) return true;                                        // 公开
+    $ids = space_parse_ids($album['visible_to'] ?? '');
+    if ($vis === 1) return space_is_friend($pdo, $viewerUid, $owner);   // 好友可见
+    if ($vis === 2) return in_array($viewerUid, $ids, true);            // 部分好友可见
+    if ($vis === 3) return !in_array($viewerUid, $ids, true);           // 部分好友不可见
+    return false;
+}
+
+/** 相册类型中文标签 */
+function space_album_type_label(string $type): string {
+    return [
+        'personal' => '个人', 'multi' => '多人', 'couple' => '情侣',
+        'family' => '亲子', 'travel' => '旅行', 'other' => '其他',
+    ][$type] ?? '个人';
+}
+
+/** 相册可见度中文标签 */
+function space_album_vis_label(int $vis): string {
+    return [0 => '公开', 1 => '好友', 2 => '部分好友可见', 3 => '部分好友不可见', 4 => '私密'][$vis] ?? '私密';
+}
+
 /** 两人是否为好友（contacts 双向 accepted） */
 function space_is_friend(PDO $pdo, int $a, int $b): bool {
     $s = $pdo->prepare("SELECT COUNT(*) FROM contacts WHERE status='accepted' AND ((user_from=? AND user_to=?) OR (user_from=? AND user_to=?))");

@@ -20,6 +20,8 @@ $meName = (string)($currentUser['username'] ?? '');
 // 支持 ?uid=<数字> 按用户ID访问空间，或 ?user=<用户名>，缺省为本人
 // 注意：?uid= 只要出现（即使非数字转为 0）就按 UID 访问——非数字 → UID 0（未知用户），而不是回落为本人
 $pdo = db();
+ensure_space_albums_table();
+ensure_space_album_photos_table();
 db_add_column_if_missing('users', 'space_ears', "TINYINT(1) NOT NULL DEFAULT 1");
 if ($hasViewUid) {
     $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, custom_title, gender, gender_privacy, birthday, profile_bg_image, profile_bg_updated_at, level, exp, likes, created_at, dnd, enabled, placeholder, space_ears, deleted_at FROM users WHERE user_id = ?");
@@ -119,9 +121,23 @@ for ($i = 0; $i < 9; $i++) { $samplePhotos[] = ['src' => sp_ph($i, $ch, '#ffb300
 ensure_space_feeds_table();
 ensure_space_comments_table();
 $isFriendView = $isSelf || space_is_friend($pdo, $meUid, $uid);
+// 精选相片：本人「动态」相册中标记「同步到精选」的照片（按相册可见性过滤）
+$featuredPhotos = [];
+if ($uid > 0) {
+    $dyn = $pdo->prepare("SELECT id, visibility, visible_to FROM space_albums WHERE user_id=? AND is_dynamic=1 AND enabled=1 LIMIT 1");
+    $dyn->execute([$uid]);
+    $dynAlb = $dyn->fetch();
+    if ($dynAlb) {
+        $albOk = $isSelf || space_album_allowed($pdo, $meUid, ['user_id' => $uid, 'visibility' => (int)$dynAlb['visibility'], 'visible_to' => $dynAlb['visible_to']]);
+        if ($albOk) {
+            $fp = $pdo->prepare("SELECT media FROM space_album_photos WHERE album_id=? AND enabled=1 AND featured=1 ORDER BY id DESC LIMIT 9");
+            $fp->execute([$dynAlb['id']]);
+            $featuredPhotos = array_map('strval', $fp->fetchAll(PDO::FETCH_COLUMN));
+        }
+    }
+}
 $feedRows = [];
-$cmtCount = [];
-if ($uid) {
+$cmtCount = [];if ($uid) {
     $fstmt = $pdo->prepare("SELECT id, content, images, visibility, visible_to, likes, liked_by, created_at FROM space_feeds WHERE user_id=? AND enabled=1 ORDER BY id DESC LIMIT 200");
     $fstmt->execute([$uid]);
     $cc = $pdo->query("SELECT feed_id, COUNT(*) c FROM space_comments WHERE enabled=1 GROUP BY feed_id");
@@ -315,7 +331,10 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
                   <span class="vis-label" id="spVisLabel">所有人可见</span>
                   <span class="vis-arrow"><?php echo sp_ic('down');?></span>
                 </div>
-                <div class="op"><button class="btn-post" id="spPostBtn" onclick="spPost()">发表</button></div>
+                <div class="op">
+                  <label class="sp-sync-featured" title="本次朋友圈的图片自动存入「动态」相册；勾选后同步到精选相片"><input type="checkbox" id="spSyncFeatured" checked> 同步精选</label>
+                  <button class="btn-post" id="spPostBtn" onclick="spPost()">发表</button>
+                </div>
               </div>
               <!-- 艾特好友条：显示已 @ 的好友 (名字) -->
               <div class="sp-mention-bar" id="spMentionBar" style="display:none"></div>
@@ -432,12 +451,11 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 
             <!-- ===== 相册面板 ===== -->
             <section class="sp-tab" id="spTabAlbum" style="display:none">
-              <div class="sp-tab-head"><h3>相册</h3><span class="sp-tab-sub">精选相片（示例，接入相册后替换）</span></div>
-              <ul class="sp-album-grid">
-                <?php for ($ai = 0; $ai < 12; $ai++): $aph = $samplePhotos[$ai % count($samplePhotos)]; ?>
-                <li><div class="sp-album-item" onclick="spAlert('查看大图')"><img src="<?php echo $aph['src'];?>" alt=""><span class="cap"><?php echo htmlspecialchars($aph['cap']);?></span></div></li>
-                <?php endfor; ?>
-              </ul>
+              <div class="sp-tab-head">
+                <h3>相册</h3><span class="sp-tab-sub" id="spAlbumSub">共 <b id="spAlbumCount">0</b> 个相册</span>
+                <?php if ($isSelf): ?><button class="btn-post sp-album-new" onclick="spAlbumNew()">新建相册</button><?php endif; ?>
+              </div>
+              <div id="spAlbumWrap"><div class="sp-album-empty">加载中…</div></div>
             </section>
 
             <!-- ===== 留言板面板 ===== -->
@@ -485,9 +503,13 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
               <div class="hd">精选相片<span class="more" onclick="spGoTab('album')">更多相册 <?php echo sp_ic('right');?></span></div>
               <div class="bd">
                 <ul class="photo-grid" id="photoGrid">
-                  <?php foreach ($samplePhotos as $pi => $ph): ?>
-                  <li title="<?php echo htmlspecialchars($ph['cap']);?>"><img src="<?php echo $ph['src'];?>" alt=""><span class="cap"><?php echo htmlspecialchars($ph['cap']);?></span></li>
-                  <?php endforeach; ?>
+                  <?php if ($featuredPhotos): ?>
+                    <?php foreach ($featuredPhotos as $fp): ?>
+                    <li onclick="spGoTab('album')" title="查看相册"><img src="<?php echo htmlspecialchars($fp);?>" alt=""></li>
+                    <?php endforeach; ?>
+                  <?php else: ?>
+                    <li><div class="sp-ph-empty">暂无精选</div></li>
+                  <?php endif; ?>
                 </ul>
               </div>
             </div>
@@ -529,6 +551,32 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 <!-- 返回顶部 -->
 <div class="fix-layout">
   <div class="to-top" id="spToTop" title="返回顶部"><?php echo sp_ic('top');?></div>
+</div>
+
+<!-- 新建相册 -->
+<div class="sp-album-mask" id="spAlbumMask" style="display:none" onclick="if(event.target===this)spAlbumModalClose()">
+  <div class="sp-album-modal">
+    <div class="sp-album-modal-head"><h3>新建相册</h3><span class="sp-album-x" onclick="spAlbumModalClose()">✕</span></div>
+    <div class="sp-album-form">
+      <div class="sp-album-field"><label>相册名 *</label><input id="spAlbumName" maxlength="30" placeholder="输入相册名"></div>
+      <div class="sp-album-field"><label>描述</label><input id="spAlbumDesc" maxlength="200" placeholder="添加描述"></div>
+      <div class="sp-album-field"><label>类型 *</label>
+        <div class="sp-album-opts" id="spAlbumTypes">
+          <span class="on" data-t="personal" onclick="spAlbumTypeSelect(this)">个人</span><span data-t="multi" onclick="spAlbumTypeSelect(this)">多人</span><span data-t="couple" onclick="spAlbumTypeSelect(this)">情侣</span><span data-t="family" onclick="spAlbumTypeSelect(this)">亲子</span><span data-t="travel" onclick="spAlbumTypeSelect(this)">旅行</span><span data-t="other" onclick="spAlbumTypeSelect(this)">其他</span>
+        </div>
+      </div>
+      <div class="sp-album-field"><label>可见范围 *</label>
+        <div class="sp-album-opts" id="spAlbumVis">
+          <span class="on" data-v="0" onclick="spAlbumVisSelect(this)">公开</span><span data-v="1" onclick="spAlbumVisSelect(this)">好友</span><span data-v="2" onclick="spAlbumVisSelect(this)">部分好友</span><span data-v="3" onclick="spAlbumVisSelect(this)">不给谁看</span><span data-v="4" onclick="spAlbumVisSelect(this)">私密</span>
+        </div>
+      </div>
+      <div class="sp-album-field" id="spAlbumFriendsField" style="display:none"><label>选择好友</label><div class="sp-album-friends" id="spAlbumFriends"></div></div>
+    </div>
+    <div class="sp-album-modal-foot">
+      <span class="sp-album-err" id="spAlbumErr"></span>
+      <button class="sp-fm-ok" onclick="spAlbumCreate()">创建</button>
+    </div>
+  </div>
 </div>
 
 <!-- 可见范围下拉 -->
@@ -585,6 +633,7 @@ function spGoTab(name) {
   if (name === 'home') setFeedFilter('all');
   // 进入日志/留言板时按需加载
   if (name === 'blog') spLoadBlogList();
+  if (name === 'album') spLoadAlbums();
   if (name === 'board') spLoadBoard();
 }
 document.getElementById('coverTabs').addEventListener('click', function (e) {
@@ -1011,6 +1060,7 @@ function spPost() {
   f.append('action', 'post');
   f.append('content', t);
   if (SP_POST_IMAGES.length) f.append('images', JSON.stringify(SP_POST_IMAGES));
+  f.append('sync_featured', (document.getElementById('spSyncFeatured') && document.getElementById('spSyncFeatured').checked) ? '1' : '0');
   f.append('visibility', SP_POST_VIS);
   if (SP_POST_VIS === 2 || SP_POST_VIS === 3) f.append('visible_to', JSON.stringify(SP_POST_FRIENDS));
   if (SP_MENTIONS.length) f.append('mentions', JSON.stringify(SP_MENTIONS.map(function (m) { return m.uid; })));
@@ -1272,6 +1322,145 @@ function spBoardPost() {
     }
   });
 })();
+
+/* ===== 相册 ===== */
+var SP_ALBUM_TYPES = { personal: '个人', multi: '多人', couple: '情侣', family: '亲子', travel: '旅行', other: '其他' };
+var SP_ALBUM_VIEW = null;
+function spLoadAlbums() {
+  var wrap = document.getElementById('spAlbumWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<div class="sp-album-empty">加载中…</div>';
+  fetch('../../api/space.php?action=album_list&uid=' + SP_SPACE.uid, { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.success) { wrap.innerHTML = '<div class="sp-album-empty">加载失败</div>'; return; }
+      SP_ALBUM_VIEW = null;
+      renderAlbumList(d.albums || []);
+    })
+    .catch(function () { wrap.innerHTML = '<div class="sp-album-empty">加载失败</div>'; });
+}
+function renderAlbumList(albums) {
+  var wrap = document.getElementById('spAlbumWrap');
+  if (!wrap) return;
+  var cnt = document.getElementById('spAlbumCount');
+  if (cnt) cnt.textContent = albums.length;
+  if (!albums.length) { wrap.innerHTML = '<div class="sp-album-empty">暂无相册</div>'; return; }
+  var h = '<div class="sp-album-grid">';
+  albums.forEach(function (a) {
+    var cover = a.cover ? '<img src="' + a.cover + '" alt="">' : '<div class="sp-album-noimg">📷</div>';
+    var del = SP_SPACE.self ? '<span class="sp-album-del" title="删除相册" onclick="event.stopPropagation();spAlbumDel(' + a.id + ')">✕</span>' : '';
+    h += '<div class="sp-album-card" onclick="spAlbumView(' + a.id + ')">'
+      + '<div class="sp-album-cover">' + cover + del + '</div>'
+      + '<div class="sp-album-meta"><div class="sp-album-name">' + esc(a.name) + (a.is_dynamic ? ' <span class="sp-album-tag">动态</span>' : '') + '</div>'
+      + '<div class="sp-album-sub">' + esc(SP_ALBUM_TYPES[a.type] || a.type) + ' · ' + a.count + ' 张</div>'
+      + (a.description ? '<div class="sp-album-desc">' + esc(a.description) + '</div>' : '')
+      + '</div></div>';
+  });
+  h += '</div>';
+  wrap.innerHTML = h;
+}
+function spAlbumView(id) {
+  var wrap = document.getElementById('spAlbumWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<div class="sp-album-empty">加载中…</div>';
+  fetch('../../api/space.php?action=album_photos&id=' + id, { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.success) { wrap.innerHTML = '<div class="sp-album-empty">无法查看</div>'; return; }
+      SP_ALBUM_VIEW = d.album;
+      var h = '<div class="sp-album-view-head"><span class="sp-album-back" onclick="spLoadAlbums()">‹ 返回相册</span><b>' + esc(d.album.name) + '</b><span class="sp-album-sub">' + esc(SP_ALBUM_TYPES[d.album.type] || d.album.type) + ' · ' + (d.album.is_dynamic ? '动态相册 · ' : '') + '共 ' + d.photos.length + ' 张</span></div>';
+      if (!d.photos.length) { h += '<div class="sp-album-empty">暂无照片</div>'; }
+      else {
+        h += '<div class="sp-album-grid">';
+        d.photos.forEach(function (p) {
+          h += '<div class="sp-album-card sp-album-photo" onclick="spOpenLightboxUrl(\'' + p.media.replace(/'/g, "\\'") + '\')"><div class="sp-album-cover"><img src="' + p.media + '" alt=""></div></div>';
+        });
+        h += '</div>';
+      }
+      wrap.innerHTML = h;
+    })
+    .catch(function () { wrap.innerHTML = '<div class="sp-album-empty">加载失败</div>'; });
+}
+function spAlbumDel(id) {
+  if (!window.confirm('删除这个相册？')) return;
+  var f = new URLSearchParams(); f.append('action', 'album_delete'); f.append('id', id);
+  fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+    .then(function (r) { return r.json(); })
+    .then(function () { spLoadAlbums(); });
+}
+/* 新建相册 */
+function spAlbumNew() {
+  var m = document.getElementById('spAlbumMask');
+  if (!m) return;
+  m.style.display = 'flex';
+  document.getElementById('spAlbumName').value = '';
+  document.getElementById('spAlbumDesc').value = '';
+  document.getElementById('spAlbumErr').textContent = '';
+  Array.prototype.forEach.call(document.querySelectorAll('#spAlbumTypes span'), function (s) { s.classList.toggle('on', s.getAttribute('data-t') === 'personal'); });
+  Array.prototype.forEach.call(document.querySelectorAll('#spAlbumVis span'), function (s) { s.classList.toggle('on', s.getAttribute('data-v') === '0'); });
+  document.getElementById('spAlbumFriendsField').style.display = 'none';
+  var box = document.getElementById('spAlbumFriends');
+  if (SP_FRIENDS.length) { renderAlbumFriends(box, []); }
+  else {
+    box.innerHTML = '<div class="sp-album-empty">加载好友…</div>';
+    fetch('../../api/contacts.php?action=list').then(function (r) { return r.json(); }).then(function (d) {
+      if (d && d.success) { SP_FRIENDS = d.contacts || []; renderAlbumFriends(box, []); }
+      else box.innerHTML = '<div class="sp-album-empty">无好友</div>';
+    });
+  }
+}
+function renderAlbumFriends(box, selected) {
+  if (!SP_FRIENDS.length) { box.innerHTML = '<div class="sp-album-empty">暂无好友</div>'; return; }
+  var h = '';
+  SP_FRIENDS.forEach(function (f, i) {
+    var on = selected.indexOf(+(f.user_id)) >= 0 ? ' on' : '';
+    h += '<span class="sp-album-friend' + on + '" data-uid="' + f.user_id + '" onclick="spAlbumFriendToggle(this)">' + esc(f.display_name || f.username || f.nickname || f.username) + '</span>';
+  });
+  box.innerHTML = h;
+}
+function spAlbumFriendToggle(el) { el.classList.toggle('on'); }
+function spAlbumTypeSelect(el) { Array.prototype.forEach.call(el.parentNode.querySelectorAll('span'), function (s) { s.classList.toggle('on', s === el); }); }
+function spAlbumVisSelect(el) {
+  Array.prototype.forEach.call(el.parentNode.querySelectorAll('span'), function (s) { s.classList.toggle('on', s === el); });
+  var v = el.getAttribute('data-v');
+  document.getElementById('spAlbumFriendsField').style.display = (v === '2' || v === '3') ? '' : 'none';
+}
+function spAlbumCreate() {
+  var name = (document.getElementById('spAlbumName').value || '').trim();
+  var desc = (document.getElementById('spAlbumDesc').value || '').trim();
+  var typeEl = document.querySelector('#spAlbumTypes span.on');
+  var visEl = document.querySelector('#spAlbumVis span.on');
+  var type = typeEl ? typeEl.getAttribute('data-t') : 'personal';
+  var vis = visEl ? visEl.getAttribute('data-v') : '0';
+  var err = document.getElementById('spAlbumErr');
+  if (!name) { err.textContent = '请输入相册名'; return; }
+  var friends = [];
+  if (vis === '2' || vis === '3') {
+    Array.prototype.forEach.call(document.querySelectorAll('#spAlbumFriends span.on'), function (s) { friends.push(+(s.getAttribute('data-uid'))); });
+    if (!friends.length) { err.textContent = '请选择好友'; return; }
+  }
+  var f = new URLSearchParams();
+  f.append('action', 'album_create');
+  f.append('name', name); f.append('description', desc); f.append('type', type); f.append('visibility', vis);
+  if (friends.length) f.append('visible_to', JSON.stringify(friends));
+  fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d && d.success) { spAlbumModalClose(); spLoadAlbums(); }
+      else err.textContent = (d && d.error === 'name_exists') ? '相册名已存在' : ((d && d.error === 'friends_required') ? '请选择好友' : '创建失败');
+    })
+    .catch(function () { err.textContent = '网络错误'; });
+}
+function spAlbumModalClose() { var m = document.getElementById('spAlbumMask'); if (m) m.style.display = 'none'; }
+/* 相册大图查看（复用全局 lightbox） */
+function spOpenLightboxUrl(url) {
+  var lb = document.getElementById('spLightbox');
+  var img = document.getElementById('spLbImg');
+  if (!lb || !img) return;
+  img.src = url;
+  document.getElementById('spLbArrows').style.display = 'none';
+  lb.style.display = 'flex';
+}
 
 /* ===== 日志 ===== */
 function spLoadBlogList() {

@@ -13,6 +13,8 @@ ensure_space_comments_table();
 ensure_space_messages_table();
 ensure_space_blogs_table();
 ensure_space_mentions_table();
+ensure_space_albums_table();
+ensure_space_album_photos_table();
 $pdo = db();
 $me = chatapp_get_user();
 $myUid = (int)($me['user_id'] ?? 0);
@@ -36,6 +38,26 @@ switch ($action) {
         $stmt = $pdo->prepare("INSERT INTO space_feeds (user_id, content, images, visibility, visible_to) VALUES (?,?,?,?,?)");
         $stmt->execute([$myUid, mb_substr($content, 0, 5000), $images, $visibility, $visible_to]);
         $feedId = (int)$pdo->lastInsertId();
+        // 自动把朋友圈图片/视频加入「动态」相册（不存在则创建，默认私密）；sync_featured 控制是否同步精选
+        $imgArr = $images ? (json_decode($images, true) ?: []) : [];
+        $imgArr = array_values(array_filter((array)$imgArr, 'is_string'));
+        if ($imgArr) {
+            $dyn = $pdo->prepare("SELECT id FROM space_albums WHERE user_id=? AND is_dynamic=1 AND enabled=1 LIMIT 1");
+            $dyn->execute([$myUid]);
+            $dynId = (int)$dyn->fetchColumn();
+            if (!$dynId) {
+                $dins = $pdo->prepare("INSERT INTO space_albums (user_id, name, description, type, visibility, is_dynamic) VALUES (?,?,?,?,?,1)");
+                $dins->execute([$myUid, '动态', '发朋友圈自动同步的相册', 'personal', 4]);
+                $dynId = (int)$pdo->lastInsertId();
+            }
+            $featured = (($_POST['sync_featured'] ?? '1') === '1') ? 1 : 0;
+            $phStmt = $pdo->prepare("INSERT INTO space_album_photos (album_id, user_id, media, featured) VALUES (?,?,?,?)");
+            foreach ($imgArr as $im) {
+                $im = trim((string)$im);
+                if ($im === '') continue;
+                $phStmt->execute([$dynId, $myUid, $im, $featured]);
+            }
+        }
         // 艾特通知：写入 space_mentions（只保留有效用户，排除自己，按 uid 去重）
         $mRaw = $_POST['mentions'] ?? '';
         if (is_string($mRaw) && $mRaw !== '' && $mRaw[0] === '[') {
@@ -55,8 +77,101 @@ switch ($action) {
         echo json_encode(['success' => true, 'id' => $feedId]);
         break;
 
-    case 'list':
-        $user = trim((string)($_GET['user'] ?? $_POST['user'] ?? ''));
+    /* ============ 相册 ============ */
+    case 'album_list':
+        // 列出某用户可见的相册（uid / user / 缺省本人），带封面与照片数
+        $targetUid = (int)($_GET['uid'] ?? 0);
+        if ($targetUid <= 0) {
+            $un = trim((string)($_GET['user'] ?? ''));
+            if ($un !== '') {
+                $us = $pdo->prepare("SELECT user_id FROM users WHERE username=?");
+                $us->execute([$un]);
+                $targetUid = (int)$us->fetchColumn();
+            }
+        }
+        if ($targetUid <= 0) $targetUid = $myUid;
+        $isSelf = $targetUid === $myUid;
+        $stmt = $pdo->prepare("SELECT * FROM space_albums WHERE user_id=? AND enabled=1 ORDER BY is_dynamic DESC, id ASC");
+        $stmt->execute([$targetUid]);
+        $albums = [];
+        foreach ($stmt->fetchAll() as $a) {
+            if (!$isSelf && !space_album_allowed($pdo, $myUid, $a)) continue;
+            $cov = $pdo->prepare("SELECT media FROM space_album_photos WHERE album_id=? AND enabled=1 ORDER BY id DESC LIMIT 1");
+            $cov->execute([$a['id']]);
+            $cnt = $pdo->prepare("SELECT COUNT(*) FROM space_album_photos WHERE album_id=? AND enabled=1");
+            $cnt->execute([$a['id']]);
+            $albums[] = [
+                'id' => (int)$a['id'],
+                'name' => (string)$a['name'],
+                'description' => (string)($a['description'] ?? ''),
+                'type' => (string)$a['type'],
+                'visibility' => (int)$a['visibility'],
+                'visible_to' => $a['visible_to'] ? (json_decode($a['visible_to'], true) ?: []) : [],
+                'is_dynamic' => (int)$a['is_dynamic'],
+                'cover' => (string)$cov->fetchColumn(),
+                'count' => (int)$cnt->fetchColumn(),
+            ];
+        }
+        echo json_encode(['success' => true, 'albums' => $albums]);
+        break;
+
+    case 'album_create':
+        $name = trim((string)($_POST['name'] ?? ''));
+        $desc = trim((string)($_POST['description'] ?? ''));
+        $type = trim((string)($_POST['type'] ?? 'personal'));
+        $vis = (int)($_POST['visibility'] ?? 0);
+        if ($vis < 0 || $vis > 4) $vis = 0;
+        if ($name === '') { echo json_encode(['success' => false, 'error' => 'name_required']); break; }
+        if (mb_strlen($name) > 30) { echo json_encode(['success' => false, 'error' => 'name_len']); break; }
+        if (!in_array($type, ['personal', 'multi', 'couple', 'family', 'travel', 'other'], true)) $type = 'personal';
+        // 相册名不能与已有相册重复
+        $chk = $pdo->prepare("SELECT COUNT(*) FROM space_albums WHERE user_id=? AND name=? AND enabled=1");
+        $chk->execute([$myUid, $name]);
+        if ((int)$chk->fetchColumn() > 0) { echo json_encode(['success' => false, 'error' => 'name_exists']); break; }
+        $visible_to = null;
+        if ($vis === 2 || $vis === 3) {
+            $ids = space_parse_ids($_POST['visible_to'] ?? '');
+            if (!$ids) { echo json_encode(['success' => false, 'error' => 'friends_required']); break; }
+            $visible_to = json_encode($ids);
+        }
+        $desc = mb_substr($desc, 0, 200);
+        $ins = $pdo->prepare("INSERT INTO space_albums (user_id, name, description, type, visibility, visible_to, is_dynamic) VALUES (?,?,?,?,?,?,0)");
+        $ins->execute([$myUid, $name, $desc, $type, $vis, $visible_to]);
+        echo json_encode(['success' => true, 'id' => (int)$pdo->lastInsertId()]);
+        break;
+
+    case 'album_delete':
+        $id = (int)($_POST['id'] ?? 0);
+        if (!$id) { echo json_encode(['success' => false]); break; }
+        $pdo->prepare("UPDATE space_albums SET enabled=0 WHERE id=? AND user_id=?")->execute([$id, $myUid]);
+        echo json_encode(['success' => true]);
+        break;
+
+    case 'album_photos':
+        $aid = (int)($_GET['id'] ?? 0);
+        if (!$aid) { echo json_encode(['success' => false]); break; }
+        $stmt = $pdo->prepare("SELECT * FROM space_albums WHERE id=? AND enabled=1");
+        $stmt->execute([$aid]);
+        $album = $stmt->fetch();
+        if (!$album) { echo json_encode(['success' => false, 'error' => 'no_album']); break; }
+        if (!space_album_allowed($pdo, $myUid, $album)) { echo json_encode(['success' => false, 'error' => 'denied']); break; }
+        $ps = $pdo->prepare("SELECT id, media, created_at FROM space_album_photos WHERE album_id=? AND enabled=1 ORDER BY id DESC");
+        $ps->execute([$aid]);
+        $photos = [];
+        foreach ($ps->fetchAll() as $p) {
+            $photos[] = ['id' => (int)$p['id'], 'media' => (string)$p['media'], 'time' => space_fmt_time($p['created_at'])];
+        }
+        echo json_encode(['success' => true,
+            'album' => [
+                'id' => (int)$album['id'], 'name' => (string)$album['name'],
+                'description' => (string)($album['description'] ?? ''), 'type' => (string)$album['type'],
+                'visibility' => (int)$album['visibility'], 'is_dynamic' => (int)$album['is_dynamic'],
+                'user_id' => (int)$album['user_id'],
+            ],
+            'photos' => $photos]);
+        break;
+
+    case 'list':        $user = trim((string)($_GET['user'] ?? $_POST['user'] ?? ''));
         $targetUid = 0;
         if ($user !== '') {
             $s = $pdo->prepare("SELECT user_id FROM users WHERE username=?");

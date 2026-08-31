@@ -296,7 +296,7 @@ body.embed .layout-background{min-height:0}
 .sp-fm-pick svg{width:11px;height:11px}
 .sp-fm-item{display:flex;align-items:center;gap:9px;background:#2a2a2a;border:1px solid #3a3a3a;padding:8px 10px;cursor:pointer;font-size:13px;color:#ccc;border-radius:0}
 .sp-fm-item:hover{background:#333}
-.sp-fm-item.on{border-color:var(--q-blue);color:#fff;background:#2b3542}
+.sp-fm-item.on{border-color:#6fa4e0;color:#fff;background:rgba(80,140,220,.24)}
 .sp-fm-item img{width:34px;height:34px;border-radius:50%;object-fit:cover;background:#333;flex:none}
 .sp-fm-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
 .sp-fm-ck{margin-left:auto;color:#8fc0ff;display:inline-flex}
@@ -490,3 +490,49 @@ body.embed .layout-background{min-height:0}
   .sp-fm-side{width:84px}
   .sp-fm-group{padding:9px 10px;font-size:12px}
 }
+
+/* ===== 相册 ===== */
+.sp-album-grid{list-style:none;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:4px}
+.sp-album-card{background:rgba(255,255,255,.03);border:1px solid var(--q-border);border-radius:8px;overflow:hidden;cursor:pointer;position:relative;transition:transform .15s,box-shadow .15s}
+.sp-album-card:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.35)}
+.sp-album-cover{position:relative;aspect-ratio:4/3;background:#2a2f38;overflow:hidden}
+.sp-album-cover img{width:100%;height:100%;object-fit:cover;display:block}
+.sp-album-noimg{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:30px;color:#8fa3b8}
+.sp-album-del{position:absolute;top:6px;right:6px;width:22px;height:22px;line-height:20px;text-align:center;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:12px;cursor:pointer;z-index:2}
+.sp-album-del:hover{background:#d9534f}
+.sp-album-meta{padding:8px 10px 10px}
+.sp-album-name{font-size:14px;color:#e8eef5;font-weight:600;display:flex;align-items:center;gap:6px}
+.sp-album-tag{font-size:10px;color:#8ab8ff;border:1px solid rgba(138,184,255,.4);border-radius:3px;padding:0 4px;line-height:14px;font-weight:400}
+.sp-album-sub{font-size:12px;color:#8fa3b8;margin-top:2px}
+.sp-album-desc{font-size:12px;color:#6f7f92;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp-album-empty{padding:36px 0;text-align:center;color:#8fa3b8;font-size:13px}
+.sp-album-view-head{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.sp-album-view-head b{font-size:16px;color:#e8eef5}
+.sp-album-view-head .sp-album-sub{font-size:12px;color:#8fa3b8}
+.sp-album-back{cursor:pointer;color:#8ab8ff;font-size:13px;padding:4px 10px;border:1px solid rgba(138,184,255,.4);border-radius:6px}
+.sp-album-back:hover{background:rgba(138,184,255,.1)}
+.sp-album-photo .sp-album-cover{aspect-ratio:1/1}
+
+/* 新建相册弹窗 */
+.sp-album-mask{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
+.sp-album-modal{width:440px;max-width:100%;max-height:88vh;overflow:auto;background:#20242c;border:1px solid var(--q-border);border-radius:12px;padding:18px}
+.sp-album-modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.sp-album-modal-head h3{font-size:16px;color:#e8eef5;margin:0}
+.sp-album-x{cursor:pointer;color:#8fa3b8;font-size:16px;padding:2px 6px}
+.sp-album-field{margin-bottom:14px}
+.sp-album-field label{display:block;font-size:12px;color:#8fa3b8;margin-bottom:6px}
+.sp-album-field input{width:100%;padding:9px 10px;border-radius:6px;border:1px solid #343b46;background:#171b21;color:#e8eef5;font-size:13px;box-sizing:border-box;outline:none}
+.sp-album-field input:focus{border-color:#6fa4e0}
+.sp-album-opts{display:flex;flex-wrap:wrap;gap:8px}
+.sp-album-opts span{padding:6px 12px;border-radius:6px;border:1px solid #343b46;background:#171b21;color:#c9d6e4;font-size:12px;cursor:pointer}
+.sp-album-opts span.on{border-color:#6fa4e0;color:#fff;background:rgba(80,140,220,.24)}
+.sp-album-friends{display:flex;flex-wrap:wrap;gap:8px;max-height:140px;overflow:auto}
+.sp-album-friend{padding:5px 10px;border-radius:14px;border:1px solid #343b46;background:#171b21;color:#c9d6e4;font-size:12px;cursor:pointer}
+.sp-album-friend.on{border-color:#6fa4e0;color:#fff;background:rgba(80,140,220,.24)}
+.sp-album-modal-foot{display:flex;align-items:center;justify-content:flex-end;gap:12px;margin-top:6px}
+.sp-album-err{color:#e06c6c;font-size:12px;flex:1}
+
+/* 发朋友圈：同步精选 */
+.sp-sync-featured{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#8fa3b8;margin-right:10px;cursor:pointer;user-select:none}
+.sp-sync-featured input{accent-color:#6fa4e0;cursor:pointer}
+.sp-ph-empty{display:flex;align-items:center;justify-content:center;height:100%;color:#8fa3b8;font-size:11px}
