@@ -201,7 +201,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
       </div>
       <div class="head-detail">
         <div class="head-detail-name"><span class="user-name"><?php echo htmlspecialchars($displayName);?></span></div>
-        <div class="head-detail-sub">Lv.<?php echo $level;?> · 空间ID <?php echo $uid;?></div>
+        <div class="head-detail-sub">Lv.<?php echo $level;?> · UID <?php echo $uid;?></div>
       </div>
     </div>
   </div>
@@ -422,7 +422,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
                   <?php if ($birthday):?><li><span class="k">生日</span><span class="v"><?php echo htmlspecialchars($birthday);?></span></li><?php endif;?>
                   <li><span class="k">等级</span><span class="v">Lv.<?php echo $level;?>（<?php echo $exp;?> 经验）</span></li>
                   <li><span class="k">获赞</span><span class="v"><?php echo $likes;?></span></li>
-                  <li><span class="k">空间ID</span><span class="v"><?php echo $uid;?></span></li>
+                  <li><span class="k">UID</span><span class="v"><?php echo $uid;?></span></li>
                   <li><span class="k">注册时间</span><span class="v"><?php echo date('Y-m-d', strtotime((string)($u['created_at'] ?? '')));?></span></li>
                 </ul>
               </div>
@@ -465,7 +465,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
                   <?php if ($birthday):?><li><span class="k">生日</span><span class="v"><?php echo htmlspecialchars($birthday);?></span></li><?php endif;?>
                   <li><span class="k">等级</span><span class="v">Lv.<?php echo $level;?>（<?php echo $exp;?> 经验）</span></li>
                   <li><span class="k">获赞</span><span class="v"><?php echo $likes;?></span></li>
-                  <li><span class="k">空间ID</span><span class="v"><?php echo $uid;?></span></li>
+                  <li><span class="k">UID</span><span class="v"><?php echo $uid;?></span></li>
                 </ul>
               </div>
             </div>

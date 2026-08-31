@@ -73,7 +73,7 @@ img{border:0;vertical-align:middle}
 .head-nav .head-nav-menu li:hover a{color:#fff;background:#3a3a3a}
 .head-nav .head-nav-menu li.cur a{color:#fff;font-weight:700;background:#3a3a3a}
 /* 访客统计 */
-#visitorsDiv{left:auto;right:16px;top:120px}
+#visitorsDiv{left:auto;right:16px;top:120px;opacity:0;pointer-events:none} /* 访客统计块透明度 100% 隐藏（试效果，恢复删掉 opacity:0 即可） */
 .visit-module .other-info{background:transparent;padding:10px 14px;color:#fff;font-size:12px;text-align:center}
 .visit-module .visit-today{margin-bottom:4px}
 .visit-module .count{font-size:16px;font-weight:700;color:var(--q-accent);margin-left:4px}
