@@ -12,6 +12,7 @@ ensure_space_feeds_table();
 ensure_space_comments_table();
 ensure_space_messages_table();
 ensure_space_blogs_table();
+ensure_space_mentions_table();
 $pdo = db();
 $me = chatapp_get_user();
 $myUid = (int)($me['user_id'] ?? 0);
@@ -34,7 +35,24 @@ switch ($action) {
         if ($content === '' && !$images) { echo json_encode(['success' => false, 'error' => 'empty']); exit; }
         $stmt = $pdo->prepare("INSERT INTO space_feeds (user_id, content, images, visibility, visible_to) VALUES (?,?,?,?,?)");
         $stmt->execute([$myUid, mb_substr($content, 0, 5000), $images, $visibility, $visible_to]);
-        echo json_encode(['success' => true, 'id' => (int)$pdo->lastInsertId()]);
+        $feedId = (int)$pdo->lastInsertId();
+        // 艾特通知：写入 space_mentions（只保留有效用户，排除自己，按 uid 去重）
+        $mRaw = $_POST['mentions'] ?? '';
+        if (is_string($mRaw) && $mRaw !== '' && $mRaw[0] === '[') {
+            $arr = json_decode($mRaw, true);
+            if (is_array($arr)) {
+                $mUids = [];
+                foreach ($arr as $v) { $v = (int)$v; if ($v > 0 && $v !== $myUid) $mUids[$v] = $v; }
+                if ($mUids) {
+                    $uStmt = $pdo->prepare("SELECT user_id FROM users WHERE user_id IN (" . implode(',', array_map('intval', array_keys($mUids))) . ") AND enabled = 1 AND placeholder = 0");
+                    $uStmt->execute();
+                    foreach ($uStmt->fetchAll(PDO::FETCH_COLUMN) as $validUid) { $validUid = (int)$validUid; if ($validUid && $validUid !== $myUid) $mUids[$validUid] = $validUid; }
+                    $mStmt = $pdo->prepare("INSERT IGNORE INTO space_mentions (feed_id, mentioned_uid, by_uid) VALUES (?,?,?)");
+                    foreach ($mUids as $muid) $mStmt->execute([$feedId, $muid, $myUid]);
+                }
+            }
+        }
+        echo json_encode(['success' => true, 'id' => $feedId]);
         break;
 
     case 'list':
@@ -80,6 +98,10 @@ switch ($action) {
         if (!$id) { echo json_encode(['success' => false, 'error' => 'id']); break; }
         $stmt = $pdo->prepare("DELETE FROM space_feeds WHERE id=? AND user_id=?");
         $stmt->execute([$id, $myUid]);
+        if ($stmt->rowCount()) {
+            // 连带清理该说说的艾特通知
+            $pdo->prepare("DELETE FROM space_mentions WHERE feed_id=?")->execute([$id]);
+        }
         echo json_encode(['success' => (bool)$stmt->rowCount()]);
         break;
 
@@ -98,6 +120,54 @@ switch ($action) {
         $pdo->prepare("UPDATE space_feeds SET likes=?, liked_by=? WHERE id=?")
             ->execute([count($likedBy), $likedBy ? json_encode($likedBy) : null, $id]);
         echo json_encode(['success' => true, 'liked' => $liked, 'likes' => count($likedBy)]);
+        break;
+
+    /* ============ 艾特通知（与我相关） ============ */
+    case 'mentions':
+        // 我收到的 @ 通知列表（含发送者、对应说说）
+        $mStmt = $pdo->prepare("SELECT m.id, m.feed_id, m.by_uid, m.is_read, m.created_at,
+            u.username AS by_username, COALESCE(u.display_name, u.username) AS by_display, u.avatar AS by_avatar,
+            f.content AS feed_content, f.enabled AS feed_enabled
+            FROM space_mentions m
+            JOIN users u ON u.user_id = m.by_uid
+            LEFT JOIN space_feeds f ON f.id = m.feed_id
+            WHERE m.mentioned_uid = ?
+            ORDER BY m.id DESC LIMIT 100");
+        $mStmt->execute([$myUid]);
+        $list = [];
+        foreach ($mStmt->fetchAll() as $m) {
+            $list[] = [
+                'id' => (int)$m['id'],
+                'feed_id' => (int)$m['feed_id'],
+                'by_uid' => (int)$m['by_uid'],
+                'by_username' => $m['by_username'],
+                'by_display' => $m['by_display'],
+                'by_avatar' => chatapp_avatar_url($m['by_avatar'] ?? '', (string)($m['by_username'] ?? ''), (int)$m['by_uid']),
+                'feed_content' => (string)($m['feed_content'] ?? ''),
+                'feed_enabled' => (int)($m['feed_enabled'] ?? 0),
+                'is_read' => (int)$m['is_read'],
+                'time' => space_fmt_time((string)$m['created_at']),
+            ];
+        }
+        echo json_encode(['success' => true, 'mentions' => $list]);
+        break;
+
+    case 'mention_count':
+        // 未读 @ 数
+        $cStmt = $pdo->prepare("SELECT COUNT(*) FROM space_mentions WHERE mentioned_uid=? AND is_read=0");
+        $cStmt->execute([$myUid]);
+        echo json_encode(['success' => true, 'count' => (int)$cStmt->fetchColumn()]);
+        break;
+
+    case 'mention_read':
+        // 标记已读（id 为空则全部）
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id > 0) {
+            $pdo->prepare("UPDATE space_mentions SET is_read=1 WHERE id=? AND mentioned_uid=?")->execute([$id, $myUid]);
+        } else {
+            $pdo->prepare("UPDATE space_mentions SET is_read=1 WHERE mentioned_uid=? AND is_read=0")->execute([$myUid]);
+        }
+        echo json_encode(['success' => true]);
         break;
 
     /* ============ 图片上传（朋友圈/日志配图） ============ */

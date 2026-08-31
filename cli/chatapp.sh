@@ -6,7 +6,7 @@
 # 示例:
 #   ./chatapp.sh                    # TUI 界面
 #   ./chatapp.sh --cli              # 旧版命令行交互
-#   ./chatapp.sh --ai login --user mobtest2 --pass password
+#   ./chatapp.sh --ai login --user _mobtest2 --pass password
 #   ./chatapp.sh --ai settings get
 #   ./chatapp.sh --help
 set -euo pipefail

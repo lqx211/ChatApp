@@ -247,7 +247,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
               <ul class="sn-list" id="feedTypes">
                 <li class="current" data-f="all"><a onclick="spNavFeed('all')"><span class="sn-ico c1"><?php echo sp_ic('people');?></span><span class="sn-title">好友动态</span></a></li>
                 <li data-f="care"><a onclick="spAlert('特别关心')"><span class="sn-ico c2"><?php echo sp_ic('star');?></span><span class="sn-title">特别关心</span></a></li>
-                <li data-f="me"><a onclick="spAlert('与我相关')"><span class="sn-ico c3"><?php echo sp_ic('me');?></span><span class="sn-title">与我相关</span></a></li>
+                <li data-f="me"><a onclick="spLoadMentions()"><span class="sn-ico c3"><?php echo sp_ic('me');?></span><span class="sn-title">与我相关</span><span class="sn-badge" id="spMeBadge" style="display:none"></span></a></li>
                 <li data-f="memory"><a onclick="spAlert('那年今日')"><span class="sn-ico c4"><?php echo sp_ic('top');?></span><span class="sn-title">那年今日</span></a></li>
                 <li data-f="fav"><a onclick="spAlert('我的收藏')"><span class="sn-ico c5"><?php echo sp_ic('star');?></span><span class="sn-title">我的收藏</span></a></li>
               </ul>
@@ -602,6 +602,94 @@ var SP_X_IC = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" strok
 function spAlert(what) { alert('「' + what + '」功能即将上线。'); }
 function spGoto(where) { alert('「' + where + '」模块即将上线（示例 UI）。'); }
 
+/* ===== 艾特通知（与我相关） ===== */
+function spLoadMentions() {
+  spGoTab('home');
+  // 高亮左侧「与我相关」+ 顶部 tab
+  [].forEach.call(document.querySelectorAll('#feedTypes li'), function (li) {
+    li.classList.toggle('current', li.getAttribute('data-f') === 'me');
+  });
+  [].forEach.call(document.querySelectorAll('.feed-control-tab a'), function (a) {
+    a.classList.toggle('on', a.getAttribute('data-f') === 'me');
+  });
+  fetch('../../api/space.php?action=mentions', { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d && d.success) { renderMentions(d.mentions || []); markMentionsRead(); }
+    })
+    .catch(function () {});
+}
+function renderMentions(list) {
+  var area = document.getElementById('feedList');
+  if (!area) return;
+  var html = '';
+  if (!list.length) {
+    html = '<li class="f-single"><div class="f-single-content"><div class="f-ct-text" style="color:#777">暂无相关通知</div></div></li>';
+  } else {
+    list.forEach(function (m) {
+      var ch = (m.by_display || '?').charAt(0);
+      html += '<li class="f-single sp-mention-item" data-mid="' + m.id + '" data-feed="' + m.feed_id + '">'
+        + '<div class="f-single-head">'
+        + (m.by_avatar ? '<img class="user-avatar" src="' + m.by_avatar + '" alt="">' : '<span class="sp-mention-avph">' + esc(ch) + '</span>')
+        + '<div class="user-info">'
+        + '<div class="f-nick">' + esc(m.by_display) + '</div>'
+        + '<div class="info-detail">' + esc(m.time) + ' · 在说说中提到了你</div>'
+        + '</div></div>'
+        + '<div class="f-single-content"><div class="f-ct-text">'
+        + (m.feed_enabled ? '<span class="sp-mention-quote">' + esc(m.feed_content || '') + '</span>' : '<span class="sp-mention-quote">（原说说已删除）</span>')
+        + '</div></div>'
+        + (m.feed_enabled ? '<div class="f-single-foot"><a class="sp-mention-go" data-feed="' + m.feed_id + '" data-user="' + esc(m.by_username) + '">查看原说说 ›</a></div>' : '')
+        + '</li>';
+    });
+  }
+  area.innerHTML = html + '<li class="f-single"><div class="f-single-content"><a class="sp-mention-back" onclick="spNavFeed(\'all\')">‹ 返回动态</a></div></li>';
+  area.querySelectorAll('.sp-mention-go').forEach(function (a) {
+    a.addEventListener('click', function () {
+      var fid = +(a.getAttribute('data-feed'));
+      var user = a.getAttribute('data-user') || '';
+      // 说说不在此空间时，跳到发者空间并定位
+      if (user && user !== (window.SP_USER ? SP_USER.username : '')) {
+        location.href = 'space.php?user=' + encodeURIComponent(user) + '#feed-' + fid;
+        return;
+      }
+      spNavFeed('all');
+      setTimeout(function () {
+        var el = document.querySelector('#feedList .f-single[data-id="' + fid + '"]');
+        if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('sp-feed-flash'); setTimeout(function () { el.classList.remove('sp-feed-flash'); }, 2000); }
+      }, 120);
+    });
+  });
+}
+function markMentionsRead() {
+  var f = new URLSearchParams(); f.append('action', 'mention_read');
+  fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() }).catch(function () {});
+  var b = document.getElementById('spMeBadge'); if (b) b.style.display = 'none';
+}
+function spLoadMentionCount() {
+  fetch('../../api/space.php?action=mention_count', { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      var b = document.getElementById('spMeBadge');
+      if (!b) return;
+      var c = d && d.success ? (+d.count || 0) : 0;
+      if (c > 0) { b.textContent = c > 99 ? '99+' : c; b.style.display = 'inline-block'; }
+      else b.style.display = 'none';
+    })
+    .catch(function () {});
+}
+spLoadMentionCount();
+// 从「查看原说说」带 #feed-<id> 进入：加载后滚动定位并高亮
+(function () {
+  var h = location.hash;
+  if (h && h.indexOf('#feed-') === 0) {
+    var fid = +(h.slice(6));
+    setTimeout(function () {
+      var el = document.querySelector('#feedList .f-single[data-id="' + fid + '"]');
+      if (el) { el.scrollIntoView({ block: 'center' }); el.classList.add('sp-feed-flash'); setTimeout(function () { el.classList.remove('sp-feed-flash'); }, 2000); }
+    }, 300);
+  }
+})();
+
 /* ===== 可见范围下拉 ===== */
 function spVisToggle(e) {
   e && e.stopPropagation();
@@ -778,6 +866,7 @@ function spPost() {
   if (SP_POST_IMAGES.length) f.append('images', JSON.stringify(SP_POST_IMAGES));
   f.append('visibility', SP_POST_VIS);
   if (SP_POST_VIS === 2 || SP_POST_VIS === 3) f.append('visible_to', JSON.stringify(SP_POST_FRIENDS));
+  if (SP_MENTIONS.length) f.append('mentions', JSON.stringify(SP_MENTIONS.map(function (m) { return m.uid; })));
   fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
     .then(function (r) { return r.json(); })
     .then(function (d) {

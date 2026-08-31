@@ -92,7 +92,7 @@ ChatApp/
 先 `login` 一次，之后所有命令复用会话、免密。
 
 ```bash
-./cli/chatapp.sh --ai login --user mobtest2 --pass password
+./cli/chatapp.sh --ai login --user _mobtest2 --pass password
 ./cli/chatapp.sh --ai settings get          # 读取全部设置
 ./cli/chatapp.sh --ai dm send alice "hello" # 发私聊
 ./cli/chatapp.sh --ai me --pretty           # 当前用户+全部设置（缩进）
@@ -169,7 +169,7 @@ ChatApp/
 ./getdb.sh users
 ```
 
-测试账号（本地）：`mobtest2`(10172) / `mobtest`(10171) / `zjq`(10001) / `admin`(10000)，
+测试账号（本地，`_` 开头）：`_mobtest2`(10172) / `_mobtest`(10171) / `zjq`(10001) / `admin`(10000)，
 密码多为 `password`；`assistant`(admin) 见 `ASSISTANT_ChatApp_README.md`。
 
 ---

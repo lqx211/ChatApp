@@ -346,6 +346,18 @@ body.embed .layout-background{min-height:0}
 .sp-mention-bar .sp-mention-x:hover{color:#fff}
 .sp-mention-bar .sp-mention-x svg{width:11px;height:11px}
 
+/* ============ 艾特通知（与我相关） ============ */
+.sn-badge{display:inline-block;min-width:17px;height:17px;line-height:17px;padding:0 5px;border-radius:9px;background:#e05555;color:#fff;font-size:11px;text-align:center;margin-left:auto;vertical-align:middle;font-weight:600}
+.sp-mention-avph{width:50px;height:50px;border-radius:50%;background:var(--q-blue);color:#fff;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none}
+.sp-mention-quote{display:inline-block;background:#23272e;border-left:3px solid var(--q-blue);color:#aab2c0;padding:5px 10px;margin-top:2px;font-size:13px;line-height:1.6;word-break:break-word}
+.sp-mention-go{color:var(--q-blue);font-size:13px;cursor:pointer}
+.sp-mention-go:hover{text-decoration:underline}
+.sp-mention-back{color:#888;font-size:13px;cursor:pointer}
+.sp-mention-back:hover{color:var(--q-blue)}
+.sp-mention-item{transition:box-shadow .2s}
+.sp-feed-flash{animation:spFlash 1.2s ease-out}
+@keyframes spFlash{0%{box-shadow:0 0 0 2px var(--q-blue)}100%{box-shadow:0 0 0 0 transparent}}
+
 /* ============ 朋友圈评论 ============ */
 .f-comments{margin-top:10px;border-top:1px solid #333;background:#222;padding:10px 12px 6px}
 .f-comments-list{font-size:13px}

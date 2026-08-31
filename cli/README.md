@@ -33,7 +33,7 @@ CHATAPP_SERVER=http://your-server:port ./cli/chatapp.sh
 
 ```bash
 # 登录（PoW 挑战已自动处理）
-./cli/chatapp.sh --ai login --user mobtest2 --pass password
+./cli/chatapp.sh --ai login --user _mobtest2 --pass password
 
 # 之后直接执行任意命令
 ./cli/chatapp.sh --ai settings get

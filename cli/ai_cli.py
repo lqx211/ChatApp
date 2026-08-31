@@ -15,7 +15,7 @@ cookie 文件（默认 ~/.chatapp/ai.cookies），因此可先 login 一次，�
   - 朋友圈(space): moments post/list/comment/blog/留言板…
 
 用法示例（AI 视角）:
-  ai_cli.py --server http://127.0.0.1:8080 login --user mobtest2 --pass password
+  ai_cli.py --server http://127.0.0.1:8080 login --user _mobtest2 --pass password
   ai_cli.py settings get
   ai_cli.py dm send alice "hello world"
   ai_cli.py dm conversations

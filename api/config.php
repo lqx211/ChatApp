@@ -585,6 +585,25 @@ function ensure_space_blogs_table(): void {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 
+/** 确保朋友圈艾特通知表存在（幂等） */
+function ensure_space_mentions_table(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $pdo = db();
+    $pdo->exec("CREATE TABLE IF NOT EXISTS space_mentions (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        feed_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        mentioned_uid INT UNSIGNED NOT NULL,
+        by_uid INT UNSIGNED NOT NULL,
+        is_read TINYINT(1) NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_mentioned (mentioned_uid, is_read),
+        KEY idx_feed (feed_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
 /** 两人是否为好友（contacts 双向 accepted） */
 function space_is_friend(PDO $pdo, int $a, int $b): bool {
     $s = $pdo->prepare("SELECT COUNT(*) FROM contacts WHERE status='accepted' AND ((user_from=? AND user_to=?) OR (user_from=? AND user_to=?))");
