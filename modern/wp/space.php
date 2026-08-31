@@ -85,11 +85,15 @@ for ($i = 0; $i < 9; $i++) { $samplePhotos[] = ['src' => sp_ph($i, $ch, '#ffb300
 
 // ===== 朋友圈：读取并过滤可见性 =====
 ensure_space_feeds_table();
+ensure_space_comments_table();
 $isFriendView = $isSelf || space_is_friend($pdo, $meUid, $uid);
 $feedRows = [];
+$cmtCount = [];
 if ($uid) {
     $fstmt = $pdo->prepare("SELECT id, content, images, visibility, visible_to, likes, liked_by, created_at FROM space_feeds WHERE user_id=? AND enabled=1 ORDER BY id DESC LIMIT 200");
     $fstmt->execute([$uid]);
+    $cc = $pdo->query("SELECT feed_id, COUNT(*) c FROM space_comments WHERE enabled=1 GROUP BY feed_id");
+    foreach ($cc->fetchAll() as $row) $cmtCount[(int)$row['feed_id']] = (int)$row['c'];
     foreach ($fstmt->fetchAll() as $f) {
         $vis = (int)$f['visibility'];
         if (!$isSelf) {
@@ -108,6 +112,7 @@ if ($uid) {
             'liked' => in_array($meUid, $likedBy, true),
             'time' => space_fmt_time($f['created_at']),
             'vis' => $vis,
+            'cmt' => $cmtCount[(int)$f['id']] ?? 0,
         ];
     }
 }
@@ -260,7 +265,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
               </div>
               <div class="qz-poster-ft">
                 <div class="attach-icons">
-                  <span title="照片" onclick="spAlert('照片')"><?php echo sp_ic('image');?></span>
+                  <span title="照片" onclick="spPickImages()"><?php echo sp_ic('image');?></span>
                   <span title="表情" onclick="spAlert('表情')"><?php echo sp_ic('smile');?></span>
                   <span title="@好友" onclick="spAlert('@好友')"><?php echo sp_ic('at');?></span>
                   <span title="话题" onclick="spAlert('话题')"><?php echo sp_ic('hash');?></span>
@@ -272,6 +277,9 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
                 </div>
                 <div class="op"><button class="btn-post" id="spPostBtn" onclick="spPost()">发表</button></div>
               </div>
+              <!-- 图片预览 + 文件选择 -->
+              <div class="sp-post-imgs" id="spPostImgs" style="display:none"></div>
+              <input type="file" id="spImgInput" multiple accept="image/*" style="display:none">
               <!-- 好友选择面板：贴在发表框底部，随页面滚动，动画伸出 -->
               <div class="sp-fm-mask" id="spFmMask" style="display:none">
                 <div class="sp-fm-box">
@@ -321,9 +329,9 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
                 <div class="f-single-content">
                   <div class="f-ct-text"><?php echo nl2br(htmlspecialchars($f['text']));?></div>
                   <?php if (!empty($f['images'])): ?>
-                  <div class="f-ct-txtimg"><div class="img-box<?php echo count($f['images']) === 1 ? ' one' : '';?>">
-                    <?php foreach ($f['images'] as $im): ?>
-                    <a class="img-item"><img src="<?php echo htmlspecialchars($im);?>" alt=""></a>
+                  <div class="f-ct-txtimg"><div class="img-box<?php echo count($f['images']) === 1 ? ' one' : '';?>" data-lb="<?php echo (int)$f['id'];?>">
+                    <?php foreach ($f['images'] as $di => $im): ?>
+                    <a class="img-item" onclick="spOpenLightbox(<?php echo (int)$f['id'];?>, <?php echo (int)$di;?>)"><img src="<?php echo htmlspecialchars($im);?>" alt=""></a>
                     <?php endforeach; ?>
                   </div></div>
                   <?php endif; ?>
@@ -331,11 +339,18 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
                 <div class="f-single-foot">
                   <ul class="op-list">
                     <li class="op-like<?php echo $f['liked'] ? ' liked' : '';?>" data-id="<?php echo (int)$f['id'];?>"><span class="op-ic"><?php echo sp_ic('like');?></span> 赞<?php if ((int)$f['likes'] > 0):?> (<?php echo (int)$f['likes'];?>)<?php endif;?></li>
-                    <li class="op-comment" onclick="spAlert('评论')"><span class="op-ic"><?php echo sp_ic('comment');?></span> 评论</li>
+                    <li class="op-comment" data-id="<?php echo (int)$f['id'];?>"><span class="op-ic"><?php echo sp_ic('comment');?></span> 评论<?php if ((int)$f['cmt'] > 0):?> <span class="cmt-c">(<?php echo (int)$f['cmt'];?>)</span><?php endif;?></li>
                     <?php if ($isSelf): ?>
                     <li class="op-del" data-id="<?php echo (int)$f['id'];?>"><span class="op-ic"><?php echo sp_ic('top');?></span> 删除</li>
                     <?php endif; ?>
                   </ul>
+                </div>
+                <div class="f-comments" data-feed="<?php echo (int)$f['id'];?>" style="display:none">
+                  <div class="f-comments-list"></div>
+                  <div class="f-cmt-input">
+                    <input class="f-cmt-text" placeholder="评论一下..." maxlength="500">
+                    <button class="btn-post btn-sm" onclick="spCmtSend(this)">发表</button>
+                  </div>
                 </div>
               </li>
               <?php endforeach; ?>
@@ -345,8 +360,28 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 
             <!-- ===== 日志面板 ===== -->
             <section class="sp-tab" id="spTabBlog" style="display:none">
-              <div class="sp-tab-head"><h3>日志</h3><button class="btn-post" onclick="spAlert('写日志')">写日志</button></div>
-              <div class="sp-empty"><div class="sp-empty-ic"><?php echo sp_ic('say');?></div><p>还没有日志，写第一篇吧～</p></div>
+              <div class="sp-tab-head"><h3>日志</h3>
+                <?php if ($isSelf):?><button class="btn-post" onclick="spBlogCompose()">写日志</button><?php endif;?>
+              </div>
+              <div id="spBlogList"></div>
+              <div id="spBlogDetail" style="display:none"></div>
+              <div id="spBlogEditor" style="display:none">
+                <div class="sp-blog-ed">
+                  <div class="sp-blog-ed-head">
+                    <input id="spBlogTitle" placeholder="日志标题" maxlength="200">
+                    <select id="spBlogVis" title="可见范围">
+                      <option value="0">所有人可见</option>
+                      <option value="1">好友可见</option>
+                      <option value="4">仅自己可见</option>
+                    </select>
+                  </div>
+                  <textarea id="spBlogContent" placeholder="正文..." maxlength="20000"></textarea>
+                  <div class="sp-blog-ed-ft">
+                    <button class="btn-post" onclick="spBlogSave()">发布</button>
+                    <button class="btn-plain" onclick="spBlogCancel()">取消</button>
+                  </div>
+                </div>
+              </div>
             </section>
 
             <!-- ===== 相册面板 ===== -->
@@ -361,8 +396,12 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 
             <!-- ===== 留言板面板 ===== -->
             <section class="sp-tab" id="spTabBoard" style="display:none">
-              <div class="sp-tab-head"><h3>留言板</h3></div>
-              <div class="sp-empty"><div class="sp-empty-ic"><?php echo sp_ic('comment');?></div><p><?php echo $isSelf ? '还没有留言，把空间分享给朋友吧～' : 'TA 还没有留言，来留个言吧～';?></p></div>
+              <div class="sp-tab-head"><h3>留言板</h3><span class="sp-tab-sub"><?php echo $isSelf ? '把空间分享给朋友，让 TA 们来留言吧～' : '欢迎给 ' . htmlspecialchars($displayName) . ' 留言';?></span></div>
+              <div class="sp-board-input">
+                <textarea id="spBoardInput" placeholder="写下你的留言..." maxlength="500"></textarea>
+                <button class="btn-post" onclick="spBoardPost()">留言</button>
+              </div>
+              <ul class="sp-board-list" id="spBoardList"></ul>
             </section>
 
             <!-- ===== 个人档案面板 ===== -->
@@ -453,6 +492,16 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
   <div class="sp-vis-item" data-v="4"><span class="v-ic"><?php echo sp_ic('lock');?></span>仅自己可见</div>
 </div>
 
+<!-- 图片大图查看 -->
+<div class="sp-lightbox" id="spLightbox" style="display:none" onclick="if(event.target===this)spLbClose()">
+  <div id="spLbArrows" style="display:none">
+    <span class="sp-lb-prev" onclick="spLbNav(-1)"><?php echo sp_ic('right');?></span>
+    <span class="sp-lb-next" onclick="spLbNav(1)"><?php echo sp_ic('right');?></span>
+  </div>
+  <img id="spLbImg" src="" alt="">
+  <span class="sp-lb-close" onclick="spLbClose()"><?php echo sp_ic('close');?></span>
+</div>
+
 <script>
 var SP_USER = <?php echo json_encode(['self' => $isSelf, 'username' => $u['username'], 'display' => $displayName]);?>;
 
@@ -484,6 +533,9 @@ function spGoTab(name) {
   // 说说/主页 联动过滤
   if (name === 'say') setFeedFilter('say');
   if (name === 'home') setFeedFilter('all');
+  // 进入日志/留言板时按需加载
+  if (name === 'blog') spLoadBlogList();
+  if (name === 'board') spLoadBoard();
 }
 document.getElementById('coverTabs').addEventListener('click', function (e) {
   var li = e.target.closest('li');
@@ -525,7 +577,9 @@ function spNavFeed(f) {
 var toTop = document.getElementById('spToTop');
 toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
 var SP_SPACE = <?php echo json_encode(['self' => $isSelf, 'uid' => $uid, 'meUid' => $meUid]);?>;
-var SP_POST_VIS = 0, SP_POST_FRIENDS = [], SP_FRIENDS = [];
+var SP_POST_VIS = 0, SP_POST_FRIENDS = [], SP_FRIENDS = [], SP_POST_IMAGES = [];
+var SP_ICONS = { say: '<?php echo sp_ic('say');?>', comment: '<?php echo sp_ic('comment');?>' };
+var SP_X_IC = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 
 function spAlert(what) { alert('「' + what + '」功能即将上线。'); }
 function spGoto(where) { alert('「' + where + '」模块即将上线（示例 UI）。'); }
@@ -626,12 +680,13 @@ function spPost() {
   var p = document.getElementById('spPoster');
   if (!p) return;
   var t = (p.textContent || '').replace(/\u00a0/g, ' ').trim();
-  if (!t) { p.focus(); return; }
+  if (!t && !SP_POST_IMAGES.length) { p.focus(); return; }
   var btn = document.getElementById('spPostBtn');
   if (btn) { btn.disabled = true; btn.textContent = '发表中…'; }
   var f = new URLSearchParams();
   f.append('action', 'post');
   f.append('content', t);
+  if (SP_POST_IMAGES.length) f.append('images', JSON.stringify(SP_POST_IMAGES));
   f.append('visibility', SP_POST_VIS);
   if (SP_POST_VIS === 2 || SP_POST_VIS === 3) f.append('visible_to', JSON.stringify(SP_POST_FRIENDS));
   fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
@@ -648,6 +703,8 @@ function spPost() {
   var feed = document.getElementById('feedList');
   if (!feed) return;
   feed.addEventListener('click', function (e) {
+    var cmt = e.target.closest('.op-comment');
+    if (cmt) { spCmtToggle(cmt.closest('.f-single')); return; }
     var like = e.target.closest('.op-like');
     if (like) {
       var id = +(like.getAttribute('data-id'));
@@ -690,6 +747,318 @@ function spLogout() {
     fetch('../../api/auth.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
         .then(function () { location.href = 'login.php'; });
 }
+
+/* ===== 朋友圈图片上传 ===== */
+function spPickImages() { var i = document.getElementById('spImgInput'); if (i) i.click(); }
+function renderPostImgs() {
+  var box = document.getElementById('spPostImgs');
+  if (!box) return;
+  if (!SP_POST_IMAGES.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = 'flex';
+  var html = '';
+  SP_POST_IMAGES.forEach(function (u, i) {
+    html += '<div class="sp-post-img"><img src="' + u + '" alt=""><span class="sp-post-img-x" title="移除" onclick="spDropImg(' + i + ')">' + SP_X_IC + '</span></div>';
+  });
+  box.innerHTML = html;
+}
+function spDropImg(i) { SP_POST_IMAGES.splice(i, 1); renderPostImgs(); }
+(function () {
+  var inp = document.getElementById('spImgInput');
+  if (!inp) return;
+  inp.addEventListener('change', function () {
+    var files = Array.prototype.slice.call(inp.files || []);
+    if (!files.length) return;
+    if (SP_POST_IMAGES.length + files.length > 9) { alert('最多上传 9 张图片'); inp.value = ''; return; }
+    files.forEach(function (file) {
+      if (file.type.indexOf('image/') !== 0) return;
+      if (file.size > 10 * 1024 * 1024) { alert('单张图片最大 10MB：' + file.name); return; }
+      var fd = new FormData();
+      fd.append('images', file);
+      fetch('../../api/space.php?action=upload_image', { method: 'POST', credentials: 'same-origin', body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d && d.success && d.urls && d.urls.length) { SP_POST_IMAGES = SP_POST_IMAGES.concat(d.urls); renderPostImgs(); }
+          else alert('图片上传失败');
+        })
+        .catch(function () { alert('图片上传失败'); });
+    });
+    inp.value = '';
+  });
+})();
+
+/* ===== 朋友圈评论 ===== */
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function spCmtToggle(li) {
+  var box = li.querySelector('.f-comments');
+  if (!box) return;
+  var open = box.style.display !== 'none';
+  box.style.display = open ? 'none' : 'block';
+  if (!open && !box.getAttribute('data-loaded')) { box.setAttribute('data-loaded', '1'); spCmtLoad(box); }
+}
+function spCmtLoad(box) {
+  var feedId = +(box.getAttribute('data-feed'));
+  fetch('../../api/space.php?action=list_comments&feed_id=' + feedId, { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { if (d && d.success) renderComments(box, d.comments, d.i_am_owner); })
+    .catch(function () {});
+}
+function spCmtReload(box) { box.setAttribute('data-loaded', '1'); spCmtLoad(box); }
+function renderComments(box, comments, iAmOwner) {
+  var feedId = +(box.getAttribute('data-feed'));
+  var list = box.querySelector('.f-comments-list');
+  if (!list) return;
+  if (!comments.length) { list.innerHTML = '<div class="f-cmt-empty">还没有评论，来说两句～</div>'; return; }
+  var tops = comments.filter(function (c) { return !c.parent_id; });
+  var html = '';
+  tops.forEach(function (c) {
+    html += cmtTopHtml(c, iAmOwner);
+    var reps = comments.filter(function (r) { return r.parent_id === c.id; });
+    if (reps.length) {
+      html += '<div class="f-cmt-replies">';
+      reps.forEach(function (r) { html += cmtReplyHtml(r, iAmOwner); });
+      html += '</div>';
+    }
+  });
+  list.innerHTML = html;
+  var btn = document.querySelector('.op-comment[data-id="' + feedId + '"]');
+  if (btn) {
+    var ic = btn.querySelector('.op-ic');
+    btn.innerHTML = (ic ? ic.outerHTML : '') + ' 评论' + (comments.length ? ' <span class="cmt-c">(' + comments.length + ')</span>' : '');
+  }
+}
+function cmtTopHtml(c, iAmOwner) {
+  var del = (c.mine || iAmOwner) ? '<a class="f-cmt-del" data-id="' + c.id + '">删除</a>' : '';
+  return '<div class="f-cmt" data-id="' + c.id + '">'
+    + (c.card.avatar ? '<img class="f-cmt-av" src="' + c.card.avatar + '" alt="">' : '<div class="f-cmt-av av-empty">' + esc(c.card.name.charAt(0)) + '</div>')
+    + '<div class="f-cmt-bd">'
+    + '<div class="f-cmt-txt"><b>' + esc(c.card.name) + '</b>：' + esc(c.content).replace(/\n/g, '<br>') + '</div>'
+    + '<div class="f-cmt-meta">' + c.time + ' · <a class="f-cmt-reply" data-id="' + c.id + '" data-name="' + esc(c.card.name) + '">回复</a>' + del + '</div>'
+    + '</div></div>';
+}
+function cmtReplyHtml(r, iAmOwner) {
+  var del = (r.mine || iAmOwner) ? '<a class="f-cmt-del" data-id="' + r.id + '">删除</a>' : '';
+  return '<div class="f-cmt-reply-item" data-id="' + r.id + '"><b>' + esc(r.card.name) + '</b>：' + esc(r.content).replace(/\n/g, '<br>') + ' <span class="f-cmt-meta">' + r.time + del + '</span></div>';
+}
+function spCmtSend(btn) {
+  var box = btn.closest('.f-comments');
+  var input = box.querySelector('.f-cmt-text');
+  var txt = (input.value || '').trim();
+  if (!txt) { input.focus(); return; }
+  var feedId = +(box.getAttribute('data-feed'));
+  var replyId = +(input.getAttribute('data-reply') || 0);
+  var f = new URLSearchParams();
+  f.append('action', 'add_comment');
+  f.append('feed_id', feedId);
+  f.append('content', txt);
+  if (replyId) f.append('parent_id', replyId);
+  fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d && d.success) { spCmtReload(box); input.value = ''; input.removeAttribute('data-reply'); input.placeholder = '评论一下...'; }
+      else alert('评论失败');
+    })
+    .catch(function () { alert('网络错误'); });
+}
+(function () {
+  var feed = document.getElementById('feedList');
+  if (!feed) return;
+  feed.addEventListener('click', function (e) {
+    var r = e.target.closest('.f-cmt-reply');
+    if (r) {
+      var box = e.target.closest('.f-comments');
+      var input = box ? box.querySelector('.f-cmt-text') : null;
+      if (input) { input.setAttribute('data-reply', r.getAttribute('data-id')); input.placeholder = '回复 ' + r.getAttribute('data-name') + '：'; input.focus(); }
+      return;
+    }
+    var d = e.target.closest('.f-cmt-del');
+    if (d) {
+      if (window.confirm('删除这条评论？')) {
+        var f = new URLSearchParams(); f.append('action', 'delete_comment'); f.append('id', d.getAttribute('data-id'));
+        fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+          .then(function (r) { return r.json(); })
+          .then(function (res) { if (res && res.success) { var bx = e.target.closest('.f-comments'); if (bx) spCmtReload(bx); } });
+      }
+      return;
+    }
+  });
+})();
+
+/* ===== 留言板 ===== */
+var SP_BOARD_LOADED = false;
+function spLoadBoard() {
+  var list = document.getElementById('spBoardList');
+  if (!list) return;
+  if (SP_BOARD_LOADED) return;
+  SP_BOARD_LOADED = true;
+  fetch('../../api/space.php?action=list_messages&to_uid=' + SP_SPACE.uid, { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { if (d && d.success) renderBoard(d.messages, d.i_am_owner); })
+    .catch(function () {});
+}
+function renderBoard(msgs, iAmOwner) {
+  var list = document.getElementById('spBoardList');
+  if (!list) return;
+  if (!msgs.length) { list.innerHTML = '<li class="sp-board-empty"><div class="sp-empty-ic">' + SP_ICONS.comment + '</div>还没有留言～</li>'; return; }
+  var html = '';
+  msgs.forEach(function (m) {
+    var del = (m.mine || iAmOwner) ? '<a class="sp-board-del" data-id="' + m.id + '">删除</a>' : '';
+    html += '<li class="sp-board-item" data-id="' + m.id + '">'
+      + (m.card.avatar ? '<img class="sp-board-av" src="' + m.card.avatar + '" alt="">' : '<div class="sp-board-av av-empty">' + esc(m.card.name.charAt(0)) + '</div>')
+      + '<div class="sp-board-bd">'
+      + '<div class="sp-board-top"><b>' + esc(m.card.name) + '</b><span class="sp-board-time">' + m.time + '</span></div>'
+      + '<div class="sp-board-ct">' + esc(m.content).replace(/\n/g, '<br>') + '</div>'
+      + (del ? '<div class="sp-board-op">' + del + '</div>' : '')
+      + '</div></li>';
+  });
+  list.innerHTML = html;
+}
+function spBoardPost() {
+  var ta = document.getElementById('spBoardInput');
+  var txt = (ta.value || '').trim();
+  if (!txt) { ta.focus(); return; }
+  var f = new URLSearchParams();
+  f.append('action', 'add_message'); f.append('to_uid', SP_SPACE.uid); f.append('content', txt);
+  fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d && d.success) { ta.value = ''; SP_BOARD_LOADED = false; spLoadBoard(); }
+      else alert('留言失败');
+    })
+    .catch(function () { alert('网络错误'); });
+}
+(function () {
+  var list = document.getElementById('spBoardList');
+  if (!list) return;
+  list.addEventListener('click', function (e) {
+    var d = e.target.closest('.sp-board-del');
+    if (!d) return;
+    if (window.confirm('删除这条留言？')) {
+      var f = new URLSearchParams(); f.append('action', 'delete_message'); f.append('id', d.getAttribute('data-id'));
+      fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+        .then(function (r) { return r.json(); })
+        .then(function (res) { if (res && res.success) { SP_BOARD_LOADED = false; spLoadBoard(); } });
+    }
+  });
+})();
+
+/* ===== 日志 ===== */
+function spLoadBlogList() {
+  var list = document.getElementById('spBlogList');
+  if (!list) return;
+  fetch('../../api/space.php?action=list_blogs&uid=' + SP_SPACE.uid, { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { if (d && d.success) renderBlogList(d.blogs); })
+    .catch(function () {});
+}
+function renderBlogList(blogs) {
+  var list = document.getElementById('spBlogList');
+  if (!list) return;
+  if (!blogs.length) {
+    list.innerHTML = '<div class="sp-empty"><div class="sp-empty-ic">' + SP_ICONS.say + '</div><p>' + (SP_SPACE.self ? '还没有日志，写第一篇吧～' : '期待 TA 的第一篇日志～') + '</p></div>';
+    return;
+  }
+  var html = '';
+  var visLbl = ['所有人可见', '好友可见', '部分好友可见', '部分好友不可见', '仅自己可见'];
+  blogs.forEach(function (b) {
+    html += '<div class="sp-blog-item" data-id="' + b.id + '">'
+      + '<div class="sp-blog-title" onclick="spOpenBlog(' + b.id + ')">' + esc(b.title) + '</div>'
+      + '<div class="sp-blog-summary" onclick="spOpenBlog(' + b.id + ')">' + esc(b.summary) + '</div>'
+      + '<div class="sp-blog-meta">' + b.time + ' · 浏览 ' + b.views
+      + (b.visibility != null ? ' · <span class="f-vis">' + visLbl[b.visibility] + '</span>' : '')
+      + (SP_SPACE.self ? ' · <a class="sp-blog-del" data-id="' + b.id + '">删除</a>' : '')
+      + '</div></div>';
+  });
+  list.innerHTML = html;
+}
+function spOpenBlog(id) {
+  fetch('../../api/space.php?action=get_blog&id=' + id, { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.success) { alert('无法查看该日志'); return; }
+      var b = d.blog;
+      var detail = document.getElementById('spBlogDetail');
+      detail.innerHTML = '<div class="sp-blog-view">'
+        + '<h2 class="sp-blog-view-title">' + esc(b.title) + '</h2>'
+        + '<div class="sp-blog-view-meta">' + b.time + ' · 浏览 ' + b.views + '</div>'
+        + '<div class="sp-blog-view-ct">' + esc(b.content).replace(/\n/g, '<br>') + '</div>'
+        + '<div class="sp-blog-view-ft"><button class="btn-plain" onclick="spBlogBack()">返回列表</button></div>'
+        + '</div>';
+      document.getElementById('spBlogList').style.display = 'none';
+      document.getElementById('spBlogEditor').style.display = 'none';
+      detail.style.display = 'block';
+    })
+    .catch(function () {});
+}
+function spBlogBack() {
+  document.getElementById('spBlogDetail').style.display = 'none';
+  document.getElementById('spBlogEditor').style.display = 'none';
+  document.getElementById('spBlogList').style.display = '';
+}
+function spBlogCompose() { spBlogBack(); document.getElementById('spBlogEditor').style.display = 'block'; }
+function spBlogCancel() { spBlogBack(); }
+function spBlogSave() {
+  var t = document.getElementById('spBlogTitle').value.trim();
+  var c = document.getElementById('spBlogContent').value.trim();
+  if (!t || !c) { alert('标题和正文都不能为空'); return; }
+  var v = +(document.getElementById('spBlogVis').value || 0);
+  var f = new URLSearchParams();
+  f.append('action', 'add_blog'); f.append('title', t); f.append('content', c); f.append('visibility', v);
+  fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d && d.success) {
+        document.getElementById('spBlogTitle').value = '';
+        document.getElementById('spBlogContent').value = '';
+        spBlogBack();
+        spLoadBlogList();
+      } else alert('发布失败');
+    })
+    .catch(function () { alert('网络错误'); });
+}
+(function () {
+  var list = document.getElementById('spBlogList');
+  if (!list) return;
+  list.addEventListener('click', function (e) {
+    var d = e.target.closest('.sp-blog-del');
+    if (!d) return;
+    if (window.confirm('删除这篇日志？')) {
+      var f = new URLSearchParams(); f.append('action', 'delete_blog'); f.append('id', d.getAttribute('data-id'));
+      fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+        .then(function (r) { return r.json(); })
+        .then(function (res) { if (res && res.success) spLoadBlogList(); });
+    }
+  });
+})();
+
+/* ===== 图片大图查看 ===== */
+var SP_LB_CUR = [], SP_LB_IDX = 0;
+function spOpenLightbox(feedId, idx) {
+  var box = document.querySelector('.img-box[data-lb="' + feedId + '"]');
+  if (!box) return;
+  var imgs = Array.prototype.map.call(box.querySelectorAll('img'), function (i) { return i.getAttribute('src'); });
+  if (!imgs.length) return;
+  SP_LB_CUR = imgs; SP_LB_IDX = idx;
+  var lb = document.getElementById('spLightbox');
+  document.getElementById('spLbImg').src = imgs[idx];
+  lb.style.display = 'flex';
+  document.getElementById('spLbArrows').style.display = imgs.length > 1 ? 'flex' : 'none';
+}
+function spLbNav(d) {
+  if (!SP_LB_CUR.length) return;
+  SP_LB_IDX = (SP_LB_IDX + d + SP_LB_CUR.length) % SP_LB_CUR.length;
+  document.getElementById('spLbImg').src = SP_LB_CUR[SP_LB_IDX];
+}
+function spLbClose() { document.getElementById('spLightbox').style.display = 'none'; SP_LB_CUR = []; }
+document.addEventListener('keydown', function (e) {
+  if (document.getElementById('spLightbox').style.display !== 'flex') return;
+  if (e.key === 'Escape') spLbClose();
+  if (e.key === 'ArrowLeft') spLbNav(-1);
+  if (e.key === 'ArrowRight') spLbNav(1);
+});
 </script>
 </body>
 </html>

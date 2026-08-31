@@ -523,6 +523,68 @@ function ensure_space_feeds_table(): void {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 
+/** 确保朋友圈评论表存在（幂等） */
+function ensure_space_comments_table(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $pdo = db();
+    $pdo->exec("CREATE TABLE IF NOT EXISTS space_comments (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        feed_id BIGINT UNSIGNED NOT NULL,
+        user_id INT UNSIGNED NOT NULL,
+        parent_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        content VARCHAR(1000) NOT NULL,
+        enabled TINYINT(1) NOT NULL DEFAULT 1,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_feed (feed_id),
+        KEY idx_user (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+/** 确保空间留言板表存在（幂等） */
+function ensure_space_messages_table(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $pdo = db();
+    $pdo->exec("CREATE TABLE IF NOT EXISTS space_messages (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        to_uid INT UNSIGNED NOT NULL,
+        user_id INT UNSIGNED NOT NULL,
+        content VARCHAR(1000) NOT NULL,
+        enabled TINYINT(1) NOT NULL DEFAULT 1,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_to (to_uid),
+        KEY idx_user (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+/** 确保空间日志表存在（幂等） */
+function ensure_space_blogs_table(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $pdo = db();
+    $pdo->exec("CREATE TABLE IF NOT EXISTS space_blogs (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        user_id INT UNSIGNED NOT NULL,
+        title VARCHAR(200) NOT NULL DEFAULT '',
+        content TEXT NULL,
+        visibility TINYINT NOT NULL DEFAULT 0,
+        visible_to TEXT NULL,
+        views INT NOT NULL DEFAULT 0,
+        enabled TINYINT(1) NOT NULL DEFAULT 1,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_user (user_id),
+        KEY idx_time (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
 /** 两人是否为好友（contacts 双向 accepted） */
 function space_is_friend(PDO $pdo, int $a, int $b): bool {
     $s = $pdo->prepare("SELECT COUNT(*) FROM contacts WHERE status='accepted' AND ((user_from=? AND user_to=?) OR (user_from=? AND user_to=?))");
