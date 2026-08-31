@@ -210,7 +210,7 @@ img{border:0;vertical-align:middle}
 .info-list li{display:flex;padding:4px 0;border-bottom:1px dashed #333}
 .info-list li:last-child{border-bottom:none}
 .info-list .k{width:58px;color:#888;flex:none}
-.info-list .v{flex:1}
+.info-list .v{flex:1;margin-left:10px}
 /* 版权 */
 .layout-copyright{text-align:center;color:#777;font-size:12px;padding:20px 0 8px}
 
@@ -342,7 +342,7 @@ body.embed .layout-background{min-height:0}
 .sp-profile-list li{display:flex;padding:9px 0;border-bottom:1px dashed #333;font-size:13px}
 .sp-profile-list li:last-child{border-bottom:none}
 .sp-profile-list .k{width:88px;color:#888;flex:none}
-.sp-profile-list .v{flex:1;color:#ddd;word-break:break-word}
+.sp-profile-list .v{flex:1;color:#ddd;word-break:break-word;margin-left:10px}
 
 /* ============ 通用按钮 ============ */
 .btn-post{background:#7a8089;color:#fff;border:none;padding:7px 22px;font-size:13px;cursor:pointer}
