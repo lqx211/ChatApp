@@ -186,6 +186,9 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
         <?php if ($isSelf):?>
           <span class="btn-head"><a href="editinfo.php">编辑资料</a></span>
         <?php else:?>
+          <?php if ($isFriendView): ?>
+          <span class="btn-head" id="spSpecialBtn"><a onclick="spToggleSpecial()">特别关心</a></span>
+          <?php endif; ?>
           <?php if (!$isFriendView): ?>
             <span class="btn-head btn-primary"><a>加好友</a></span>
           <?php endif; ?>
@@ -245,11 +248,10 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
             <div class="hd">动态</div>
             <div class="inner"><div class="bd">
               <ul class="sn-list" id="feedTypes">
-                <li class="current" data-f="all"><a onclick="spNavFeed('all')"><span class="sn-ico c1"><?php echo sp_ic('people');?></span><span class="sn-title">好友动态</span></a></li>
-                <li data-f="care"><a onclick="spAlert('特别关心')"><span class="sn-ico c2"><?php echo sp_ic('star');?></span><span class="sn-title">特别关心</span></a></li>
+                <li class="current" data-f="mine"><a onclick="spStream('mine')"><span class="sn-ico c1"><?php echo sp_ic('people');?></span><span class="sn-title">我的动态</span></a></li>
+                <li data-f="friends"><a onclick="spStream('friends')"><span class="sn-ico c2"><?php echo sp_ic('people');?></span><span class="sn-title">好友动态</span></a></li>
                 <li data-f="me"><a onclick="spLoadMentions()"><span class="sn-ico c3"><?php echo sp_ic('me');?></span><span class="sn-title">与我相关</span><span class="sn-badge" id="spMeBadge" style="display:none"></span></a></li>
-                <li data-f="memory"><a onclick="spAlert('那年今日')"><span class="sn-ico c4"><?php echo sp_ic('top');?></span><span class="sn-title">那年今日</span></a></li>
-                <li data-f="fav"><a onclick="spAlert('我的收藏')"><span class="sn-ico c5"><?php echo sp_ic('star');?></span><span class="sn-title">我的收藏</span></a></li>
+                <li data-f="care"><a onclick="spStream('special')"><span class="sn-ico c4"><?php echo sp_ic('star');?></span><span class="sn-title">特别关心</span></a></li>
               </ul>
             </div></div>
           </div>
@@ -594,13 +596,82 @@ function spNavFeed(f) {
   spGoTab('home');
   setFeedFilter(f);
 }
+
+/* ===== 动态中心：我的动态 / 好友动态 / 特别关心（流式加载） ===== */
+function spStream(filter) {
+  spGoTab('home');
+  // 高亮左侧 feedTypes：mine/friends → 对应 data-f，special → care
+  var map = { mine: 'mine', friends: 'friends', special: 'care' };
+  [].forEach.call(document.querySelectorAll('#feedTypes li'), function (li) {
+    li.classList.toggle('current', li.getAttribute('data-f') === (map[filter] || 'mine'));
+  });
+  fetch('../../api/space.php?action=stream&filter=' + encodeURIComponent(filter), { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { if (d && d.success) { renderStreamFeeds(d.feeds || []); } })
+    .catch(function () {});
+}
+
+/* ===== 特别关心（空间页按钮，仅好友空间） ===== */
+function spToggleSpecial() {
+  var uname = <?php echo json_encode($u['username']);?>;
+  var f = new URLSearchParams();
+  f.append('action', 'toggle_special');
+  f.append('username', uname);
+  fetch('../../api/contacts.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, credentials: 'same-origin', body: f.toString() })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { if (d && d.success) { renderSpecialBtn(d.special); } else { alert('操作失败'); } });
+}
+function renderSpecialBtn(sp) {
+  var b = document.getElementById('spSpecialBtn');
+  if (!b) return;
+  var a = b.querySelector('a');
+  if (a) a.textContent = sp ? '已特别关心' : '特别关心';
+  b.classList.toggle('btn-primary', !!sp);
+}
+function initSpecialBtn() {
+  if (!SP_SPACE || SP_SPACE.self || !SP_SPACE.friend) return;
+  fetch('../../api/space.php?action=special_state&uid=' + SP_SPACE.uid, { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { if (d && d.success) renderSpecialBtn(d.special); });
+}
+function renderStreamFeeds(feeds) {
+  var area = document.getElementById('feedList');
+  if (!area) return;
+  var html = '';
+  if (!feeds.length) {
+    html = '<li class="f-single"><div class="f-single-content"><div class="f-ct-text" style="color:#777">暂无动态</div></div></li>';
+  } else {
+    feeds.forEach(function (f) {
+      var ch = (f.author || '?').charAt(0);
+      var isMine = (window.SP_SPACE && SP_SPACE.meUid === f.user_id);
+      html += '<li class="f-single" data-id="' + f.id + '">'
+        + '<div class="f-single-head">'
+        + (f.avatar ? '<img class="user-avatar" src="' + f.avatar + '" alt="">' : '<span class="user-avatar av-empty">' + esc(ch) + '</span>')
+        + '<div class="user-info">'
+        + '<div class="f-nick">' + esc(f.author) + (f.special ? ' <span class="sp-special-tag">\u2665 特别关心</span>' : '') + '</div>'
+        + '<div class="info-detail">' + esc(f.time) + '</div>'
+        + '</div></div>'
+        + '<div class="f-single-content"><div class="f-ct-text">' + esc(f.content).replace(/\n/g, '<br>') + '</div>'
+        + (f.images && f.images.length ? '<div class="f-ct-txtimg"><div class="img-box' + (f.images.length === 1 ? ' one' : '') + '" data-lb="' + f.id + '">' + f.images.map(function (im, i) { return '<a class="img-item" onclick="spOpenLightbox(' + f.id + ',' + i + ')"><img src="' + im + '" alt=""></a>'; }).join('') + '</div></div>' : '')
+        + '</div>'
+        + '<div class="f-single-foot"><ul class="op-list">'
+        + '<li class="op-like' + (f.liked ? ' liked' : '') + '" data-id="' + f.id + '">' + SP_ICONS.like + ' 赞' + (f.likes ? ' (' + f.likes + ')' : '') + '</li>'
+        + '<li class="op-comment" data-id="' + f.id + '">' + SP_ICONS.comment + ' 评论</li>'
+        + (isMine ? '<li class="op-del" data-id="' + f.id + '">' + SP_ICONS.top + ' 删除</li>' : '')
+        + '</ul></div>'
+        + '<div class="f-comments" data-feed="' + f.id + '" style="display:none"><div class="f-comments-list"></div><div class="f-cmt-input"><input class="f-cmt-text" placeholder="评论一下..." maxlength="500"><button class="btn-post btn-sm" onclick="spCmtSend(this)">发表</button></div></div>'
+        + '</li>';
+    });
+  }
+  area.innerHTML = html + '<li class="f-single" id="feedFilterEmpty" style="display:none"><div class="f-single-content"><div class="f-ct-text" style="color:#777">该分类下暂无动态</div></div></li>';
+}
 // 返回顶部
 var toTop = document.getElementById('spToTop');
 toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
-var SP_SPACE = <?php echo json_encode(['self' => $isSelf, 'uid' => $uid, 'meUid' => $meUid]);?>;
+var SP_SPACE = <?php echo json_encode(['self' => $isSelf, 'uid' => $uid, 'meUid' => $meUid, 'friend' => $isFriendView ? 1 : 0]);?>;
 var SP_POST_VIS = 0, SP_POST_FRIENDS = [], SP_FRIENDS = [], SP_POST_IMAGES = [];
 var SP_FM_MODE = 'vis', SP_MENTIONS = [];
-var SP_ICONS = { say: '<?php echo sp_ic('say');?>', comment: '<?php echo sp_ic('comment');?>' };
+var SP_ICONS = { say: '<?php echo sp_ic('say');?>', comment: '<?php echo sp_ic('comment');?>', like: '<?php echo sp_ic('like');?>', top: '<?php echo sp_ic('top');?>' };
 var SP_X_IC = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 
 function spAlert(what) { alert('「' + what + '」功能即将上线。'); }
@@ -685,6 +756,7 @@ function spLoadMentionCount() {
     .catch(function () {});
 }
 spLoadMentionCount();
+initSpecialBtn();
 // 从「查看原说说」带 #feed-<id> 进入：加载后滚动定位并高亮
 (function () {
   var h = location.hash;

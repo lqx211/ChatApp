@@ -374,6 +374,7 @@ body.embed .layout-background{min-height:0}
 .sp-mention-back{color:#888;font-size:13px;cursor:pointer}
 .sp-mention-back:hover{color:var(--q-blue)}
 .sp-mention-item{transition:box-shadow .2s}
+.sp-special-tag{display:inline-block;margin-left:6px;font-size:11px;color:#e8a05a;border:1px solid #5c4a2a;background:#2e281e;padding:0 6px;font-weight:400;vertical-align:middle;border-radius:0}
 .sp-feed-flash{animation:spFlash 1.2s ease-out}
 @keyframes spFlash{0%{box-shadow:0 0 0 2px var(--q-blue)}100%{box-shadow:0 0 0 0 transparent}}
 

@@ -231,11 +231,45 @@ switch ($action) {
         echo json_encode(['success' => true]);
         break;
 
+    case 'toggle_special':
+        // 特别关心：我把某个好友标记/取消标记为特别关心
+        $targetUser = trim($_POST['username'] ?? '');
+        if (empty($targetUser) || $targetUser === $myUsername) {
+            echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit;
+        }
+        $stmt = $pdo->prepare("SELECT user_id FROM users WHERE username = ?");
+        $stmt->execute([$targetUser]);
+        $targetUid = (int)($stmt->fetchColumn() ?: 0);
+        if (!$targetUid) {
+            echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit;
+        }
+        // 必须是好友（任一方向 accepted）
+        $rel = $pdo->prepare("SELECT id, status FROM contacts WHERE (user_from = ? AND user_to = ?) OR (user_from = ? AND user_to = ?) LIMIT 1");
+        $rel->execute([$myUid, $targetUid, $targetUid, $myUid]);
+        $ex = $rel->fetch();
+        if (!$ex || $ex['status'] !== 'accepted') {
+            echo json_encode(['success' => false, 'error' => 'Contact relationship not found.']); exit;
+        }
+        // 标记写在我→对方的那一行；没有则补建
+        $mine = $pdo->prepare("SELECT id FROM contacts WHERE user_from = ? AND user_to = ?");
+        $mine->execute([$myUid, $targetUid]);
+        if ($mine->fetch()) {
+            $pdo->prepare("UPDATE contacts SET special = 1 - special WHERE user_from = ? AND user_to = ?")
+                ->execute([$myUid, $targetUid]);
+        } else {
+            $pdo->prepare("INSERT INTO contacts (user_from, user_to, status, special) VALUES (?, ?, 'accepted', 1)")
+                ->execute([$myUid, $targetUid]);
+        }
+        $st = $pdo->prepare("SELECT special FROM contacts WHERE user_from = ? AND user_to = ?");
+        $st->execute([$myUid, $targetUid]);
+        echo json_encode(['success' => true, 'special' => (int)$st->fetchColumn()]);
+        break;
+
 
     case 'list':
         $stmt = $pdo->prepare("
             SELECT u.username, u.user_id, COALESCE(u.display_name, u.username) AS display_name, u.avatar,
-                   c_my.note AS note, c_my.pinned AS pinned,
+                   c_my.note AS note, c_my.pinned AS pinned, c_my.special AS special,
                    MAX(m.datetime) AS last_msg_time
             FROM users u
             INNER JOIN contacts c ON (
@@ -250,7 +284,7 @@ switch ($action) {
                 )
             )
             WHERE u.user_id != ?
-            GROUP BY u.username, u.user_id, COALESCE(u.display_name, u.username), u.avatar, c_my.note, c_my.pinned, u.user_id
+            GROUP BY u.username, u.user_id, COALESCE(u.display_name, u.username), u.avatar, c_my.note, c_my.pinned, c_my.special, u.user_id
             ORDER BY c_my.pinned DESC, last_msg_time IS NULL ASC, last_msg_time DESC
         ");
         $stmt->execute([$myUid, $myUid, $myUid, $myUid, $myUid, $myUid]);

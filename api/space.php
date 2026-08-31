@@ -190,6 +190,86 @@ switch ($action) {
         echo json_encode(['success' => true]);
         break;
 
+    /* ============ 动态中心聚合流（我的/好友/特别关心） ============ */
+    case 'stream':
+        // filter: mine=我的动态  friends=所有好友  special=特别关心好友
+        $filter = trim($_GET['filter'] ?? 'mine');
+        $authorIds = [];
+        if ($filter === 'mine') {
+            $authorIds = [$myUid];
+        } else {
+            $fq = $pdo->query("SELECT user_to AS uid FROM contacts WHERE user_from=$myUid AND status='accepted' "
+                . "UNION SELECT user_from AS uid FROM contacts WHERE user_to=$myUid AND status='accepted'");
+            $authorIds = array_map('intval', array_filter($fq->fetchAll(PDO::FETCH_COLUMN)));
+            if ($filter === 'special') {
+                $spq = $pdo->query("SELECT user_to AS uid FROM contacts WHERE user_from=$myUid AND status='accepted' AND special=1");
+                $authorIds = array_map('intval', array_filter($spq->fetchAll(PDO::FETCH_COLUMN)));
+            }
+        }
+        $authorIds = array_values(array_unique($authorIds));
+        // 我特别关心的好友集合
+        $specialSet = [];
+        $spq = $pdo->query("SELECT user_to AS uid FROM contacts WHERE user_from=$myUid AND status='accepted' AND special=1");
+        foreach ($spq->fetchAll(PDO::FETCH_COLUMN) as $s) $specialSet[(int)$s] = 1;
+        $feeds = [];
+        if ($authorIds) {
+            $in = implode(',', $authorIds);
+            $aSt = $pdo->prepare("SELECT user_id, username, display_name, avatar FROM users WHERE user_id IN ($in)");
+            $aSt->execute();
+            $authors = [];
+            foreach ($aSt->fetchAll() as $au) {
+                $auid = (int)$au['user_id'];
+                $authors[$auid] = [
+                    'uid' => $auid,
+                    'username' => $au['username'],
+                    'display_name' => $au['display_name'] ?: $au['username'],
+                    'avatar' => chatapp_avatar_url($au['avatar'] ?? '', $au['username'], $auid),
+                ];
+            }
+            $fSt = $pdo->prepare("SELECT id, user_id, content, images, visibility, visible_to, likes, liked_by, created_at "
+                . "FROM space_feeds WHERE user_id IN ($in) AND enabled=1 ORDER BY id DESC LIMIT 300");
+            $fSt->execute();
+            foreach ($fSt->fetchAll() as $f) {
+                $auid = (int)$f['user_id'];
+                $vis = (int)$f['visibility'];
+                // 可见度过滤（viewer = myUid）
+                if ($vis === 4 && $auid !== $myUid) continue;                          // 仅自己
+                if ($vis === 2) { $vt = space_parse_ids($f['visible_to']); if (!in_array($myUid, $vt, true)) continue; }  // 部分好友可见
+                if ($vis === 3) { $vt = space_parse_ids($f['visible_to']); if (in_array($myUid, $vt, true)) continue; }  // 部分好友不可见
+                $likedBy = space_parse_ids($f['liked_by']);
+                $feeds[] = [
+                    'id' => (int)$f['id'],
+                    'user_id' => $auid,
+                    'author' => $authors[$auid]['display_name'],
+                    'username' => $authors[$auid]['username'],
+                    'avatar' => $authors[$auid]['avatar'],
+                    'special' => isset($specialSet[$auid]) ? 1 : 0,
+                    'content' => (string)$f['content'],
+                    'images' => $f['images'] ? (json_decode($f['images'], true) ?: []) : [],
+                    'likes' => (int)$f['likes'],
+                    'liked' => in_array($myUid, $likedBy, true),
+                    'vis' => $vis,
+                    'time' => space_fmt_time($f['created_at']),
+                    'ts' => strtotime($f['created_at']),
+                ];
+            }
+            // 时间排序，Latest 在最上面
+            usort($feeds, function ($a, $b) { return $b['ts'] - $a['ts']; });
+            foreach ($feeds as &$fd) unset($fd['ts']);
+            unset($fd);
+        }
+        echo json_encode(['success' => true, 'feeds' => $feeds, 'filter' => $filter]);
+        break;
+
+    case 'special_state':
+        // 某用户是否被我特别关心（空间页按钮状态）
+        $targetUid = (int)($_GET['uid'] ?? 0);
+        if ($targetUid <= 0) { echo json_encode(['success' => false]); break; }
+        $st = $pdo->prepare("SELECT special FROM contacts WHERE user_from=? AND user_to=? LIMIT 1");
+        $st->execute([$myUid, $targetUid]);
+        echo json_encode(['success' => true, 'special' => (int)$st->fetchColumn() ? 1 : 0]);
+        break;
+
     /* ============ 图片上传（朋友圈/日志配图） ============ */
     case 'upload_image':
         // 支持 name=images 单文件，或 name=images[] 多文件

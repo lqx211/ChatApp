@@ -1169,6 +1169,7 @@ function init_db(): void {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     db_add_column_if_missing('contacts', 'note', "TEXT DEFAULT NULL");
     db_add_column_if_missing('contacts', 'pinned', "TINYINT(1) NOT NULL DEFAULT 0");
+    db_add_column_if_missing('contacts', 'special', "TINYINT(1) NOT NULL DEFAULT 0");
     db_add_column_if_missing('incidents', 'images', "TEXT DEFAULT NULL");
     db_add_column_if_missing('messages', 'group_id', "INT DEFAULT NULL");
     $pdo->exec("CREATE TABLE IF NOT EXISTS `groups` (
