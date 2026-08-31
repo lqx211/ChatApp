@@ -2,6 +2,13 @@
    ChatApp 个人空间（桌面版 · 灰色简洁风格）
    原创样式
    ============================================================ */
+/* 字体：Roboto（西文）+ 系统中文回退（与 profile/m 页一致） */
+@font-face {
+  font-family: 'Roboto';
+  src: url('../../css/fonts/Roboto-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
 :root{
   --q-toolbar-h:44px;
   --q-cover-h:250px;
