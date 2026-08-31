@@ -392,7 +392,11 @@ switch ($action) {
 
     case 'list_messages':
         $toUid = (int)($_GET['to_uid'] ?? $_POST['to_uid'] ?? 0);
-        if (!$toUid) $toUid = $myUid;
+        // 目标用户无效/不存在 → 留言板为空（不回落为本人）
+        if ($toUid <= 0) { echo json_encode(['success' => true, 'messages' => [], 'i_am_owner' => false]); break; }
+        $tu = $pdo->prepare("SELECT user_id FROM users WHERE user_id=?");
+        $tu->execute([$toUid]);
+        if (!(int)$tu->fetchColumn()) { echo json_encode(['success' => true, 'messages' => [], 'i_am_owner' => false]); break; }
         $s = $pdo->prepare("SELECT id, user_id, content, created_at FROM space_messages WHERE to_uid=? AND enabled=1 ORDER BY id ASC LIMIT 500");
         $s->execute([$toUid]);
         $msgs = [];

@@ -19,72 +19,33 @@ $meName = (string)($currentUser['username'] ?? '');
 $pdo = db();
 db_add_column_if_missing('users', 'space_ears', "TINYINT(1) NOT NULL DEFAULT 1");
 if ($viewUid > 0) {
-    $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, custom_title, gender, gender_privacy, birthday, profile_bg_image, profile_bg_updated_at, level, exp, likes, created_at, dnd, enabled, placeholder, space_ears FROM users WHERE user_id = ?");
+    $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, custom_title, gender, gender_privacy, birthday, profile_bg_image, profile_bg_updated_at, level, exp, likes, created_at, dnd, enabled, placeholder, space_ears, deleted_at FROM users WHERE user_id = ?");
     $stmt->execute([$viewUid]);
 } else {
     $target = $viewUsername !== '' ? $viewUsername : $meName;
-    $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, custom_title, gender, gender_privacy, birthday, profile_bg_image, profile_bg_updated_at, level, exp, likes, created_at, dnd, enabled, placeholder, space_ears FROM users WHERE username = ?");
+    $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, custom_title, gender, gender_privacy, birthday, profile_bg_image, profile_bg_updated_at, level, exp, likes, created_at, dnd, enabled, placeholder, space_ears, deleted_at FROM users WHERE username = ?");
     $stmt->execute([$target]);
 }
 $u = $stmt->fetch();
-if (!$u || !(int)$u['enabled'] || (int)$u['placeholder']) {
-    // 目标用户不存在/已被删除/占位账号 → 显示「不存在」页面，而不是跳回聊天
-    $nfName = (string)($currentUser['username'] ?? '');
-    $nfDisp = (string)($currentUser['display_name'] ?: $nfName);
-    $nfAvatar = chatapp_avatar_url($currentUser['avatar'] ?? '', $nfName);
-    $nfTitle = '用户不存在 - ChatApp';
-    ?>
-<!DOCTYPE html>
-<html lang="zh-cn">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title><?php echo htmlspecialchars($nfTitle);?></title>
-<link rel="stylesheet" href="../style/space.css?v=<?php echo time();?>">
-<style>
-  .sp-notfound{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 20px;}
-  .sp-notfound .nf-ico{width:96px;height:96px;border-radius:50%;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;font-size:44px;margin-bottom:20px;color:#8fa3b8;}
-  .sp-notfound h1{font-size:22px;color:#e8eef5;margin:0 0 10px;}
-  .sp-notfound p{font-size:14px;color:#8fa3b8;margin:0 0 28px;}
-  .sp-notfound .nf-btns{display:flex;gap:12px;}
-  .sp-notfound .nf-btn{display:inline-block;padding:9px 22px;border-radius:8px;text-decoration:none;font-size:14px;cursor:pointer;}
-  .sp-notfound .nf-btn.primary{background:#3f6fb5;color:#fff;}
-  .sp-notfound .nf-btn.ghost{border:1px solid rgba(255,255,255,.18);color:#c9d6e4;}
-  .sp-notfound .nf-btn:hover{opacity:.88;}
-</style>
-</head>
-<body class="bg-body mode-theme<?php echo $embedMode ? ' embed' : '';?>">
-<div class="top-fix-bar">
-  <div class="top-fix-inner">
-    <div class="top-fix-wrap">
-      <a class="logo" href="chat.php" title="返回聊天"><span class="logo-ico">🏠</span>个人空间</a>
-      <ul class="top-nav">
-        <li class="nav-list"><a href="space.php" class="on">主页</a></li>
-        <li class="nav-list"><a href="chat.php">聊天</a></li>
-        <li class="nav-list"><a href="settings.php">设置</a></li>
-      </ul>
-      <div class="user-info">
-        <a class="user-home" href="space.php">
-          <?php if ($nfAvatar):?><img class="user-avatar" src="<?php echo htmlspecialchars($nfAvatar);?>" alt=""><?php endif;?>
-          <span class="user-name textoverflow"><?php echo htmlspecialchars($nfDisp);?></span>
-        </a>
-      </div>
-    </div>
-  </div>
-</div>
-<div class="sp-notfound">
-  <div class="nf-ico">👤</div>
-  <h1>该用户不存在</h1>
-  <p>用户不存在或已被删除</p>
-  <div class="nf-btns">
-    <a class="nf-btn primary" href="space.php">返回我的空间</a>
-    <a class="nf-btn ghost" href="chat.php">回到聊天</a>
-  </div>
-</div>
-</body>
-</html>
-    <?php
-    exit;
+// 目标用户状态：0=正常 1=未知用户(查不到/禁用/占位) 2=已删除用户
+// 未知/已删除时照常渲染空间页，但名字显示对应文案且内容为空
+$notFoundMode = 0;
+if (!$u) {
+    $notFoundMode = 1;
+} elseif (!empty($u['deleted_at'])) {
+    $notFoundMode = 2;   // 软删除优先：即使同时被禁用/占位也显示「已删除的用户」
+} elseif (!(int)$u['enabled'] || (int)$u['placeholder']) {
+    $notFoundMode = 1;
+}
+if ($notFoundMode) {
+    $notFoundLabel = $notFoundMode === 2 ? '已删除的用户' : '未知用户';
+    $u = [
+        'username' => '', 'display_name' => $notFoundLabel, 'user_id' => 0,
+        'avatar' => '', 'custom_title' => '', 'gender' => 0, 'gender_privacy' => 0,
+        'birthday' => '', 'profile_bg_image' => '', 'profile_bg_updated_at' => '',
+        'level' => 0, 'exp' => 0, 'likes' => 0, 'created_at' => '',
+        'dnd' => 0, 'enabled' => 1, 'placeholder' => 0, 'space_ears' => 0, 'deleted_at' => null,
+    ];
 }
 // 是否本人空间（按 user_id 判断，兼容 uid/user 两种访问方式）
 $isSelf = ((int)$u['user_id'] === (int)($currentUser['user_id'] ?? 0));
@@ -199,7 +160,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
     <div class="top-fix-wrap">
       <a class="logo" href="chat.php" title="返回聊天"><span class="logo-ico"><?php echo sp_ic('home');?></span>个人空间</a>
       <ul class="top-nav">
-        <li class="nav-list"><a href="space.php<?php echo $isSelf ? '' : '?user=' . urlencode($u['username']);?>" class="on">主页</a></li>
+        <li class="nav-list"><a href="space.php<?php echo ($isSelf || $u['username'] === '') ? '' : ('?user=' . urlencode($u['username']));?>" class="on">主页</a></li>
         <li class="nav-list"><a href="chat.php">聊天</a></li>
         <li class="nav-list"><a href="settings.php">设置</a></li>
       </ul>
@@ -240,7 +201,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
       <div class="actions profile-hd-actions">
         <?php if ($isSelf):?>
           <span class="btn-head"><a href="editinfo.php">编辑资料</a></span>
-        <?php else:?>
+        <?php elseif ($u['username'] !== ''):?>
           <?php if ($isFriendView): ?>
           <span class="btn-head" id="spSpecialBtn"><a onclick="spToggleSpecial()">特别关心</a></span>
           <?php endif; ?>
@@ -473,10 +434,12 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
             <!-- ===== 留言板面板 ===== -->
             <section class="sp-tab" id="spTabBoard" style="display:none">
               <div class="sp-tab-head"><h3>留言板</h3><span class="sp-tab-sub"><?php echo $isSelf ? '把空间分享给朋友，让 TA 们来留言吧～' : '欢迎给 ' . htmlspecialchars($displayName) . ' 留言';?></span></div>
+              <?php if ($u['username'] !== ''): ?>
               <div class="sp-board-input">
                 <textarea id="spBoardInput" placeholder="写下你的留言..." maxlength="500"></textarea>
                 <button class="btn-post" onclick="spBoardPost()">留言</button>
               </div>
+              <?php endif; ?>
               <ul class="sp-board-list" id="spBoardList"></ul>
             </section>
 
@@ -655,6 +618,8 @@ function spNavFeed(f) {
 /* ===== 动态中心：我的动态 / 好友动态 / 特别关心（流式加载） ===== */
 function spStream(filter) {
   spGoTab('home');
+  // 未知/已删除用户：动态全空
+  if (!SP_SPACE.uid) { renderStreamFeeds([]); return; }
   // 高亮左侧 feedTypes：mine/friends → 对应 data-f，special → care
   var map = { mine: 'mine', friends: 'friends', special: 'care' };
   [].forEach.call(document.querySelectorAll('#feedTypes li'), function (li) {
@@ -735,6 +700,8 @@ function spGoto(where) { alert('「' + where + '」模块即将上线（示例 U
 /* ===== 艾特通知（与我相关） ===== */
 function spLoadMentions() {
   spGoTab('home');
+  // 未知/已删除用户：与我相关为空
+  if (!SP_SPACE.uid) { renderMentions([]); markMentionsRead(); return; }
   // 高亮左侧「与我相关」+ 顶部 tab
   [].forEach.call(document.querySelectorAll('#feedTypes li'), function (li) {
     li.classList.toggle('current', li.getAttribute('data-f') === 'me');
@@ -799,6 +766,8 @@ function markMentionsRead() {
   var b = document.getElementById('spMeBadge'); if (b) b.style.display = 'none';
 }
 function spLoadMentionCount() {
+  var b0 = document.getElementById('spMeBadge'); if (b0) b0.style.display = 'none';
+  if (!SP_SPACE.uid) return;   // 未知/已删除用户：不显示未读徽标
   fetch('../../api/space.php?action=mention_count', { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (d) {
@@ -1239,6 +1208,8 @@ function spLoadBoard() {
   if (!list) return;
   if (SP_BOARD_LOADED) return;
   SP_BOARD_LOADED = true;
+  // 未知/已删除用户：留言板为空
+  if (!SP_SPACE.uid) { renderBoard([], false); return; }
   fetch('../../api/space.php?action=list_messages&to_uid=' + SP_SPACE.uid, { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (d) { if (d && d.success) renderBoard(d.messages, d.i_am_owner); })
@@ -1262,6 +1233,7 @@ function renderBoard(msgs, iAmOwner) {
   list.innerHTML = html;
 }
 function spBoardPost() {
+  if (!SP_SPACE.uid) { alert('留言失败'); return; }
   var ta = document.getElementById('spBoardInput');
   var txt = (ta.value || '').trim();
   if (!txt) { ta.focus(); return; }
