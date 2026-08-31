@@ -160,7 +160,7 @@ img{border:0;vertical-align:middle}
 /* 右侧模块 */
 .icenter-right-mod{background:var(--q-card);border-radius:0;border:1px solid var(--q-border);margin-bottom:12px;overflow:hidden}
 .icenter-right-mod .hd{padding:12px 14px 8px;font-size:14px;font-weight:700;color:#e0e0e0}
-.icenter-right-mod .hd .more{float:right;font-size:12px;color:#888;font-weight:400;cursor:pointer}
+.icenter-right-mod .hd .more{float:right;font-size:12px;color:#888;font-weight:400;cursor:pointer;display:inline-flex;align-items:center;gap:2px}
 .icenter-right-mod .hd .more:hover{color:var(--q-blue)}
 .icenter-right-mod .bd{padding:4px 14px 12px}
 /* 精选相片：正方形宫格 */
@@ -232,7 +232,7 @@ body.embed .layout-background{min-height:0}
 .vis-select{display:inline-flex;align-items:center;gap:5px;background:#1e1e1e;border:1px solid #3a3a3a;color:#ccc;font-size:12px;padding:5px 9px;cursor:pointer;user-select:none}
 .vis-select:hover{border-color:#555}
 .vis-select .vis-ic{color:#8a9098;display:inline-flex}
-.vis-select .vis-arrow{font-size:10px;color:#777}
+.vis-select .vis-arrow{font-size:10px;color:#777;display:inline-flex;align-items:center}
 
 .sp-vis-menu{position:fixed;z-index:2100;background:#2a2a2a;border:1px solid #3a3a3a;box-shadow:0 6px 20px rgba(0,0,0,.5);padding:5px 0;min-width:150px;display:none}
 .sp-vis-item{display:flex;align-items:center;gap:8px;padding:9px 14px;font-size:13px;color:#ccc;cursor:pointer}
@@ -246,7 +246,7 @@ body.embed .layout-background{min-height:0}
 @keyframes spFmIn{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
 .sp-fm-box{display:flex;flex-direction:column;min-height:0;flex:1}
 .sp-fm-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;font-size:15px;font-weight:700;color:#e0e0e0;border-bottom:1px solid #3a3a3a}
-.sp-fm-x{font-size:20px;color:#888;cursor:pointer;line-height:1}
+.sp-fm-x{font-size:20px;color:#888;cursor:pointer;line-height:1;display:inline-flex}
 .sp-fm-x:hover{color:#fff}
 .sp-fm-body{display:flex;min-height:0;flex:1}
 .sp-fm-left{width:190px;flex:none;border-right:1px solid #3a3a3a;padding:12px}

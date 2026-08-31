@@ -70,6 +70,11 @@ function sp_ic(string $n): string {
         'top'     => '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="m12 4 7 8h-4v8h-6v-8H5z"/></svg>',
         'globe'   => '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" stroke-linecap="round"/></svg>',
         'lock'    => '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="1"/><path d="M8 11V7a4 4 0 0 1 8 0v4" stroke-linecap="round"/></svg>',
+        'at'      => '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg>',
+        'hash'    => '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></svg>',
+        'down'    => '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+        'close'   => '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+        'right'   => '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>',
     ];
     return $map[$n] ?? '';
 }
@@ -257,20 +262,20 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
                 <div class="attach-icons">
                   <span title="照片" onclick="spAlert('照片')"><?php echo sp_ic('image');?></span>
                   <span title="表情" onclick="spAlert('表情')"><?php echo sp_ic('smile');?></span>
-                  <span title="@好友" onclick="spAlert('@好友')">@</span>
-                  <span title="话题" onclick="spAlert('话题')">#</span>
+                  <span title="@好友" onclick="spAlert('@好友')"><?php echo sp_ic('at');?></span>
+                  <span title="话题" onclick="spAlert('话题')"><?php echo sp_ic('hash');?></span>
                 </div>
                 <div class="vis-select" id="spVisBtn" onclick="spVisToggle(event)">
                   <span class="vis-ic"><?php echo sp_ic('globe');?></span>
                   <span class="vis-label" id="spVisLabel">所有人可见</span>
-                  <span class="vis-arrow">▾</span>
+                  <span class="vis-arrow"><?php echo sp_ic('down');?></span>
                 </div>
                 <div class="op"><button class="btn-post" id="spPostBtn" onclick="spPost()">发表</button></div>
               </div>
               <!-- 好友选择面板：贴在发表框底部，随页面滚动，动画伸出 -->
               <div class="sp-fm-mask" id="spFmMask" style="display:none">
                 <div class="sp-fm-box">
-                  <div class="sp-fm-head"><span>选择好友</span><span class="sp-fm-x" onclick="spFmClose()">×</span></div>
+                  <div class="sp-fm-head"><span>选择好友</span><span class="sp-fm-x" onclick="spFmClose()"><?php echo sp_ic('close');?></span></div>
                   <div class="sp-fm-body">
                     <div class="sp-fm-left">
                       <div class="sp-fm-search"><input id="spFmSearch" placeholder="搜索好友"><span class="sp-fm-sbtn"><?php echo sp_ic('search');?></span></div>
@@ -390,7 +395,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 
             <!-- 精选相片（来自个人空间/朋友圈） -->
             <div class="icenter-right-mod icenter-right-photo">
-              <div class="hd">精选相片<span class="more" onclick="spGoTab('album')">更多相册 ›</span></div>
+              <div class="hd">精选相片<span class="more" onclick="spGoTab('album')">更多相册 <?php echo sp_ic('right');?></span></div>
               <div class="bd">
                 <ul class="photo-grid" id="photoGrid">
                   <?php foreach ($samplePhotos as $pi => $ph): ?>
@@ -402,7 +407,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 
             <!-- 谁看过我 -->
             <div class="icenter-right-mod">
-              <div class="hd">谁看过我<span class="more">›</span></div>
+              <div class="hd">谁看过我<span class="more"><?php echo sp_ic('right');?></span></div>
               <div class="bd">
                 <ul class="visitor-list" id="visitorList">
                   <li><div class="av-empty" style="width:52px;height:52px;border-radius:50%;background:#e3e8ef;display:flex;align-items:center;justify-content:center;margin:0 auto 3px;color:#fff;font-size:20px">?</div><div class="un">暂无访客</div></li>
