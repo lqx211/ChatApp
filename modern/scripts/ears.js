@@ -75,12 +75,12 @@
         if (host.getAttribute('data-av-ear') === '1' || host.querySelector('.av-ear')) continue;
         // 仅圆形头像显示耳朵
         if (!isRound(c)) continue;
-        // 宿主需相对定位
+        // 宿主需相对定位（有条件设置，避免无谓的 style 变更）
         if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
-        // 头像容器若 overflow:hidden 会裁掉伸出头外的耳朵 → 改为可见
-        host.style.overflow = 'visible';
+        // 头像容器若 overflow:hidden 会裁掉伸出头外的耳朵 → 改为可见（仅当确实非 visible）
+        if (getComputedStyle(host).overflow !== 'visible') host.style.overflow = 'visible';
         var w = c.offsetWidth || c.clientWidth || 0;
-        if (w <= 0) continue; // 隐藏元素（未激活 tab/未布局）暂不挂，等可见后 MutationObserver 处理
+        if (w <= 0) continue; // 隐藏元素（未激活 tab/未布局）暂不挂，等可见后低频兜底扫描
         var img = document.createElement('img');
         img.className = 'av-ear';
         img.alt = '';
@@ -94,14 +94,12 @@
 
   function boot() {
     inject(document);
-    // 监听动态新增/显示的头像（聊天气泡/联系人/评论等异步渲染，以及隐藏 tab 切显示）
-    var mo = new MutationObserver(function () {
-      inject(document);
-      // 兜底：元素插入瞬间可能未布局(offsetWidth=0)被跳过，延迟补扫一次
-      clearTimeout(mo._t);
-      mo._t = setTimeout(function () { inject(document); }, 150);
-    });
-    mo.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+    // 只监听 childList（DOM 新增头像），不监听 attributes——
+    // 否则注入改 style 会触发 attributes mutation 造成观察循环，卡死主线程(alert 点不动 OK)
+    var mo = new MutationObserver(function () { inject(document); });
+    mo.observe(document.documentElement, { childList: true, subtree: true });
+    // 低频兜底：隐藏 tab（如未激活的个人档案）显示后、插入瞬间未布局的头像，由定时扫描补挂
+    setInterval(function () { inject(document); }, 2000);
   }
 
   if (document.readyState === 'loading') {
