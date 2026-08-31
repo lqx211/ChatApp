@@ -530,10 +530,10 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
               </div>
             </div>
 
-            <!-- 谁看过我（仅本人空间可见） -->
+            <!-- 谁看过我（仅本人空间可见；点击在当前 window 打开访客画面） -->
             <?php if ($isSelf): ?>
             <div class="icenter-right-mod">
-              <div class="hd">谁看过我<span class="more" onclick="location.href='visitors.php'"><?php echo sp_ic('right');?></span></div>
+              <div class="hd" style="cursor:pointer" onclick="spVisitorPanelOpen()">谁看过我<span class="more" onclick="event.stopPropagation();spVisitorPanelOpen()"><?php echo sp_ic('right');?></span></div>
               <div class="bd">
                 <ul class="visitor-list" id="visitorList"><li class="sp-vis-empty">加载中…</li></ul>
               </div>
@@ -567,6 +567,28 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 <!-- 返回顶部 -->
 <div class="fix-layout">
   <div class="to-top" id="spToTop" title="返回顶部"><?php echo sp_ic('top');?></div>
+</div>
+
+<!-- 访客画面（当前 window 内覆盖面板，QQ 风格无圆角） -->
+<div class="sp-vp-mask" id="spVisitorPanel" style="display:none" onclick="if(event.target===this)spVisitorPanelClose()">
+  <div class="sp-vp-box">
+    <div class="sp-vp-close" onclick="spVisitorPanelClose()">×</div>
+    <div class="sp-vp-hd">
+      <a class="sp-vp-tab on" data-t="me" onclick="spVpTab('me')">谁看过我</a><b class="divide-line">|</b>
+      <a class="sp-vp-tab" data-t="you" onclick="spVpTab('you')">我看过谁</a><b class="divide-line">|</b>
+      <a class="sp-vp-tab" data-t="refuse" onclick="spVpTab('refuse')">被挡访客</a>
+    </div>
+    <div class="sp-vp-bd">
+      <ul class="three-in-line sp-vp-list" id="spVpList"><li class="sp-vis-empty">加载中…</li></ul>
+    </div>
+    <div class="sp-vp-ft">
+      <ul class="visitor-count">
+        <li><span>今日浏览</span> <b id="spVpToday">0</b></li>
+        <li class="sp-vp-gap"><span>总浏览</span> <b id="spVpTotal">0</b></li>
+        <li class="sp-vp-gap"><span>被挡访客</span> <b id="spVpRefuse">0</b></li>
+      </ul>
+    </div>
+  </div>
 </div>
 
 <!-- hover 名片 -->
@@ -1441,7 +1463,64 @@ function ncToggleCare(e) {
 (function () {
   var list = document.getElementById('visitorList');
   if (list) list.addEventListener('mouseleave', function () { var nc = document.getElementById('spNameCard'); if (nc) nc.style.display = 'none'; });
+  var vp = document.getElementById('spVpList');
+  if (vp) vp.addEventListener('mouseleave', function () { var nc = document.getElementById('spNameCard'); if (nc) nc.style.display = 'none'; });
 })();
+/* 访客画面（当前 window 覆盖面板，QQ 风格） */
+var SP_VP_TYPE = 'me';
+function spVisitorPanelOpen() {
+  var p = document.getElementById('spVisitorPanel');
+  if (!p) return;
+  p.style.display = 'flex';
+  SP_VP_TYPE = 'me';
+  Array.prototype.forEach.call(document.querySelectorAll('.sp-vp-tab'), function (a) { a.classList.toggle('on', a.getAttribute('data-t') === 'me'); });
+  spVpLoad();
+}
+function spVisitorPanelClose() { var p = document.getElementById('spVisitorPanel'); if (p) p.style.display = 'none'; }
+function spVpTab(t) {
+  SP_VP_TYPE = t;
+  Array.prototype.forEach.call(document.querySelectorAll('.sp-vp-tab'), function (a) { a.classList.toggle('on', a.getAttribute('data-t') === t); });
+  spVpLoad();
+}
+function spVpLoad() {
+  var list = document.getElementById('spVpList');
+  if (!list) return;
+  list.innerHTML = '<li class="sp-vis-empty">加载中…</li>';
+  fetch('../../api/space.php?action=visitor_list&type=' + SP_VP_TYPE, { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      var arr = (d && d.success) ? (d.list || []) : [];
+      if (!arr.length) { list.innerHTML = '<li class="sp-vis-empty">' + (SP_VP_TYPE === 'refuse' ? '暂无被挡访客' : '暂无访客') + '</li>'; return; }
+      var h = '';
+      arr.forEach(function (v) {
+        var av = v.avatar ? '<img src="' + v.avatar + '" alt="">' : '<span class="av-empty">' + esc((v.name || '?').charAt(0)) + '</span>';
+        var del = (SP_VP_TYPE === 'me') ? '<a class="top_del" title="删除" onclick="event.stopPropagation();spVpDel(' + v.uid + ')">×</a>' : '';
+        h += '<li class="user-item" data-uid="' + v.uid + '" data-username="' + esc(v.username) + '" data-name="' + esc(v.name) + '" data-avatar="' + (v.avatar || '') + '" data-gender="' + v.gender + '" data-zodiac="' + esc(v.zodiac) + '" data-common="' + v.common + '" data-special="' + v.special + '" onmouseenter="spNameCardShow(this)">'
+          + '<a class="user-avatar q_namecard">' + av + '</a>'
+          + '<div class="user-name-bg"><span class="user-name textoverflow">' + esc(v.name) + '</span></div>'
+          + '<span class="date">' + esc(v.time) + '</span>'
+          + del
+          + '</li>';
+      });
+      list.innerHTML = h;
+    })
+    .catch(function () { list.innerHTML = '<li class="sp-vis-empty">加载失败</li>'; });
+  if (SP_VP_TYPE === 'me') {
+    fetch('../../api/space.php?action=visit_count', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.success) return;
+        var a = document.getElementById('spVpToday'); if (a) a.textContent = d.today;
+        var b = document.getElementById('spVpTotal'); if (b) b.textContent = d.total;
+      }).catch(function () {});
+  }
+}
+function spVpDel(uid) {
+  if (!window.confirm('删除本次访问记录？')) return;
+  var f = new URLSearchParams(); f.append('action', 'visitor_delete'); f.append('uid', uid);
+  fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+    .then(function (r) { return r.json(); }).then(function () { spVpLoad(); spLoadVisitors(); });
+}
 
 /* ===== 相册 ===== */
 var SP_ALBUM_TYPES = { personal: '个人', multi: '多人', couple: '情侣', family: '亲子', travel: '旅行', other: '其他' };
