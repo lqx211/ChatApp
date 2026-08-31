@@ -509,6 +509,22 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
                 </ul>
               </div>
             </section>
+
+            <!-- ===== 访客大框（谁看过我左边，深灰贴合） ===== -->
+            <?php if ($isSelf): ?>
+            <div class="sp-vp-mod" id="spVisitorMod">
+              <div class="sp-vp-hd">
+                <b class="sp-vp-title">访客</b>
+                <div class="sp-vp-tabs">
+                  <a class="on" data-t="me" onclick="spVpTab('me')">谁看过我</a><i>|</i>
+                  <a data-t="you" onclick="spVpTab('you')">我看过谁</a><i>|</i>
+                  <a data-t="refuse" onclick="spVpTab('refuse')">被挡访客</a>
+                </div>
+                <span class="sp-vp-stat">今日浏览 <b id="spVpToday">0</b> · 总浏览 <b id="spVpTotal">0</b></span>
+              </div>
+              <ul class="sp-vp-list" id="spVpList"><li class="sp-vis-empty">加载中…</li></ul>
+            </div>
+            <?php endif; ?>
           </div>
 
           <!-- ===== 右栏 ===== -->
@@ -533,7 +549,7 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
             <!-- 谁看过我（仅本人空间可见；点击在当前 window 打开访客画面） -->
             <?php if ($isSelf): ?>
             <div class="icenter-right-mod">
-              <div class="hd" style="cursor:pointer" onclick="spVisitorPanelOpen()">谁看过我<span class="more" onclick="event.stopPropagation();spVisitorPanelOpen()"><?php echo sp_ic('right');?></span></div>
+              <div class="hd" style="cursor:pointer" onclick="spVpScroll()">谁看过我<span class="more" onclick="event.stopPropagation();spVpScroll()"><?php echo sp_ic('right');?></span></div>
               <div class="bd">
                 <ul class="visitor-list" id="visitorList"><li class="sp-vis-empty">加载中…</li></ul>
               </div>
@@ -567,28 +583,6 @@ $genderLabel = $gender === 1 ? '男' : ($gender === 2 ? '女' : '未设置');
 <!-- 返回顶部 -->
 <div class="fix-layout">
   <div class="to-top" id="spToTop" title="返回顶部"><?php echo sp_ic('top');?></div>
-</div>
-
-<!-- 访客画面（当前 window 内覆盖面板，QQ 风格无圆角） -->
-<div class="sp-vp-mask" id="spVisitorPanel" style="display:none" onclick="if(event.target===this)spVisitorPanelClose()">
-  <div class="sp-vp-box">
-    <div class="sp-vp-close" onclick="spVisitorPanelClose()">×</div>
-    <div class="sp-vp-hd">
-      <a class="sp-vp-tab on" data-t="me" onclick="spVpTab('me')">谁看过我</a><b class="divide-line">|</b>
-      <a class="sp-vp-tab" data-t="you" onclick="spVpTab('you')">我看过谁</a><b class="divide-line">|</b>
-      <a class="sp-vp-tab" data-t="refuse" onclick="spVpTab('refuse')">被挡访客</a>
-    </div>
-    <div class="sp-vp-bd">
-      <ul class="three-in-line sp-vp-list" id="spVpList"><li class="sp-vis-empty">加载中…</li></ul>
-    </div>
-    <div class="sp-vp-ft">
-      <ul class="visitor-count">
-        <li><span>今日浏览</span> <b id="spVpToday">0</b></li>
-        <li class="sp-vp-gap"><span>总浏览</span> <b id="spVpTotal">0</b></li>
-        <li class="sp-vp-gap"><span>被挡访客</span> <b id="spVpRefuse">0</b></li>
-      </ul>
-    </div>
-  </div>
 </div>
 
 <!-- hover 名片 -->
@@ -890,6 +884,7 @@ function spLoadMentionCount() {
 }
 spLoadMentionCount();
 spLoadVisitors();
+spVpLoad();
 initSpecialBtn();
 // 从「查看原说说」带 #feed-<id> 进入：加载后滚动定位并高亮
 (function () {
@@ -1466,20 +1461,15 @@ function ncToggleCare(e) {
   var vp = document.getElementById('spVpList');
   if (vp) vp.addEventListener('mouseleave', function () { var nc = document.getElementById('spNameCard'); if (nc) nc.style.display = 'none'; });
 })();
-/* 访客画面（当前 window 覆盖面板，QQ 风格） */
+/* 访客大框（主栏，深灰） */
 var SP_VP_TYPE = 'me';
-function spVisitorPanelOpen() {
-  var p = document.getElementById('spVisitorPanel');
-  if (!p) return;
-  p.style.display = 'flex';
-  SP_VP_TYPE = 'me';
-  Array.prototype.forEach.call(document.querySelectorAll('.sp-vp-tab'), function (a) { a.classList.toggle('on', a.getAttribute('data-t') === 'me'); });
-  spVpLoad();
+function spVpScroll() {
+  var m = document.getElementById('spVisitorMod');
+  if (m) m.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
-function spVisitorPanelClose() { var p = document.getElementById('spVisitorPanel'); if (p) p.style.display = 'none'; }
 function spVpTab(t) {
   SP_VP_TYPE = t;
-  Array.prototype.forEach.call(document.querySelectorAll('.sp-vp-tab'), function (a) { a.classList.toggle('on', a.getAttribute('data-t') === t); });
+  Array.prototype.forEach.call(document.querySelectorAll('.sp-vp-tabs a'), function (a) { a.classList.toggle('on', a.getAttribute('data-t') === t); });
   spVpLoad();
 }
 function spVpLoad() {
