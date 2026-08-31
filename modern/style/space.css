@@ -448,3 +448,43 @@ body.embed .layout-background{min-height:0}
 .sp-lb-close{position:absolute;top:16px;right:20px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;color:#fff;cursor:pointer}
 .sp-lb-close svg{width:22px;height:22px}
 .sp-lb-close:hover{background:rgba(255,255,255,.25)}
+
+/* ============ 手机/窄屏响应式（参考 QQ 空间移动版；只改内容区，封面/大头像不动） ============ */
+@media (max-width: 720px) {
+  /* 内容区单栏 */
+  .layout-body{max-width:100%;padding:0 10px 24px}
+  .layout-page{flex-direction:column;gap:10px;margin-top:8px}
+  /* 左侧菜单 → 顶部横向滚动导航（QQ 风格；保留「与我相关」徽标） */
+  .col-menu{width:100%;flex:none;display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .col-menu::-webkit-scrollbar{display:none}
+  .col-menu .mod-side-nav{flex:none;margin:0;display:flex;border:none}
+  .col-menu .mod-side-nav .hd{display:none}
+  .col-menu .sn-list{display:flex;flex-wrap:nowrap;gap:2px}
+  .col-menu .sn-list li{flex:none}
+  .col-menu .sn-list li a{padding:9px 13px;white-space:nowrap;gap:5px}
+  .col-menu .sn-list li.current a{background:transparent;border-left:none;border-bottom:2px solid var(--q-blue)}
+  /* 主列单栏：发布框置顶，右栏模块下沉 */
+  .col-main{flex-direction:column;gap:10px}
+  .col-main-feed{width:100%}
+  .col-main-sidebar{width:100%;display:flex;flex-direction:column;gap:10px}
+  .col-main-sidebar .icenter-right-mod{width:100%;margin:0}
+  /* 发布框：更顺手 */
+  .qz-poster{padding:10px 12px}
+  .qz-poster .qz-inputer{min-height:52px;font-size:15px}
+  /* 动态流紧凑 */
+  .feed-control{padding:0 10px}
+  .feed-control .feed-control-tab a{padding:11px 10px}
+  .f-single{padding:12px 12px 8px}
+  .f-single .user-avatar{width:40px;height:40px}
+  .f-single .info-detail{font-size:11px}
+  .f-ct-txtimg .img-item.one{width:100%}
+  /* 顶部导航 tab 横滑（主页/日志/相册/留言板/说说/个人档 → 二级/三级入口） */
+  .head-nav .head-nav-menu{overflow-x:auto;padding:0 6px;scrollbar-width:none}
+  .head-nav .head-nav-menu::-webkit-scrollbar{display:none}
+  .head-nav .head-nav-menu li a{padding:0 12px}
+  /* 精选相片更紧凑 */
+  .photo-grid{gap:3px}
+  /* 好友选择面板适配窄屏 */
+  .sp-fm-side{width:84px}
+  .sp-fm-group{padding:9px 10px;font-size:12px}
+}
