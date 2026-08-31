@@ -1,24 +1,112 @@
 # ChatApp CLI
 
-命令行版 ChatApp 聊天客户端，纯 Python 标准库实现，无第三方依赖。
+ChatApp 终端客户端，包含**三种模式**：
+
+| 模式 | 文件 | 说明 |
+|------|------|------|
+| **TUI**（默认） | `tui.py` | 交互式全屏界面（Textual），登录/私聊/群组/联系人/设置四面板 |
+| **AI CLI**（无头） | `ai_cli.py` | 一条命令做一件事、输出 JSON，专供 AI / 脚本 / 自动化调用 |
+| **命令式 CLI**（旧） | `chatapp.py` | 传统 REPL 命令行交互 |
 
 ## 快速开始
 
 ```bash
-# 直接运行
-python3 cli/chatapp.py
+# TUI（需全局 venv，内含 textual 8.x）
+/Users/jadenlau/.venv/bin/python cli/tui.py
 
-# 或使用启动脚本
-./cli/chatapp.sh
+# 或统一入口
+./cli/chatapp.sh                 # TUI
+./cli/chatapp.sh --cli           # 旧命令式 CLI
+./cli/chatapp.sh --ai ...        # AI CLI（见下）
 
 # 指定服务器地址
-CHATAPP_SERVER=http://your-server:port python3 cli/chatapp.py
-
-# 调整消息轮询间隔 (默认 2 秒)
-CHATAPP_POLL=1 python3 cli/chatapp.py
+CHATAPP_SERVER=http://your-server:port ./cli/chatapp.sh
 ```
 
-## 功能
+---
+
+## AI CLI（供 AI / 自动化调用）
+
+**设计原则**：每条命令做一件事、独立进程、结果输出 JSON（utf-8）。登录态
+持久化在 `~/.chatapp/ai.cookies`，先 `login` 一次，之后所有命令复用会话，
+无需每次带密码。
+
+```bash
+# 登录（PoW 挑战已自动处理）
+./cli/chatapp.sh --ai login --user mobtest2 --pass password
+
+# 之后直接执行任意命令
+./cli/chatapp.sh --ai settings get
+./cli/chatapp.sh --ai dm send alice "hello"
+./cli/chatapp.sh --ai me --pretty
+```
+
+退出码：`0` 成功；`1` 后端返回 `success:false`（看 `error` 字段）；`2` 参数/网络/未登录错误。
+
+### 认证
+| 命令 | 说明 |
+|------|------|
+| `login --user U --pass P` | 登录并保存会话 |
+| `register --user U --pass P [--lang L]` | 注册 |
+| `logout` | 退出 |
+| `me` | 当前用户 + 全部设置 |
+
+### Settings（覆盖 settings.php 全部项目）
+| 命令 | 说明 |
+|------|------|
+| `settings get` | 读取全部设置 |
+| `settings toggle <dnd\|data_saver\|auto_focus\|searchable\|searchable_by_uid\|notif_system\|notif_banner\|typing_visible\|stranger_invite_group\|stranger_like\|anyone_add_friend>` | 翻转开关 |
+| `settings privacy <s> <uid>` | 可被搜索 / 可按 UID 搜索 |
+| `settings local-cache <0\|1>` | 本地缓存 |
+| `settings emoji <panel> <chat>` | emoji 面板/聊天模式 |
+| `settings timezone <±HH:MM>` | 时区 |
+| `settings language <zh\|en\|zh_egg\|wyw\|raw>` | 语言 |
+| `settings name <名>` / `settings title <头衔>` | 昵称 / 自定义头衔 |
+| `settings gender <0女\|1男\|空>` / `settings gender-privacy <0\|1\|2>` | 性别及其隐私 |
+| `settings birthday <YYYY-MM-DD\|空>` | 生日 |
+| `settings space-ears <0\|1>` | 空间耳朵开关 |
+| `settings password <当前> <新>` | 修改密码 |
+| `settings duress <当前> [胁迫密码]` | 设置/清除胁迫密码 |
+| `settings avatar <file>` | 上传头像 |
+| `block list` / `block add <uid>` / `block remove <uid>` | 黑名单 |
+| `bg get\|upload\|preset\|remove\|privacy\|blacklist\|whitelist\|no-friend\|private\|private-set` | 聊天壁纸全套 |
+| `profile-bg get\|upload\|remove\|frame <x> <y> <zoom> <flip>` | 空间封面全套 |
+| `sig get\|privacy\|blacklist\|whitelist\|no-friend\|hidden-text` | 签名隐私全套 |
+| `discover [q] [--page N]` | 发现用户 |
+| `account delete <password> [--mode delete\|revoke\|delete_all] [--yes]` | 删号（危险，需 --yes） |
+
+### 聊天（覆盖 chat.php / group.php / contacts.php 全部 action）
+| 命令 | 说明 |
+|------|------|
+| `dm send <user> <msg> [--file F] [--reply-to ID] [--md]` | 发私聊（可附件/回复/Markdown） |
+| `dm history <user> [--limit N] [--before ID]` | 私聊历史 |
+| `dm conversations` / `dm unread` / `dm fetch [--after ID] [--dm U]` | 会话 / 未读 / 增量拉取 |
+| `dm mark-read <user>` / `dm revoke <id>` / `dm revoke-own <id>` | 已读 / 撤回 |
+| `dm search <q> [--dm U] [--group-id N]` | 搜索消息 |
+| `content [--type all\|photo\|video\|file\|audio] [--limit N]` | 我的内容 |
+| `group list\|create\|info\|members\|send\|history\|search\|join\|request` | 群组基本操作 |
+| `group pending\|approve\|reject\|invite\|kick\|admin\|unadmin` | 群组管理 |
+| `group rename\|announce\|visibility\|transfer\|pin\|avatar` | 群组设置 |
+| `group mute\|unmute\|mute-member\|unmute-member\|mute-all\|unmute-all` | 群组禁言 |
+| `group leave\|dissolve` | 退群 / 解散 |
+| `contact list\|search\|add\|force-add\|pending` | 联系人 |
+| `contact accept\|reject\|remove\|nickname\|pin\|pin-self` | 联系人管理 |
+
+### 朋友圈（space.php）
+| 命令 | 说明 |
+|------|------|
+| `moments post <内容> [--visibility 0-4] [--to uids]` | 发说说 |
+| `moments list [--user U\|--uid N]` / `moments delete <id>` / `moments like <id>` | 说说操作 |
+| `moments comment <feed_id> <内容> [--parent N]` / `comments` / `comment-del` | 评论 |
+| `moments message <to_uid> <内容>` / `messages [--to-uid N]` / `message-del` | 留言板 |
+| `moments blog <标题> <内容> [--visibility] [--to]` / `blogs` / `blog-get` / `blog-del` | 日志 |
+
+> 全局参数：`--server URL`（默认 $CHATAPP_SERVER 或 127.0.0.1:8080）、`--cookie PATH`、
+> `--user/--pass`（未登录时自动登录）、`--pretty`（缩进 JSON）。
+
+---
+
+## 旧命令式 CLI（chatapp.py）
 
 ### 认证
 | 命令 | 说明 |

@@ -14,7 +14,7 @@ header('Content-Type: application/json');
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
 // Every settings action except the read-only lookups is state-changing → POST only.
-chatapp_read_actions(['discover', 'get_blocks', 'get_background', 'get_bg_privacy', 'get_profile_bg', 'get_sig_privacy'], $action);
+chatapp_read_actions(['discover', 'get_blocks', 'get_background', 'get_bg_privacy', 'get_profile_bg', 'get_sig_privacy', 'get_settings'], $action);
 
 /**
  * 设置页通用 0/1 开关：读取并翻转 users 表中指定列。
@@ -32,6 +32,17 @@ function settings_toggle_col(string $col): void {
 }
 
 switch ($action) {
+
+    case 'get_settings':
+        // 返回当前登录用户的全部设置（AI/自动化 CLI 读取状态用，只读 GET）
+        $u = chatapp_get_user();
+        if (!$u) { echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit; }
+        foreach (['bg_blacklist', 'bg_whitelist', 'sig_blacklist', 'sig_whitelist'] as $k) {
+            $u[$k] = $u[$k] ? json_decode($u[$k], true) : [];
+            if (!is_array($u[$k])) $u[$k] = [];
+        }
+        echo json_encode(['success' => true, 'settings' => $u]);
+        break;
 
     case 'change_password':
         $cp = $_POST['current_password'] ?? '';
@@ -801,6 +812,13 @@ switch ($action) {
         }
         // 0=黑名单 1=白名单 2=仅自己能看见
         db()->prepare('UPDATE users SET bg_privacy = ? WHERE username = ?')->execute([(int)$p, $_SESSION['username']]);
+        echo json_encode(['success' => true]);
+        break;
+
+    case 'set_bg_no_friend':
+        // 好友是否也能看到背景（0=好友也可见，1=好友不可见）
+        $nf = $_POST['no_friend'] ?? '';
+        db()->prepare('UPDATE users SET bg_no_friend = ? WHERE username = ?')->execute([($nf === '1' || $nf === 'true') ? 1 : 0, $_SESSION['username']]);
         echo json_encode(['success' => true]);
         break;
 

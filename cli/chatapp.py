@@ -79,6 +79,29 @@ class ChatAppAPI:
         self.username = None
 
     # ---------- 底层请求 ----------
+    def set_cookie_file(self, path: str) -> None:
+        """把会话 cookie 持久化到文件（MozillaCookieJar），便于 AI/脚本跨进程保持登录态。"""
+        self.cj = http.cookiejar.MozillaCookieJar(path)
+        if os.path.exists(path):
+            try:
+                self.cj.load(ignore_discard=True, ignore_expires=True)
+            except Exception:
+                pass
+        self.opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(self.cj)
+        )
+        self.opener.addheaders = [
+            ('User-Agent', 'ChatApp-CLI/1.0'),
+            ('Content-Type', 'application/x-www-form-urlencoded'),
+        ]
+
+    def save_cookies(self) -> None:
+        """把当前会话 cookie 写回文件（配合 set_cookie_file 使用）。"""
+        try:
+            self.cj.save(ignore_discard=True, ignore_expires=True)
+        except Exception:
+            pass
+
     def _req(self, path: str, params: dict = None, method: str = 'POST',
              timeout: float = 10) -> dict:
         """发送请求并解析 JSON 响应"""
@@ -108,6 +131,7 @@ class ChatAppAPI:
         r = self._req('/api/auth.php', {
             'action': 'register', 'username': username,
             'password': password, 'language': lang,
+            **self._pow_params(),
         })
         if r.get('success'):
             self.username = username
@@ -116,10 +140,66 @@ class ChatAppAPI:
     def login(self, username: str, password: str) -> dict:
         r = self._req('/api/auth.php', {
             'action': 'login', 'username': username, 'password': password,
+            **self._pow_params(),
         })
         if r.get('success'):
             self.username = username
         return r
+
+    # ---------- Proof-of-Work（auth.php 的 PoW 挑战）----------
+    # 与 api/pow.php 的 chatapp_pow_hash / chatapp_pow_target 位级一致。
+    POW_SEED = [0x24, 0x5a, 0x10, 0x9f, 0x3d, 0x77, 0x81, 0xc2, 0x4b, 0x0e, 0x96, 0x55,
+                0x1a, 0x68, 0xdc, 0x03, 0x7e, 0x92, 0x40, 0xcf, 0x11, 0x5d, 0xaa, 0x38,
+                0x66, 0xf1, 0x0b, 0x9c, 0x27, 0x74, 0xdb, 0x32]
+
+    @staticmethod
+    def pow_hash(input_: str) -> str:
+        """Custom PoW hash → 64 lowercase hex chars. Bit-identical to PHP."""
+        state = list(ChatAppAPI.POW_SEED)
+        b = input_.encode('latin-1')
+        n = len(b)
+        for rnd in range(32):
+            state[0] = (state[0] ^ (rnd + 1)) & 0xff
+            for i in range(32):
+                ib = b[(i + rnd) % n] if n > 0 else 0
+                a = state[i]
+                bv = state[(i + 7) % 32]
+                c = state[(i + 13) % 32]
+                x = (((a << 3) | (a >> 5)) & 0xff)
+                x = (x + bv) & 0xff
+                x = (x ^ c) & 0xff
+                x = (x ^ ib) & 0xff
+                k = ((rnd * 31 + i * 7 + 11) & 0xff)
+                state[i] = (x + k) & 0xff
+            t = state[0]; state[0] = state[31]; state[31] = t
+            t = state[5]; state[5] = state[21]; state[21] = t
+        return ''.join('%02x' % x for x in state)
+
+    @staticmethod
+    def pow_target(bits: int) -> str:
+        """Target = 2^(256-bits), 64-char lowercase hex (no big-int needed)."""
+        shift = 256 - bits
+        idx = shift // 4
+        digit = 1 << (shift % 4)
+        s = ('%x' % digit) + ('0' * idx)
+        return s.rjust(64, '0')
+
+    def _pow_params(self) -> dict:
+        """拉取 challenge、爆破 nonce，返回 pow_challenge/pow_nonce 参数字典。"""
+        try:
+            r = self._req('/api/auth.php?action=challenge', method='GET', timeout=8)
+            ch = r.get('challenge')
+            if not r.get('success') or not ch:
+                return {}
+            target = r.get('target') or self.pow_target(int(r.get('target_bits') or 15))
+            nonce = 0
+            while nonce <= 9999999999:
+                if self.pow_hash('%s:%d' % (ch, nonce)) < target:
+                    return {'pow_challenge': ch, 'pow_nonce': str(nonce)}
+                nonce += 1
+        except Exception:
+            pass
+        return {}
 
     def logout(self) -> dict:
         return self._req('/api/auth.php', {'action': 'logout'})
