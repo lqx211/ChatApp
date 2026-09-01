@@ -568,6 +568,13 @@ body.embed .layout-background{min-height:0}
 .sp-sync-featured input{accent-color:#6fa4e0;cursor:pointer}
 .sp-ph-empty{display:flex;align-items:center;justify-content:center;height:100%;color:#8fa3b8;font-size:11px}
 
+/* 游客登录提示 */
+.sp-login-hint{min-height:60vh;display:flex;align-items:center;justify-content:center;padding:40px 20px}
+.sp-login-box{text-align:center;background:rgba(255,255,255,.03);border:1px solid var(--q-border);padding:48px 56px;max-width:420px;border-radius:0}
+.sp-login-box h2{font-size:20px;color:#e8eef5;margin:0 0 12px}
+.sp-login-box p{font-size:13px;color:#8fa3b8;margin:0 0 26px}
+.sp-login-box .btn-post{display:inline-block;text-decoration:none;background:var(--q-blue);color:#fff;border:none;border-radius:0;padding:9px 34px;font-size:14px;cursor:pointer}
+
 /* ===== 访客 ===== */
 .visitor-list{list-style:none;display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:0}
 .sp-vis-item{text-align:center;cursor:pointer;position:relative}

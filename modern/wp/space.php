@@ -5,8 +5,9 @@
  * 「精选相片」来自个人空间(朋友圈) —— 目前为示例占位，后续接 api/space.php。
  */
 require_once __DIR__ . '/../../api/config.php';
-chatapp_require_login();
-$currentUser = chatapp_get_user();
+// 允许游客浏览：未登录也能看公开内容（右上角显示「登录」）
+$currentUser = chatapp_get_user() ?: [];
+$isLoggedIn = (int)($currentUser['user_id'] ?? 0) > 0;
 
 // embed=1：内嵌在聊天面板(iframe)时隐藏自带顶栏，避免双层工具栏
 $embedMode = isset($_GET['embed']) ? 1 : 0;
@@ -16,6 +17,49 @@ $viewUidRaw = $_GET['uid'] ?? null;
 $hasViewUid = ($viewUidRaw !== null && trim((string)$viewUidRaw) !== '');
 $viewUid = $hasViewUid ? (int)$viewUidRaw : 0;
 $meName = (string)($currentUser['username'] ?? '');
+
+// 未登录且未指定用户 → 提示登录（查看自己的空间需要登录）
+if (!$isLoggedIn && !$hasViewUid && $viewUsername === '') {
+    ?>
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title><?php echo htmlspecialchars(t('sp_login_title', '登录 - ChatApp'));?></title>
+<link rel="stylesheet" href="../style/space.css?v=<?php echo time();?>">
+<!--[if IE]>
+<script type="text/javascript">
+    window.Aegis = null;// 待兼容
+</script>
+<![endif]-->
+</head>
+<body class="bg-body mode-theme<?php echo $embedMode ? ' embed' : '';?>">
+<div class="top-fix-bar">
+  <div class="top-fix-inner">
+    <div class="top-fix-wrap">
+      <a class="logo" href="space.php"><span class="logo-ico"><?php echo sp_ic('home');?></span><?php echo t('sp_logo', '个人空间');?></a>
+      <ul class="top-nav">
+        <li class="nav-list"><a href="space.php" class="on"><?php echo t('sp_home', '主页');?></a></li>
+        <li class="nav-list"><a href="chat.php"><?php echo t('sp_chat', '聊天');?></a></li>
+        <li class="nav-list"><a href="settings.php"><?php echo t('sp_settings', '设置');?></a></li>
+      </ul>
+      <div class="user-info"><a class="logout-new" href="login.php"><?php echo t('sp_login', '登录');?></a></div>
+    </div>
+  </div>
+</div>
+<div class="sp-login-hint">
+  <div class="sp-login-box">
+    <h2><?php echo t('sp_login_hint', '请登录后查看你的空间');?></h2>
+    <p><?php echo t('sp_login_hint2', '登录后即可访问你的个人空间、朋友圈与访客记录');?></p>
+    <a class="btn-post" href="login.php"><?php echo t('sp_login', '登录');?></a>
+  </div>
+</div>
+</body>
+</html>
+    <?php
+    exit;
+}
 
 // 支持 ?uid=<数字> 按用户ID访问空间，或 ?user=<用户名>，缺省为本人
 // 注意：?uid= 只要出现（即使非数字转为 0）就按 UID 访问——非数字 → UID 0（未知用户），而不是回落为本人
@@ -223,11 +267,15 @@ $genderLabel = $gender === 1 ? t('sp_male', '男') : ($gender === 2 ? t('sp_fema
         </div>
       </div>
       <div class="user-info">
+        <?php if ($isLoggedIn): ?>
         <a class="user-home" href="space.php">
           <?php if ($meAvatarUrl):?><img class="user-avatar" src="<?php echo htmlspecialchars($meAvatarUrl);?>" alt=""><?php endif;?>
           <span class="user-name textoverflow"><?php echo htmlspecialchars($currentUser['display_name'] ?: $currentUser['username']);?></span>
         </a>
         <a class="logout-new" onclick="spLogout()"><?php echo t('sp_logout', '退出');?></a>
+        <?php else: ?>
+        <a class="logout-new" href="login.php"><?php echo t('sp_login', '登录');?></a>
+        <?php endif; ?>
       </div>
     </div>
   </div>
@@ -977,7 +1025,7 @@ function markMentionsRead() {
 }
 function spLoadMentionCount() {
   var b0 = document.getElementById('spMeBadge'); if (b0) b0.style.display = 'none';
-  if (!SP_SPACE.uid) return;   // 未知/已删除用户：不显示未读徽标
+  if (!SP_SPACE.uid || !SP_SPACE.self) return;   // 未知/已删除用户/游客：不显示未读徽标
   fetch('../../api/space.php?action=mention_count', { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (d) {
@@ -1330,7 +1378,7 @@ function spLogout() {
     var f = new URLSearchParams();
     f.append('action', 'logout');
     fetch('../../api/auth.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
-        .then(function () { location.href = 'login.php'; });
+        .then(function () { location.href = 'space.php'; });   // 登出后回到空间页（游客态显示登录）
 }
 
 /* ===== 朋友圈图片上传 ===== */
@@ -1699,6 +1747,7 @@ function spBoardPost() {
 /* ===== 访客（谁看过我） ===== */
 var SP_NC_USERNAME = '';
 function spLoadVisitors() {
+  if (!SP_SPACE.self) return;   // 访客模块仅本人空间显示
   var list = document.getElementById('visitorList');
   fetch('../../api/space.php?action=visitor_list&type=me', { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })

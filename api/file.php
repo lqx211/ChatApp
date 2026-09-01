@@ -272,6 +272,28 @@ function _f_temp_allowed(PDO $pdo, int $viewerUid, string $hash): bool {
     return ($role === 'root' || $role === 'admin');
 }
 
+// Personal-space feed image (data/user/<uid>/space/<name>): allowed when at
+// least one feed referencing it is visible to the viewer. Guests (uid=0) can
+// read images on public feeds, mirroring the server-side feed filter.
+function _f_space_allowed(PDO $pdo, int $ownerUid, string $filename): bool {
+    $viewerUid = _f_me_uid($pdo);   // 0 = 游客
+    $s = $pdo->prepare("SELECT id, visibility, visible_to FROM space_feeds WHERE user_id=? AND enabled=1 AND images LIKE ? ORDER BY id DESC LIMIT 50");
+    $s->execute([$ownerUid, '%' . $filename . '%']);
+    foreach ($s->fetchAll() as $f) {
+        $vis = (int)$f['visibility'];
+        if ($viewerUid === $ownerUid) return true;
+        if ($vis === 4) continue;                                  // 仅自己
+        $vt = space_parse_ids($f['visible_to']);
+        if ($vis === 1) { if (!space_is_friend($pdo, $viewerUid, $ownerUid)) continue; }  // 好友可见
+        if ($vis === 2 && !in_array($viewerUid, $vt, true)) continue;   // 部分好友可见
+        if ($vis === 3 && in_array($viewerUid, $vt, true)) continue;    // 部分好友不可见
+        if ($vis === 5 && !space_me_in_flag($pdo, $ownerUid, $viewerUid, 'pinned')) continue;   // 已置顶的朋友
+        if ($vis === 6 && !space_me_in_flag($pdo, $ownerUid, $viewerUid, 'special')) continue;  // 特别关心朋友
+        return true;   // 该图片属于当前访客可见的动态
+    }
+    return false;
+}
+
 $dataRoot = realpath(__DIR__ . '/../data');
 $kind = '';
 $targetUid = 0;
@@ -283,14 +305,20 @@ elseif ($dataRoot !== false && strpos($path, $dataRoot . '/ticket/') === 0) { $k
 if ($kind === 'res') {
     // Public static resource (data/res/*) — served without login.
 } elseif ($kind === 'user') {
-    if (empty($_SESSION['username'])) _f_deny();
-    $meUid = _f_me_uid(db());
-    if (preg_match('/^bg\./', basename($path))) {
-        // Chat wallpaper: honor the background privacy model.
-        if (!$targetUid || !_f_bg_allowed(db(), $meUid, $targetUid)) _f_deny();
+    if (preg_match('#^space/#', $file)) {
+        // Personal-space feed image: guests can read images on visible feeds.
+        if (!$targetUid || !_f_space_allowed(db(), $targetUid, basename($path))) _f_deny();
+    } elseif (empty($_SESSION['username'])) {
+        _f_deny();
     } else {
-        // Attachment: owner, or a participant of a message referencing it.
-        if ($meUid !== $targetUid && !_f_attachment_allowed(db(), $meUid, basename($path))) _f_deny();
+        $meUid = _f_me_uid(db());
+        if (preg_match('/^bg\./', basename($path))) {
+            // Chat wallpaper: honor the background privacy model.
+            if (!$targetUid || !_f_bg_allowed(db(), $meUid, $targetUid)) _f_deny();
+        } else {
+            // Attachment: owner, or a participant of a message referencing it.
+            if ($meUid !== $targetUid && !_f_attachment_allowed(db(), $meUid, basename($path))) _f_deny();
+        }
     }
 } elseif ($kind === 'sc') {
     if (empty($_SESSION['username'])) _f_deny();
