@@ -523,10 +523,12 @@ function ensure_space_feeds_table(): void {
         liked_by TEXT NULL,
         enabled TINYINT(1) NOT NULL DEFAULT 1,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        edited_at DATETIME NULL DEFAULT NULL,
         PRIMARY KEY (id),
         KEY idx_user (user_id),
         KEY idx_time (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    db_add_column_if_missing('space_feeds', 'edited_at', "DATETIME NULL DEFAULT NULL");
 }
 
 /** 确保朋友圈评论表存在（幂等） */
@@ -739,6 +741,15 @@ function space_is_friend(PDO $pdo, int $a, int $b): bool {
     return (int)$s->fetchColumn() > 0;
 }
 
+/** 查看者 meUid 是否在 fromUid 的 contacts 标记集合里（pinned=已置顶 / special=特别关心） */
+function space_me_in_flag(PDO $pdo, int $fromUid, int $meUid, string $flag): bool {
+    if ($fromUid <= 0 || $meUid <= 0) return false;
+    $flag = $flag === 'pinned' ? 'pinned' : 'special';
+    $s = $pdo->prepare("SELECT 1 FROM contacts WHERE user_from=? AND user_to=? AND $flag=1 LIMIT 1");
+    $s->execute([$fromUid, $meUid]);
+    return (int)$s->fetchColumn() > 0;
+}
+
 /** 相对时间文案 */
 function space_fmt_time(string $dt): string {
     $t = strtotime($dt);
@@ -761,7 +772,7 @@ function space_parse_ids($raw): array {
 
 /** 可见性标签 */
 function space_vis_label(int $vis): string {
-    return [0 => t('sp_vis_label_public', '所有人可见'), 1 => t('sp_vis_label_friend', '好友可见'), 2 => t('sp_vis_label_some', '部分好友可见'), 3 => t('sp_vis_label_not', '部分好友不可见'), 4 => t('sp_vis_label_private', '仅自己可见')][$vis] ?? t('sp_vis_label_public', '所有人可见');
+    return [0 => t('sp_vis_label_public', '所有人可见'), 1 => t('sp_vis_label_friend', '好友可见'), 2 => t('sp_vis_label_some', '部分好友可见'), 3 => t('sp_vis_label_not', '部分好友不可见'), 4 => t('sp_vis_label_private', '仅自己可见'), 5 => t('sp_vis_label_pinned', '已置顶的朋友'), 6 => t('sp_vis_label_special', '特别关心朋友')][$vis] ?? t('sp_vis_label_public', '所有人可见');
 }
 
 /** 内置表情列表（与 api/emoji.php 同一份 data/res/emoji/default_config.json） */

@@ -129,6 +129,8 @@ function sp_ic(string $n): string {
         'down'    => '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
         'close'   => '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
         'right'   => '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>',
+        'edit'    => '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>',
+        'heart'   => '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 21s-7.5-4.7-10-9.2C.6 9 2 5.6 5.2 5c1.8-.3 3.6.5 4.8 2L12 9l2-2c1.2-1.5 3-2.3 4.8-2C22 5.6 23.4 9 22 11.8 19.5 16.3 12 21 12 21z"/></svg>',
     ];
     return $map[$n] ?? '';
 }
@@ -158,7 +160,7 @@ if ($uid > 0) {
 }
 $feedRows = [];
 $cmtCount = [];if ($uid) {
-    $fstmt = $pdo->prepare("SELECT id, content, images, visibility, visible_to, likes, liked_by, created_at FROM space_feeds WHERE user_id=? AND enabled=1 ORDER BY id DESC LIMIT 200");
+    $fstmt = $pdo->prepare("SELECT id, content, images, visibility, visible_to, likes, liked_by, created_at, edited_at FROM space_feeds WHERE user_id=? AND enabled=1 ORDER BY id DESC LIMIT 200");
     $fstmt->execute([$uid]);
     $cc = $pdo->query("SELECT feed_id, COUNT(*) c FROM space_comments WHERE enabled=1 GROUP BY feed_id");
     foreach ($cc->fetchAll() as $row) $cmtCount[(int)$row['feed_id']] = (int)$row['c'];
@@ -170,6 +172,8 @@ $cmtCount = [];if ($uid) {
             $vt = space_parse_ids($f['visible_to']);
             if ($vis === 2 && !in_array($meUid, $vt, true)) continue;  // 部分好友可见
             if ($vis === 3 && in_array($meUid, $vt, true)) continue;   // 部分好友不可见
+            if ($vis === 5 && !space_me_in_flag($pdo, $uid, $meUid, 'pinned')) continue;   // 已置顶的朋友
+            if ($vis === 6 && !space_me_in_flag($pdo, $uid, $meUid, 'special')) continue;  // 特别关心朋友
         }
         $likedBy = space_parse_ids($f['liked_by']);
         $feedRows[] = [
@@ -179,6 +183,7 @@ $cmtCount = [];if ($uid) {
             'likes' => (int)$f['likes'],
             'liked' => in_array($meUid, $likedBy, true),
             'time' => space_fmt_time($f['created_at']),
+            'edited' => !empty($f['edited_at']) ? space_fmt_time($f['edited_at']) : null,
             'vis' => $vis,
             'cmt' => $cmtCount[(int)$f['id']] ?? 0,
         ];
@@ -414,8 +419,8 @@ $genderLabel = $gender === 1 ? t('sp_male', '男') : ($gender === 2 ? t('sp_fema
                 <div class="f-single-head">
                   <?php if ($avatarUrl):?><img class="user-avatar" src="<?php echo htmlspecialchars($avatarUrl);?>" alt=""><?php else:?><span class="user-avatar av-empty"><?php echo htmlspecialchars($ch);?></span><?php endif;?>
                   <div class="user-info">
-                    <div class="f-nick"><?php echo htmlspecialchars($displayName);?></div>
-                    <div class="info-detail"><?php echo htmlspecialchars($f['time']);?><?php if ($isSelf):?> · <span class="f-vis"><?php echo space_vis_label((int)$f['vis']);?></span><?php endif;?></div>
+                    <div class="f-nick"><?php echo htmlspecialchars($displayName);?><?php if (!empty($f['edited'])):?> <span class="sp-edited-tag"><?php echo t('sp_edited', '已编辑');?></span><?php endif;?></div>
+                    <div class="info-detail"><?php echo t('sp_pub_at', '发布于 %s', htmlspecialchars($f['time']));?><?php if (!empty($f['edited'])):?> · <?php echo t('sp_edited_at', '编辑于 %s', htmlspecialchars($f['edited']));?><?php endif;?><?php if ($isSelf):?> · <span class="f-vis"><?php echo space_vis_label((int)$f['vis']);?></span><?php endif;?></div>
                   </div>
                 </div>
                 <div class="f-single-content">
@@ -433,6 +438,7 @@ $genderLabel = $gender === 1 ? t('sp_male', '男') : ($gender === 2 ? t('sp_fema
                     <li class="op-like<?php echo $f['liked'] ? ' liked' : '';?>" data-id="<?php echo (int)$f['id'];?>"><span class="op-ic"><?php echo sp_ic('like');?></span> <?php echo t('sp_like', '赞');?><?php if ((int)$f['likes'] > 0):?> (<?php echo (int)$f['likes'];?>)<?php endif;?></li>
                     <li class="op-comment" data-id="<?php echo (int)$f['id'];?>"><span class="op-ic"><?php echo sp_ic('comment');?></span> <?php echo t('sp_comment', '评论');?><?php if ((int)$f['cmt'] > 0):?> <span class="cmt-c">(<?php echo (int)$f['cmt'];?>)</span><?php endif;?></li>
                     <?php if ($isSelf): ?>
+                    <li class="op-edit" data-id="<?php echo (int)$f['id'];?>"><span class="op-ic"><?php echo sp_ic('edit');?></span> <?php echo t('sp_edit', '编辑');?></li>
                     <li class="op-del" data-id="<?php echo (int)$f['id'];?>"><span class="op-ic"><?php echo sp_ic('top');?></span> <?php echo t('sp_delete', '删除');?></li>
                     <?php endif; ?>
                   </ul>
@@ -640,6 +646,25 @@ $genderLabel = $gender === 1 ? t('sp_male', '男') : ($gender === 2 ? t('sp_fema
   <div class="sp-vis-item" data-v="2"><span class="v-ic"><?php echo sp_ic('me');?></span><?php echo t('sp_vis_some', '部分好友可见');?></div>
   <div class="sp-vis-item" data-v="3"><span class="v-ic"><?php echo sp_ic('me');?></span><?php echo t('sp_vis_not', '部分好友不可见');?></div>
   <div class="sp-vis-item" data-v="4"><span class="v-ic"><?php echo sp_ic('lock');?></span><?php echo t('sp_vis_private', '仅自己可见');?></div>
+  <div class="sp-vis-item" data-v="5"><span class="v-ic"><?php echo sp_ic('star');?></span><?php echo t('sp_vis_pinned', '已置顶的朋友');?></div>
+  <div class="sp-vis-item" data-v="6"><span class="v-ic"><?php echo sp_ic('heart');?></span><?php echo t('sp_vis_special', '特别关心朋友');?></div>
+</div>
+
+<!-- 编辑动态弹窗 -->
+<div class="sp-edit-mask" id="spEditMask" style="display:none">
+  <div class="sp-edit-box">
+    <div class="sp-edit-head"><?php echo t('sp_edit_title', '编辑动态');?></div>
+    <textarea id="spEditContent" placeholder="<?php echo t('sp_post_ph', '说点什么吧...');?>" maxlength="5000"></textarea>
+    <div class="sp-edit-vis" onclick="spEditVisToggle(event)">
+      <span class="vis-ic"><?php echo sp_ic('globe');?></span>
+      <span class="vis-label" id="spEditVisLabel"><?php echo t('sp_vis_public', '所有人可见');?></span>
+      <span class="vis-arrow"><?php echo sp_ic('down');?></span>
+    </div>
+    <div class="sp-edit-actions">
+      <button class="btn-post" onclick="spEditSave()"><?php echo t('sp_save', '保存');?></button>
+      <button class="btn-post btn-ghost" onclick="spEditCancel()"><?php echo t('sp_cancel', '取消');?></button>
+    </div>
+  </div>
 </div>
 
 <!-- 图片大图查看 -->
@@ -690,6 +715,23 @@ $spJsT = [
     'sp_emoji_custom' => t('sp_emoji_custom', '自定义表情'),
     'sp_emoji_upload' => t('sp_emoji_upload', '上传'),
     'sp_no_custom_emoji' => t('sp_no_custom_emoji', '暂无自定义表情'),
+    'sp_edit' => t('sp_edit', '编辑'),
+    'sp_edited' => t('sp_edited', '已编辑'),
+    'sp_save' => t('sp_save', '保存'),
+    'sp_cancel' => t('sp_cancel', '取消'),
+    'sp_edit_title' => t('sp_edit_title', '编辑动态'),
+    'sp_pub_at' => t('sp_pub_at', '发布于 %s'),
+    'sp_edited_at' => t('sp_edited_at', '编辑于 %s'),
+    'sp_edit_fail' => t('sp_edit_fail', '保存失败'),
+    'sp_vis_public' => t('sp_vis_public', '所有人可见'),
+    'sp_vis_friend' => t('sp_vis_friend', '好友可见'),
+    'sp_vis_some' => t('sp_vis_some', '部分好友可见'),
+    'sp_vis_not' => t('sp_vis_not', '部分好友不可见'),
+    'sp_vis_private' => t('sp_vis_private', '仅自己可见'),
+    'sp_vis_pinned' => t('sp_vis_pinned', '已置顶的朋友'),
+    'sp_vis_special' => t('sp_vis_special', '特别关心朋友'),
+    'sp_photo_del' => t('sp_photo_del', '删除这张照片？'),
+    'sp_photo_del_fail' => t('sp_photo_del_fail', '删除失败'),
     'sp_board_fail' => t('sp_board_fail', '留言失败'),
     'sp_img_max9' => t('sp_img_max9', '最多上传 9 张图片'),
     'sp_img_size' => t('sp_img_size', '单张图片最大 10MB'),
@@ -844,8 +886,8 @@ function renderStreamFeeds(feeds) {
         + '<div class="f-single-head">'
         + (f.avatar ? '<img class="user-avatar" src="' + f.avatar + '" alt="">' : '<span class="user-avatar av-empty">' + esc(ch) + '</span>')
         + '<div class="user-info">'
-        + '<div class="f-nick">' + esc(f.author) + (f.special ? ' <span class="sp-special-tag">\u2665 ' + spT('sp_care', '特别关心') + '</span>' : '') + '</div>'
-        + '<div class="info-detail">' + esc(f.time) + '</div>'
+        + '<div class="f-nick">' + esc(f.author) + (f.special ? ' <span class="sp-special-tag">\u2665 ' + spT('sp_care', '特别关心') + '</span>' : '') + (f.edited ? ' <span class="sp-edited-tag">' + spT('sp_edited', '已编辑') + '</span>' : '') + '</div>'
+        + '<div class="info-detail">' + spT('sp_pub_at', '发布于 %s', esc(f.time)) + (f.edited ? ' · ' + spT('sp_edited_at', '编辑于 %s', esc(f.edited)) : '') + (isMine ? ' · <span class="f-vis">' + esc(SP_VIS_LABELS[f.vis] || '') + '</span>' : '') + '</div>'
         + '</div></div>'
         + '<div class="f-single-content"><div class="f-ct-text">' + spRenderContent(f.content) + '</div>'
         + (f.images && f.images.length ? '<div class="f-ct-txtimg"><div class="img-box' + (f.images.length === 1 ? ' one' : '') + '" data-lb="' + f.id + '">' + f.images.map(function (im, i) { return '<a class="img-item" onclick="spOpenLightbox(' + f.id + ',' + i + ')"><img src="' + im + '" alt=""></a>'; }).join('') + '</div></div>' : '')
@@ -853,7 +895,7 @@ function renderStreamFeeds(feeds) {
         + '<div class="f-single-foot"><ul class="op-list">'
         + '<li class="op-like' + (f.liked ? ' liked' : '') + '" data-id="' + f.id + '">' + SP_ICONS.like + ' ' + spT('sp_like', '赞') + (f.likes ? ' (' + f.likes + ')' : '') + '</li>'
         + '<li class="op-comment" data-id="' + f.id + '">' + SP_ICONS.comment + ' ' + spT('sp_comment', '评论') + '</li>'
-        + (isMine ? '<li class="op-del" data-id="' + f.id + '">' + SP_ICONS.top + ' ' + spT('sp_delete', '删除') + '</li>' : '')
+        + (isMine ? '<li class="op-edit" data-id="' + f.id + '">' + SP_ICONS.edit + ' ' + spT('sp_edit', '编辑') + '</li><li class="op-del" data-id="' + f.id + '">' + SP_ICONS.top + ' ' + spT('sp_delete', '删除') + '</li>' : '')
         + '</ul></div>'
         + '<div class="f-comments" data-feed="' + f.id + '" style="display:none"><div class="f-comments-list"></div><div class="f-cmt-input"><input class="f-cmt-text" placeholder="' + spT('sp_cmt_ph', '评论一下...') + '" maxlength="500"><span class="sp-cmt-emoji" title="' + spT('sp_pick_emoji', '表情') + '" onclick="spToggleEmojiPicker(event, this.previousElementSibling)">' + SP_ICONS.smile + '</span><button class="btn-post btn-sm" onclick="spCmtSend(this)">' + spT('sp_post', '发表') + '</button></div></div>'
         + '</li>';
@@ -867,7 +909,9 @@ toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior
 var SP_SPACE = <?php echo json_encode(['self' => $isSelf, 'uid' => $uid, 'meUid' => $meUid, 'friend' => $isFriendView ? 1 : 0]);?>;
 var SP_POST_VIS = 0, SP_POST_FRIENDS = [], SP_FRIENDS = [], SP_POST_IMAGES = [];
 var SP_FM_MODE = 'vis', SP_MENTIONS = [];
-var SP_ICONS = { say: '<?php echo sp_ic('say');?>', comment: '<?php echo sp_ic('comment');?>', like: '<?php echo sp_ic('like');?>', top: '<?php echo sp_ic('top');?>', smile: '<?php echo sp_ic('smile');?>' };
+var SP_ICONS = { say: '<?php echo sp_ic('say');?>', comment: '<?php echo sp_ic('comment');?>', like: '<?php echo sp_ic('like');?>', top: '<?php echo sp_ic('top');?>', smile: '<?php echo sp_ic('smile');?>', edit: '<?php echo sp_ic('edit');?>' };
+var SP_VIS_LABELS = { 0: spT('sp_vis_public', '所有人可见'), 1: spT('sp_vis_friend', '好友可见'), 2: spT('sp_vis_some', '部分好友可见'), 3: spT('sp_vis_not', '部分好友不可见'), 4: spT('sp_vis_private', '仅自己可见'), 5: spT('sp_vis_pinned', '已置顶的朋友'), 6: spT('sp_vis_special', '特别关心朋友') };
+var SP_VIS_MODE = 'post', SP_EDIT_ID = 0, SP_EDIT_VIS = 0, SP_EDIT_VISIBLE_TO = [];
 var SP_X_IC = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 
 function spAlert(what) { alert('「' + what + '」功能即将上线。'); }
@@ -974,6 +1018,7 @@ initSpecialBtn();
 /* ===== 可见范围下拉 ===== */
 function spVisToggle(e) {
   e && e.stopPropagation();
+  SP_VIS_MODE = 'post';
   var m = document.getElementById('spVisMenu');
   if (!m) return;
   if (m.style.display === 'block') { m.style.display = 'none'; return; }
@@ -982,6 +1027,18 @@ function spVisToggle(e) {
   m.style.left = Math.min(window.innerWidth - 170, r.left) + 'px';
   m.style.top = (r.bottom + 6) + 'px';
   [].forEach.call(m.children, function (it) { it.classList.toggle('cur', +(it.getAttribute('data-v')) === SP_POST_VIS); });
+}
+function spEditVisToggle(e) {
+  e && e.stopPropagation();
+  SP_VIS_MODE = 'edit';
+  var m = document.getElementById('spVisMenu');
+  if (!m) return;
+  if (m.style.display === 'block') { m.style.display = 'none'; return; }
+  m.style.display = 'block';
+  var r = document.getElementById('spEditVisLabel').getBoundingClientRect();
+  m.style.left = Math.min(window.innerWidth - 170, r.left) + 'px';
+  m.style.top = (r.bottom + 6) + 'px';
+  [].forEach.call(m.children, function (it) { it.classList.toggle('cur', +(it.getAttribute('data-v')) === SP_EDIT_VIS); });
 }
 document.addEventListener('click', function (e) {
   var m = document.getElementById('spVisMenu'); if (m) m.style.display = 'none';
@@ -992,7 +1049,16 @@ document.getElementById('spVisMenu').addEventListener('click', function (e) {
   var it = e.target.closest('.sp-vis-item');
   if (!it) return;
   e.stopPropagation(); // 阻止冒泡到 document 立即关掉刚打开的好友面板
-  SP_POST_VIS = +it.getAttribute('data-v');
+  var v = +it.getAttribute('data-v');
+  if (SP_VIS_MODE === 'edit') {
+    SP_EDIT_VIS = v;
+    SP_EDIT_VISIBLE_TO = [];
+    this.style.display = 'none';
+    var lbl2 = document.getElementById('spEditVisLabel');
+    if (lbl2) lbl2.textContent = SP_VIS_LABELS[v] || it.textContent.replace(/\s+/g, ' ').trim();
+    return;
+  }
+  SP_POST_VIS = v;
   this.style.display = 'none';
   SP_FM_MODE = 'vis';
   spFmClose(); // 先收起好友面板
@@ -1001,6 +1067,52 @@ document.getElementById('spVisMenu').addEventListener('click', function (e) {
   var lbl = document.getElementById('spVisLabel');
   if (lbl) lbl.textContent = it.textContent.replace(/\s+/g, ' ').trim();
 });
+/* ===== 编辑动态 ===== */
+function spEditOpen(id) {
+  SP_EDIT_ID = id;
+  SP_EDIT_VIS = 0;
+  SP_EDIT_VISIBLE_TO = [];
+  var m = document.getElementById('spEditMask');
+  var ta = document.getElementById('spEditContent');
+  if (!m || !ta) return;
+  ta.value = '';
+  m.style.display = 'flex';
+  var lbl = document.getElementById('spEditVisLabel');
+  if (lbl) lbl.textContent = SP_VIS_LABELS[0];
+  fetch('../../api/space.php?action=list&uid=' + (SP_SPACE && SP_SPACE.meUid ? SP_SPACE.meUid : 0), { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.success) return;
+      var f = null;
+      (d.feeds || []).forEach(function (x) { if (x.id === id) f = x; });
+      if (!f) return;
+      ta.value = f.content || '';
+      SP_EDIT_VIS = (f.visibility != null) ? f.visibility : 0;
+      SP_EDIT_VISIBLE_TO = Array.isArray(f.visible_to) ? f.visible_to : [];
+      if (lbl) lbl.textContent = SP_VIS_LABELS[SP_EDIT_VIS] || '';
+    })
+    .catch(function () {});
+}
+function spEditSave() {
+  var ta = document.getElementById('spEditContent');
+  var content = (ta.value || '').trim();
+  var f = new URLSearchParams();
+  f.append('action', 'update');
+  f.append('id', SP_EDIT_ID);
+  f.append('content', content);
+  f.append('visibility', SP_EDIT_VIS);
+  if (SP_EDIT_VIS === 2 || SP_EDIT_VIS === 3) {
+    if (SP_EDIT_VISIBLE_TO.length) f.append('visible_to', JSON.stringify(SP_EDIT_VISIBLE_TO));
+  }
+  fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d && d.success) { document.getElementById('spEditMask').style.display = 'none'; location.reload(); }
+      else alert(spT('sp_edit_fail', '保存失败'));
+    })
+    .catch(function () { alert(spT('sp_net_err', '网络错误')); });
+}
+function spEditCancel() { var m = document.getElementById('spEditMask'); if (m) m.style.display = 'none'; }
 
 /* ===== 好友选择弹窗 ===== */
 var SP_FM_GROUP = 'all', SP_FM_SELECTED = [];
@@ -1198,6 +1310,8 @@ function spPost() {
   feed.addEventListener('click', function (e) {
     var cmt = e.target.closest('.op-comment');
     if (cmt) { spCmtToggle(cmt.closest('.f-single')); return; }
+    var ed = e.target.closest('.op-edit');
+    if (ed) { spEditOpen(+(ed.getAttribute('data-id'))); return; }
     var like = e.target.closest('.op-like');
     if (like) {
       var id = +(like.getAttribute('data-id'));
@@ -1801,13 +1915,21 @@ function spAlbumView(id) {
       else {
         h += '<div class="sp-album-grid">';
         d.photos.forEach(function (p) {
-          h += '<div class="sp-album-card sp-album-photo" onclick="spOpenLightboxUrl(\'' + p.media.replace(/'/g, "\\'") + '\')"><div class="sp-album-cover"><img src="' + p.media + '" alt=""></div></div>';
+          h += '<div class="sp-album-card sp-album-photo" onclick="spOpenLightboxUrl(\'' + p.media.replace(/'/g, "\\'") + '\')"><div class="sp-album-cover"><img src="' + p.media + '" alt=""></div>' + (p.mine ? '<span class="sp-photo-del" title="' + spT('sp_delete', '删除') + '" onclick="event.stopPropagation();spPhotoDel(' + p.id + ')">&times;</span>' : '') + '</div>';
         });
         h += '</div>';
       }
       wrap.innerHTML = h;
     })
     .catch(function () { wrap.innerHTML = '<div class="sp-album-empty">' + spT('sp_load_fail', '加载失败') + '</div>'; });
+}
+function spPhotoDel(id) {
+  if (!window.confirm(spT('sp_photo_del', '删除这张照片？'))) return;
+  var f = new URLSearchParams(); f.append('action', 'delete_photo'); f.append('id', id);
+  fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { if (d && d.success) { if (SP_ALBUM_VIEW && SP_ALBUM_VIEW.id) spAlbumView(SP_ALBUM_VIEW.id); } else alert(spT('sp_photo_del_fail', '删除失败')); })
+    .catch(function () { alert(spT('sp_net_err', '网络错误')); });
 }
 function spAlbumDel(id) {
   if (!window.confirm(spT('sp_album_del', '删除这个相册？'))) return;

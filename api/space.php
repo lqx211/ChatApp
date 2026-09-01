@@ -25,7 +25,7 @@ switch ($action) {
     case 'post':
         $content = trim((string)($_POST['content'] ?? ''));
         $visibility = (int)($_POST['visibility'] ?? 0);
-        if ($visibility < 0 || $visibility > 4) $visibility = 0;
+        if ($visibility < 0 || $visibility > 6) $visibility = 0;
         $visible_to = null;
         if ($visibility === 2 || $visibility === 3) {
             $ids = space_parse_ids($_POST['visible_to'] ?? '');
@@ -76,6 +76,28 @@ switch ($action) {
             }
         }
         echo json_encode(['success' => true, 'id' => $feedId]);
+        break;
+
+    /* ============ 编辑动态（内容 + 可见权限） ============ */
+    case 'update':
+        $id = (int)($_POST['id'] ?? 0);
+        $content = trim((string)($_POST['content'] ?? ''));
+        $visibility = (int)($_POST['visibility'] ?? 0);
+        if ($visibility < 0 || $visibility > 6) $visibility = 0;
+        $visible_to = null;
+        if ($visibility === 2 || $visibility === 3) {
+            $ids = space_parse_ids($_POST['visible_to'] ?? '');
+            if (!$ids) $visibility = 1;
+            else $visible_to = json_encode($ids);
+        }
+        if (!$id) { echo json_encode(['success' => false, 'error' => 'id']); break; }
+        // 仅本人可编辑自己的动态
+        $own = $pdo->prepare("SELECT id FROM space_feeds WHERE id=? AND user_id=? AND enabled=1");
+        $own->execute([$id, $myUid]);
+        if (!$own->fetchColumn()) { echo json_encode(['success' => false, 'error' => 'denied']); break; }
+        $up = $pdo->prepare("UPDATE space_feeds SET content=?, visibility=?, visible_to=?, edited_at=NOW() WHERE id=? AND user_id=?");
+        $up->execute([mb_substr($content, 0, 5000), $visibility, $visible_to, $id, $myUid]);
+        echo json_encode(['success' => true]);
         break;
 
     /* ============ 相册 ============ */
@@ -156,11 +178,16 @@ switch ($action) {
         $album = $stmt->fetch();
         if (!$album) { echo json_encode(['success' => false, 'error' => 'no_album']); break; }
         if (!space_album_allowed($pdo, $myUid, $album)) { echo json_encode(['success' => false, 'error' => 'denied']); break; }
-        $ps = $pdo->prepare("SELECT id, media, created_at FROM space_album_photos WHERE album_id=? AND enabled=1 ORDER BY id DESC");
+        $ps = $pdo->prepare("SELECT id, user_id, media, created_at FROM space_album_photos WHERE album_id=? AND enabled=1 ORDER BY id DESC");
         $ps->execute([$aid]);
         $photos = [];
         foreach ($ps->fetchAll() as $p) {
-            $photos[] = ['id' => (int)$p['id'], 'media' => (string)$p['media'], 'time' => space_fmt_time($p['created_at'])];
+            $photos[] = [
+                'id' => (int)$p['id'],
+                'media' => (string)$p['media'],
+                'time' => space_fmt_time($p['created_at']),
+                'mine' => ((int)$p['user_id'] === $myUid) ? 1 : 0,
+            ];
         }
         echo json_encode(['success' => true,
             'album' => [
@@ -170,6 +197,18 @@ switch ($action) {
                 'user_id' => (int)$album['user_id'],
             ],
             'photos' => $photos]);
+        break;
+
+    /* ============ 删除相册照片（仅本人） ============ */
+    case 'delete_photo':
+        $pid = (int)($_POST['id'] ?? 0);
+        if (!$pid) { echo json_encode(['success' => false, 'error' => 'id']); break; }
+        $st = $pdo->prepare("SELECT id, album_id FROM space_album_photos WHERE id=? AND user_id=? AND enabled=1");
+        $st->execute([$pid, $myUid]);
+        $row = $st->fetch();
+        if (!$row) { echo json_encode(['success' => false, 'error' => 'denied']); break; }
+        $pdo->prepare("UPDATE space_album_photos SET enabled=0 WHERE id=? AND user_id=?")->execute([$pid, $myUid]);
+        echo json_encode(['success' => true]);
         break;
 
     /* ============ 访客 ============ */
@@ -243,7 +282,7 @@ switch ($action) {
         if (!$targetUid) $targetUid = $myUid;
         $isSelf = ($targetUid === $myUid);
         $isFriend = $isSelf || space_is_friend($pdo, $myUid, $targetUid);
-        $stmt = $pdo->prepare("SELECT id, content, images, visibility, visible_to, likes, liked_by, created_at FROM space_feeds WHERE user_id=? AND enabled=1 ORDER BY id DESC LIMIT 200");
+        $stmt = $pdo->prepare("SELECT id, content, images, visibility, visible_to, likes, liked_by, created_at, edited_at FROM space_feeds WHERE user_id=? AND enabled=1 ORDER BY id DESC LIMIT 200");
         $stmt->execute([$targetUid]);
         $feeds = [];
         foreach ($stmt->fetchAll() as $f) {
@@ -253,6 +292,8 @@ switch ($action) {
                 if ($vis === 1 && !$isFriend) continue;                            // 好友
                 if ($vis === 2) { $vt = space_parse_ids($f['visible_to']); if (!in_array($myUid, $vt, true)) continue; } // 部分好友可见
                 if ($vis === 3) { $vt = space_parse_ids($f['visible_to']); if (in_array($myUid, $vt, true)) continue; } // 部分好友不可见
+                if ($vis === 5 && !space_me_in_flag($pdo, $targetUid, $myUid, 'pinned')) continue;   // 已置顶的朋友
+                if ($vis === 6 && !space_me_in_flag($pdo, $targetUid, $myUid, 'special')) continue;  // 特别关心朋友
             }
             $likedBy = space_parse_ids($f['liked_by']);
             $feeds[] = [
@@ -262,7 +303,9 @@ switch ($action) {
                 'likes' => (int)$f['likes'],
                 'liked' => in_array($myUid, $likedBy, true),
                 'time' => space_fmt_time($f['created_at']),
+                'edited' => !empty($f['edited_at']) ? space_fmt_time($f['edited_at']) : null,
                 'visibility' => $isSelf ? $vis : null,
+                'visible_to' => ($isSelf && ($vis === 2 || $vis === 3)) ? space_parse_ids($f['visible_to']) : [],
             ];
         }
         echo json_encode(['success' => true, 'feeds' => $feeds]);
@@ -407,7 +450,7 @@ switch ($action) {
                     'avatar' => chatapp_avatar_url($au['avatar'] ?? '', $au['username'], $auid),
                 ];
             }
-            $fSt = $pdo->prepare("SELECT id, user_id, content, images, visibility, visible_to, likes, liked_by, created_at "
+            $fSt = $pdo->prepare("SELECT id, user_id, content, images, visibility, visible_to, likes, liked_by, created_at, edited_at "
                 . "FROM space_feeds WHERE user_id IN ($in) AND enabled=1 ORDER BY id DESC LIMIT 300");
             $fSt->execute();
             foreach ($fSt->fetchAll() as $f) {
@@ -418,6 +461,8 @@ switch ($action) {
                 if ($vis === 1 && $auid !== $myUid && !$isFriendTarget) continue;      // 仅好友可见
                 if ($vis === 2) { $vt = space_parse_ids($f['visible_to']); if (!in_array($myUid, $vt, true)) continue; }  // 部分好友可见
                 if ($vis === 3) { $vt = space_parse_ids($f['visible_to']); if (in_array($myUid, $vt, true)) continue; }  // 部分好友不可见
+                if ($vis === 5 && $auid !== $myUid && !space_me_in_flag($pdo, $auid, $myUid, 'pinned')) continue;  // 已置顶的朋友
+                if ($vis === 6 && $auid !== $myUid && !space_me_in_flag($pdo, $auid, $myUid, 'special')) continue;  // 特别关心朋友
                 $likedBy = space_parse_ids($f['liked_by']);
                 $feeds[] = [
                     'id' => (int)$f['id'],
@@ -432,6 +477,7 @@ switch ($action) {
                     'liked' => in_array($myUid, $likedBy, true),
                     'vis' => $vis,
                     'time' => space_fmt_time($f['created_at']),
+                    'edited' => !empty($f['edited_at']) ? space_fmt_time($f['edited_at']) : null,
                     'ts' => strtotime($f['created_at']),
                 ];
             }

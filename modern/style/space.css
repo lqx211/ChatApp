@@ -375,6 +375,7 @@ body.embed .layout-background{min-height:0}
 .sp-mention-back:hover{color:var(--q-blue)}
 .sp-mention-item{transition:box-shadow .2s}
 .sp-special-tag{display:inline-block;margin-left:6px;font-size:11px;color:#e8a05a;border:1px solid #5c4a2a;background:#2e281e;padding:0 6px;font-weight:400;vertical-align:middle;border-radius:0}
+.sp-edited-tag{display:inline-block;margin-left:6px;font-size:11px;color:#9ad0a2;border:1px solid #2e5c3a;background:#1e2e24;padding:0 6px;font-weight:400;vertical-align:middle;border-radius:0}
 .sp-feed-flash{animation:spFlash 1.2s ease-out}
 @keyframes spFlash{0%{box-shadow:0 0 0 2px var(--q-blue)}100%{box-shadow:0 0 0 0 transparent}}
 
@@ -534,6 +535,21 @@ body.embed .layout-background{min-height:0}
 .sp-album-back{cursor:pointer;color:#8ab8ff;font-size:13px;padding:4px 10px;border:1px solid rgba(138,184,255,.4);border-radius:6px}
 .sp-album-back:hover{background:rgba(138,184,255,.1)}
 .sp-album-photo .sp-album-cover{aspect-ratio:1/1}
+.sp-photo-del{position:absolute;top:6px;right:6px;width:22px;height:22px;line-height:20px;text-align:center;border-radius:0;background:rgba(0,0,0,.55);color:#fff;font-size:12px;cursor:pointer;z-index:2}
+.sp-photo-del:hover{background:#d9534f}
+
+/* 编辑动态弹窗 */
+.sp-edit-mask{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
+.sp-edit-box{width:520px;max-width:100%;max-height:88vh;overflow:auto;background:#20242c;border:1px solid var(--q-border);border-radius:0;padding:18px}
+.sp-edit-head{font-size:16px;color:#e8eef5;font-weight:600;margin-bottom:14px}
+.sp-edit-box textarea{width:100%;box-sizing:border-box;min-height:110px;background:#1a1e26;border:1px solid #3a4150;color:#e0e0e0;font-size:14px;padding:10px 12px;resize:vertical;outline:none;line-height:1.6;border-radius:0;font-family:inherit}
+.sp-edit-box textarea:focus{border-color:#5b6b84}
+.sp-edit-vis{display:inline-flex;align-items:center;gap:6px;margin-top:12px;padding:6px 10px;border:1px solid #3a4150;background:#1a1e26;color:#ccc;font-size:13px;cursor:pointer;border-radius:0}
+.sp-edit-vis:hover{border-color:#5b6b84}
+.sp-edit-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
+.sp-edit-actions .btn-post{border-radius:0}
+.sp-edit-actions .btn-ghost{background:transparent;border:1px solid #3a4150;color:#bbb}
+.sp-edit-actions .btn-ghost:hover{background:#2a2f3a;border-color:#5b6b84}
 
 /* 新建相册弹窗 */
 .sp-album-mask{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
