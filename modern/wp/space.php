@@ -368,6 +368,11 @@ $genderLabel = $gender === 1 ? t('sp_male', '男') : ($gender === 2 ? t('sp_fema
                   <button class="btn-post" id="spPostBtn" onclick="spPost()"><?php echo t('sp_post', '发表');?></button>
                 </div>
               </div>
+              <!-- 编辑状态条：点「编辑」后复用发表框，按发表即覆盖 -->
+              <div class="sp-editing-bar" id="spEditingBar" style="display:none">
+                <span class="sp-editing-label" id="spEditingLabel"></span>
+                <a class="sp-editing-x" onclick="spEditCancel()"><?php echo t('sp_cancel_edit', '取消编辑');?></a>
+              </div>
               <!-- 艾特好友条：显示已 @ 的好友 (名字) -->
               <div class="sp-mention-bar" id="spMentionBar" style="display:none"></div>
               <!-- 图片预览 + 文件选择 -->
@@ -650,23 +655,6 @@ $genderLabel = $gender === 1 ? t('sp_male', '男') : ($gender === 2 ? t('sp_fema
   <div class="sp-vis-item" data-v="6"><span class="v-ic"><?php echo sp_ic('heart');?></span><?php echo t('sp_vis_special', '特别关心朋友');?></div>
 </div>
 
-<!-- 编辑动态弹窗 -->
-<div class="sp-edit-mask" id="spEditMask" style="display:none">
-  <div class="sp-edit-box">
-    <div class="sp-edit-head"><?php echo t('sp_edit_title', '编辑动态');?></div>
-    <textarea id="spEditContent" placeholder="<?php echo t('sp_post_ph', '说点什么吧...');?>" maxlength="5000"></textarea>
-    <div class="sp-edit-vis" onclick="spEditVisToggle(event)">
-      <span class="vis-ic"><?php echo sp_ic('globe');?></span>
-      <span class="vis-label" id="spEditVisLabel"><?php echo t('sp_vis_public', '所有人可见');?></span>
-      <span class="vis-arrow"><?php echo sp_ic('down');?></span>
-    </div>
-    <div class="sp-edit-actions">
-      <button class="btn-post" onclick="spEditSave()"><?php echo t('sp_save', '保存');?></button>
-      <button class="btn-post btn-ghost" onclick="spEditCancel()"><?php echo t('sp_cancel', '取消');?></button>
-    </div>
-  </div>
-</div>
-
 <!-- 图片大图查看 -->
 <div class="sp-lightbox" id="spLightbox" style="display:none" onclick="if(event.target===this)spLbClose()">
   <div id="spLbArrows" style="display:none">
@@ -716,6 +704,8 @@ $spJsT = [
     'sp_emoji_upload' => t('sp_emoji_upload', '上传'),
     'sp_no_custom_emoji' => t('sp_no_custom_emoji', '暂无自定义表情'),
     'sp_edit' => t('sp_edit', '编辑'),
+    'sp_editing' => t('sp_editing', '正在编辑动态 #%s'),
+    'sp_cancel_edit' => t('sp_cancel_edit', '取消编辑'),
     'sp_edited' => t('sp_edited', '已编辑'),
     'sp_save' => t('sp_save', '保存'),
     'sp_cancel' => t('sp_cancel', '取消'),
@@ -911,7 +901,7 @@ var SP_POST_VIS = 0, SP_POST_FRIENDS = [], SP_FRIENDS = [], SP_POST_IMAGES = [];
 var SP_FM_MODE = 'vis', SP_MENTIONS = [];
 var SP_ICONS = { say: '<?php echo sp_ic('say');?>', comment: '<?php echo sp_ic('comment');?>', like: '<?php echo sp_ic('like');?>', top: '<?php echo sp_ic('top');?>', smile: '<?php echo sp_ic('smile');?>', edit: '<?php echo sp_ic('edit');?>' };
 var SP_VIS_LABELS = { 0: spT('sp_vis_public', '所有人可见'), 1: spT('sp_vis_friend', '好友可见'), 2: spT('sp_vis_some', '部分好友可见'), 3: spT('sp_vis_not', '部分好友不可见'), 4: spT('sp_vis_private', '仅自己可见'), 5: spT('sp_vis_pinned', '已置顶的朋友'), 6: spT('sp_vis_special', '特别关心朋友') };
-var SP_VIS_MODE = 'post', SP_EDIT_ID = 0, SP_EDIT_VIS = 0, SP_EDIT_VISIBLE_TO = [];
+var SP_EDITING = 0; // 正在编辑的动态 id（0 = 正常发表）
 var SP_X_IC = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 
 function spAlert(what) { alert('「' + what + '」功能即将上线。'); }
@@ -1018,7 +1008,6 @@ initSpecialBtn();
 /* ===== 可见范围下拉 ===== */
 function spVisToggle(e) {
   e && e.stopPropagation();
-  SP_VIS_MODE = 'post';
   var m = document.getElementById('spVisMenu');
   if (!m) return;
   if (m.style.display === 'block') { m.style.display = 'none'; return; }
@@ -1027,18 +1016,6 @@ function spVisToggle(e) {
   m.style.left = Math.min(window.innerWidth - 170, r.left) + 'px';
   m.style.top = (r.bottom + 6) + 'px';
   [].forEach.call(m.children, function (it) { it.classList.toggle('cur', +(it.getAttribute('data-v')) === SP_POST_VIS); });
-}
-function spEditVisToggle(e) {
-  e && e.stopPropagation();
-  SP_VIS_MODE = 'edit';
-  var m = document.getElementById('spVisMenu');
-  if (!m) return;
-  if (m.style.display === 'block') { m.style.display = 'none'; return; }
-  m.style.display = 'block';
-  var r = document.getElementById('spEditVisLabel').getBoundingClientRect();
-  m.style.left = Math.min(window.innerWidth - 170, r.left) + 'px';
-  m.style.top = (r.bottom + 6) + 'px';
-  [].forEach.call(m.children, function (it) { it.classList.toggle('cur', +(it.getAttribute('data-v')) === SP_EDIT_VIS); });
 }
 document.addEventListener('click', function (e) {
   var m = document.getElementById('spVisMenu'); if (m) m.style.display = 'none';
@@ -1049,16 +1026,7 @@ document.getElementById('spVisMenu').addEventListener('click', function (e) {
   var it = e.target.closest('.sp-vis-item');
   if (!it) return;
   e.stopPropagation(); // 阻止冒泡到 document 立即关掉刚打开的好友面板
-  var v = +it.getAttribute('data-v');
-  if (SP_VIS_MODE === 'edit') {
-    SP_EDIT_VIS = v;
-    SP_EDIT_VISIBLE_TO = [];
-    this.style.display = 'none';
-    var lbl2 = document.getElementById('spEditVisLabel');
-    if (lbl2) lbl2.textContent = SP_VIS_LABELS[v] || it.textContent.replace(/\s+/g, ' ').trim();
-    return;
-  }
-  SP_POST_VIS = v;
+  SP_POST_VIS = +it.getAttribute('data-v');
   this.style.display = 'none';
   SP_FM_MODE = 'vis';
   spFmClose(); // 先收起好友面板
@@ -1067,18 +1035,21 @@ document.getElementById('spVisMenu').addEventListener('click', function (e) {
   var lbl = document.getElementById('spVisLabel');
   if (lbl) lbl.textContent = it.textContent.replace(/\s+/g, ' ').trim();
 });
-/* ===== 编辑动态 ===== */
-function spEditOpen(id) {
-  SP_EDIT_ID = id;
-  SP_EDIT_VIS = 0;
-  SP_EDIT_VISIBLE_TO = [];
-  var m = document.getElementById('spEditMask');
-  var ta = document.getElementById('spEditContent');
-  if (!m || !ta) return;
-  ta.value = '';
-  m.style.display = 'flex';
-  var lbl = document.getElementById('spEditVisLabel');
-  if (lbl) lbl.textContent = SP_VIS_LABELS[0];
+/* ===== 编辑动态：把内容放回发表框（还原未发送状态），按发表即覆盖 ===== */
+function spEditFeed(id) {
+  SP_EDITING = id;
+  var p = document.getElementById('spPoster');
+  if (!p) return;
+  p.innerHTML = '';
+  SP_POST_IMAGES = [];
+  SP_POST_FRIENDS = [];
+  var bar = document.getElementById('spEditingBar');
+  var barLbl = document.getElementById('spEditingLabel');
+  var visL = document.getElementById('spVisLabel');
+  if (bar) bar.style.display = 'flex';
+  if (barLbl) barLbl.textContent = spT('sp_editing', '正在编辑动态 #%s').replace('%s', id);
+  SP_POST_VIS = 0;
+  if (visL) visL.textContent = SP_VIS_LABELS[0];
   fetch('../../api/space.php?action=list&uid=' + (SP_SPACE && SP_SPACE.meUid ? SP_SPACE.meUid : 0), { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (d) {
@@ -1086,33 +1057,31 @@ function spEditOpen(id) {
       var f = null;
       (d.feeds || []).forEach(function (x) { if (x.id === id) f = x; });
       if (!f) return;
-      ta.value = f.content || '';
-      SP_EDIT_VIS = (f.visibility != null) ? f.visibility : 0;
-      SP_EDIT_VISIBLE_TO = Array.isArray(f.visible_to) ? f.visible_to : [];
-      if (lbl) lbl.textContent = SP_VIS_LABELS[SP_EDIT_VIS] || '';
+      p.textContent = f.content || '';
+      SP_POST_VIS = (f.visibility != null) ? f.visibility : 0;
+      SP_POST_FRIENDS = Array.isArray(f.visible_to) ? f.visible_to : [];
+      SP_POST_IMAGES = Array.isArray(f.images) ? f.images : [];
+      if (visL) visL.textContent = SP_VIS_LABELS[SP_POST_VIS] || '';
+      renderPostImgs();
+      p.focus();
+      var box = document.getElementById('spPosterBox');
+      if (box) box.scrollIntoView({ block: 'center', behavior: 'smooth' });
     })
     .catch(function () {});
 }
-function spEditSave() {
-  var ta = document.getElementById('spEditContent');
-  var content = (ta.value || '').trim();
-  var f = new URLSearchParams();
-  f.append('action', 'update');
-  f.append('id', SP_EDIT_ID);
-  f.append('content', content);
-  f.append('visibility', SP_EDIT_VIS);
-  if (SP_EDIT_VIS === 2 || SP_EDIT_VIS === 3) {
-    if (SP_EDIT_VISIBLE_TO.length) f.append('visible_to', JSON.stringify(SP_EDIT_VISIBLE_TO));
-  }
-  fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
-      if (d && d.success) { document.getElementById('spEditMask').style.display = 'none'; location.reload(); }
-      else alert(spT('sp_edit_fail', '保存失败'));
-    })
-    .catch(function () { alert(spT('sp_net_err', '网络错误')); });
+function spEditCancel() {
+  SP_EDITING = 0;
+  var p = document.getElementById('spPoster');
+  if (p) p.innerHTML = '';
+  SP_POST_IMAGES = [];
+  SP_POST_FRIENDS = [];
+  var bar = document.getElementById('spEditingBar');
+  if (bar) bar.style.display = 'none';
+  var visL = document.getElementById('spVisLabel');
+  SP_POST_VIS = 0;
+  if (visL) visL.textContent = SP_VIS_LABELS[0];
+  renderPostImgs();
 }
-function spEditCancel() { var m = document.getElementById('spEditMask'); if (m) m.style.display = 'none'; }
 
 /* ===== 好友选择弹窗 ===== */
 var SP_FM_GROUP = 'all', SP_FM_SELECTED = [];
@@ -1287,18 +1256,27 @@ function spPost() {
   var btn = document.getElementById('spPostBtn');
   if (btn) { btn.disabled = true; btn.textContent = spT('sp_posting', '发表中…'); }
   var f = new URLSearchParams();
-  f.append('action', 'post');
-  f.append('content', t);
-  if (SP_POST_IMAGES.length) f.append('images', JSON.stringify(SP_POST_IMAGES));
-  f.append('sync_featured', (document.getElementById('spSyncFeatured') && document.getElementById('spSyncFeatured').checked) ? '1' : '0');
-  f.append('visibility', SP_POST_VIS);
-  if (SP_POST_VIS === 2 || SP_POST_VIS === 3) f.append('visible_to', JSON.stringify(SP_POST_FRIENDS));
-  if (SP_MENTIONS.length) f.append('mentions', JSON.stringify(SP_MENTIONS.map(function (m) { return m.uid; })));
+  if (SP_EDITING > 0) {
+    f.append('action', 'update');
+    f.append('id', SP_EDITING);
+    f.append('content', t);
+    if (SP_POST_IMAGES.length) f.append('images', JSON.stringify(SP_POST_IMAGES));
+    f.append('visibility', SP_POST_VIS);
+    if (SP_POST_VIS === 2 || SP_POST_VIS === 3) f.append('visible_to', JSON.stringify(SP_POST_FRIENDS));
+  } else {
+    f.append('action', 'post');
+    f.append('content', t);
+    if (SP_POST_IMAGES.length) f.append('images', JSON.stringify(SP_POST_IMAGES));
+    f.append('sync_featured', (document.getElementById('spSyncFeatured') && document.getElementById('spSyncFeatured').checked) ? '1' : '0');
+    f.append('visibility', SP_POST_VIS);
+    if (SP_POST_VIS === 2 || SP_POST_VIS === 3) f.append('visible_to', JSON.stringify(SP_POST_FRIENDS));
+    if (SP_MENTIONS.length) f.append('mentions', JSON.stringify(SP_MENTIONS.map(function (m) { return m.uid; })));
+  }
   fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
     .then(function (r) { return r.json(); })
     .then(function (d) {
-      if (d && d.success) { location.reload(); }
-      else { if (btn) { btn.disabled = false; btn.textContent = spT('sp_post', '发表'); } alert(spT('sp_post_fail', '发表失败')); }
+      if (d && d.success) { SP_EDITING = 0; location.reload(); }
+      else { if (btn) { btn.disabled = false; btn.textContent = spT('sp_post', '发表'); } alert(SP_EDITING > 0 ? spT('sp_edit_fail', '保存失败') : spT('sp_post_fail', '发表失败')); }
     })
     .catch(function () { if (btn) { btn.disabled = false; btn.textContent = spT('sp_post', '发表'); } alert(spT('sp_net_err', '网络错误')); });
 }
@@ -1311,7 +1289,7 @@ function spPost() {
     var cmt = e.target.closest('.op-comment');
     if (cmt) { spCmtToggle(cmt.closest('.f-single')); return; }
     var ed = e.target.closest('.op-edit');
-    if (ed) { spEditOpen(+(ed.getAttribute('data-id'))); return; }
+    if (ed) { spEditFeed(+(ed.getAttribute('data-id'))); return; }
     var like = e.target.closest('.op-like');
     if (like) {
       var id = +(like.getAttribute('data-id'));

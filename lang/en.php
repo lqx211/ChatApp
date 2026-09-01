@@ -1123,6 +1123,8 @@ return [
     'sp_emoji_upload' => 'Upload',
     'sp_no_custom_emoji' => 'No custom emoji yet',
     'sp_edit' => 'Edit',
+    'sp_editing' => 'Editing moment #%s',
+    'sp_cancel_edit' => 'Cancel editing',
     'sp_edited' => 'Edited',
     'sp_edit_fail' => 'Save failed',
     'sp_edit_title' => 'Edit moment',

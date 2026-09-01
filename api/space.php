@@ -95,8 +95,11 @@ switch ($action) {
         $own = $pdo->prepare("SELECT id FROM space_feeds WHERE id=? AND user_id=? AND enabled=1");
         $own->execute([$id, $myUid]);
         if (!$own->fetchColumn()) { echo json_encode(['success' => false, 'error' => 'denied']); break; }
-        $up = $pdo->prepare("UPDATE space_feeds SET content=?, visibility=?, visible_to=?, edited_at=NOW() WHERE id=? AND user_id=?");
-        $up->execute([mb_substr($content, 0, 5000), $visibility, $visible_to, $id, $myUid]);
+        $images = null;
+        $im = $_POST['images'] ?? '';
+        if (is_string($im) && $im !== '' && $im[0] === '[') $images = $im;   // 编辑时同步覆盖图片
+        $up = $pdo->prepare("UPDATE space_feeds SET content=?, images=?, visibility=?, visible_to=?, edited_at=NOW() WHERE id=? AND user_id=?");
+        $up->execute([mb_substr($content, 0, 5000), $images, $visibility, $visible_to, $id, $myUid]);
         echo json_encode(['success' => true]);
         break;
 
