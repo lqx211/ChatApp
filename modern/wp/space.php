@@ -212,7 +212,7 @@ $genderLabel = $gender === 1 ? t('sp_male', '男') : ($gender === 2 ? t('sp_fema
     <div class="top-fix-wrap">
       <a class="logo" href="chat.php" title="<?php echo t('sp_logo_title', '返回聊天');?>"><span class="logo-ico"><?php echo sp_ic('home');?></span><?php echo t('sp_logo', '个人空间');?></a>
       <ul class="top-nav">
-        <li class="nav-list"><a href="space.php<?php echo ($isSelf || $u['username'] === '') ? '' : ('?user=' . urlencode($u['username']));?>" class="on"><?php echo t('sp_home', '主页');?></a></li>
+        <li class="nav-list"><a href="space.php<?php echo ($isSelf || $displayUid <= 0) ? '' : ('?uid=' . (int)$displayUid);?>" class="on"><?php echo t('sp_home', '主页');?></a></li>
         <li class="nav-list"><a href="chat.php"><?php echo t('sp_chat', '聊天');?></a></li>
         <li class="nav-list"><a href="settings.php"><?php echo t('sp_settings', '设置');?></a></li>
       </ul>

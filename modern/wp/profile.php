@@ -290,7 +290,7 @@ $bgFrameStyle = 'object-position:' . $bgPosX . '% ' . $bgPosY . '%;transform-ori
   <!-- 8. 精选照片 - 横滑滚动（精选相片来自个人空间，点击进入空间主页） -->
   <div class="photo-section">
     <div class="photo-title"><?php echo t('p_photos');?>
-      <a class="photo-more" href="space.php<?php echo $isSelf ? '' : '?user=' . urlencode($profileUser['username']);?>" onclick="openSpaceInChat();return false;"><?php echo t('p_space', '进入个人空间');?> ›</a>
+      <a class="photo-more" href="space.php?uid=<?php echo (int)$ownerUid;?>" onclick="openSpaceInChat();return false;"><?php echo t('p_space', '进入个人空间');?> ›</a>
     </div>
     <div class="photo-scroll">
       <!--
@@ -556,15 +556,22 @@ function openEditSig() {
   }, 250);
 }
 
-// 进入个人空间：在 chat.php 里关闭个人资料抽屉并切换到「空间」面板（内嵌 iframe）
+// 进入个人空间：在 chat.php 里关闭个人资料抽屉并切换到「空间」面板（内嵌 iframe，按 uid 定位，避免 username 变更失效）
 function openSpaceInChat() {
+  var uid = <?php echo (int)$ownerUid;?>;
   var w = window.parent || window;
   if (w !== window && w.switchPanel) {
+    var f = w.document.getElementById('spaceFrame');
+    if (f) {
+      var src = 'space.php?uid=' + uid + '&embed=1';
+      f.setAttribute('data-src', src);
+      f.setAttribute('src', src);
+    }
     if (w.closeMyProfile) { try { w.closeMyProfile(); } catch (e) {} }
     w.switchPanel('space');
   } else {
-    // 独立打开（不在聊天 iframe 内）：直接整页跳转
-    location.href = 'space.php';
+    // 独立打开（不在聊天 iframe 内）：直接整页跳转（按 uid）
+    location.href = 'space.php?uid=' + uid;
   }
 }
 
