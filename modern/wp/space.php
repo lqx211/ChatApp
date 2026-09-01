@@ -647,7 +647,7 @@ $theirFeedLabel = $gender === 1 ? t('sp_their_feed_his', 'TA的动态') : ($gend
         </div>
       </div>
 
-      <div class="layout-copyright"><?php echo t('sp_copyright', '© ChatApp 个人空间');?></div>
+      <div class="layout-copyright">© <a href="/index.php">ChatApp</a> 2026-<?php echo date('Y');?> by Jaden | <a href="//github.com/lqx211/ChatApp">Source Code</a> | All rights reserved</div>
     </div>
   </div>
 </div>

@@ -20,7 +20,7 @@ $__appVersion = is_array($__footerInfo) ? (string)($__footerInfo['version'] ?? '
 <footer id="footer" class="blur">
     <div class="power">
         <span class="f-left"><a href="/index.php">ChatApp</a></span>
-        <span><span class="hidden">Copyright&nbsp;</span>&copy; 2026 <a href="//lqx211.com">铵铵</a> <span class="hidden">&amp;&nbsp;Made&nbsp;by <a href="https://github.com/lqx211" target="_blank">lqx211</a></span></span>
+        <span><span class="hidden">Copyright&nbsp;</span>&copy; 2026 <a href="//lqx211.com">Jaden</a> <span class="hidden">&amp;&nbsp;Made&nbsp;by <a href="https://github.com/lqx211" target="_blank">Jaden</a></span></span>
         <?php if ($__appVersion !== ''):?><span class="f-right">Version <?php echo htmlspecialchars($__appVersion);?></span><?php endif;?>
     </div>
 </footer>
