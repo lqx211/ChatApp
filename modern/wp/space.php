@@ -664,7 +664,29 @@ $theirFeedLabel = $gender === 1 ? t('sp_their_feed_his', 'TA的动态') : ($gend
     <div class="nc-name" id="ncName"></div>
     <div class="nc-meta" id="ncMeta"></div>
     <div class="nc-common" id="ncCommon"></div>
-    <button class="nc-care" id="ncCare" onclick="ncToggleCare(event)"><?php echo t('sp_care', '特别关心');?></button>
+    <div class="nc-actions">
+      <button class="nc-care" id="ncCare" onclick="ncToggleCare(event)"><?php echo t('sp_care', '特别关心');?></button>
+      <span class="nc-v" id="ncV" onclick="ncVMenu(event)">v</span>
+    </div>
+  </div>
+  <div class="nc-menu" id="ncMenu" style="display:none">
+    <div class="nc-menu-item" onclick="ncReport()"><?php echo t('sp_report', '举报');?></div>
+  </div>
+</div>
+
+<!-- 举报弹窗（QQ 空间风格） -->
+<div class="sp-report-mask" id="spReportMask" style="display:none" onclick="if(event.target===this)spReportClose()">
+  <div class="sp-report-dialog">
+    <div class="sp-report-hd"><h3><?php echo t('sp_report', '举报');?></h3><span class="sp-report-x" onclick="spReportClose()">✕</span></div>
+    <div class="sp-report-body">
+      <p class="sp-report-tip"><?php echo t('sp_report_tip', '举报用户');?>：<b id="spReportTarget"></b></p>
+      <textarea id="spReportReason" maxlength="1000" placeholder="<?php echo t('sp_report_ph', '请填写举报原因（可留空）');?>"></textarea>
+    </div>
+    <div class="sp-report-ft">
+      <span class="sp-report-err" id="spReportErr"></span>
+      <button class="btn-post btn-sm btn-gray" onclick="spReportClose()"><?php echo t('sp_cancel', '取消');?></button>
+      <button class="btn-post btn-sm" onclick="spReportSubmit()"><?php echo t('sp_report_submit', '确定');?></button>
+    </div>
   </div>
 </div>
 
@@ -1775,10 +1797,9 @@ function renderVisitorList(list, arr, type) {
   arr.forEach(function (v) {
     var av = v.avatar ? '<img src="' + v.avatar + '" alt="">' : '<div class="av-empty">' + esc((v.name || '?').charAt(0)) + '</div>';
     var del = (type === 'me') ? '<span class="sp-vis-del" data-uid="' + v.uid + '" onclick="event.stopPropagation();spVisitorDel(' + v.uid + ')">×</span>' : '';
-    h += '<li class="sp-vis-item" data-uid="' + v.uid + '" data-username="' + esc(v.username) + '" data-name="' + esc(v.name) + '" data-avatar="' + (v.avatar || '') + '" data-gender="' + v.gender + '" data-zodiac="' + esc(v.zodiac) + '" data-common="' + v.common + '" data-special="' + v.special + '" onmouseenter="spNameCardShow(this)">'
-      + '<div class="sp-vis-av">' + av + del + '</div>'
-      + '<div class="sp-vis-name">' + esc(v.name) + '</div>'
-      + '<div class="sp-vis-time">' + esc(v.time) + '</div>'
+    h += '<li class="sp-vis-item" data-uid="' + v.uid + '" data-username="' + esc(v.username) + '" data-name="' + esc(v.name) + '" data-avatar="' + (v.avatar || '') + '" data-gender="' + v.gender + '" data-zodiac="' + esc(v.zodiac) + '" data-common="' + v.common + '" data-special="' + v.special + '" onmouseenter="spNcHoverIn(this)" onmouseleave="spNcHoverOut()">'
+      + '<div class="sp-vis-av">' + av + del + '<span class="sp-vis-name-ov">' + esc(v.name) + '</span></div>'
+      + '<span class="sp-vis-time">' + esc(v.time) + '</span>'
       + '</li>';
   });
   list.innerHTML = h;
@@ -1790,7 +1811,19 @@ function spVisitorDel(uid) {
     .then(function (r) { return r.json(); })
     .then(function () { spLoadVisitors(); });
 }
-/* hover 名片 */
+/* hover 名片（延迟 1 秒弹出，QQ 空间风格） */
+var SP_NC_TIMER = null;
+function spNcHoverIn(el) {
+  clearTimeout(SP_NC_TIMER);
+  SP_NC_TIMER = setTimeout(function () { spNameCardShow(el); }, 1000);
+}
+function spNcHoverOut() {
+  clearTimeout(SP_NC_TIMER);
+  var nc = document.getElementById('spNameCard');
+  if (nc) nc.style.display = 'none';
+  var m = document.getElementById('ncMenu');
+  if (m) m.style.display = 'none';
+}
 function spNameCardShow(el) {
   var nc = document.getElementById('spNameCard');
   if (!nc) return;
@@ -1810,6 +1843,7 @@ function spNameCardShow(el) {
   care.textContent = (+el.getAttribute('data-special')) ? spT('sp_cared', '已关心') : spT('sp_care', '特别关心');
   care.classList.toggle('on', !!+el.getAttribute('data-special'));
   nc.style.display = 'block';
+  var m = document.getElementById('ncMenu'); if (m) m.style.display = 'none';
   var r = el.getBoundingClientRect();
   var ncw = 230, nch = 150;
   var x = Math.min(Math.max(r.left + r.width / 2 - ncw / 2, 8), window.innerWidth - ncw - 8);
@@ -1817,6 +1851,49 @@ function spNameCardShow(el) {
   if (y + nch > window.innerHeight - 8) y = Math.max(8, r.top - nch - 10);
   nc.style.left = x + 'px';
   nc.style.top = y + 'px';
+}
+/* 名片右上角 v 符号 → 右上角紧贴名片右下角的小菜单 */
+function ncVMenu(e) {
+  e && e.stopPropagation();
+  var m = document.getElementById('ncMenu');
+  if (!m) return;
+  var show = m.style.display !== 'block';
+  if (show) document.addEventListener('mouseover', ncVMenuDoc);
+  else document.removeEventListener('mouseover', ncVMenuDoc);
+  m.style.display = show ? 'block' : 'none';
+}
+function ncVMenuDoc(e) {
+  var m = document.getElementById('ncMenu');
+  if (!m) return;
+  if (m.style.display === 'none') return;
+  if (m.contains(e.target) || (document.getElementById('ncV') && document.getElementById('ncV').contains(e.target))) return;
+  m.style.display = 'none';
+  document.removeEventListener('mouseover', ncVMenuDoc);
+}
+function ncReport() {
+  var m = document.getElementById('ncMenu'); if (m) m.style.display = 'none';
+  var t = document.getElementById('spReportTarget');
+  if (t) t.textContent = SP_NC_USERNAME || '';
+  var r = document.getElementById('spReportReason'); if (r) r.value = '';
+  var err = document.getElementById('spReportErr'); if (err) err.textContent = '';
+  var mask = document.getElementById('spReportMask'); if (mask) mask.style.display = 'flex';
+}
+function spReportClose() {
+  var mask = document.getElementById('spReportMask'); if (mask) mask.style.display = 'none';
+}
+function spReportSubmit() {
+  var uname = SP_NC_USERNAME;
+  if (!uname) return;
+  var reason = (document.getElementById('spReportReason') || {}).value || '';
+  var f = new URLSearchParams();
+  f.append('action', 'submit'); f.append('target', uname); f.append('reason', reason);
+  fetch('../../api/report.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d && d.success) { spReportClose(); alert(spT('sp_report_done', '举报已提交')); }
+      else { var err = document.getElementById('spReportErr'); if (err) err.textContent = (d && d.error) || spT('sp_report_fail', '举报失败'); }
+    })
+    .catch(function () { var err = document.getElementById('spReportErr'); if (err) err.textContent = spT('sp_net_err', '网络错误'); });
 }
 function ncToggleCare(e) {
   e && e.stopPropagation();
@@ -1838,9 +1915,9 @@ function ncToggleCare(e) {
 }
 (function () {
   var list = document.getElementById('visitorList');
-  if (list) list.addEventListener('mouseleave', function () { var nc = document.getElementById('spNameCard'); if (nc) nc.style.display = 'none'; });
+  if (list) list.addEventListener('mouseleave', function () { spNcHoverOut(); });
   var vp = document.getElementById('spVpList');
-  if (vp) vp.addEventListener('mouseleave', function () { var nc = document.getElementById('spNameCard'); if (nc) nc.style.display = 'none'; });
+  if (vp) vp.addEventListener('mouseleave', function () { spNcHoverOut(); });
 })();
 /* 访客大框（主栏，深灰） */
 var SP_VP_TYPE = 'me';
@@ -1869,9 +1946,8 @@ function spVpLoad() {
       arr.forEach(function (v) {
         var av = v.avatar ? '<img src="' + v.avatar + '" alt="">' : '<span class="av-empty">' + esc((v.name || '?').charAt(0)) + '</span>';
         var del = (SP_VP_TYPE === 'me') ? '<a class="top_del" title="删除" onclick="event.stopPropagation();spVpDel(' + v.uid + ')">×</a>' : '';
-        h += '<li class="user-item" data-uid="' + v.uid + '" data-username="' + esc(v.username) + '" data-name="' + esc(v.name) + '" data-avatar="' + (v.avatar || '') + '" data-gender="' + v.gender + '" data-zodiac="' + esc(v.zodiac) + '" data-common="' + v.common + '" data-special="' + v.special + '" onmouseenter="spNameCardShow(this)">'
-          + '<a class="user-avatar q_namecard">' + av + '</a>'
-          + '<div class="user-name-bg"><span class="user-name textoverflow">' + esc(v.name) + '</span></div>'
+        h += '<li class="user-item" data-uid="' + v.uid + '" data-username="' + esc(v.username) + '" data-name="' + esc(v.name) + '" data-avatar="' + (v.avatar || '') + '" data-gender="' + v.gender + '" data-zodiac="' + esc(v.zodiac) + '" data-common="' + v.common + '" data-special="' + v.special + '" onmouseenter="spNcHoverIn(this)" onmouseleave="spNcHoverOut()">'
+          + '<a class="user-avatar q_namecard">' + av + '<span class="sp-vis-name-ov">' + esc(v.name) + '</span></a>'
           + '<span class="date">' + esc(v.time) + '</span>'
           + del
           + '</li>';

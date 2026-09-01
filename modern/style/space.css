@@ -575,27 +575,52 @@ body.embed .layout-background{min-height:0}
 .sp-login-box p{font-size:13px;color:#8fa3b8;margin:0 0 26px}
 .sp-login-box .btn-post{display:inline-block;text-decoration:none;background:var(--q-blue);color:#fff;border:none;border-radius:0;padding:9px 34px;font-size:14px;cursor:pointer}
 
-/* ===== 访客 ===== */
-.visitor-list{list-style:none;display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:0}
-.sp-vis-item{text-align:center;cursor:pointer;position:relative}
-.sp-vis-av{position:relative;width:52px;height:52px;margin:0 auto 3px}
-.sp-vis-av img{width:52px;height:52px;border-radius:50%;object-fit:cover;display:block}
-.sp-vis-av .av-empty{width:52px;height:52px;border-radius:50%;background:#3a4250;color:#c9d6e4;font-size:20px;display:flex;align-items:center;justify-content:center}
-.sp-vis-del{position:absolute;top:-4px;right:-4px;width:18px;height:18px;line-height:16px;text-align:center;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:11px;cursor:pointer;z-index:3}
-.sp-vis-name{font-size:12px;color:#c9d6e4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sp-vis-time{font-size:10px;color:#6f7f92;margin-top:1px}
+/* ===== 访客（QQ 空间风格：三列方形头像，名字嵌在头像中部下方） ===== */
+.visitor-list{list-style:none;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0}
+.sp-vis-item{display:block;text-align:center;cursor:pointer;position:relative;min-width:0;padding:0}
+.sp-vis-av{position:relative;width:100%;aspect-ratio:1/1;overflow:hidden;background:#2c323c;border:1px solid #3a4250;border-radius:0}
+.sp-vis-item .sp-vis-av img,.sp-vis-item .sp-vis-av .av-empty{width:100%;height:100%;object-fit:cover;display:block;border-radius:0!important;margin:0}
+.sp-vis-item .sp-vis-av .av-empty{background:#3a4250;color:#c9d6e4;font-size:30px;display:flex;align-items:center;justify-content:center}
+.sp-vis-name-ov{position:absolute;left:0;right:0;bottom:0;padding:18px 4px 3px;background:linear-gradient(180deg,transparent,rgba(0,0,0,.7));color:#fff;font-size:11px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none}
+.sp-vis-del{position:absolute;top:2px;right:2px;width:18px;height:18px;line-height:16px;text-align:center;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;font-size:11px;cursor:pointer;z-index:3}
+.sp-vis-time{font-size:10px;color:#6f7f92;margin-top:4px;display:block}
 .sp-vis-empty{grid-column:1/-1;text-align:center;color:#8fa3b8;font-size:12px;padding:14px 0}
 
-/* hover 名片 */
+/* hover 名片（QQ 风格） */
 .sp-namecard{position:fixed;z-index:99999;width:230px;background:#2a2f38;border:1px solid #3a4250;box-shadow:0 4px 18px rgba(0,0,0,.45);padding:14px;display:flex;gap:12px;color:#e8eef5}
-.nc-av img,.nc-av .av-empty{width:56px;height:56px;object-fit:cover;display:block}
+.nc-av img,.nc-av .av-empty{width:56px;height:56px;object-fit:cover;display:block;border-radius:0!important}
 .nc-av .av-empty{background:#3a4250;display:flex;align-items:center;justify-content:center;color:#c9d6e4;font-size:22px}
 .nc-info{flex:1;min-width:0}
 .nc-name{font-size:16px;font-weight:700;color:#e8eef5;display:flex;align-items:center;gap:6px}
 .nc-meta{font-size:12px;color:#8fa3b8;margin-top:2px}
 .nc-common{font-size:12px;color:#8ab8ff;text-decoration:underline;cursor:pointer;margin-top:3px}
-.nc-care{margin-top:8px;border:none;border-radius:0;background:#3a4250;color:#c9d6e4;padding:4px 14px;font-size:12px;cursor:pointer}
+.nc-actions{display:flex;align-items:center;gap:8px;margin-top:10px}
+.nc-care{border:none;border-radius:0;background:#3a4250;color:#c9d6e4;padding:4px 14px;font-size:12px;cursor:pointer}
 .nc-care.on{background:#3f6fb5;color:#fff}
+.nc-v{width:24px;height:24px;line-height:22px;text-align:center;border:1px solid #4a5461;background:#3a4250;color:#8ab8ff;font-size:13px;font-style:italic;font-weight:700;cursor:pointer;user-select:none}
+.nc-v:hover{background:#4a5461;color:#fff}
+/* v 小菜单：绝对定位在名片内，右上角紧贴名片右下角 */
+.nc-menu{position:absolute;top:100%;right:0;z-index:100000;min-width:120px;background:#20242c;border:1px solid #3a4250;box-shadow:0 6px 20px rgba(0,0,0,.55);padding:4px 0;display:none}
+.nc-menu-item{padding:8px 14px;font-size:13px;color:#c9d6e4;cursor:pointer;text-align:left}
+.nc-menu-item:hover{background:#3a4250;color:#fff}
+
+/* 举报弹窗（QQ 空间对话框风格） */
+.sp-report-mask{position:fixed;inset:0;z-index:100010;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center}
+.sp-report-dialog{width:380px;max-width:92vw;background:#20242c;border:1px solid #3a4250;box-shadow:0 8px 30px rgba(0,0,0,.6)}
+.sp-report-hd{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--q-border)}
+.sp-report-hd h3{margin:0;font-size:15px;color:#e8eef5}
+.sp-report-x{cursor:pointer;color:#8fa3b8;font-size:14px}
+.sp-report-x:hover{color:#fff}
+.sp-report-body{padding:16px}
+.sp-report-tip{font-size:13px;color:#8fa3b8;margin:0 0 10px}
+.sp-report-tip b{color:#e8eef5}
+.sp-report-body textarea{width:100%;box-sizing:border-box;height:90px;background:#1a1e26;border:1px solid #3a4250;color:#e8eef5;font-size:13px;font-family:inherit;padding:8px;resize:vertical;outline:none}
+.sp-report-body textarea:focus{border-color:#4a6a8e}
+.sp-report-ft{display:flex;align-items:center;gap:8px;justify-content:flex-end;padding:10px 16px;border-top:1px solid var(--q-border)}
+.sp-report-err{flex:1;color:#e5534b;font-size:12px}
+.sp-report-ft .btn-post{padding:6px 20px;font-size:13px}
+.sp-report-ft .btn-gray{background:#3a4250;color:#c9d6e4}
+.sp-report-ft .btn-gray:hover{background:#4a5461}
 
 /* ===== 访客页面 ===== */
 .sp-visitor-page{padding:20px;max-width:760px;margin:0 auto}
@@ -626,15 +651,15 @@ body.embed .layout-background{min-height:0}
 .sp-vp-tabs i{color:#4a5461;font-style:normal;margin:0 2px}
 .sp-vp-stat{font-size:12px;color:#8fa3b8;margin-left:auto}
 .sp-vp-stat b{color:#8ab8ff}
-.sp-vp-list{list-style:none;display:grid;grid-template-columns:repeat(6,1fr);gap:14px 10px;padding:14px;margin:0}
-.sp-vp-list .user-item{text-align:center;position:relative;cursor:pointer}
-.sp-vp-list .user-avatar{width:56px;height:56px;display:block;margin:0 auto 4px;overflow:hidden;border:1px solid #3a4250}
-.sp-vp-list .user-avatar img{width:56px;height:56px;display:block;object-fit:cover}
-.sp-vp-list .user-avatar .av-empty{width:56px;height:56px;display:flex;align-items:center;justify-content:center;background:#3a4250;color:#c9d6e4;font-size:22px}
-.sp-vp-list .user-name{font-size:12px;color:#c9d6e4;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sp-vp-list .date{font-size:11px;color:#6f7f92;display:block;margin-top:2px}
-.sp-vp-list .top_del{position:absolute;top:-6px;right:4px;width:18px;height:18px;line-height:16px;text-align:center;background:#3a4250;border:1px solid #4a5461;color:#c9d6e4;font-size:12px;cursor:pointer;text-decoration:none}
-.sp-vp-list .top_del:hover{background:#d9534f;color:#fff;border-color:#d9534f}
+.sp-vp-list{list-style:none;display:grid;grid-template-columns:repeat(3,1fr);gap:16px 12px;padding:14px;margin:0}
+.sp-vp-list .user-item{text-align:center;position:relative;cursor:pointer;min-width:0}
+.sp-vp-list .user-avatar{position:relative;width:100%;aspect-ratio:1/1;display:block;overflow:hidden;border:1px solid #3a4250;background:#2c323c}
+.sp-vp-list .user-avatar img{width:100%;height:100%;display:block;object-fit:cover;border-radius:0!important}
+.sp-vp-list .user-avatar .av-empty{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#3a4250;color:#c9d6e4;font-size:30px}
+.sp-vp-list .date{font-size:11px;color:#6f7f92;display:block;margin-top:4px}
+.sp-vp-list .top_del{position:absolute;top:2px;right:6px;width:18px;height:18px;line-height:16px;text-align:center;background:rgba(0,0,0,.65);color:#fff;font-size:12px;cursor:pointer;text-decoration:none;z-index:3}
+.sp-vp-list .top_del:hover{background:#d9534f;color:#fff}
+.sp-vp-list .sp-vis-name-ov{position:absolute;left:0;right:0;bottom:0;padding:18px 4px 3px;background:linear-gradient(180deg,transparent,rgba(0,0,0,.7));color:#fff;font-size:11px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none}
 /* ===== 角色 / 状态（个人信息区 + Lv·UID 标签） ===== */
 .sp-role-tag{display:inline-block;font-size:11px;border-radius:3px;padding:0 5px;line-height:16px;margin-left:6px;font-weight:400;vertical-align:1px;border:1px solid currentColor}
 .sp-role-root{color:#f7c948}

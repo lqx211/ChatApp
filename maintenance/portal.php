@@ -166,6 +166,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    /* ================= 账号锁定管理 ================= */
+    if ($action === 'user_lookup') {
+        if (!chatapp_portal_mysql_ok()) { echo json_encode(['success' => false, 'error' => 'Database unreachable']); exit; }
+        $q = trim((string)($_POST['q'] ?? ''));
+        if ($q === '') { echo json_encode(['success' => false, 'error' => 'Enter a username or UID']); exit; }
+        $where = is_numeric($q) ? 'user_id = ?' : 'username = ?';
+        $stmt = db()->prepare("SELECT user_id, username, display_name, enabled, placeholder, failed_attempts, locked_until, role, restricted, last_login FROM users WHERE $where LIMIT 1");
+        $stmt->execute([$q]);
+        $u = $stmt->fetch();
+        if (!$u) { echo json_encode(['success' => false, 'error' => 'User not found']); exit; }
+        $until = !empty($u['locked_until']) ? strtotime($u['locked_until']) : 0;
+        echo json_encode(['success' => true, 'user' => [
+            'uid'             => (int)$u['user_id'],
+            'username'        => $u['username'],
+            'display_name'    => $u['display_name'] ?: $u['username'],
+            'enabled'         => (int)$u['enabled'],
+            'placeholder'     => (int)$u['placeholder'],
+            'restricted'      => (int)$u['restricted'],
+            'role'            => (string)$u['role'],
+            'failed_attempts' => (int)$u['failed_attempts'],
+            'locked_until'    => $u['locked_until'],
+            'locked'          => $until > time(),
+            'lock_seconds'    => max(0, $until - time()),
+            'last_login'      => $u['last_login'],
+        ]]);
+        exit;
+    }
+
+    if ($action === 'user_unlock') {
+        if (!chatapp_portal_mysql_ok()) { echo json_encode(['success' => false, 'error' => 'Database unreachable']); exit; }
+        $q = trim((string)($_POST['q'] ?? ''));
+        if ($q === '') { echo json_encode(['success' => false, 'error' => 'Enter a username or UID']); exit; }
+        $where = is_numeric($q) ? 'user_id = ?' : 'username = ?';
+        $stmt = db()->prepare("SELECT user_id FROM users WHERE $where LIMIT 1");
+        $stmt->execute([$q]);
+        $uid = (int)$stmt->fetchColumn();
+        if ($uid <= 0) { echo json_encode(['success' => false, 'error' => 'User not found']); exit; }
+        db()->prepare("UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE user_id = ?")->execute([$uid]);
+        chatapp_log('security_logs', [
+            'event_type' => 'portal_user_unlock',
+            'details' => 'uid=' . $uid . ' unlocked by maintenance portal',
+        ]);
+        echo json_encode(['success' => true]);
+        exit;
+    }
+
+    if ($action === 'user_lock') {
+        if (!chatapp_portal_mysql_ok()) { echo json_encode(['success' => false, 'error' => 'Database unreachable']); exit; }
+        $q = trim((string)($_POST['q'] ?? ''));
+        $minutes = (int)($_POST['minutes'] ?? 0);
+        if ($q === '') { echo json_encode(['success' => false, 'error' => 'Enter a username or UID']); exit; }
+        if ($minutes < 1 || $minutes > 10080) $minutes = 1440;   // 默认 24h，上限 7 天
+        $where = is_numeric($q) ? 'user_id = ?' : 'username = ?';
+        $stmt = db()->prepare("SELECT user_id, username FROM users WHERE $where LIMIT 1");
+        $stmt->execute([$q]);
+        $row = $stmt->fetch();
+        if (!$row) { echo json_encode(['success' => false, 'error' => 'User not found']); exit; }
+        $uid = (int)$row['user_id'];
+        if ($uid === 10000) { echo json_encode(['success' => false, 'error' => 'Cannot lock the root account']); exit; }
+        $until = date('Y-m-d H:i:s', time() + $minutes * 60);
+        db()->prepare("UPDATE users SET failed_attempts = GREATEST(failed_attempts, 5), locked_until = ? WHERE user_id = ?")->execute([$until, $uid]);
+        chatapp_log('security_logs', [
+            'event_type' => 'portal_user_lock',
+            'details' => 'uid=' . $uid . ' locked_until=' . $until . ' by maintenance portal',
+        ]);
+        echo json_encode(['success' => true, 'locked_until' => $until]);
+        exit;
+    }
+
     if ($action === 'logout') {
         setcookie('MT_TOKEN', '', time() - 42000, '/', '', false, true);
         echo json_encode(['success' => true]);
@@ -248,6 +317,7 @@ $__mysqlOk = chatapp_portal_mysql_ok();
     <div class="ng"><div class="ngh" onclick="showPanel('dash')" style="cursor:pointer"><span>Dashboard</span></div></div>
     <div class="ng"><div class="ngh" onclick="showPanel('settings')" style="cursor:pointer"><span>Settings</span></div></div>
     <div class="ng"><div class="ngh" onclick="showPanel('creds')" style="cursor:pointer"><span>Credentials</span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('accounts')" style="cursor:pointer"><span>Accounts</span></div></div>
     <div class="ng"><div class="ngh" onclick="showPanel('upgrade')" style="cursor:pointer"><span>Upgrade</span></div></div>
     <div class="ng"><div class="ngh" onclick="showPanel('downgrade')" style="cursor:pointer"><span>Downgrade</span></div></div>
     <div class="ng"><div class="ngh" onclick="showPanel('factory')" style="cursor:pointer"><span>Factory Reset</span></div></div>
@@ -349,6 +419,24 @@ $__mysqlOk = chatapp_portal_mysql_ok();
       <div class="pfield"><label>Maintenance Username (3-20)</label><input type="text" id="cUser" autocomplete="off" placeholder="admin"></div>
       <div class="pfield"><label>Maintenance Password (≥8)</label><input type="password" id="cPass" autocomplete="new-password"></div>
       <button class="pbtn green" onclick="saveCreds()">Save &amp; Re-login</button>
+     </div>
+    </div>
+   </div>
+
+   <!-- 账号锁定管理 -->
+   <div class="panel" id="panel-accounts">
+    <div class="ch"><h2>Accounts</h2></div>
+    <div class="portal">
+     <div class="pcard" style="max-width:620px">
+      <h3>Account Lock Manager</h3>
+      <p class="note" style="margin-top:0">Look up any account by username or UID, view its current lock status (failed attempts / locked until), then unlock or manually lock it.</p>
+      <div class="pfield"><label>Username or UID</label>
+       <div style="display:flex;gap:10px;align-items:center">
+        <input type="text" id="acQuery" placeholder="e.g. admin or 10001" style="flex:1" onkeydown="if(event.key==='Enter')acLookup()">
+        <button class="pbtn" onclick="acLookup()">Look up</button>
+       </div>
+      </div>
+      <div id="acResult" style="margin-top:14px"></div>
      </div>
     </div>
    </div>
@@ -541,6 +629,66 @@ function saveCreds(){
 }
 function doLogout(){
   api('logout', [], function(){ location.href = 'index.php'; });
+}
+
+/* ================= 账号锁定管理 ================= */
+var AC_QUERY = '';
+function escHtml(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+  });
+}
+function acLookup(){
+  var q = document.getElementById('acQuery').value.trim();
+  if (!q){ flash('Enter a username or UID', false); return; }
+  AC_QUERY = q;
+  api('user_lookup', [['q', q]], function(d){
+    var box = document.getElementById('acResult');
+    if (!d.success){ box.innerHTML = '<div class="note" style="color:#ff9a9a">' + escHtml(d.error || 'Not found') + '</div>'; return; }
+    var u = d.user;
+    var lockHtml = u.locked
+      ? '<span style="color:#ff9a9a;font-weight:700">LOCKED</span> — until ' + escHtml(u.locked_until) + ' (' + Math.ceil(u.lock_seconds/60) + ' min left)'
+      : '<span style="color:#7ddb9a">Not locked</span>';
+    var roleTxt = { root:'Owner', admin:'Administrator' }[u.role] || 'User';
+    box.innerHTML =
+      '<div class="pcard" style="margin:0">'
+      + '<div class="prow"><span class="k">Account</span><span class="v">' + escHtml(u.username) + ' <span style="color:#666">(UID ' + u.uid + ')</span></span></div>'
+      + '<div class="prow"><span class="k">Display name</span><span class="v">' + escHtml(u.display_name) + '</span></div>'
+      + '<div class="prow"><span class="k">Role</span><span class="v">' + roleTxt + '</span></div>'
+      + '<div class="prow"><span class="k">Enabled / Placeholder</span><span class="v">' + (u.enabled ? 'Yes' : 'No') + ' / ' + (u.placeholder ? 'Yes' : 'No') + '</span></div>'
+      + '<div class="prow"><span class="k">Restricted</span><span class="v">' + (u.restricted ? 'Yes' : 'No') + '</span></div>'
+      + '<div class="prow"><span class="k">Failed attempts</span><span class="v">' + u.failed_attempts + ' / 5</span></div>'
+      + '<div class="prow"><span class="k">Lock status</span><span class="v">' + lockHtml + '</span></div>'
+      + '<div class="prow"><span class="k">Last login</span><span class="v">' + escHtml(u.last_login || '-') + '</span></div>'
+      + '<div style="display:flex;gap:12px;align-items:center;margin-top:14px;flex-wrap:wrap">'
+      + '<label style="color:#999;font-size:.78em">Lock for</label>'
+      + '<select id="acMinutes" style="padding:8px 12px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-size:.85em;font-family:inherit;outline:none">'
+      + '<option value="15">15 minutes</option>'
+      + '<option value="30">30 minutes</option>'
+      + '<option value="60">1 hour</option>'
+      + '<option value="180">3 hours</option>'
+      + '<option value="1440" selected>24 hours</option>'
+      + '<option value="10080">7 days</option>'
+      + '</select>'
+      + '<button class="pbtn red" onclick="acLock()">Lock account</button>'
+      + (u.locked ? '<button class="pbtn green" onclick="acUnlock()">Unlock account</button>' : '')
+      + '</div>'
+      + '</div>';
+  });
+}
+function acLock(){
+  var mins = document.getElementById('acMinutes') ? document.getElementById('acMinutes').value : '1440';
+  api('user_lock', [['q', AC_QUERY], ['minutes', mins]], function(d){
+    if (d.success){ flash('Locked until ' + d.locked_until, true); acLookup(); }
+    else flash(d.error || 'Lock failed', false);
+  });
+}
+function acUnlock(){
+  if (!window.confirm('Unlock this account and reset failed attempts?')) return;
+  api('user_unlock', [['q', AC_QUERY]], function(d){
+    if (d.success){ flash('Account unlocked', true); acLookup(); }
+    else flash(d.error || 'Unlock failed', false);
+  });
 }
 
 /* ================= 危险操作（门户内直接执行，三重验证） ================= */
