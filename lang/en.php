@@ -1039,6 +1039,7 @@ return [
     'sp_board_sub_self' => 'Share your space so friends can leave messages~',
     'sp_busy' => 'Busy',
     'sp_care' => 'Special care',
+    'sp_care_add' => 'Add as special care',
     'sp_care_feed' => 'Special care',
     'sp_cared' => 'Cared',
     'sp_chat' => 'Chat',

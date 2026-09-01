@@ -665,7 +665,7 @@ $theirFeedLabel = $gender === 1 ? t('sp_their_feed_his', 'TA的动态') : ($gend
     <div class="nc-meta" id="ncMeta"></div>
     <div class="nc-common" id="ncCommon"></div>
     <div class="nc-actions">
-      <button class="nc-care" id="ncCare" onclick="ncToggleCare(event)"><?php echo t('sp_care', '特别关心');?></button>
+      <button class="nc-care" id="ncCare" onclick="ncToggleCare(event)"><?php echo t('sp_care_add', '添加为特别关心');?></button>
       <span class="nc-v" id="ncV" onclick="ncVMenu(event)">v</span>
     </div>
   </div>
@@ -1840,7 +1840,7 @@ function spNameCardShow(el) {
   if (common > 0) { ce.style.display = ''; ce.textContent = spT('sp_common_friends', '你们有 %s 个共同好友').replace('%s', common); }
   else { ce.style.display = 'none'; ce.textContent = ''; }
   var care = document.getElementById('ncCare');
-  care.textContent = (+el.getAttribute('data-special')) ? spT('sp_cared', '已关心') : spT('sp_care', '特别关心');
+  care.textContent = (+el.getAttribute('data-special')) ? spT('sp_cared', '已关心') : spT('sp_care_add', '添加为特别关心');
   care.classList.toggle('on', !!+el.getAttribute('data-special'));
   nc.style.display = 'block';
   var m = document.getElementById('ncMenu'); if (m) m.style.display = 'none';
@@ -1908,7 +1908,7 @@ function ncToggleCare(e) {
         var care = document.getElementById('ncCare');
         if (!care) return;
         var on = care.classList.contains('on');
-        care.textContent = on ? spT('sp_care', '特别关心') : spT('sp_cared', '已关心');
+        care.textContent = on ? spT('sp_care_add', '添加为特别关心') : spT('sp_cared', '已关心');
         care.classList.toggle('on', !on);
       } else alert(spT('sp_op_fail', '操作失败'));
     });
