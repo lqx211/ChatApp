@@ -399,6 +399,28 @@ body.embed .layout-background{min-height:0}
 .f-cmt-text{flex:1;background:#1e1e1e;border:1px solid #3a3a3a;color:#e0e0e0;font-size:13px;padding:7px 10px;outline:none}
 .f-cmt-text:focus{border-color:#555}
 
+/* ============ 表情（朋友圈） ============ */
+.sp-emoji{height:20px;width:20px;vertical-align:-4px;display:inline-block;object-fit:contain;margin:0 1px}
+.sp-emoji-builtin{width:20px;height:20px}
+.sp-emoji-custom{max-width:88px;max-height:88px;width:auto;height:auto}
+.sp-cmt-emoji{display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:#aaa;padding:0 6px;flex:none;align-self:center}
+.sp-cmt-emoji:hover{color:var(--q-blue)}
+.sp-board-input .sp-cmt-emoji{align-self:center;padding:8px}
+.sp-emoji-popup{position:fixed;z-index:50001;background:#252525;border:1px solid #555;box-shadow:0 4px 20px rgba(0,0,0,.8);width:340px;display:none;flex-direction:column;overflow:hidden;border-radius:0}
+.sp-emoji-popup .sp-emoji-side{display:flex;border-bottom:1px solid #444;flex-shrink:0}
+.sp-emoji-popup .sp-emoji-side button{flex:1;padding:8px 0;background:#333;border:none;border-bottom:2px solid transparent;color:#aaa;font-size:.72em;cursor:pointer;font-family:inherit;border-radius:0}
+.sp-emoji-popup .sp-emoji-side button.active{color:#eee;background:#3a3a3a;border-bottom-color:#888}
+.sp-emoji-popup .sp-emoji-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:2px;padding:4px;max-height:132px;overflow-y:auto;align-content:start;background:#1e1e1e}
+.sp-emoji-popup .sp-emoji-item{width:100%;min-width:0;aspect-ratio:1;object-fit:contain;cursor:pointer;padding:2px;box-sizing:border-box;border-radius:0}
+.sp-emoji-popup .sp-emoji-item:hover{background:#3a3a3a}
+.sp-emoji-popup span.sp-emoji-item.unicode{display:inline-flex;align-items:center;justify-content:center;font-size:1.25em;line-height:1}
+.sp-emoji-popup .sp-emoji-item-wrap{position:relative;aspect-ratio:1;min-width:0}
+.sp-emoji-popup .sp-emoji-item-wrap .sp-emoji-item{width:100%;height:100%}
+.sp-emoji-popup .sp-emoji-item-wrap .sp-emoji-del{position:absolute;top:0;right:0;width:14px;height:14px;font-size:10px;line-height:14px;text-align:center;background:#6a2020;color:#e06060;cursor:pointer;display:none;border-radius:0}
+.sp-emoji-popup .sp-emoji-item-wrap:hover .sp-emoji-del{display:block}
+.sp-emoji-popup .sp-emoji-empty{grid-column:1/-1;color:#888;font-size:.72em;text-align:center;padding:18px}
+.sp-emoji-popup .sp-emoji-upload{grid-column:1/-1;text-align:center;padding:6px}
+
 /* ============ 留言板 ============ */
 .sp-board-input{display:flex;gap:10px;align-items:flex-end;background:var(--q-card);border:1px solid var(--q-border);padding:14px;margin-bottom:12px}
 .sp-board-input textarea{flex:1;background:#1e1e1e;border:1px solid #3a3a3a;color:#e0e0e0;font-size:13px;padding:10px;min-height:64px;resize:vertical;outline:none;line-height:1.6}

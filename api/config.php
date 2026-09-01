@@ -764,6 +764,46 @@ function space_vis_label(int $vis): string {
     return [0 => t('sp_vis_label_public', '所有人可见'), 1 => t('sp_vis_label_friend', '好友可见'), 2 => t('sp_vis_label_some', '部分好友可见'), 3 => t('sp_vis_label_not', '部分好友不可见'), 4 => t('sp_vis_label_private', '仅自己可见')][$vis] ?? t('sp_vis_label_public', '所有人可见');
 }
 
+/** 内置表情列表（与 api/emoji.php 同一份 data/res/emoji/default_config.json） */
+function space_emoji_builtin(): array {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $path = __DIR__ . '/../data/res/emoji/default_config.json';
+    if (!file_exists($path)) { $cache = []; return []; }
+    $raw = json_decode(file_get_contents($path), true);
+    $list = [];
+    $dir = __DIR__ . '/../data/res/emoji/';
+    foreach (($raw['normalPanelResult']['SysEmojiGroupList'] ?? []) as $g) {
+        foreach ($g['SysEmojiList'] ?? [] as $e) {
+            if (!empty($e['isHide'])) continue;
+            $etype = (int)($e['emojiType'] ?? 0);
+            $eid   = (string)($e['emojiId'] ?? '');
+            $desc  = (string)($e['describe'] ?? '');
+            if ($etype === 4 || $desc === '' || !file_exists($dir . $eid . '.png')) continue;
+            $list[] = ['code' => $desc, 'img' => 'data/res/emoji/' . $eid . '.png'];
+        }
+    }
+    $cache = $list;
+    return $list;
+}
+
+/** 渲染说说/评论/留言中的表情：内置代码 + 自定义 [emoji:hash] → <img>（入参应已 htmlspecialchars） */
+function space_render_emoji(string $text): string {
+    static $map = null;
+    if ($map === null) {
+        $map = [];
+        foreach (space_emoji_builtin() as $e) {
+            if (!isset($map[$e['code']])) $map[$e['code']] = $e['img'];
+        }
+    }
+    foreach ($map as $code => $img) {
+        if (strpos($text, $code) !== false) {
+            $text = str_replace($code, '<img src="../../' . $img . '" class="sp-emoji sp-emoji-builtin" alt="">', $text);
+        }
+    }
+    return preg_replace('/\[emoji:([a-f0-9]{32})\]/', '<img src="../../api/emoji.php?action=img&hash=$1" class="sp-emoji sp-emoji-custom" alt="">', $text);
+}
+
 /** 内联 SVG 图标（灰线风格，currentColor 着色，禁止 emoji/文字当图标） */
 function svg_ic(string $n, int $s = 16): string {
     static $map = [

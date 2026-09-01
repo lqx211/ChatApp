@@ -349,7 +349,7 @@ $genderLabel = $gender === 1 ? t('sp_male', '男') : ($gender === 2 ? t('sp_fema
               <div class="qz-poster-ft">
                 <div class="attach-icons">
                   <span title="<?php echo t('sp_pick_photo', '照片');?>" onclick="spPickImages()"><?php echo sp_ic('image');?></span>
-                  <span title="<?php echo t('sp_pick_emoji', '表情');?>" onclick="spAlert('表情')"><?php echo sp_ic('smile');?></span>
+                  <span title="<?php echo t('sp_pick_emoji', '表情');?>" onclick="spToggleEmojiPicker(event, document.getElementById('spPoster'))"><?php echo sp_ic('smile');?></span>
                   <span title="<?php echo t('sp_pick_mention', '@好友');?>" onclick="spMentionOpen()"><?php echo sp_ic('at');?></span>
                   <span title="<?php echo t('sp_pick_topic', '话题');?>" onclick="spAlert('话题')"><?php echo sp_ic('hash');?></span>
                 </div>
@@ -419,7 +419,7 @@ $genderLabel = $gender === 1 ? t('sp_male', '男') : ($gender === 2 ? t('sp_fema
                   </div>
                 </div>
                 <div class="f-single-content">
-                  <div class="f-ct-text"><?php echo nl2br(htmlspecialchars($f['text']));?></div>
+                  <div class="f-ct-text"><?php echo nl2br(space_render_emoji(htmlspecialchars($f['text'])));?></div>
                   <?php if (!empty($f['images'])): ?>
                   <div class="f-ct-txtimg"><div class="img-box<?php echo count($f['images']) === 1 ? ' one' : '';?>" data-lb="<?php echo (int)$f['id'];?>">
                     <?php foreach ($f['images'] as $di => $im): ?>
@@ -441,6 +441,7 @@ $genderLabel = $gender === 1 ? t('sp_male', '男') : ($gender === 2 ? t('sp_fema
                   <div class="f-comments-list"></div>
                   <div class="f-cmt-input">
                     <input class="f-cmt-text" placeholder="<?php echo t('sp_cmt_ph', '评论一下...');?>" maxlength="500">
+                    <span class="sp-cmt-emoji" title="<?php echo t('sp_pick_emoji', '表情');?>" onclick="spToggleEmojiPicker(event, this.previousElementSibling)"><?php echo sp_ic('smile');?></span>
                     <button class="btn-post btn-sm" onclick="spCmtSend(this)">发表</button>
                   </div>
                 </div>
@@ -491,6 +492,7 @@ $genderLabel = $gender === 1 ? t('sp_male', '男') : ($gender === 2 ? t('sp_fema
               <?php if ($u['username'] !== ''): ?>
               <div class="sp-board-input">
                 <textarea id="spBoardInput" placeholder="<?php echo t('sp_board_ph', '写下你的留言...');?>" maxlength="500"></textarea>
+                <span class="sp-cmt-emoji" title="<?php echo t('sp_pick_emoji', '表情');?>" onclick="spToggleEmojiPicker(event, document.getElementById('spBoardInput'))"><?php echo sp_ic('smile');?></span>
                 <button class="btn-post" onclick="spBoardPost()"><?php echo t('sp_board_post', '留言');?></button>
               </div>
               <?php endif; ?>
@@ -683,6 +685,11 @@ $spJsT = [
     'sp_net_err' => t('sp_net_err', '网络错误'),
     'sp_op_fail' => t('sp_op_fail', '操作失败'),
     'sp_cmt_fail' => t('sp_cmt_fail', '评论失败'),
+    'sp_pick_emoji' => t('sp_pick_emoji', '表情'),
+    'sp_emoji_builtin' => t('sp_emoji_builtin', '内置表情'),
+    'sp_emoji_custom' => t('sp_emoji_custom', '自定义表情'),
+    'sp_emoji_upload' => t('sp_emoji_upload', '上传'),
+    'sp_no_custom_emoji' => t('sp_no_custom_emoji', '暂无自定义表情'),
     'sp_board_fail' => t('sp_board_fail', '留言失败'),
     'sp_img_max9' => t('sp_img_max9', '最多上传 9 张图片'),
     'sp_img_size' => t('sp_img_size', '单张图片最大 10MB'),
@@ -840,7 +847,7 @@ function renderStreamFeeds(feeds) {
         + '<div class="f-nick">' + esc(f.author) + (f.special ? ' <span class="sp-special-tag">\u2665 ' + spT('sp_care', '特别关心') + '</span>' : '') + '</div>'
         + '<div class="info-detail">' + esc(f.time) + '</div>'
         + '</div></div>'
-        + '<div class="f-single-content"><div class="f-ct-text">' + esc(f.content).replace(/\n/g, '<br>') + '</div>'
+        + '<div class="f-single-content"><div class="f-ct-text">' + spRenderContent(f.content) + '</div>'
         + (f.images && f.images.length ? '<div class="f-ct-txtimg"><div class="img-box' + (f.images.length === 1 ? ' one' : '') + '" data-lb="' + f.id + '">' + f.images.map(function (im, i) { return '<a class="img-item" onclick="spOpenLightbox(' + f.id + ',' + i + ')"><img src="' + im + '" alt=""></a>'; }).join('') + '</div></div>' : '')
         + '</div>'
         + '<div class="f-single-foot"><ul class="op-list">'
@@ -848,7 +855,7 @@ function renderStreamFeeds(feeds) {
         + '<li class="op-comment" data-id="' + f.id + '">' + SP_ICONS.comment + ' ' + spT('sp_comment', '评论') + '</li>'
         + (isMine ? '<li class="op-del" data-id="' + f.id + '">' + SP_ICONS.top + ' ' + spT('sp_delete', '删除') + '</li>' : '')
         + '</ul></div>'
-        + '<div class="f-comments" data-feed="' + f.id + '" style="display:none"><div class="f-comments-list"></div><div class="f-cmt-input"><input class="f-cmt-text" placeholder="' + spT('sp_cmt_ph', '评论一下...') + '" maxlength="500"><button class="btn-post btn-sm" onclick="spCmtSend(this)">' + spT('sp_post', '发表') + '</button></div></div>'
+        + '<div class="f-comments" data-feed="' + f.id + '" style="display:none"><div class="f-comments-list"></div><div class="f-cmt-input"><input class="f-cmt-text" placeholder="' + spT('sp_cmt_ph', '评论一下...') + '" maxlength="500"><span class="sp-cmt-emoji" title="' + spT('sp_pick_emoji', '表情') + '" onclick="spToggleEmojiPicker(event, this.previousElementSibling)">' + SP_ICONS.smile + '</span><button class="btn-post btn-sm" onclick="spCmtSend(this)">' + spT('sp_post', '发表') + '</button></div></div>'
         + '</li>';
     });
   }
@@ -860,7 +867,7 @@ toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior
 var SP_SPACE = <?php echo json_encode(['self' => $isSelf, 'uid' => $uid, 'meUid' => $meUid, 'friend' => $isFriendView ? 1 : 0]);?>;
 var SP_POST_VIS = 0, SP_POST_FRIENDS = [], SP_FRIENDS = [], SP_POST_IMAGES = [];
 var SP_FM_MODE = 'vis', SP_MENTIONS = [];
-var SP_ICONS = { say: '<?php echo sp_ic('say');?>', comment: '<?php echo sp_ic('comment');?>', like: '<?php echo sp_ic('like');?>', top: '<?php echo sp_ic('top');?>' };
+var SP_ICONS = { say: '<?php echo sp_ic('say');?>', comment: '<?php echo sp_ic('comment');?>', like: '<?php echo sp_ic('like');?>', top: '<?php echo sp_ic('top');?>', smile: '<?php echo sp_ic('smile');?>' };
 var SP_X_IC = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 
 function spAlert(what) { alert('「' + what + '」功能即将上线。'); }
@@ -1278,6 +1285,131 @@ function esc(s) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
   });
 }
+/* ===== 表情（朋友圈：内置 + 自定义，与 chat.php 同款） ===== */
+var SP_EMOJI = [];
+fetch('../../api/emoji.php?action=list').then(function (r) { return r.json(); }).then(function (d) { if (d && d.success) SP_EMOJI = d.emojis || []; }).catch(function () {});
+function spRenderEmoji(t) {
+  if (Array.isArray(SP_EMOJI) && SP_EMOJI.length) {
+    for (var i = 0; i < SP_EMOJI.length; i++) {
+      var e = SP_EMOJI[i];
+      if (e.img && e.code && t.indexOf(e.code) >= 0) {
+        t = t.split(e.code).join('<img src="../../' + e.img + '" class="sp-emoji sp-emoji-builtin" alt="">');
+      }
+    }
+  }
+  return t.replace(/\[emoji:([a-f0-9]{32})\]/g, function (m, h) {
+    return '<img src="../../api/emoji.php?action=img&hash=' + h + '" class="sp-emoji sp-emoji-custom" alt="">';
+  });
+}
+function spRenderContent(raw) {
+  return spRenderEmoji(esc(raw)).replace(/\n/g, '<br>');
+}
+var _spEmojiTarget = null;
+function spToggleEmojiPicker(e, targetEl) {
+  e.stopPropagation();
+  e.preventDefault();
+  _spEmojiTarget = targetEl || null;
+  var popup = document.getElementById('spEmojiPopup');
+  if (!popup) return;
+  if (popup.style.display === 'flex') { popup.style.display = 'none'; return; }
+  var btn = e.target.closest('span[onclick*="spToggleEmojiPicker"]');
+  var rect = btn ? btn.getBoundingClientRect() : { top: 0, left: 0, width: 0, height: 0 };
+  var popW = 340;
+  var left = rect.left + (rect.width - popW) / 2;
+  if (left < 4) left = 4;
+  if (left + popW > window.innerWidth - 4) left = window.innerWidth - popW - 4;
+  if (rect.top >= 196) { popup.style.top = (rect.top - 194) + 'px'; }
+  else { popup.style.top = (rect.bottom + 6) + 'px'; }
+  popup.style.left = left + 'px';
+  popup.style.display = 'flex';
+  spSwitchEmojiTab('builtin');
+}
+function spSwitchEmojiTab(tab) {
+  var tb = document.getElementById('spEmojiTabBuiltin');
+  var tc = document.getElementById('spEmojiTabCustom');
+  var grid = document.getElementById('spEmojiGrid');
+  if (tb) tb.classList.toggle('active', tab === 'builtin');
+  if (tc) tc.classList.toggle('active', tab === 'custom');
+  if (!grid) return;
+  if (tab === 'builtin') {
+    if (!SP_EMOJI.length) {
+      fetch('../../api/emoji.php?action=list').then(function (r) { return r.json(); }).then(function (d) { if (d && d.success) { SP_EMOJI = d.emojis || []; spSwitchEmojiTab('builtin'); } });
+      return;
+    }
+    var h = '';
+    for (var i = 0; i < SP_EMOJI.length; i++) {
+      var e = SP_EMOJI[i];
+      if (e.type === 4) {
+        h += '<span class="sp-emoji-item unicode" onclick="spInsertEmoji(\'' + esc(e.id) + '\')" title="' + esc(e.code) + '">' + esc(e.id) + '</span>';
+      } else if (e.img) {
+        h += '<img src="../../' + e.img + '" class="sp-emoji-item" onclick="spInsertEmoji(\'' + e.code + '\')" title="' + esc(e.code) + '">';
+      }
+    }
+    grid.innerHTML = h;
+    return;
+  }
+  fetch('../../api/emoji.php?action=my_custom').then(function (r) { return r.json(); }).then(function (d) {
+    if (!d || !d.success || !d.custom.length) {
+      grid.innerHTML = '<div class="sp-emoji-empty">' + spT('sp_no_custom_emoji', '暂无自定义表情') + '</div><div class="sp-emoji-upload"><button class="btn-post btn-sm" onclick="document.getElementById(\'spCustomEmojiFile\').click()">+ ' + spT('sp_emoji_upload', '上传') + '</button></div>';
+      return;
+    }
+    var h2 = '';
+    for (var i = 0; i < d.custom.length; i++) {
+      var c = d.custom[i];
+      h2 += '<div class="sp-emoji-item-wrap"><img src="../../' + c.img + '" class="sp-emoji-item" onclick="spInsertEmoji(\'[emoji:' + c.hash + ']\')"><span class="sp-emoji-del" onclick="event.stopPropagation();spDeleteCustomEmoji(\'' + c.hash + '\', this)">&times;</span></div>';
+    }
+    h2 += '<div class="sp-emoji-upload"><button class="btn-post btn-sm" onclick="document.getElementById(\'spCustomEmojiFile\').click()">+ ' + spT('sp_emoji_upload', '上传') + '</button></div>';
+    grid.innerHTML = h2;
+  });
+}
+function spInsertEmoji(code) {
+  var el = _spEmojiTarget;
+  if (!el) return;
+  el.focus();
+  if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+    var start = el.selectionStart, end = el.selectionEnd;
+    var before = el.value.substring(0, start), after = el.value.substring(end);
+    el.value = before + code + after;
+    el.selectionStart = el.selectionEnd = start + code.length;
+    el.dispatchEvent(new Event('input'));
+    return;
+  }
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount) { el.appendChild(document.createTextNode(code)); return; }
+  var range = sel.getRangeAt(0);
+  range.deleteContents();
+  var tn = document.createTextNode(code);
+  range.insertNode(tn);
+  range.setStartAfter(tn);
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+function spUploadCustomEmoji() {
+  var input = document.getElementById('spCustomEmojiFile');
+  var files = input.files;
+  if (!files || !files.length) return;
+  var arr = []; for (var i = 0; i < files.length; i++) arr.push(files[i]);
+  input.value = '';
+  var done = 0, total = arr.length;
+  function one(f) {
+    if (f.size > 2 * 1024 * 1024) { done++; if (done >= total) spSwitchEmojiTab('custom'); return; }
+    var rd = new FileReader();
+    rd.onload = function (e) {
+      fetch('../../api/emoji.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'action=upload&image=' + encodeURIComponent(e.target.result) })
+        .then(function (r) { return r.json(); })
+        .then(function () { done++; if (done >= total) spSwitchEmojiTab('custom'); });
+    };
+    rd.readAsDataURL(f);
+  }
+  for (var i = 0; i < arr.length; i++) one(arr[i]);
+}
+function spDeleteCustomEmoji(hash, el) {
+  var f = new URLSearchParams(); f.append('action', 'delete'); f.append('hash', hash);
+  fetch('../../api/emoji.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { if (d && d.success) { var w = el ? el.closest('.sp-emoji-item-wrap') : null; if (w) w.remove(); } });
+}
 function spCmtToggle(li) {
   var box = li.querySelector('.f-comments');
   if (!box) return;
@@ -1321,13 +1453,13 @@ function cmtTopHtml(c, iAmOwner) {
   return '<div class="f-cmt" data-id="' + c.id + '">'
     + (c.card.avatar ? '<img class="f-cmt-av" src="' + c.card.avatar + '" alt="">' : '<div class="f-cmt-av av-empty">' + esc(c.card.name.charAt(0)) + '</div>')
     + '<div class="f-cmt-bd">'
-    + '<div class="f-cmt-txt"><b>' + esc(c.card.name) + '</b>：' + esc(c.content).replace(/\n/g, '<br>') + '</div>'
+    + '<div class="f-cmt-txt"><b>' + esc(c.card.name) + '</b>：' + spRenderContent(c.content) + '</div>'
     + '<div class="f-cmt-meta">' + c.time + ' · <a class="f-cmt-reply" data-id="' + c.id + '" data-name="' + esc(c.card.name) + '">' + spT('sp_reply', '回复') + '</a>' + del + '</div>'
     + '</div></div>';
 }
 function cmtReplyHtml(r, iAmOwner) {
   var del = (r.mine || iAmOwner) ? '<a class="f-cmt-del" data-id="' + r.id + '">' + spT('sp_delete', '删除') + '</a>' : '';
-  return '<div class="f-cmt-reply-item" data-id="' + r.id + '"><b>' + esc(r.card.name) + '</b>：' + esc(r.content).replace(/\n/g, '<br>') + ' <span class="f-cmt-meta">' + r.time + del + '</span></div>';
+  return '<div class="f-cmt-reply-item" data-id="' + r.id + '"><b>' + esc(r.card.name) + '</b>：' + spRenderContent(r.content) + ' <span class="f-cmt-meta">' + r.time + del + '</span></div>';
 }
 function spCmtSend(btn) {
   var box = btn.closest('.f-comments');
@@ -1398,7 +1530,7 @@ function renderBoard(msgs, iAmOwner) {
       + (m.card.avatar ? '<img class="sp-board-av" src="' + m.card.avatar + '" alt="">' : '<div class="sp-board-av av-empty">' + esc(m.card.name.charAt(0)) + '</div>')
       + '<div class="sp-board-bd">'
       + '<div class="sp-board-top"><b>' + esc(m.card.name) + '</b><span class="sp-board-time">' + m.time + '</span></div>'
-      + '<div class="sp-board-ct">' + esc(m.content).replace(/\n/g, '<br>') + '</div>'
+      + '<div class="sp-board-ct">' + spRenderContent(m.content) + '</div>'
       + (del ? '<div class="sp-board-op">' + del + '</div>' : '')
       + '</div></li>';
   });
@@ -1835,5 +1967,14 @@ document.addEventListener('keydown', function (e) {
   if (e.key === 'ArrowRight') spLbNav(1);
 });
 </script>
+<!-- 表情选择器（朋友圈：内置 + 自定义） -->
+<div class="sp-emoji-popup" id="spEmojiPopup" style="display:none">
+  <div class="sp-emoji-side">
+    <button class="active" id="spEmojiTabBuiltin" onclick="spSwitchEmojiTab('builtin')"><?php echo t('sp_emoji_builtin', '内置表情');?></button>
+    <button id="spEmojiTabCustom" onclick="spSwitchEmojiTab('custom')"><?php echo t('sp_emoji_custom', '自定义表情');?></button>
+  </div>
+  <div class="sp-emoji-grid" id="spEmojiGrid"></div>
+</div>
+<input type="file" id="spCustomEmojiFile" accept="image/*" multiple style="display:none" onchange="spUploadCustomEmoji()">
 </body>
 </html>
