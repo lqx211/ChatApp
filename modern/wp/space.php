@@ -233,7 +233,9 @@ $cmtCount = [];if ($uid) {
         ];
     }
 }
-$genderLabel = $gender === 1 ? t('sp_male', '男') : ($gender === 2 ? t('sp_female', '女') : t('sp_unset', '未设置'));
+$genderLabel = $gender === 1 ? t('sp_male', '男') : ($gender === 0 ? t('sp_female', '女') : t('sp_unset', '未设置'));
+// 左栏「TA的动态」按对方性别显示 He/She/Its（性别未设→Its）
+$theirFeedLabel = $gender === 1 ? t('sp_their_feed_his', 'TA的动态') : ($gender === 0 ? t('sp_their_feed_her', 'TA的动态') : t('sp_their_feed_its', 'TA的动态'));
 ?>
 <!DOCTYPE html>
 <html lang="zh-cn">
@@ -367,7 +369,7 @@ $genderLabel = $gender === 1 ? t('sp_male', '男') : ($gender === 2 ? t('sp_fema
             <div class="inner"><div class="bd">
               <ul class="sn-list" id="feedTypes">
                 <?php if (!$isSelf): ?>
-                <li class="current" data-f="their"><a onclick="spStream('user')"><span class="sn-ico c1"><?php echo sp_ic('people');?></span><span class="sn-title"><?php echo t('sp_their_feed', 'TA的动态');?></span></a></li>
+                <li class="current" data-f="their"><a onclick="spStream('user')"><span class="sn-ico c1"><?php echo sp_ic('people');?></span><span class="sn-title"><?php echo $theirFeedLabel;?></span></a></li>
                 <?php endif; ?>
                 <li class="<?php echo $isSelf ? 'current' : '';?>" data-f="mine"><a onclick="spStream('mine')"><span class="sn-ico c1"><?php echo sp_ic('people');?></span><span class="sn-title"><?php echo t('sp_my_feed', '我的动态');?></span></a></li>
                 <li data-f="friends"><a onclick="spStream('friends')"><span class="sn-ico c2"><?php echo sp_ic('people');?></span><span class="sn-title"><?php echo t('sp_friend_feed', '好友动态');?></span></a></li>
@@ -790,6 +792,8 @@ $spJsT = [
     'sp_load_friends' => t('sp_load_friends', '加载好友…'),
     'sp_no_friends' => t('sp_no_friends', '无好友'),
     'sp_unset' => t('sp_unset', '未设置'),
+    'sp_male' => t('sp_male', '男'),
+    'sp_female' => t('sp_female', '女'),
     'sp_common_friends' => t('sp_common_friends', '你们有 %s 个共同好友'),
     'sp_blog_empty_self' => t('sp_blog_empty_self', '还没有日志，写第一篇吧～'),
     'sp_blog_empty_other' => t('sp_blog_empty_other', '期待 TA 的第一篇日志～'),
@@ -1794,7 +1798,7 @@ function spNameCardShow(el) {
   document.getElementById('ncAv').src = el.getAttribute('data-avatar') || '';
   document.getElementById('ncName').textContent = el.getAttribute('data-name') || '';
   var g = +el.getAttribute('data-gender');
-  var meta = (g === 1 ? spT('sp_male', '男') : (g === 2 ? spT('sp_female', '女') : spT('sp_unset', '未设置')));
+  var meta = (g === 1 ? spT('sp_male', '男') : (g === 0 ? spT('sp_female', '女') : spT('sp_unset', '未设置')));
   var zod = el.getAttribute('data-zodiac');
   if (zod) meta += ' · ' + zod;
   document.getElementById('ncMeta').textContent = meta;
