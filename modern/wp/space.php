@@ -1255,6 +1255,38 @@ function renderPostImgs() {
   box.innerHTML = html;
 }
 function spDropImg(i) { SP_POST_IMAGES.splice(i, 1); renderPostImgs(); }
+/* HEIF/HEIC 检测：按 MIME（image/heic* / image/heif*）或扩展名（.heic/.heif） */
+function spIsHeif(file) {
+  var t = (file.type || '').toLowerCase();
+  if (t.indexOf('image/heic') === 0 || t.indexOf('image/heif') === 0) return true;
+  return /\.(heic|heif)$/i.test(file.name || '');
+}
+/* HEIF → JPEG：浏览器解码后 canvas 重编码（质量 0.92）；失败回调 null */
+function spHeifToJpeg(file, cb) {
+  function toJpeg(src, w, h) {
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(src, 0, 0, w, h);
+    canvas.toBlob(function (blob) { cb(blob); }, 'image/jpeg', 0.92);
+  }
+  function imgFallback() {
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function () { URL.revokeObjectURL(url); toJpeg(img, img.naturalWidth, img.naturalHeight); };
+    img.onerror = function () { URL.revokeObjectURL(url); cb(null); };
+    img.src = url;
+  }
+  if (typeof createImageBitmap === 'function') {
+    createImageBitmap(file).then(function (bmp) {
+      var w = bmp.width, h = bmp.height;
+      toJpeg(bmp, w, h);
+      if (bmp.close) bmp.close();
+    }).catch(function () { imgFallback(); });
+  } else {
+    imgFallback();
+  }
+}
 (function () {
   var inp = document.getElementById('spImgInput');
   if (!inp) return;
@@ -1263,17 +1295,23 @@ function spDropImg(i) { SP_POST_IMAGES.splice(i, 1); renderPostImgs(); }
     if (!files.length) return;
     if (SP_POST_IMAGES.length + files.length > 9) { alert(spT('sp_img_max9', '最多上传 9 张图片')); inp.value = ''; return; }
     files.forEach(function (file) {
-      if (file.type.indexOf('image/') !== 0) return;
+      if (file.type.indexOf('image/') !== 0 && !spIsHeif(file)) return;
       if (file.size > 10 * 1024 * 1024) { alert(spT('sp_img_size', '单张图片最大 10MB') + '：' + file.name); return; }
-      var fd = new FormData();
-      fd.append('images', file);
-      fetch('../../api/space.php?action=upload_image', { method: 'POST', credentials: 'same-origin', body: fd })
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          if (d && d.success && d.urls && d.urls.length) { SP_POST_IMAGES = SP_POST_IMAGES.concat(d.urls); renderPostImgs(); }
-          else alert(spT('sp_upload_fail', '图片上传失败'));
-        })
-        .catch(function () { alert(spT('sp_upload_fail', '图片上传失败')); });
+      function upload(blob) {
+        if (!blob) { alert(spT('sp_upload_fail', '图片上传失败') + '：' + file.name); return; }
+        var fd = new FormData();
+        // 转换后的 HEIF 以 .jpg 文件名上传（服务端按内容判定，仅作占位）
+        fd.append('images', blob, (file.name || 'image.jpg').replace(/\.(heic|heif)$/i, '.jpg'));
+        fetch('../../api/space.php?action=upload_image', { method: 'POST', credentials: 'same-origin', body: fd })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (d && d.success && d.urls && d.urls.length) { SP_POST_IMAGES = SP_POST_IMAGES.concat(d.urls); renderPostImgs(); }
+            else alert(spT('sp_upload_fail', '图片上传失败') + '：' + file.name);
+          })
+          .catch(function () { alert(spT('sp_upload_fail', '图片上传失败') + '：' + file.name); });
+      }
+      if (spIsHeif(file)) spHeifToJpeg(file, upload);
+      else upload(file);
     });
     inp.value = '';
   });
