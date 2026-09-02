@@ -102,11 +102,13 @@ img{border:0;vertical-align:middle}
 .head-avatar .av-widget{position:absolute;left:50%;bottom:71px;transform:translateX(-50%);width:112px;height:auto;pointer-events:none;z-index:6;background:transparent!important;border:none!important;box-shadow:none!important;border-radius:0!important}
 /* ============ 通用头像耳朵挂件（全站头像复用） ============
    公式由 space.php 头像(120px)精调坐标反推：挂件底边在头像顶下方 57px*scale，
-   耳朵宽 = min(112px, 112px*scale)，scale = 头像直径/120px（封顶1，即不超过 space.php 尺寸）。
-   用法：头像容器 position:relative，放入 <img class="av-ear">（脚本按容器实际宽度自动设 --av-size） */
+   耳朵宽 = min(112px, 112px*scale)，scale = 头像直径/120px（封顶1）。
+   scale 由注入方（ears.js / 服务端内联）以【无单位数字】给出，直接写进 --s：
+   勿在 CSS 里用 calc() 长度除法（calc(var(--av)/120px)）——Firefox 不支持除法，
+   会导致 --s 失效、耳朵位置错乱（飞到普通文档流）。
+   用法：头像容器 position:relative，放入 <img class="av-ear">。 */
 .av-ear {
-  --av: var(--av-size, 120px);
-  --s: min(calc(var(--av) / 120px), 1);
+  --s: 1; /* scale：无单位数字，默认 1（120px 头像）。由注入方按实际直径设置 */
   position: absolute;
   left: 50%;
   bottom: calc(100% - 57px * var(--s));

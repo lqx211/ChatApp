@@ -333,7 +333,7 @@ $theirFeedLabel = $gender === 1 ? t('sp_their_feed_his', 'TA的动态') : ($gend
     <div class="layout-nav-inner">
       <div class="head-avatar">
         <?php if ($avatarUrl):?><img src="<?php echo htmlspecialchars($avatarUrl);?>" alt=""><?php else:?><div class="av-empty"><?php echo htmlspecialchars($ch);?></div><?php endif;?>
-        <?php if ((int)($u['space_ears'] ?? 1)): ?><img class="av-ear" style="--av-size:120px" src="../../data/res/space-widget/ears.apng" alt=""><?php endif; ?>
+        <?php if ((int)($u['space_ears'] ?? 1)): ?><img class="av-ear" style="--s:1" src="../../data/res/space-widget/ears.apng" alt=""><?php endif; ?>
       </div>
       <div class="head-detail">
         <div class="head-detail-name"><span class="user-name"><?php echo htmlspecialchars($displayName);?></span></div>

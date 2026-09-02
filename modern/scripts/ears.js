@@ -85,7 +85,12 @@
         img.className = 'av-ear';
         img.alt = '';
         img.src = EAR_SRC;
-        img.style.setProperty('--av-size', w + 'px');
+        // scale = 头像直径/120px，封顶 1。直接以无单位数字设 --s（勿用 CSS calc 除法，
+        // Firefox 不支持 calc(px/px) 会整条失效 → 耳朵错位）。小头像按比例缩小耳朵。
+        var s = w / 120;
+        if (s > 1) s = 1;
+        if (s < 0.4) s = 0.4;
+        img.style.setProperty('--s', String(s));
         host.appendChild(img);
         host.setAttribute('data-av-ear', '1');
       }
