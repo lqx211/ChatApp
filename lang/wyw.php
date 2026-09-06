@@ -299,6 +299,8 @@ return [
     'msel_export' => '匯出',
     'msel_count' => '已選 %s 條',
     'msel_empty' => '請先選取消息',
+    'msel_report_none' => '所選之中無可舉報者',
+    'msel_report_multi' => '僅能舉報一人之消息，請再擇選',
     'cl_title' => '%s 之聊天紀錄',
     'cl_footer' => '聊天紀錄',
     'cl_group' => '群聊',

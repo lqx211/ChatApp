@@ -299,6 +299,8 @@ return [
     'msel_export' => '汇出',
     'msel_count' => '已选 %s 条',
     'msel_empty' => '请先选择消息',
+    'msel_report_none' => '所选消息中没有可举报的对象',
+    'msel_report_multi' => '只能举报同一个人的消息，请调整选择',
     'cl_title' => '%s 的聊天记录',
     'cl_footer' => '聊天记录',
     'cl_group' => '群聊',

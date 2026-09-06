@@ -5304,9 +5304,10 @@ function updateMsgSelectBar() {
     var c = document.getElementById('msgSelectCount');
     var n = Object.keys(_msgSelected).length;
     if (c) c.textContent = T('msel_count').replace('%s', n);
-    var fb = document.getElementById('msgSelectForwardBtn'), eb = document.getElementById('msgSelectExportBtn');
+    var fb = document.getElementById('msgSelectForwardBtn'), eb = document.getElementById('msgSelectExportBtn'), rb = document.getElementById('msgSelectReportBtn');
     if (fb) fb.disabled = n === 0;
     if (eb) eb.disabled = n === 0;
+    if (rb) rb.disabled = n === 0;
 }
 function cancelMsgSelect() {
     _msgSelectMode = false;
@@ -5348,6 +5349,41 @@ function exportSelected() {
     openForwardPicker();
 }
 
+/** 多选举报：所选消息须来自同一个“非本人”用户 → 打开举报弹层并预勾选这些消息。 */
+function reportSelectedMsgs() {
+    var selRows = [];
+    document.querySelectorAll('.mr.msg-selected').forEach(function(mr) { selRows.push(mr); });
+    var byUser = {}, order = [], area = null;
+    for (var i = 0; i < selRows.length; i++) {
+        var mr = selRows[i];
+        var u = mr.getAttribute('data-msguser') || '';
+        if (u === U) continue; // 自己的消息不能作为举报对象
+        if (!area) area = mr.closest('#dmMessagesArea, #messagesArea');
+        if (!byUser[u]) { byUser[u] = {}; order.push(u); }
+        byUser[u][mr.getAttribute('data-msgid') || ''] = 1;
+    }
+    if (order.length === 0) { xalert(T('msel_report_none', '所选消息中没有可举报的对象')); return; }
+    if (order.length > 1) { xalert(T('msel_report_multi', '只能举报同一个人的消息，请调整选择')); return; }
+    var target = order[0], selIds = byUser[target];
+    cancelMsgSelect();
+    repTarget = target;
+    document.getElementById('reportTitle').textContent = T('title_report_user') + ': ' + target;
+    document.getElementById('reportReason').value = '';
+    var listEl = area || document.getElementById('dmMessagesArea') || document.getElementById('messagesArea');
+    var msgs = listEl ? listEl.querySelectorAll('[data-msgid]') : [];
+    var checkboxes = document.getElementById('reportMsgCheckboxes');
+    var h = '<div style="color:#aaa;font-size:.75em;margin-bottom:6px">Include messages:</div>';
+    for (var j = 0; j < msgs.length; j++) {
+        if ((msgs[j].getAttribute('data-msguser') || '') !== target) continue;
+        var mid = msgs[j].getAttribute('data-msgid');
+        var mt = msgs[j].querySelector('.mt');
+        var preview = mt ? mt.textContent.substring(0, 60) : '';
+        var checked = selIds[mid] ? ' checked' : '';
+        h += '<label class="msg-cb"><input type="checkbox" value="' + mid + '"' + checked + '> #' + mid + ' ' + eh(preview) + '</label>';
+    }
+    checkboxes.innerHTML = h;
+    document.getElementById('reportModal').classList.add('active');
+}
 function getComposerTarget() {
     if (document.activeElement && document.activeElement.id && (document.activeElement.id === 'messageInput' || document.activeElement.id === 'dmMessageInput')) return document.activeElement;
     var el = document.getElementById('messageInput');

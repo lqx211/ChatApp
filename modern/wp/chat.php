@@ -84,6 +84,7 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
    <span class="msel-count" id="msgSelectCount"><?php echo t('msel_count','已选 0 条');?></span>
    <button class="bsm" id="msgSelectForwardBtn" onclick="forwardSelected()"><?php echo t('menu_forward');?></button>
    <button class="bsm" id="msgSelectExportBtn" onclick="exportSelected()"><?php echo t('msel_export');?></button>
+   <button class="bsm" id="msgSelectReportBtn" onclick="reportSelectedMsgs()"><?php echo t('menu_report');?></button>
    <button class="bsm" onclick="cancelMsgSelect()"><?php echo t('btn_cancel');?></button>
  </div>
  <!-- 加载动画 -->

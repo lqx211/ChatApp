@@ -306,6 +306,8 @@ return [
     'msel_export' => 'Export',
     'msel_count' => 'N selected',
     'msel_empty' => 'Select messages first',
+    'msel_report_none' => 'No reportable messages selected.',
+    'msel_report_multi' => 'Can only report messages from one user. Adjust your selection.',
     'cl_title' => '%s\'s chat history',
     'cl_footer' => 'Chat History',
     'cl_group' => 'Group chat',
