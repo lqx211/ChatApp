@@ -762,6 +762,12 @@ function space_fmt_time(string $dt): string {
     return t('sp_time_date', '%s月%s日 %s:%s', date('m', $t), date('d', $t), date('H', $t), date('i', $t));
 }
 
+/** 动态/编辑精确时间：YYYY-MM-DD HH:MM:SS（不折叠为“几天前”） */
+function space_fmt_full(string $dt): string {
+    $t = strtotime($dt);
+    return $t ? date('Y-m-d H:i:s', $t) : '';
+}
+
 /** 解析 uid 数组（支持 JSON 或逗号分隔字符串） */
 function space_parse_ids($raw): array {
     $arr = is_string($raw) ? json_decode($raw, true) : null;

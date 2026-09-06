@@ -226,8 +226,8 @@ $cmtCount = [];if ($uid) {
             'images' => $f['images'] ? (json_decode($f['images'], true) ?: []) : [],
             'likes' => (int)$f['likes'],
             'liked' => in_array($meUid, $likedBy, true),
-            'time' => space_fmt_time($f['created_at']),
-            'edited' => !empty($f['edited_at']) ? space_fmt_time($f['edited_at']) : null,
+            'time' => space_fmt_full($f['created_at']),
+            'edited' => !empty($f['edited_at']) ? space_fmt_full($f['edited_at']) : null,
             'vis' => $vis,
             'cmt' => $cmtCount[(int)$f['id']] ?? 0,
         ];
@@ -474,7 +474,7 @@ $theirFeedLabel = $gender === 1 ? t('sp_their_feed_his', 'TA的动态') : ($gend
                 <div class="f-single-head">
                   <?php if ($avatarUrl):?><img class="user-avatar" src="<?php echo htmlspecialchars($avatarUrl);?>" alt=""><?php else:?><span class="user-avatar av-empty"><?php echo htmlspecialchars($ch);?></span><?php endif;?>
                   <div class="user-info">
-                    <div class="f-nick"><?php echo htmlspecialchars($displayName);?><?php if (!empty($f['edited'])):?> <span class="sp-edited-tag"><?php echo t('sp_edited', '已编辑');?></span><?php endif;?></div>
+                    <div class="f-nick"><?php echo htmlspecialchars($displayName);?></div>
                     <div class="info-detail"><?php echo t('sp_pub_at', '发布于 %s', htmlspecialchars($f['time']));?><?php if (!empty($f['edited'])):?> · <?php echo t('sp_edited_at', '编辑于 %s', htmlspecialchars($f['edited']));?><?php endif;?><?php if ($isSelf):?> · <span class="f-vis"><?php echo space_vis_label((int)$f['vis']);?></span><?php endif;?></div>
                   </div>
                 </div>
@@ -950,7 +950,7 @@ function renderStreamFeeds(feeds) {
         + '<div class="f-single-head">'
         + (f.avatar ? '<img class="user-avatar" src="' + f.avatar + '" alt="">' : '<span class="user-avatar av-empty">' + esc(ch) + '</span>')
         + '<div class="user-info">'
-        + '<div class="f-nick">' + esc(f.author) + (f.special ? ' <span class="sp-special-tag">\u2665 ' + spT('sp_care', '特别关心') + '</span>' : '') + (f.edited ? ' <span class="sp-edited-tag">' + spT('sp_edited', '已编辑') + '</span>' : '') + '</div>'
+        + '<div class="f-nick">' + esc(f.author) + (f.special ? ' <span class="sp-special-tag">\u2665 ' + spT('sp_care', '特别关心') + '</span>' : '') + '</div>'
         + '<div class="info-detail">' + spT('sp_pub_at', '发布于 %s', esc(f.time)) + (f.edited ? ' · ' + spT('sp_edited_at', '编辑于 %s', esc(f.edited)) : '') + (isMine ? ' · <span class="f-vis">' + esc(SP_VIS_LABELS[f.vis] || '') + '</span>' : '') + '</div>'
         + '</div></div>'
         + '<div class="f-single-content"><div class="f-ct-text">' + spRenderContent(f.content) + '</div>'

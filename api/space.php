@@ -305,8 +305,8 @@ switch ($action) {
                 'images' => $f['images'] ? (json_decode($f['images'], true) ?: []) : [],
                 'likes' => (int)$f['likes'],
                 'liked' => in_array($myUid, $likedBy, true),
-                'time' => space_fmt_time($f['created_at']),
-                'edited' => !empty($f['edited_at']) ? space_fmt_time($f['edited_at']) : null,
+                'time' => space_fmt_full($f['created_at']),
+                'edited' => !empty($f['edited_at']) ? space_fmt_full($f['edited_at']) : null,
                 'visibility' => $isSelf ? $vis : null,
                 'visible_to' => ($isSelf && ($vis === 2 || $vis === 3)) ? space_parse_ids($f['visible_to']) : [],
             ];
@@ -479,8 +479,8 @@ switch ($action) {
                     'likes' => (int)$f['likes'],
                     'liked' => in_array($myUid, $likedBy, true),
                     'vis' => $vis,
-                    'time' => space_fmt_time($f['created_at']),
-                    'edited' => !empty($f['edited_at']) ? space_fmt_time($f['edited_at']) : null,
+                    'time' => space_fmt_full($f['created_at']),
+                    'edited' => !empty($f['edited_at']) ? space_fmt_full($f['edited_at']) : null,
                     'ts' => strtotime($f['created_at']),
                 ];
             }
