@@ -87,11 +87,6 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
    <button class="bsm" id="msgSelectReportBtn" onclick="reportSelectedMsgs()"><?php echo t('menu_report');?></button>
    <button class="bsm" onclick="cancelMsgSelect()"><?php echo t('btn_cancel');?></button>
  </div>
- <!-- 右键聊天区背景 → 已读回执快捷开关（发送 / 显示他人已读） -->
- <div id="chatBgCtxMenu" class="chatbg-menu">
-   <button id="chatBgSendBtn" onclick="chatBgToggleSend()"></button>
-   <button id="chatBgViewBtn" onclick="chatBgToggleView()"></button>
- </div>
  <!-- 加载动画 -->
  <div id="loader-wrapper">
    <div class="loader">

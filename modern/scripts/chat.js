@@ -2967,6 +2967,17 @@ function mrrHtml(m, own) {
     return '<span class="mrr"> · ' + txt + '</span>';
 }
 
+/** 消息右键菜单里的“已读回执”开关项（空标签，打开菜单时按当前状态填充文案）。 */
+function receiptToggleItem() {
+    return '<div class="msg-rr" onclick="closeAllMsgMenus();toggleSendReceipt()"></div>';
+}
+/** 刷新已渲染消息菜单里的已读回执开关文案（启用/禁用发送已读回执）。 */
+function refreshMsgMenuReceipt() {
+    document.querySelectorAll('.msg-menu .msg-rr').forEach(function(el) {
+        el.textContent = SEND_RECEIPT === 1 ? T('opt_send_receipt_off', '禁用发送已读回执') : T('opt_send_receipt_on', '启用发送已读回执');
+    });
+}
+
 /** 构建普通 DM 消息行（E2EE 解密后也复用）。 */
 function buildDmMsgRow(m, own) {
     var d = document.createElement('div');
@@ -3008,8 +3019,8 @@ function buildDmMsgRow(m, own) {
             tempMenu = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-multi" onclick="enterMsgSelectMode(this);closeAllMsgMenus()">' + T('menu_multiselect') + '</div>' + dlItem + fwdItem + '<div onclick="replyDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + revokeItem + reportMenuItem + '</div>';
         }
         rh = (own && !dl) ? tempMenu : ((!dl) ? tempMenu : '');
-    } else if (own && !dl) rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-multi" onclick="enterMsgSelectMode(this);closeAllMsgMenus()">' + T('menu_multiselect') + '</div><div class="msg-fwd" onclick="openForwardModal(this);closeAllMsgMenus()">' + T('menu_forward') + '</div><div onclick="replyDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + emojiMenuItem + reportMenuItem + '<div onclick="revokeDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_revoke') + '</div></div>';
-    else if (!dl) rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-multi" onclick="enterMsgSelectMode(this);closeAllMsgMenus()">' + T('menu_multiselect') + '</div><div class="msg-fwd" onclick="openForwardModal(this);closeAllMsgMenus()">' + T('menu_forward') + '</div><div onclick="replyDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + emojiMenuItem + reportMenuItem + '<div style="color:#555;cursor:not-allowed">' + T('menu_revoke') + '</div></div>';
+    } else if (own && !dl) rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-multi" onclick="enterMsgSelectMode(this);closeAllMsgMenus()">' + T('menu_multiselect') + '</div><div class="msg-fwd" onclick="openForwardModal(this);closeAllMsgMenus()">' + T('menu_forward') + '</div><div onclick="replyDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + receiptToggleItem() + emojiMenuItem + reportMenuItem + '<div onclick="revokeDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_revoke') + '</div></div>';
+    else if (!dl) rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-multi" onclick="enterMsgSelectMode(this);closeAllMsgMenus()">' + T('menu_multiselect') + '</div><div class="msg-fwd" onclick="openForwardModal(this);closeAllMsgMenus()">' + T('menu_forward') + '</div><div onclick="replyDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + receiptToggleItem() + emojiMenuItem + reportMenuItem + '<div style="color:#555;cursor:not-allowed">' + T('menu_revoke') + '</div></div>';
     d.innerHTML = av + '<div class="mc"><div class="mb"><div class="mu">' + eh(_contactNotes[m.username] || m.display_name || m.username) + '</div>' + rq + '<div class="mt' + dc + '">' + msgContent + '</div>' + md + '<div class="mti">' + fmtTime(m.time) + mrrHtml(m, own) + '</div></div>' + rh + '</div>';
     return d;
 }
@@ -3382,8 +3393,8 @@ function addAnnouncement(m, prepend) {
             var revokeItem = '<div class="flash-revoke" onclick="flashInterrupt(this,' + m.temp_upload_id + ');closeAllMsgMenus()" style="color:#e06060">' + (isTempOwner ? T('flash_revoke_interrupt', '撤回并中断') : T('menu_revoke')) + '</div>';
             rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-multi" onclick="enterMsgSelectMode(this);closeAllMsgMenus()">' + T('menu_multiselect') + '</div>' + dlItem + fwdItem + '<div onclick="replyAnnouncement(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + revokeItem + reportMenuItem + '</div>';
         }
-    } else if (own && !dl) rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-multi" onclick="enterMsgSelectMode(this);closeAllMsgMenus()">' + T('menu_multiselect') + '</div><div class="msg-fwd" onclick="openForwardModal(this);closeAllMsgMenus()">' + T('menu_forward') + '</div><div onclick="replyAnnouncement(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + emojiMenuItem + reportMenuItem + '<div onclick="revokeAnnouncement(' + m.id + ');closeAllMsgMenus()">' + T('menu_revoke') + '</div></div>';
-    else if (!dl) rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-multi" onclick="enterMsgSelectMode(this);closeAllMsgMenus()">' + T('menu_multiselect') + '</div><div class="msg-fwd" onclick="openForwardModal(this);closeAllMsgMenus()">' + T('menu_forward') + '</div><div onclick="replyAnnouncement(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + emojiMenuItem + reportMenuItem + '<div style="color:#555;cursor:not-allowed">' + T('menu_revoke') + '</div></div>';
+    } else if (own && !dl) rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-multi" onclick="enterMsgSelectMode(this);closeAllMsgMenus()">' + T('menu_multiselect') + '</div><div class="msg-fwd" onclick="openForwardModal(this);closeAllMsgMenus()">' + T('menu_forward') + '</div><div onclick="replyAnnouncement(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + receiptToggleItem() + emojiMenuItem + reportMenuItem + '<div onclick="revokeAnnouncement(' + m.id + ');closeAllMsgMenus()">' + T('menu_revoke') + '</div></div>';
+    else if (!dl) rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-multi" onclick="enterMsgSelectMode(this);closeAllMsgMenus()">' + T('menu_multiselect') + '</div><div class="msg-fwd" onclick="openForwardModal(this);closeAllMsgMenus()">' + T('menu_forward') + '</div><div onclick="replyAnnouncement(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + receiptToggleItem() + emojiMenuItem + reportMenuItem + '<div style="color:#555;cursor:not-allowed">' + T('menu_revoke') + '</div></div>';
     d.innerHTML = av + '<div class="mc"><div class="mb"><div class="mu">' + eh(_contactNotes[m.username] || m.display_name || m.username) + '</div>' + rq + '<div class="mt' + dc + '">' + msgContent + '</div>' + md + '<div class="mti">' + fmtTime(m.time) + '</div></div>' + rh + '</div>';
     if (m.msg_type === 'temp' && m.temp_upload_id) {
         startTempPoll(d);
@@ -5462,7 +5473,7 @@ function toggleMsgMenu(e, btn) {
     if (!menu || !menu.classList.contains('msg-menu')) return;
     var wasActive = menu.style.display === 'block';
     closeAllMsgMenus();
-    closeChatBgMenu();
+    refreshMsgMenuReceipt();
     if (!wasActive) {
         var r = btn.getBoundingClientRect();
         var x = r.right;
@@ -7307,7 +7318,6 @@ function openUserCtxMenu(e, username) {
     if (e && e.stopPropagation) e.stopPropagation();
     var el = ensureUserCtxMenu();
     _ctxUser = username;
-    closeChatBgMenu();
     var pinBtn = document.getElementById('ctxPinBtn');
     if (pinBtn) pinBtn.textContent = ((username === U) ? _pinnedSelf : _pinned[username]) ? T('d_unpin') : T('d_pin');
     var readBtn = document.getElementById('ctxReadBtn');
@@ -7342,27 +7352,7 @@ async function toggleSendReceipt() {
         SEND_RECEIPT = d.send_read_receipt;
         var b = document.getElementById('ctxReadBtn');
         if (b) b.textContent = SEND_RECEIPT === 1 ? T('opt_send_receipt_off', '禁用发送已读回执') : T('opt_send_receipt_on', '启用发送已读回执');
-        refreshChatBgLabels();
-    }
-}
-// 是否显示他人已读回执：全局开关（隐私设置 / 右键聊天区背景 双入口同步）
-async function toggleViewReceipt() {
-    var f = new URLSearchParams();
-    f.append('action', 'toggle_view_read_receipt');
-    var r = await fetch('../../api/settings.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: f.toString()
-    });
-    var d = await r.json();
-    if (d && d.success) {
-        VIEW_RECEIPT = d.view_read_receipt;
-        refreshOwnReceipts();
-        refreshChatBgLabels();
-        // 重新拉取当前会话，确保标记按最新设置渲染
-        if (D && typeof loadDmMessages === 'function') loadDmMessages(0);
+        refreshMsgMenuReceipt();
     }
 }
 function refreshOwnReceipts() {
@@ -7387,51 +7377,6 @@ window.handleReadReceipt = function(d) {
         el.textContent = ' · ' + txt;
     });
 };
-
-/* ---- 右键聊天区背景 → 已读回执快捷开关（发送 / 显示他人已读） ---- */
-function refreshChatBgLabels() {
-    var sb = document.getElementById('chatBgSendBtn'),
-        vb = document.getElementById('chatBgViewBtn');
-    if (sb) sb.textContent = SEND_RECEIPT === 1 ? T('opt_send_receipt_off', '禁用发送已读回执') : T('opt_send_receipt_on', '启用发送已读回执');
-    if (vb) vb.textContent = VIEW_RECEIPT === 1 ? T('opt_view_receipt_off', '禁用显示已读回执') : T('opt_view_receipt_on', '启用显示已读回执');
-}
-function openChatBgCtxMenu(e) {
-    var menu = document.getElementById('chatBgCtxMenu');
-    if (!menu) return;
-    closeUserCtxMenu();
-    closeAllMsgMenus();
-    refreshChatBgLabels();
-    menu.classList.add('active');
-    var x = e.clientX,
-        y = e.clientY;
-    var bw = menu.offsetWidth || 180,
-        bh = menu.offsetHeight || 64;
-    if (x + bw > window.innerWidth - 6) x = Math.max(6, window.innerWidth - bw - 6);
-    if (y + bh > window.innerHeight - 6) y = Math.max(6, window.innerHeight - bh - 6);
-    menu.style.left = x + 'px';
-    menu.style.top = y + 'px';
-}
-function closeChatBgMenu() {
-    var m = document.getElementById('chatBgCtxMenu');
-    if (m) m.classList.remove('active');
-}
-function chatBgToggleSend() { closeChatBgMenu(); toggleSendReceipt(); }
-function chatBgToggleView() { closeChatBgMenu(); toggleViewReceipt(); }
-function attachChatBgCtx() {
-    ['dmMessagesArea', 'messagesArea'].forEach(function(id) {
-        var a = document.getElementById(id);
-        if (!a) return;
-        a.addEventListener('contextmenu', function(e) {
-            // 点中消息气泡 / emoji → 交回 document 级处理器弹消息菜单
-            if (e.target && e.target.closest && e.target.closest('.mr, .chat-emoji')) return;
-            e.preventDefault();
-            e.stopPropagation(); // 避免 document 级 contextmenu 处理器把菜单立刻关掉
-            closeUserCtxMenu();
-            openChatBgCtxMenu(e);
-        });
-    });
-}
-attachChatBgCtx();
 // 特别关心：切换 + 文本刷新（已开显示「取消特别关心」）
 function toggleSpecialContact(u) {
     var f = new URLSearchParams();
@@ -7461,14 +7406,12 @@ function toggleDmSpecial() {
     if (m) m.classList.remove('active');
     if (D) toggleSpecialContact(D);
 }
-document.addEventListener('click', function() { closeUserCtxMenu(); closeChatBgMenu(); });
+document.addEventListener('click', function() { closeUserCtxMenu(); });
 document.addEventListener('contextmenu', function(e) {
-    var t = e.target;
-    if (!(t && t.closest && t.closest('#userCtxMenu'))) closeUserCtxMenu();
-    if (!(t && t.closest && t.closest('#chatBgCtxMenu'))) closeChatBgMenu();
+    if (!(e.target.closest && e.target.closest('#userCtxMenu'))) closeUserCtxMenu();
 });
-document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { closeUserCtxMenu(); closeChatBgMenu(); closeCodePreview(); } });
-window.addEventListener('scroll', function() { closeUserCtxMenu(); closeChatBgMenu(); }, true);
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { closeUserCtxMenu(); closeCodePreview(); } });
+window.addEventListener('scroll', function() { closeUserCtxMenu(); }, true);
 (function() {
     // Sidebar contact list: click on avatar (.ca) → open profile (stop propagation to avoid openDm)
     var fc = document.getElementById('friendContacts');

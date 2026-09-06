@@ -126,11 +126,8 @@ img[src*="data/res/svg/"],img[src*="data/res/cil/"],img[src*="data/res/brand/"]{
 #userCtxMenu button:hover{background:#3a3a3a}
 #userCtxMenu button.danger{color:#e06060}
 #userCtxMenu button.danger:hover{background:#4a2020}
-/* ---- 右键聊天区背景：已读回执开关 ---- */
-.chatbg-menu{display:none;position:fixed;z-index:1200;background:#2a2a2a;border:1px solid #555;min-width:160px;box-shadow:0 2px 8px rgba(0,0,0,0.5)}
-.chatbg-menu.active{display:block}
-.chatbg-menu button{display:block;width:100%;text-align:left;padding:7px 14px;background:none;border:none;color:#ccc;font-size:.74em;font-family:inherit;cursor:pointer;white-space:nowrap}
-.chatbg-menu button:hover{background:#3a3a3a}
+/* ---- 消息右键菜单：已读回执开关 ---- */
+.msg-menu .msg-rr{color:#8fb6d9}
 .er,.su{padding:8px 12px;font-size:.78em;display:none;margin-bottom:10px}
 .er{background:#3d2020;border:1px solid #5c2a2a;color:#e06060}
 .su{background:#1e3d1e;border:1px solid #2a5c2a;color:#60e060}
