@@ -102,7 +102,7 @@ $isSelf = ((int)$u['user_id'] === (int)($currentUser['user_id'] ?? 0));
 
 $displayName = $u['display_name'] ?: $u['username'];
 $avatarUrl = chatapp_avatar_url($u['avatar'] ?? '', $u['username']);
-$sig = trim((string)($u['custom_title'] ?? ''));
+$sigRaw = trim((string)($u['custom_title'] ?? ''));
 $level = (int)$u['level']; $exp = (int)$u['exp']; $likes = (int)$u['likes'];
 $gender = $u['gender']; // 0/1/2? 按现有 profile 语义显示
 $birthday = $u['birthday'] ?? '';
@@ -233,9 +233,17 @@ $cmtCount = [];if ($uid) {
         ];
     }
 }
+// ---- 隐私：个性签名（本人看真实签名；他人按 sig_privacy 黑/白/仅自己/禁非好友过滤）----
+$sig = $isSelf ? $sigRaw : chatapp_sig_for_viewer($meUid, $uid, $sigRaw);
+// ---- 隐私：性别（0=所有人可见 1=仅好友可见 2=所有人不可见）----
+$genderPrivacy = (int)($u['gender_privacy'] ?? 0);
+$showGenderRow = $isSelf || $genderPrivacy === 0 || ($genderPrivacy === 1 && $meUid > 0 && $uid > 0 && space_is_friend($pdo, $meUid, $uid));
+if (!$showGenderRow) { $gender = null; } // 无权限 → 性别视为未设，杜绝他/她泄露
 $genderLabel = $gender === 1 ? t('sp_male', '男') : ($gender === 0 ? t('sp_female', '女') : t('sp_unset', '未设置'));
-// 左栏「TA的动态」按对方性别显示 He/She/Its（性别未设→Its）
+// 左栏「TA的动态」按对方性别显示 He/She/Its（性别未设/不可见→Its）
 $theirFeedLabel = $gender === 1 ? t('sp_their_feed_his', 'TA的动态') : ($gender === 0 ? t('sp_their_feed_her', 'TA的动态') : t('sp_their_feed_its', 'TA的动态'));
+// 未知/已删除用户卡片：不渲染真实资料行
+if ($notFoundMode) { $showGenderRow = false; $genderLabel = ''; $sig = ''; $theirFeedLabel = t('sp_their_feed_its', 'TA的动态'); }
 ?>
 <!DOCTYPE html>
 <html lang="zh-cn">
@@ -574,7 +582,7 @@ $theirFeedLabel = $gender === 1 ? t('sp_their_feed_his', 'TA的动态') : ($gend
                 </div>
                 <ul class="sp-profile-list">
                   <li><span class="k"><?php echo t('sp_sig', '个性签名');?></span><span class="v"><?php echo $sig !== '' ? htmlspecialchars($sig) : t('sp_lazy_sig', '这个人很懒，什么都没写');?></span></li>
-                  <li><span class="k"><?php echo t('sp_gender', '性别');?></span><span class="v"><?php echo htmlspecialchars($genderLabel);?></span></li>
+                  <?php if ($showGenderRow):?><li><span class="k"><?php echo t('sp_gender', '性别');?></span><span class="v"><?php echo htmlspecialchars($genderLabel);?></span></li><?php endif;?>
                   <?php if ($birthday):?><li><span class="k"><?php echo t('sp_birthday', '生日');?></span><span class="v"><?php echo htmlspecialchars($birthday);?></span></li><?php endif;?>
                   <li><span class="k"><?php echo t('sp_level', '等级');?></span><span class="v"><?php echo t('sp_level_val', 'Lv.%s（%s 经验）', $level, $exp);?></span></li>
                   <li><span class="k"><?php echo t('sp_likes', '获赞');?></span><span class="v"><?php echo $likes;?></span></li>
@@ -633,7 +641,7 @@ $theirFeedLabel = $gender === 1 ? t('sp_their_feed_his', 'TA的动态') : ($gend
                 <ul class="info-list">
                   <li><span class="k"><?php echo t('sp_nick', '昵称');?></span><span class="v textoverflow"><?php echo htmlspecialchars($displayName);?></span></li>
                   <li><span class="k"><?php echo t('sp_username', '用户名');?></span><span class="v textoverflow"><?php echo htmlspecialchars($u['username']);?></span></li>
-                  <li><span class="k"><?php echo t('sp_gender', '性别');?></span><span class="v"><?php echo htmlspecialchars($genderLabel);?></span></li>
+                  <?php if ($showGenderRow):?><li><span class="k"><?php echo t('sp_gender', '性别');?></span><span class="v"><?php echo htmlspecialchars($genderLabel);?></span></li><?php endif;?>
                   <?php if ($birthday):?><li><span class="k"><?php echo t('sp_birthday', '生日');?></span><span class="v"><?php echo htmlspecialchars($birthday);?></span></li><?php endif;?>
                   <li><span class="k"><?php echo t('sp_level', '等级');?></span><span class="v"><?php echo t('sp_level_val', 'Lv.%s（%s 经验）', $level, $exp);?></span></li>
                   <li><span class="k"><?php echo t('sp_likes', '获赞');?></span><span class="v"><?php echo $likes;?></span></li>
