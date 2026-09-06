@@ -152,8 +152,8 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
    <?php if($isRoot):?>
    <div class="ng"><div class="ngh" onclick="switchPanel('dbadmin')" style="cursor:pointer"><span><?php echo t('sb_dbadmin');?></span></div></div>
    <div class="ng"><div class="ngh" onclick="switchPanel('wssettings');loadWssSettings()" style="cursor:pointer"><span>WebSocket Settings</span></div></div>
-   <div class="ng"><div class="ngh" onclick="switchPanel('oobe')" style="cursor:pointer"><span>OOBE 引导</span></div></div>
-   <div class="ng"><div class="ngh" onclick="location.href='/maintenance/portal.php'" style="cursor:pointer"><span><?php echo svg_ic('wrench', 14);?> 维护门户</span></div></div>
+   <div class="ng"><div class="ngh" onclick="switchPanel('oobe')" style="cursor:pointer"><span><?php echo t('sb_oobe_guide', 'OOBE 引导');?></span></div></div>
+   <div class="ng"><div class="ngh" onclick="location.href='/maintenance/portal.php'" style="cursor:pointer"><span><?php echo svg_ic('wrench', 14);?> <?php echo t('sb_maint_portal', '维护门户');?></span></div></div>
    <?php endif;?>
    <div class="ng"><div class="ngh" onclick="switchPanel('level')" style="cursor:pointer"><span><?php echo t('title_level');?></span></div></div>
    <div class="ng"><div class="ngh" onclick="openSettings()" style="cursor:pointer"><span><?php echo t('title_settings');?></span></div></div>
@@ -187,14 +187,14 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
  </div>
 
  <div class="panel" id="panel-dm">
-  <div class="ch"><h2 id="dmTitle"><?php echo t('title_chat');?></h2><span id="dmE2eeBadge" class="dm-e2ee-badge" style="display:none"></span><div class="dm-options-wrap"><button class="bsm" onclick="toggleDmOptions(event)"><?php echo t('btn_options');?></button><div class="dm-options-menu" id="dmOptionsMenu"><button class="grp-opt" onclick="openGroupInfo()"><?php echo t('g_view_group');?></button><button class="grp-opt" id="grpPinBtn" onclick="togglePinGroup()"><?php echo t('d_pin');?></button><button class="dm-opt" onclick="viewDmProfile()"><?php echo t('btn_view_profile');?></button><button class="dm-opt" id="dmE2eeBtn" onclick="toggleDmE2ee()"><?php echo t('opt_e2ee');?></button><button class="dm-opt" onclick="openSafetyVerify()"><?php echo t('opt_safety_verify');?></button><button class="dm-opt" onclick="startVoiceCall()"><img src="../../data/res/svg/phone_24.svg" width="15" style="vertical-align:-2px"> <?php echo t('opt_voice_call');?></button><button class="dm-opt" onclick="startVideoCall()"><img src="../../data/res/svg/video_24.svg" width="15" style="vertical-align:-2px"> <?php echo t('opt_video_call');?></button><button class="dm-opt" onclick="startStandaloneShare()"><img src="../../data/res/svg/share_screen_24.svg" width="15" style="vertical-align:-2px"> <?php echo t('opt_share_screen');?></button><button class="dm-opt" onclick="reportDmUser()"><?php echo t('btn_report_user');?></button><button class="dm-opt" onclick="openDmSearch()"><?php echo t('d_search_history');?></button><button class="dm-opt" onclick="changeNickname()"><?php echo t('d_change_nickname');?></button><button class="dm-opt" id="dmReloadBtn" onclick="reloadDmClient()"><?php echo t('opt_reload_client');?></button><button class="dm-opt" id="dmPinBtn" onclick="togglePinContact()"><?php echo t('d_pin');?></button><button class="dm-opt" id="dmSpecialBtn" onclick="toggleDmSpecial()">特别关心</button><button class="dm-opt danger" onclick="deleteDmContact()"><?php echo t('btn_delete_contact');?></button></div></div></div>
+  <div class="ch"><h2 id="dmTitle"><?php echo t('title_chat');?></h2><span id="dmE2eeBadge" class="dm-e2ee-badge" style="display:none"></span><div class="dm-options-wrap"><button class="bsm" onclick="toggleDmOptions(event)"><?php echo t('btn_options');?></button><div class="dm-options-menu" id="dmOptionsMenu"><button class="grp-opt" onclick="openGroupInfo()"><?php echo t('g_view_group');?></button><button class="grp-opt" id="grpPinBtn" onclick="togglePinGroup()"><?php echo t('d_pin');?></button><button class="dm-opt" onclick="viewDmProfile()"><?php echo t('btn_view_profile');?></button><button class="dm-opt" id="dmE2eeBtn" onclick="toggleDmE2ee()"><?php echo t('opt_e2ee');?></button><button class="dm-opt" onclick="openSafetyVerify()"><?php echo t('opt_safety_verify');?></button><button class="dm-opt" onclick="startVoiceCall()"><img src="../../data/res/svg/phone_24.svg" width="15" style="vertical-align:-2px"> <?php echo t('opt_voice_call');?></button><button class="dm-opt" onclick="startVideoCall()"><img src="../../data/res/svg/video_24.svg" width="15" style="vertical-align:-2px"> <?php echo t('opt_video_call');?></button><button class="dm-opt" onclick="startStandaloneShare()"><img src="../../data/res/svg/share_screen_24.svg" width="15" style="vertical-align:-2px"> <?php echo t('opt_share_screen');?></button><button class="dm-opt" onclick="reportDmUser()"><?php echo t('btn_report_user');?></button><button class="dm-opt" onclick="openDmSearch()"><?php echo t('d_search_history');?></button><button class="dm-opt" onclick="changeNickname()"><?php echo t('d_change_nickname');?></button><button class="dm-opt" id="dmReloadBtn" onclick="reloadDmClient()"><?php echo t('opt_reload_client');?></button><button class="dm-opt" id="dmPinBtn" onclick="togglePinContact()"><?php echo t('d_pin');?></button><button class="dm-opt" id="dmSpecialBtn" onclick="toggleDmSpecial()"><?php echo t('d_special', '特别关心');?></button><button class="dm-opt danger" onclick="deleteDmContact()"><?php echo t('btn_delete_contact');?></button></div></div></div>
   <div class="ma" id="dmMessagesArea"><div class="es"><p><?php echo t('msg_select_contact');?></p></div></div>
   <div class="typing-indicator" id="typingIndicator"></div>
   <div class="upload-progress" id="dmUploadProgress"><div></div></div>
   <div class="md-preview" id="mdPreviewDm"></div>
   <div class="reply-bar" id="replyBar" style="display:none"><span id="replyBarText"></span><button class="bsm" onclick="cancelReply()">&#x2715;</button></div>
-  <div class="rec-bar" id="dmRecBar" style="display:none"><span class="rec-dot"></span><span>录音中</span><span id="dmRecTimer">0:00</span><button class="bsm" onclick="cancelVoiceRec()">&#x2715; 取消</button></div>
-  <div class="cia"><textarea id="dmMessageInput" oninput="autoResize(this);onDmInput();onMdInput('mdPreviewDm','dmMessageInput','mdCheckDm')" placeholder="<?php echo t('label_type_message');?>" maxlength="32767" rows="1" style="resize:none;overflow-y:auto;line-height:1.4;max-height:20em"></textarea><input type="file" id="dmMediaFile" multiple style="display:none" onchange="mediaFilesChosen(this,'dm')"><button class="bsm" id="dmEmojiBtn" onclick="toggleEmojiPicker(event,'dmMessageInput')" title="Emoji"><img src="../../data/res/svg/expression_24.svg" width="16" style="vertical-align:-2px"></button><button class="bsm nine-hide" onclick="toggleFlashMenu(event,this)" title="Attach"><img src="../../data/res/svg/folder_24.svg" width="16" style="vertical-align:-2px"></button><button class="bsm nine-hide" onclick="togglePenMenu(event,this)" title="Doodle / Live Draw"><img src="../../data/res/svg/brush_24.svg" width="16" style="vertical-align:-2px"></button><button class="bsm" id="dmNineBtn" onclick="toggleDmNineMenu(event,this)" title="更多"><svg width="16" height="16" viewBox="0 0 24 24" fill="#ccc"><circle cx="5" cy="5" r="1.8"/><circle cx="12" cy="5" r="1.8"/><circle cx="19" cy="5" r="1.8"/><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/><circle cx="5" cy="19" r="1.8"/><circle cx="12" cy="19" r="1.8"/><circle cx="19" cy="19" r="1.8"/></svg></button><button class="bsm ime-toggle" id="imeToggle" type="button" title="拼音输入开关">EN</button><button class="bsm nine-hide" id="dmMicBtn" onclick="toggleVoiceRec()" title="语音消息"><img src="../../data/res/svg/microphone_on_24.svg" width="16" style="vertical-align:-2px"></button><input type="file" id="flashMediaFileDm" multiple style="display:none" onchange="flashFileChosen(this,'dm')"><label class="md-check"><input type="checkbox" id="mdCheckDm" onchange="onMdInput('mdPreviewDm','dmMessageInput','mdCheckDm')"> Markdown</label><button class="bs" id="dmSendBtn" onclick="sendDmMessage()"><?php echo t('btn_send');?></button></div>
+  <div class="rec-bar" id="dmRecBar" style="display:none"><span class="rec-dot"></span><span><?php echo t('rec_label', '录音中');?></span><span id="dmRecTimer">0:00</span><button class="bsm" onclick="cancelVoiceRec()">&#x2715; <?php echo t('btn_cancel', '取消');?></button></div>
+  <div class="cia"><textarea id="dmMessageInput" oninput="autoResize(this);onDmInput();onMdInput('mdPreviewDm','dmMessageInput','mdCheckDm')" placeholder="<?php echo t('label_type_message');?>" maxlength="32767" rows="1" style="resize:none;overflow-y:auto;line-height:1.4;max-height:20em"></textarea><input type="file" id="dmMediaFile" multiple style="display:none" onchange="mediaFilesChosen(this,'dm')"><button class="bsm" id="dmEmojiBtn" onclick="toggleEmojiPicker(event,'dmMessageInput')" title="Emoji"><img src="../../data/res/svg/expression_24.svg" width="16" style="vertical-align:-2px"></button><button class="bsm nine-hide" onclick="toggleFlashMenu(event,this)" title="Attach"><img src="../../data/res/svg/folder_24.svg" width="16" style="vertical-align:-2px"></button><button class="bsm nine-hide" onclick="togglePenMenu(event,this)" title="Doodle / Live Draw"><img src="../../data/res/svg/brush_24.svg" width="16" style="vertical-align:-2px"></button><button class="bsm" id="dmNineBtn" onclick="toggleDmNineMenu(event,this)" title="<?php echo t('title_more', '更多');?>"><svg width="16" height="16" viewBox="0 0 24 24" fill="#ccc"><circle cx="5" cy="5" r="1.8"/><circle cx="12" cy="5" r="1.8"/><circle cx="19" cy="5" r="1.8"/><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/><circle cx="5" cy="19" r="1.8"/><circle cx="12" cy="19" r="1.8"/><circle cx="19" cy="19" r="1.8"/></svg></button><button class="bsm ime-toggle" id="imeToggle" type="button" title="<?php echo t('ime_switch_tip', '拼音输入开关');?>">EN</button><button class="bsm nine-hide" id="dmMicBtn" onclick="toggleVoiceRec()" title="<?php echo t('title_voice_msg', '语音消息');?>"><img src="../../data/res/svg/microphone_on_24.svg" width="16" style="vertical-align:-2px"></button><input type="file" id="flashMediaFileDm" multiple style="display:none" onchange="flashFileChosen(this,'dm')"><label class="md-check"><input type="checkbox" id="mdCheckDm" onchange="onMdInput('mdPreviewDm','dmMessageInput','mdCheckDm')"> Markdown</label><button class="bs" id="dmSendBtn" onclick="sendDmMessage()"><?php echo t('btn_send');?></button></div>
   <div class="nine-menu" id="dmNineMenu" style="display:none">
     <div class="nine-cell" onclick="nineEmoji()"><img src="../../data/res/svg/expression_24.svg" alt=""><span><?php echo t('nine_emoji');?></span></div>
     <div class="nine-cell" onclick="nineFlash()"><img src="../../data/res/svg/fast_folder_16.svg" alt=""><span><?php echo t('nine_flash');?></span></div>
@@ -314,13 +314,13 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
  <?php if($isRoot):?>
  <!-- Database Admin (root only) -->
  <div class="panel" id="panel-dbadmin">
-  <div class="ch"><h2>数据库管理</h2><span style="color:#e0a040;font-size:.75em;margin-left:12px">Root Only</span></div>
+  <div class="ch"><h2><?php echo t('sb_dbadmin', '数据库管理');?></h2><span style="color:#e0a040;font-size:.75em;margin-left:12px">Root Only</span></div>
   <div class="db-toolbar" style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;align-items:center">
    <select id="dbTableSelect" style="padding:6px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:inherit;font-size:.8em;min-width:180px" onchange="dbShowTable()">
-    <option value="">-- 选择表 --</option>
+    <option value=""><?php echo t('db_sel_table', '-- 选择表 --');?></option>
    </select>
-   <button class="bsm" onclick="dbShowTable()" style="background:#2a4a2a;border-color:#3a6a3a">查看结构</button>
-   <button class="bsm" onclick="dbExport()" style="background:#3a3a2a;border-color:#5a5a3a">导出 .sql</button>
+   <button class="bsm" onclick="dbShowTable()" style="background:#2a4a2a;border-color:#3a6a3a"><?php echo t('db_view_structure', '查看结构');?></button>
+   <button class="bsm" onclick="dbExport()" style="background:#3a3a2a;border-color:#5a5a3a"><?php echo t('db_export_sql', '导出 .sql');?></button>
   </div>
   <div id="dbStructure" style="overflow-x:auto;margin:0 12px;font-size:.72em;color:#ccc;display:none">
    <div class="db-info" id="dbTableInfo" style="margin-bottom:8px;color:#aaa"></div>
@@ -331,10 +331,10 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
    </table>
   </div>
   <div class="db-query-area" style="padding:10px 12px">
-   <div style="margin-bottom:6px;font-size:.75em;color:#888">仅允许 SELECT / SHOW / DESCRIBE / EXPLAIN 查询</div>
+   <div style="margin-bottom:6px;font-size:.75em;color:#888"><?php echo t('db_allow_note', '仅允许 SELECT / SHOW / DESCRIBE / EXPLAIN 查询');?></div>
    <textarea id="dbQueryInput" style="width:100%;padding:8px;background:#111;border:1px solid #444;color:#e0e0e0;font-family:monospace;font-size:.8em;resize:vertical;min-height:60px" placeholder="SELECT * FROM users LIMIT 10"></textarea>
    <div style="margin-top:6px;display:flex;gap:8px;align-items:center">
-    <button class="bsm" onclick="dbRunQuery()" style="background:#2a4a2a;border-color:#3a6a3a">执行</button>
+    <button class="bsm" onclick="dbRunQuery()" style="background:#2a4a2a;border-color:#3a6a3a"><?php echo t('db_execute', '执行');?></button>
     <span id="dbQueryStatus" style="color:#888;font-size:.72em"></span>
    </div>
   </div>
@@ -351,24 +351,24 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
  <div class="panel" id="panel-wssettings">
   <div class="ch"><h2>WebSocket Settings</h2><span style="color:#e0a040;font-size:.75em;margin-left:12px">Root Only</span></div>
   <div style="padding:12px">
-   <div style="font-size:.75em;color:#888;margin-bottom:10px">三个通讯模式分别填地址（host:port 或完整 ws:// / wss:// URL）。前端按当前访问来源自动选择：localhost 走「本地」，私网 IP 走「私网」，公网域名走「公网」。留空 = 该模式不启用。</div>
+   <div style="font-size:.75em;color:#888;margin-bottom:10px"><?php echo t('wss_help', '三个通讯模式分别填地址（host:port 或完整 ws:// / wss:// URL）。前端按当前访问来源自动选择：localhost 走「本地」，私网 IP 走「私网」，公网域名走「公网」。留空 = 该模式不启用。');?></div>
    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px">
-    <div style="display:flex;gap:8px;align-items:flex-end"><span style="width:64px;font-size:.78em;color:#ccc;padding-bottom:8px;white-space:nowrap"><?php echo svg_ic('monitor', 13);?> 本地</span><div class="uinput" style="flex:1;min-width:0"><input type="text" id="wssLocalInput" placeholder="127.0.0.1:9090"></div></div>
-    <div style="display:flex;gap:8px;align-items:flex-end"><span style="width:64px;font-size:.78em;color:#ccc;padding-bottom:8px;white-space:nowrap"><?php echo svg_ic('home', 13);?> 私网</span><div class="uinput" style="flex:1;min-width:0"><input type="text" id="wssPrivateInput" placeholder="0.0.0.0:9090"></div></div>
-    <div style="display:flex;gap:8px;align-items:flex-end"><span style="width:64px;font-size:.78em;color:#ccc;padding-bottom:8px;white-space:nowrap"><?php echo svg_ic('globe', 13);?> 公网</span><div class="uinput" style="flex:1;min-width:0"><input type="text" id="wssPublicInput" placeholder="wss://wss.lqx211.com"></div></div>
+    <div style="display:flex;gap:8px;align-items:flex-end"><span style="width:64px;font-size:.78em;color:#ccc;padding-bottom:8px;white-space:nowrap"><?php echo svg_ic('monitor', 13);?> <?php echo t('wss_local', '本地');?></span><div class="uinput" style="flex:1;min-width:0"><input type="text" id="wssLocalInput" placeholder="127.0.0.1:9090"></div></div>
+    <div style="display:flex;gap:8px;align-items:flex-end"><span style="width:64px;font-size:.78em;color:#ccc;padding-bottom:8px;white-space:nowrap"><?php echo svg_ic('home', 13);?> <?php echo t('wss_private', '私网');?></span><div class="uinput" style="flex:1;min-width:0"><input type="text" id="wssPrivateInput" placeholder="0.0.0.0:9090"></div></div>
+    <div style="display:flex;gap:8px;align-items:flex-end"><span style="width:64px;font-size:.78em;color:#ccc;padding-bottom:8px;white-space:nowrap"><?php echo svg_ic('globe', 13);?> <?php echo t('wss_public', '公网');?></span><div class="uinput" style="flex:1;min-width:0"><input type="text" id="wssPublicInput" placeholder="wss://wss.lqx211.com"></div></div>
    </div>
    <div style="display:flex;gap:8px;align-items:center">
-    <button type="button" class="bsm" onclick="saveWssSettings()" style="background:#2a4a2a;border-color:#3a6a3a">保存</button>
+    <button type="button" class="bsm" onclick="saveWssSettings()" style="background:#2a4a2a;border-color:#3a6a3a"><?php echo t('btn_save', '保存');?></button>
     <span style="font-size:.72em;color:#aaa" id="wssActiveMode"></span>
    </div>
    <div style="margin-top:6px;font-size:.72em;color:#aaa" id="wssSaveStatus"></div>
   </div>
  </div>
  <div class="panel" id="panel-oobe">
-  <div class="ch"><h2>OOBE 首次引导</h2><span style="color:#e0a040;font-size:.75em;margin-left:12px">Root Only</span></div>
+  <div class="ch"><h2><?php echo t('oobe_rerun_title', 'OOBE 首次引导');?></h2><span style="color:#e0a040;font-size:.75em;margin-left:12px">Root Only</span></div>
   <div style="padding:12px">
-   <div style="font-size:.75em;color:#888;margin-bottom:10px">重新运行首次配置引导（语言 / 功能导览 / 安全初始化）。幂等操作，不会改动或删除任何数据。</div>
-   <button class="bsm" onclick="rerunOobe()" style="background:#4a3a2a;border-color:#5a4a3a">重新运行 OOBE</button>
+   <div style="font-size:.75em;color:#888;margin-bottom:10px"><?php echo t('oobe_rerun_desc', '重新运行首次配置引导（语言 / 功能导览 / 安全初始化）。幂等操作，不会改动或删除任何数据。');?></div>
+   <button class="bsm" onclick="rerunOobe()" style="background:#4a3a2a;border-color:#5a4a3a"><?php echo t('oobe_rerun_btn', '重新运行 OOBE');?></button>
   </div>
  </div>
  <?php endif;?>
@@ -483,7 +483,7 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
   <div class="sc">
    <?php if($isRoot):?>
    <div class="ss"><h3>Reload All Clients</h3>
-     <p style="color:#888;font-size:.78em;margin-bottom:8px">强制所有在线客户端刷新（仅 Root）</p>
+     <p style="color:#888;font-size:.78em;margin-bottom:8px"><?php echo t('reload_clients_desc', '强制所有在线客户端刷新（仅 Root）');?></p>
      <button class="bsm" onclick="reloadAllClients()" style="background:#4a2020;border-color:#5c2a2a;color:#e06060">Reload All Clients</button>
    </div>
    <?php endif;?>
@@ -665,7 +665,7 @@ try {
 } catch (e) {}
 </script>
 <div class="modal-overlay" id="addDonModal"><div class="modal-box"><h3>Add Donation</h3><table style="width:100%;border-collapse:collapse;font-size:.82em"><tr><td style="padding:6px 12px">DateTime</td><td style="padding:6px"><input type="text" id="addDonDateTime" placeholder="YYYY-MM-DD HH:MM:SS" style="width:100%;padding:6px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:inherit"></td></tr><tr><td style="padding:6px 12px">User</td><td style="padding:6px"><input type="text" id="addDonUserSearch" placeholder="Search username or UID..." autocomplete="off" oninput="searchDonUser()" style="width:100%;padding:6px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:inherit"><input type="hidden" id="addDonUserId"><div id="donUserSearchResults" style="max-height:120px;overflow-y:auto;border:1px solid #333;background:#1a1a1a;display:none"></div></td></tr><tr><td style="padding:6px 12px">WeixinID</td><td style="padding:6px"><input type="text" id="addDonWeixin" placeholder="Optional" style="width:100%;padding:6px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:inherit"></td></tr><tr><td style="padding:6px 12px">QQ</td><td style="padding:6px"><input type="text" id="addDonQQ" placeholder="Optional" style="width:100%;padding:6px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:inherit"></td></tr></table><div class="modal-actions" style="margin-top:10px"><button class="bsm" onclick="closeAddDonModal()">Cancel</button><button class="bsm" onclick="doAddDonation()" style="background:#2a4a2a;border-color:#3a6a3a">Save</button></div></div></div>
-<input type="file" id="customEmojiFile" accept="image/*" multiple style="display:none" onchange="uploadCustomEmoji()"><div class="emoji-popup" id="emojiPopup" style="display:none"><div class="emoji-sidebar"><button class="active" id="emojiTabBuiltin" onclick="switchEmojiTab('builtin')">内置表情</button><button id="emojiTabCustom" onclick="switchEmojiTab('custom')">自定义表情</button></div><div class="emoji-grid" id="emojiGrid"></div></div>
+<input type="file" id="customEmojiFile" accept="image/*" multiple style="display:none" onchange="uploadCustomEmoji()"><div class="emoji-popup" id="emojiPopup" style="display:none"><div class="emoji-sidebar"><button class="active" id="emojiTabBuiltin" onclick="switchEmojiTab('builtin')"><?php echo t('emoji_builtin', '内置表情');?></button><button id="emojiTabCustom" onclick="switchEmojiTab('custom')"><?php echo t('emoji_custom', '自定义表情');?></button></div><div class="emoji-grid" id="emojiGrid"></div></div>
 
 <!-- Flash transfer menu (shared by announcement + DM composer) -->
 <div class="flash-menu" id="flashMenu" style="display:none">
@@ -683,7 +683,7 @@ try {
 
 <!-- Mobile sidebar drawer: overlay + toggle button -->
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobileSidebar()"></div>
-<button id="sidebarToggleBtn" class="hidden" onclick="openMobileSidebar()" title="菜单">&#x276E;</button>
+<button id="sidebarToggleBtn" class="hidden" onclick="openMobileSidebar()" title="<?php echo t('title_menu', '菜单');?>">&#x276E;</button>
 
 <!-- ================================================================
      Profile Drawer (right side overlay, iframe renders test.html)
@@ -823,56 +823,56 @@ try {
   <div class="doodle-toolbar">
     <span class="doodle-title">Doodle</span>
     <span class="doodle-colors" id="doodleColors">
-      <button class="dc" data-c="#ffffff" style="background:#ffffff" title="白"></button>
-      <button class="dc" data-c="#ff5d5d" style="background:#ff5d5d" title="红"></button>
-      <button class="dc" data-c="#ffb84d" style="background:#ffb84d" title="橙"></button>
-      <button class="dc" data-c="#ffe94d" style="background:#ffe94d" title="黄"></button>
-      <button class="dc" data-c="#6dff6d" style="background:#6dff6d" title="绿"></button>
-      <button class="dc active" data-c="#4dd8ff" style="background:#4dd8ff" title="青"></button>
-      <button class="dc" data-c="#4d7dff" style="background:#4d7dff" title="蓝"></button>
-      <button class="dc" data-c="#d84dff" style="background:#d84dff" title="紫"></button>
+      <button class="dc" data-c="#ffffff" style="background:#ffffff" title="<?php echo t('color_white', '白');?>"></button>
+      <button class="dc" data-c="#ff5d5d" style="background:#ff5d5d" title="<?php echo t('color_red', '红');?>"></button>
+      <button class="dc" data-c="#ffb84d" style="background:#ffb84d" title="<?php echo t('color_orange', '橙');?>"></button>
+      <button class="dc" data-c="#ffe94d" style="background:#ffe94d" title="<?php echo t('color_yellow', '黄');?>"></button>
+      <button class="dc" data-c="#6dff6d" style="background:#6dff6d" title="<?php echo t('color_green', '绿');?>"></button>
+      <button class="dc active" data-c="#4dd8ff" style="background:#4dd8ff" title="<?php echo t('color_cyan', '青');?>"></button>
+      <button class="dc" data-c="#4d7dff" style="background:#4d7dff" title="<?php echo t('color_blue', '蓝');?>"></button>
+      <button class="dc" data-c="#d84dff" style="background:#d84dff" title="<?php echo t('color_purple', '紫');?>"></button>
     </span>
-    <label class="doodle-size">粗细 <input type="range" id="doodleSize" min="1" max="40" value="6"></label>
-    <button class="bsm" id="doodleEraserBtn" onclick="toggleDoodleEraser()">橡皮</button>
-    <button class="bsm" onclick="undoDoodle()">撤销</button>
-    <button class="bsm" onclick="clearDoodle()">清空</button>
-    <button class="bsm" onclick="closeDoodle()"><img src="../../data/res/cil/cil-x.svg" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"> 取消</button>
-    <label class="doodle-switch" title="Apple Pen 模式：开启后仅 Pencil 可画，忽略手指（Pencil 触碰时自动开启）"><input type="checkbox" id="doodlePenSwitch"><span class="ds-track"><span class="ds-thumb"></span></span><span class="ds-label">Apple Pen</span></label>
-    <button class="bs" id="doodleSendBtn" onclick="sendDoodle()" style="background:#2a4a2a;border-color:#3a6a3a">发送</button>
+    <label class="doodle-size"><?php echo t('doodle_stroke', '粗细');?> <input type="range" id="doodleSize" min="1" max="40" value="6"></label>
+    <button class="bsm" id="doodleEraserBtn" onclick="toggleDoodleEraser()"><?php echo t('doodle_eraser', '橡皮');?></button>
+    <button class="bsm" onclick="undoDoodle()"><?php echo t('doodle_undo', '撤销');?></button>
+    <button class="bsm" onclick="clearDoodle()"><?php echo t('doodle_clear', '清空');?></button>
+    <button class="bsm" onclick="closeDoodle()"><img src="../../data/res/cil/cil-x.svg" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"> <?php echo t('btn_cancel', '取消');?></button>
+    <label class="doodle-switch" title="<?php echo t('doodle_pen_tip', 'Apple Pen 模式：开启后仅 Pencil 可画，忽略手指（Pencil 触碰时自动开启）');?>"><input type="checkbox" id="doodlePenSwitch"><span class="ds-track"><span class="ds-thumb"></span></span><span class="ds-label">Apple Pen</span></label>
+    <button class="bs" id="doodleSendBtn" onclick="sendDoodle()" style="background:#2a4a2a;border-color:#3a6a3a"><?php echo t('btn_send', '发送');?></button>
   </div>
 </div>
 
 <!-- Pen 菜单：Doodle（本地涂鸦）/ Live Draw（双人实时画板） -->
 <div class="flash-menu pen-menu" id="penMenu" style="display:none">
-  <div onclick="openDoodle();hidePenMenu()"><img src="../../data/res/cil/cil-pen.svg" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"> Doodle（本地涂鸦）</div>
-  <div onclick="openLiveDrawSetup();hidePenMenu()"><img src="../../data/res/cil/cil-pen-nib.svg" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"> Live Draw（双人实时画板）</div>
+  <div onclick="openDoodle();hidePenMenu()"><img src="../../data/res/cil/cil-pen.svg" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"> <?php echo t('doodle_local', 'Doodle（本地涂鸦）');?></div>
+  <div onclick="openLiveDrawSetup();hidePenMenu()"><img src="../../data/res/cil/cil-pen-nib.svg" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"> <?php echo t('livdraw_pair', 'Live Draw（双人实时画板）');?></div>
 </div>
 
 <!-- Live Draw 发起设置弹窗（发起者：选对象 + 设画板大小） -->
 <div class="modal-overlay" id="ldSetupOverlay">
   <div class="modal-box ld-setup">
-    <h3><img src="../../data/res/cil/cil-pen-nib.svg" style="width:16px;height:16px;vertical-align:-3px;margin-right:4px"> Live Draw 发起协作画板</h3>
-    <div class="fg" style="text-align:left"><label>邀请对象（当前对话）</label>
+    <h3><img src="../../data/res/cil/cil-pen-nib.svg" style="width:16px;height:16px;vertical-align:-3px;margin-right:4px"> <?php echo t('ld_start_title', 'Live Draw 发起协作画板');?></h3>
+    <div class="fg" style="text-align:left"><label><?php echo t('ld_invitee_label', '邀请对象（当前对话）');?></label>
       <div class="ld-invitee" id="ldInvitee">…</div>
       <div class="ld-size-note" id="ldInviteeNote"></div>
     </div>
-    <div class="fg" style="text-align:left"><label>画板大小</label>
+    <div class="fg" style="text-align:left"><label><?php echo t('ld_size_label', '画板大小');?></label>
       <div class="ld-size-opts" id="ldSizeOpts">
-        <button type="button" class="ld-size-btn active" data-size="mine">我的窗口</button>
-        <button type="button" class="ld-size-btn" data-size="peer">对方窗口</button>
+        <button type="button" class="ld-size-btn active" data-size="mine"><?php echo t('ld_size_mine', '我的窗口');?></button>
+        <button type="button" class="ld-size-btn" data-size="peer"><?php echo t('ld_size_peer', '对方窗口');?></button>
         <button type="button" class="ld-size-btn" data-size="1024x768">1024 × 768</button>
         <button type="button" class="ld-size-btn" data-size="640x480">640 × 480</button>
-        <button type="button" class="ld-size-btn" data-size="custom">自定义</button>
+        <button type="button" class="ld-size-btn" data-size="custom"><?php echo t('ld_size_custom', '自定义');?></button>
       </div>
       <div class="ld-custom-row" id="ldCustomRow" style="display:none">
-        <label>宽 <input type="number" id="ldCustomW" step="any" min="64" value="800"></label>
-        <label>高 <input type="number" id="ldCustomH" step="any" min="64" value="600"></label>
+        <label><?php echo t('ld_w', '宽');?> <input type="number" id="ldCustomW" step="any" min="64" value="800"></label>
+        <label><?php echo t('ld_h', '高');?> <input type="number" id="ldCustomH" step="any" min="64" value="600"></label>
       </div>
       <div class="ld-size-note" id="ldSizeNote"></div>
     </div>
     <div class="modal-actions">
-      <button type="button" class="bsm" id="ldSetupCancel">取消</button>
-      <button type="button" class="bsm" id="ldSetupStart" style="background:#2a4a2a;border-color:#3a6a3a">发起</button>
+      <button type="button" class="bsm" id="ldSetupCancel"><?php echo t('btn_cancel', '取消');?></button>
+      <button type="button" class="bsm" id="ldSetupStart" style="background:#2a4a2a;border-color:#3a6a3a"><?php echo t('ld_start_btn', '发起');?></button>
     </div>
   </div>
 </div>
@@ -880,10 +880,10 @@ try {
 <!-- Live Draw 等待对方接受（发起方：发完邀请后先等「同意」才进画板） -->
 <div class="modal-overlay" id="ldWaitOverlay">
   <div class="modal-box ld-setup">
-    <h3><img src="../../data/res/cil/cil-pen-nib.svg" style="width:16px;height:16px;vertical-align:-3px;margin-right:4px"> 等待接受邀请</h3>
-    <div class="ld-wait-text" style="text-align:center;color:#aaa;font-size:.9em;margin:18px 0">正在等待 <b id="ldWaitName" style="color:#e0e0e0">…</b> 接受邀请…</div>
+    <h3><img src="../../data/res/cil/cil-pen-nib.svg" style="width:16px;height:16px;vertical-align:-3px;margin-right:4px"> <?php echo t('ld_wait_title', '等待接受邀请');?></h3>
+    <div class="ld-wait-text" style="text-align:center;color:#aaa;font-size:.9em;margin:18px 0"><?php echo t('ld_wait_pre', '正在等待');?> <b id="ldWaitName" style="color:#e0e0e0">…</b> <?php echo t('ld_wait_post', '接受邀请…');?></div>
     <div class="modal-actions">
-      <button type="button" class="bsm" id="ldWaitCancel" style="background:#4a2a2a;border-color:#6a3a3a">取消邀请</button>
+      <button type="button" class="bsm" id="ldWaitCancel" style="background:#4a2a2a;border-color:#6a3a3a"><?php echo t('ld_cancel_invite', '取消邀请');?></button>
     </div>
   </div>
 </div>
@@ -894,20 +894,20 @@ try {
   <div class="doodle-toolbar">
     <span class="doodle-title">Live Draw — <span id="ldPeerName"></span></span>
     <span class="doodle-colors" id="ldColors">
-      <button class="dc" data-c="#ffffff" style="background:#ffffff" title="白"></button>
-      <button class="dc" data-c="#ff5d5d" style="background:#ff5d5d" title="红"></button>
-      <button class="dc" data-c="#ffb84d" style="background:#ffb84d" title="橙"></button>
-      <button class="dc" data-c="#ffe94d" style="background:#ffe94d" title="黄"></button>
-      <button class="dc" data-c="#6dff6d" style="background:#6dff6d" title="绿"></button>
-      <button class="dc active" data-c="#4dd8ff" style="background:#4dd8ff" title="青"></button>
-      <button class="dc" data-c="#4d7dff" style="background:#4d7dff" title="蓝"></button>
-      <button class="dc" data-c="#d84dff" style="background:#d84dff" title="紫"></button>
+      <button class="dc" data-c="#ffffff" style="background:#ffffff" title="<?php echo t('color_white', '白');?>"></button>
+      <button class="dc" data-c="#ff5d5d" style="background:#ff5d5d" title="<?php echo t('color_red', '红');?>"></button>
+      <button class="dc" data-c="#ffb84d" style="background:#ffb84d" title="<?php echo t('color_orange', '橙');?>"></button>
+      <button class="dc" data-c="#ffe94d" style="background:#ffe94d" title="<?php echo t('color_yellow', '黄');?>"></button>
+      <button class="dc" data-c="#6dff6d" style="background:#6dff6d" title="<?php echo t('color_green', '绿');?>"></button>
+      <button class="dc active" data-c="#4dd8ff" style="background:#4dd8ff" title="<?php echo t('color_cyan', '青');?>"></button>
+      <button class="dc" data-c="#4d7dff" style="background:#4d7dff" title="<?php echo t('color_blue', '蓝');?>"></button>
+      <button class="dc" data-c="#d84dff" style="background:#d84dff" title="<?php echo t('color_purple', '紫');?>"></button>
     </span>
-    <label class="doodle-size">粗细 <input type="range" id="ldSize" min="1" max="40" value="6"></label>
-    <button class="bsm" id="ldEraserBtn" type="button">橡皮</button>
-    <button class="bsm" id="ldUndoBtn" type="button">撤销</button>
-    <button class="bsm" id="ldClearBtn" type="button">清空</button>
-    <button class="bsm" id="ldExitBtn" type="button" style="background:#4a2a2a;border-color:#6a3a3a"><img src="../../data/res/cil/cil-x.svg" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"> 退出</button>
+    <label class="doodle-size"><?php echo t('doodle_stroke', '粗细');?> <input type="range" id="ldSize" min="1" max="40" value="6"></label>
+    <button class="bsm" id="ldEraserBtn" type="button"><?php echo t('doodle_eraser', '橡皮');?></button>
+    <button class="bsm" id="ldUndoBtn" type="button"><?php echo t('doodle_undo', '撤销');?></button>
+    <button class="bsm" id="ldClearBtn" type="button"><?php echo t('doodle_clear', '清空');?></button>
+    <button class="bsm" id="ldExitBtn" type="button" style="background:#4a2a2a;border-color:#6a3a3a"><img src="../../data/res/cil/cil-x.svg" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"> <?php echo t('doodle_exit', '退出');?></button>
   </div>
   <div class="ld-banner" id="ldBanner" style="display:none"></div>
 </div>
@@ -944,11 +944,11 @@ try {
   </div>
   <div class="call-waves">
     <div class="call-wave-row">
-      <span class="call-wave-label">对方</span>
+      <span class="call-wave-label"><?php echo t('call_wave_peer', '对方');?></span>
       <canvas id="callWaveRemote" class="call-wave" width="560" height="48"></canvas>
     </div>
     <div class="call-wave-row">
-      <span class="call-wave-label">自己</span>
+      <span class="call-wave-label"><?php echo t('call_wave_me', '自己');?></span>
       <canvas id="callWaveLocal" class="call-wave" width="560" height="48"></canvas>
     </div>
   </div>
@@ -982,7 +982,7 @@ try {
   <div class="share-top">
     <span class="share-title" id="shareTitle"><?php echo t('share_sharing');?></span>
     <button class="bsm share-audio-btn" id="shareAudioBtn" onclick="ChatShare.toggleAudio()" style="display:none"><?php echo svg_ic('volume', 14);?></button>
-    <button class="bsm share-audio-btn" id="shareMuteBtn" onclick="ChatShare.toggleMute()" style="display:none" title="静音对方屏幕声音"><?php echo svg_ic('volume', 14);?></button>
+    <button class="bsm share-audio-btn" id="shareMuteBtn" onclick="ChatShare.toggleMute()" style="display:none" title="<?php echo t('share_mute_tip', '静音对方屏幕声音');?>"><?php echo svg_ic('volume', 14);?></button>
     <button class="bsm share-min-btn" id="shareMinBtn" onclick="ChatShare.minimize()" title="<?php echo t('share_minimize');?>">－</button>
     <button class="bsm danger" id="shareStopBtn" onclick="ChatShare.stopShare()" style="display:none"><?php echo t('share_stop');?></button>
     <button class="bsm" id="shareCloseBtn" onclick="ChatShare.closeViewer()" style="display:none"><?php echo t('share_exit');?></button>

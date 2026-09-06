@@ -9,7 +9,7 @@ $sig = $currentUser['custom_title'] ?? '';
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>编辑签名</title>
+<title><?php echo t('esig_title', '编辑签名');?></title>
 <link rel="stylesheet" href="/plan/editinfo.css?v=20260809">
 <style>
 .sig-area { padding: 14px 16px; }
@@ -36,35 +36,36 @@ $sig = $currentUser['custom_title'] ?? '';
 <div class="card slide-in">
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title">个人签名</span>
-    <button class="nav-save" onclick="saveSig()">保存</button>
+    <span class="nav-title"><?php echo t('esig_nav', '个人签名');?></span>
+    <button class="nav-save" onclick="saveSig()"><?php echo t('esig_save', '保存');?></button>
   </div>
 
-  <div class="hint-text">编辑你的个性签名，保存后会展示在你的个人主页里</div>
+  <div class="hint-text"><?php echo t('esig_hint', '编辑你的个性签名，保存后会展示在你的个人主页里');?></div>
 
   <div class="sig-area">
-    <textarea id="sigInput" maxlength="100" placeholder="写点东西吧，爱你爱你！"><?php echo htmlspecialchars($sig);?></textarea>
+    <textarea id="sigInput" maxlength="100" placeholder="<?php echo t('esig_ph', '写点东西吧，爱你爱你！');?>"><?php echo htmlspecialchars($sig);?></textarea>
   </div>
   <div class="sig-count"><span id="countVal"><?php echo mb_strlen($sig);?></span>/100</div>
 
   <!-- 同步到个人空间：保存签名时发布一条内容为签名的朋友圈 -->
   <div class="form-row" style="cursor:default">
-    <span class="row-label">同步到个人空间</span>
+    <span class="row-label"><?php echo t('esig_sync', '同步到个人空间');?></span>
     <input type="checkbox" class="ios-switch" id="sigSync">
     <label for="sigSync" class="ios-switch-label" style="margin-left:auto"></label>
   </div>
-  <div class="hint-text" style="padding-top:4px">开启后，保存签名时会发布一条内容为签名的朋友圈</div>
+  <div class="hint-text" style="padding-top:4px"><?php echo t('esig_sync_hint', '开启后，保存签名时会发布一条内容为签名的朋友圈');?></div>
 
   <div class="section-divider"></div>
   <div class="form-row" onclick="openSigPrivacy()">
-    <span class="row-label">签名隐私设置</span>
+    <span class="row-label"><?php echo t('esig_privacy', '签名隐私设置');?></span>
     <span class="row-arrow">›</span>
   </div>
 </div>
 
-<div class="save-toast" id="saveToast">已保存</div>
+<div class="save-toast" id="saveToast"><?php echo t('esig_saved', '已保存');?></div>
 
 <script>
+var ESIG_FAIL = <?php echo json_encode(t('esig_fail', '保存失败'));?>;
 var txt = document.getElementById('sigInput');
 var countEl = document.getElementById('countVal');
 txt.addEventListener('input', function () {
@@ -104,7 +105,7 @@ function saveSig() {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: f.toString()
   }).then(function (r) { return r.json(); }).then(function (d) {
-    if (!d.success) { alert('保存失败'); return; }
+    if (!d.success) { alert(ESIG_FAIL); return; }
     // 同步到个人空间：开启且签名非空时，发布一条内容为签名的朋友圈
     var sync = document.getElementById('sigSync');
     if (sync && sync.checked && v) {

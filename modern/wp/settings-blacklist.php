@@ -34,9 +34,10 @@ chatapp_require_login();
 
 </div>
 
-<div class="save-toast" id="saveToast">✓ 已保存</div>
+<div class="save-toast" id="saveToast">✓ <?php echo t('set_saved_toast', '已保存');?></div>
 
 <script>
+var SET_SAVED = <?php echo json_encode(t('set_saved_toast', '已保存'));?>;
 function goBack() {
     if (window.parent && window.parent.document.getElementById('profileFrame')) {
         window.parent.document.getElementById('profileFrame').src = 'settings-privacy.php';
@@ -56,7 +57,7 @@ function showErr(msg) {
     t.classList.add('show');
     setTimeout(function() {
         t.classList.remove('show');
-        t.textContent = '✓ 已保存';
+        t.textContent = '✓ ' + SET_SAVED;
         t.style.background = '#2a4a2a';
         t.style.borderColor = '#3a6a3a';
         t.style.color = '#e0e0e0';

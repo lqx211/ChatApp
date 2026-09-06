@@ -69,7 +69,7 @@ if ($tab !== 'profile') $tab = 'chat';
 
 </div>
 
-<div class="save-toast" id="saveToast">✓ 已保存</div>
+<div class="save-toast" id="saveToast">✓ <?php echo t('set_saved_toast', '已保存');?></div>
 
 <script>
 var BG_CACHE_KEY = 'chatapp_bg_v1';

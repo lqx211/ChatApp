@@ -77,7 +77,7 @@ $typingVisible  = (int)($u['typing_visible'] ?? 1);
 
 </div>
 
-<div class="save-toast" id="saveToast">✓ 已保存</div>
+<div class="save-toast" id="saveToast">✓ <?php echo t('set_saved_toast', '已保存');?></div>
 
 <script>
 function goBack() {

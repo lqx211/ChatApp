@@ -84,7 +84,7 @@ if (!empty($meAvatar) && strpos($meAvatar, 'data:') !== 0 && preg_match('/^[0-9a
 <div class="sheet" id="quickSheet" style="display:none">
   <div class="sheet-grid">
     <button class="sheet-icon" id="quickAddFriend"><span>＋</span><?php echo t('m_add_friend');?></button>
-    <button class="sheet-icon" id="quickNewGroup"><span>群</span><?php echo t('m_new_group');?></button>
+    <button class="sheet-icon" id="quickNewGroup"><span><?php echo t('m_group_icon', '群');?></span><?php echo t('m_new_group');?></button>
     <button class="sheet-icon" id="quickScan"><span>◈</span><?php echo t('m_scan');?></button>
     <button class="sheet-icon" id="quickQr"><span>▦</span><?php echo t('m_qr');?></button>
   </div>
@@ -144,7 +144,7 @@ if (!empty($meAvatar) && strpos($meAvatar, 'data:') !== 0 && preg_match('/^[0-9a
 <section class="screen" id="screenContacts" style="display:none">
   <header class="m-header"><span><?php echo t('title_contacts');?></span></header>
   <div class="contacts-scroll">
-    <div class="m-section-hdr">My Groups 我的群聊</div>
+    <div class="m-section-hdr"><?php echo t('m_my_groups', '我的群聊');?></div>
     <div class="list" id="groupList"><div class="empty"><?php echo t('msg_loading');?></div></div>
     <div class="m-section-hdr"><?php echo t('title_contacts');?></div>
     <div class="list" id="contactList"><div class="empty"><?php echo t('msg_loading');?></div></div>

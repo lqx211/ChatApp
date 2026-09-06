@@ -25,14 +25,19 @@ $tzPresets = [
     '-08:00', '-09:00', '-10:00',
 ];
 $tzPresetNames = [
-    '+00:00' => 'UTC / 伦敦',
-    '+08:00' => '北京时间',
-    '+09:00' => '东京 / 首尔',
-    '+01:00' => '柏林 / 巴黎',
-    '+05:30' => '新德里',
-    '-05:00' => '纽约（美东）',
-    '-08:00' => '洛杉矶（美西）',
+    '+00:00' => t('tzname_00', 'UTC / 伦敦'),
+    '+08:00' => t('tzname_08', '北京时间'),
+    '+09:00' => t('tzname_09', '东京 / 首尔'),
+    '+01:00' => t('tzname_01', '柏林 / 巴黎'),
+    '+05:30' => t('tzname_0530', '新德里'),
+    '-05:00' => t('tzname_m05', '纽约（美东）'),
+    '-08:00' => t('tzname_m08', '洛杉矶（美西）'),
 ];
+// 括号随界面语言：英文界面用半角，中文界面用全角
+$__curLang = $_SESSION['preferred_language'] ?? 'en';
+$__cjkParen = in_array($__curLang, ['zh', 'zh_egg'], true);
+$__lp = $__cjkParen ? '（' : '(';
+$__rp = $__cjkParen ? '）' : ')';
 ?>
 <!DOCTYPE html>
 <html lang="zh">
@@ -122,7 +127,7 @@ $tzPresetNames = [
     <span style="width:28px"></span>
   </div>
   <?php foreach ($tzPresets as $tp): $tpName = $tzPresetNames[$tp] ?? '';?>
-  <div class="picker-option" data-tz="<?php echo $tp;?>">UTC<?php echo $tp;?><?php echo $tpName ? '（'.$tpName.'）' : '';?></div>
+  <div class="picker-option" data-tz="<?php echo $tp;?>">UTC<?php echo $tp;?><?php echo $tpName ? $__lp.htmlspecialchars($tpName).$__rp : '';?></div>
   <?php endforeach;?>
 </div>
 
@@ -138,10 +143,11 @@ $tzPresetNames = [
   </div>
 </div>
 
-<div class="save-toast" id="saveToast">✓ 已保存</div>
+<div class="save-toast" id="saveToast">✓ <?php echo t('set_saved_toast', '已保存');?></div>
 
 <script>
 var CUR_LANG = <?php echo json_encode($curLang);?>;
+var CUSTOM_TITLE_OFF = <?php echo json_encode(t('msg_custom_title_off', 'Custom title is OFF'));?>;
 
 function goBack() {
     if (window.parent && window.parent.document.getElementById('profileFrame')) {
@@ -232,7 +238,7 @@ function saveTitle() {
     var v = document.getElementById('titleInput').value.trim();
     api('change_custom_title', { custom_title: v }).then(function(d) {
         if (d.success) {
-            document.getElementById('titleVal').textContent = v || '未开启';
+            document.getElementById('titleVal').textContent = v || CUSTOM_TITLE_OFF;
             showToast();
             closeTitleDialog();
         }

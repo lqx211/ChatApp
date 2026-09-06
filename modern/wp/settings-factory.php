@@ -105,7 +105,7 @@ try {
 
 <!-- 内嵌工厂重置流程（iframe，替代新开窗口） -->
 <div id="frFrameWrap">
-  <button id="frFrameClose" onclick="closeFactoryReset()" title="关闭"><?php echo svg_ic('close', 16);?></button>
+  <button id="frFrameClose" onclick="closeFactoryReset()" title="<?php echo t('btn_close', 'Close');?>"><?php echo svg_ic('close', 16);?></button>
   <iframe id="frFrame" src="about:blank"></iframe>
 </div>
 

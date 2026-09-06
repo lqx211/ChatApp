@@ -18,7 +18,7 @@ $privacy = (int)($currentUser[$p . '_privacy'] ?? 0);
 $modeMismatch = false;
 if ($type === 'black' && $privacy !== 0) $modeMismatch = true;
 if ($type === 'white' && $privacy !== 1) $modeMismatch = true;
-$listLabel = $type === 'black' ? '黑名单' : '白名单';
+$listLabel = $type === 'black' ? t('ebl_black', '黑名单') : t('ebl_white', '白名单');
 
 $rawList = '';
 if ($type === 'black') {
@@ -78,7 +78,7 @@ if ($friendList) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title><?php echo htmlspecialchars($listLabel);?>配置</title>
+<title><?php echo htmlspecialchars(t('ebl_cfg_title', '%s 配置', $listLabel));?></title>
 <link rel="stylesheet" href="/plan/editinfo.css?v=20260809">
 <style>
 .uid-list { padding: 0 16px; }
@@ -120,18 +120,18 @@ if ($friendList) {
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title"><?php echo htmlspecialchars($listLabel);?>配置</span>
+    <span class="nav-title"><?php echo htmlspecialchars(t('ebl_cfg_title', '%s 配置', $listLabel));?></span>
     <span style="width:28px"></span>
   </div>
 
   <?php if ($modeMismatch):?>
   <div class="mismatch-tip">
-    <p>当前并非<?php echo htmlspecialchars($listLabel);?>模式，无法修改<?php echo htmlspecialchars($listLabel);?>配置。</p>
-    <button onclick="goBack()">返回</button>
+    <p><?php echo t('ebl_mismatch', '当前并非%s模式，无法修改%s配置。', $listLabel, $listLabel);?></p>
+    <button onclick="goBack()"><?php echo t('ebl_back', '返回');?></button>
   </div>
   <?php else:?>
 
-  <div class="hint-text">当前有 <?php echo count($curList);?> 个进入<?php echo htmlspecialchars($listLabel);?>的用户。</div>
+  <div class="hint-text" id="listHint"><?php echo t('ebl_cur_n', '当前有 %s 个进入%s的用户。', count($curList), $listLabel);?></div>
 
   <!-- 当前名单（按 UID 列表） -->
   <div class="section-divider"></div>
@@ -143,26 +143,26 @@ if ($friendList) {
     ?>
     <div class="uid-item" data-uid="<?php echo $uid;?>">
       <?php if (!empty($info['avatar'])):?><div class="u-avatar"><img src="<?php echo htmlspecialchars(chatapp_avatar_url($info['avatar'], $info['username'] ?? ''));?>" alt=""></div><?php endif;?>
-      <div class="u-name"><?php echo htmlspecialchars($info['name']);?><?php if ($isFriend):?><span style="color:#6ab87a;font-size:11px;margin-left:6px">好友</span><?php endif;?></div>
+      <div class="u-name"><?php echo htmlspecialchars($info['name']);?><?php if ($isFriend):?><span style="color:#6ab87a;font-size:11px;margin-left:6px"><?php echo t('ebl_friend', '好友');?></span><?php endif;?></div>
       <div class="u-uid">UID <?php echo $uid;?></div>
-      <span class="u-del" onclick="removeUid(<?php echo $uid;?>)">删除</span>
+      <span class="u-del" onclick="removeUid(<?php echo $uid;?>)"><?php echo t('ebl_delete', '删除');?></span>
     </div>
     <?php endforeach;?>
     <?php if (!$curList):?>
-    <div style="padding:20px 0;text-align:center;color:#5a6270;font-size:13px">名单为空</div>
+    <div style="padding:20px 0;text-align:center;color:#5a6270;font-size:13px"><?php echo t('ebl_empty', '名单为空');?></div>
     <?php endif;?>
   </div>
 
   <!-- 按 UID 列表选择：输入添加 -->
   <div class="section-divider"></div>
   <div class="add-uid-row">
-    <input type="number" id="uidInput" placeholder="输入UID，加入<?php echo htmlspecialchars($listLabel);?>">
-    <button onclick="addUid()">添加</button>
+    <input type="number" id="uidInput" placeholder="<?php echo t('ebl_add_ph', '输入UID，加入%s', $listLabel);?>">
+    <button onclick="addUid()"><?php echo t('ebl_add', '添加');?></button>
   </div>
 
   <!-- 按朋友列表选择 -->
   <div class="section-divider"></div>
-  <div class="hint-text">按朋友列表选择（点击勾选添加/移除）</div>
+  <div class="hint-text"><?php echo t('ebl_pick_friend', '按朋友列表选择（点击勾选添加/移除）');?></div>
   <div id="friendList">
     <?php foreach ($friendInfo as $f):?>
     <?php $inList = in_array($f['uid'], $curList, true);?>
@@ -174,15 +174,15 @@ if ($friendList) {
     </div>
     <?php endforeach;?>
     <?php if (!$friendInfo):?>
-    <div style="padding:20px 0;text-align:center;color:#5a6270;font-size:13px">暂无好友</div>
+    <div style="padding:20px 0;text-align:center;color:#5a6270;font-size:13px"><?php echo t('ebl_no_friends', '暂无好友');?></div>
     <?php endif;?>
   </div>
 
   <!-- 禁止非朋友关系查看（bg=背景图 / sig=签名） -->
   <div class="section-divider"></div>
   <div class="form-row" onclick="toggleNoFriend()">
-    <span class="row-label"><?php echo $kind === 'sig' ? '禁止非朋友关系查看签名' : '禁止非朋友关系查看';?></span>
-    <span class="row-value" id="noFriendVal"><?php echo $noFriend ? '已开启' : '已关闭';?></span>
+    <span class="row-label"><?php echo $kind === 'sig' ? t('ebl_no_friend_sig', '禁止非朋友关系查看签名') : t('ebl_no_friend', '禁止非朋友关系查看');?></span>
+    <span class="row-value" id="noFriendVal"><?php echo $noFriend ? t('ebl_on', '已开启') : t('ebl_off', '已关闭');?></span>
     <span class="row-arrow">›</span>
   </div>
 
@@ -190,9 +190,10 @@ if ($friendList) {
 
 </div>
 
-<div class="save-toast" id="saveToast">✓ 已保存</div>
+<div class="save-toast" id="saveToast">✓ <?php echo t('ebl_saved', '已保存');?></div>
 
 <script>
+var EBL_T = { black: <?php echo json_encode(t('ebl_black', '黑名单'));?>, white: <?php echo json_encode(t('ebl_white', '白名单'));?>, on: <?php echo json_encode(t('ebl_on', '已开启'));?>, off: <?php echo json_encode(t('ebl_off', '已关闭'));?>, curN: <?php echo json_encode(t('ebl_cur_n', '当前有 %s 个进入%s的用户。'));?>, invalidUid: <?php echo json_encode(t('ebl_invalid_uid', '请输入有效的UID'));?>, inList: <?php echo json_encode(t('ebl_in_list', '该UID已在名单中'));?> };
 var _type = <?php echo json_encode($type);?>;
 var _kind = <?php echo json_encode($kind);?>;
 var _curUids = <?php echo json_encode($curList);?>;
@@ -232,17 +233,15 @@ function saveList() {
 
 function render() {
     // 更新「当前有 N 个」提示
-    var hint = document.querySelector('.hint-text');
-    if (hint) hint.textContent = '当前有 ' + _curUids.length + ' 个进入' + (_type === 'black' ? '黑名单' : '白名单') + '的用户。';
-    // 简单实现：重新加载页面保持简洁
-    // （当前采用保存+整页刷新方式保持一致）
+    var hint = document.getElementById('listHint') || document.querySelector('.hint-text');
+    if (hint) hint.textContent = EBL_T.curN.replace('%s', _curUids.length).replace('%s', _type === 'black' ? EBL_T.black : EBL_T.white);
 }
 
 function addUid() {
     var input = document.getElementById('uidInput');
     var v = parseInt(input.value, 10);
-    if (!v || v <= 0) { alert('请输入有效的UID'); return; }
-    if (_curUids.indexOf(v) !== -1) { alert('该UID已在名单中'); input.value=''; return; }
+    if (!v || v <= 0) { alert(EBL_T.invalidUid); return; }
+    if (_curUids.indexOf(v) !== -1) { alert(EBL_T.inList); input.value=''; return; }
     _curUids.push(v);
     saveList();
     setTimeout(function(){ location.reload(); }, 400);
@@ -269,7 +268,7 @@ function toggleFriend(el, fuid) {
 
 function toggleNoFriend() {
     _noFriend = _noFriend ? 0 : 1;
-    document.getElementById('noFriendVal').textContent = _noFriend ? '已开启' : '已关闭';
+    document.getElementById('noFriendVal').textContent = _noFriend ? EBL_T.on : EBL_T.off;
     var f = new URLSearchParams();
     f.append('action', 'set_' + _kind + '_no_friend');
     f.append('no_friend', String(_noFriend));

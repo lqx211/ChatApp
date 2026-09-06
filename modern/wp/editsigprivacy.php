@@ -19,7 +19,7 @@ $sigWhiteList = $sigWhiteRaw ? json_decode($sigWhiteRaw, true) : [];
 if (!is_array($sigBlackList)) $sigBlackList = [];
 if (!is_array($sigWhiteList)) $sigWhiteList = [];
 
-$modeLabels = [0 => '黑名单', 1 => '白名单', 2 => '仅自己能看见'];
+$modeLabels = [0 => t('sigpr_mode_black', '黑名单'), 1 => t('sigpr_mode_white', '白名单'), 2 => t('sigpr_mode_private', '仅自己能看见')];
 $blackCount = count($sigBlackList);
 $whiteCount = count($sigWhiteList);
 ?>
@@ -28,7 +28,7 @@ $whiteCount = count($sigWhiteList);
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>签名隐私设置</title>
+<title><?php echo t('sigpr_title', '签名隐私设置');?></title>
 <link rel="stylesheet" href="/plan/editinfo.css?v=20260809">
 </head>
 <body>
@@ -37,24 +37,24 @@ $whiteCount = count($sigWhiteList);
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title">签名隐私设置</span>
+    <span class="nav-title"><?php echo t('sigpr_title', '签名隐私设置');?></span>
     <span style="width:28px"></span>
   </div>
 
-  <div class="hint-text">选择个性签名的可见模式，并配置相应的黑名单/白名单。</div>
+  <div class="hint-text"><?php echo t('sigpr_hint', '选择个性签名的可见模式，并配置相应的黑名单/白名单。');?></div>
 
   <!-- 选择模式 -->
   <div class="form-row" onclick="openModePicker()">
-    <span class="row-label">选择模式</span>
-    <span class="row-value" id="modeVal"><?php echo htmlspecialchars($modeLabels[$sigPrivacy] ?? '黑名单');?></span>
+    <span class="row-label"><?php echo t('sigpr_mode', '选择模式');?></span>
+    <span class="row-value" id="modeVal"><?php echo htmlspecialchars($modeLabels[$sigPrivacy] ?? t('sigpr_mode_black', '黑名单'));?></span>
     <span class="row-arrow">›</span>
   </div>
 
   <!-- 黑名单配置入口（仅黑名单模式显示） -->
   <?php if ($sigPrivacy === 0):?>
   <div class="form-row" onclick="openSigList('black')">
-    <span class="row-label">黑名单配置</span>
-    <span class="row-value">当前 <?php echo $blackCount;?> 人</span>
+    <span class="row-label"><?php echo t('sigpr_black_cfg', '黑名单配置');?></span>
+    <span class="row-value"><?php echo t('sigpr_cur_people', '当前 %s 人', $blackCount);?></span>
     <span class="row-arrow">›</span>
   </div>
   <?php endif;?>
@@ -62,8 +62,8 @@ $whiteCount = count($sigWhiteList);
   <!-- 白名单配置入口（仅白名单模式显示） -->
   <?php if ($sigPrivacy === 1):?>
   <div class="form-row" onclick="openSigList('white')">
-    <span class="row-label">白名单配置</span>
-    <span class="row-value">当前 <?php echo $whiteCount;?> 人</span>
+    <span class="row-label"><?php echo t('sigpr_white_cfg', '白名单配置');?></span>
+    <span class="row-value"><?php echo t('sigpr_cur_people', '当前 %s 人', $whiteCount);?></span>
     <span class="row-arrow">›</span>
   </div>
   <?php endif;?>
@@ -71,16 +71,16 @@ $whiteCount = count($sigWhiteList);
   <!-- 禁止非朋友关系查看签名（黑白名单模式均显示） -->
   <?php if ($sigPrivacy === 0 || $sigPrivacy === 1):?>
   <div class="form-row" onclick="toggleNoFriend()">
-    <span class="row-label">禁止非朋友关系查看</span>
-    <span class="row-value" id="noFriendVal"><?php echo $sigNoFriend ? '已开启' : '已关闭';?></span>
+    <span class="row-label"><?php echo t('sigpr_no_friend', '禁止非朋友关系查看');?></span>
+    <span class="row-value" id="noFriendVal"><?php echo $sigNoFriend ? t('sigpr_on', '已开启') : t('sigpr_off', '已关闭');?></span>
     <span class="row-arrow">›</span>
   </div>
   <?php endif;?>
 
   <!-- 不可见时签名（因隐私看不到签名时展示的文字；留空则不显示签名行） -->
   <div class="form-row" onclick="editHiddenText()">
-    <span class="row-label">不可见时签名</span>
-    <span class="row-value" id="hiddenVal"><?php echo $sigHiddenText !== '' ? htmlspecialchars($sigHiddenText) : '（空）';?></span>
+    <span class="row-label"><?php echo t('sigpr_hidden', '不可见时签名');?></span>
+    <span class="row-value" id="hiddenVal"><?php echo $sigHiddenText !== '' ? htmlspecialchars($sigHiddenText) : t('sigpr_empty', '（空）');?></span>
     <span class="row-arrow">›</span>
   </div>
 
@@ -90,18 +90,19 @@ $whiteCount = count($sigWhiteList);
 <div class="picker-overlay" id="modeOverlay" onclick="closeModePicker()"></div>
 <div class="picker-panel" id="modePanel">
   <div class="picker-header">
-    <button class="picker-cancel" onclick="closeModePicker()">取消</button>
-    <span class="picker-title">选择模式</span>
-    <button class="picker-confirm" onclick="confirmMode()">确定</button>
+    <button class="picker-cancel" onclick="closeModePicker()"><?php echo t('sigpr_cancel', '取消');?></button>
+    <span class="picker-title"><?php echo t('sigpr_mode', '选择模式');?></span>
+    <button class="picker-confirm" onclick="confirmMode()"><?php echo t('sigpr_confirm', '确定');?></button>
   </div>
-  <div class="picker-option" data-mode="0" onclick="selectModeOpt(0)">黑名单</div>
-  <div class="picker-option" data-mode="1" onclick="selectModeOpt(1)">白名单</div>
-  <div class="picker-option" data-mode="2" onclick="selectModeOpt(2)">仅自己能看见</div>
+  <div class="picker-option" data-mode="0" onclick="selectModeOpt(0)"><?php echo t('sigpr_mode_black', '黑名单');?></div>
+  <div class="picker-option" data-mode="1" onclick="selectModeOpt(1)"><?php echo t('sigpr_mode_white', '白名单');?></div>
+  <div class="picker-option" data-mode="2" onclick="selectModeOpt(2)"><?php echo t('sigpr_mode_private', '仅自己能看见');?></div>
 </div>
 
-<div class="save-toast" id="saveToast">✓ 已保存</div>
+<div class="save-toast" id="saveToast">✓ <?php echo t('sigpr_saved', '已保存');?></div>
 
 <script>
+var ESP_T = { black: <?php echo json_encode(t('sigpr_mode_black', '黑名单'));?>, white: <?php echo json_encode(t('sigpr_mode_white', '白名单'));?>, priv: <?php echo json_encode(t('sigpr_mode_private', '仅自己能看见'));?>, on: <?php echo json_encode(t('sigpr_on', '已开启'));?>, off: <?php echo json_encode(t('sigpr_off', '已关闭'));?>, empty: <?php echo json_encode(t('sigpr_empty', '（空）'));?>, hiddenPrompt: <?php echo json_encode(t('sigpr_hidden_prompt', '不可见时签名（留空则不显示）'));?> };
 var FROM_SETTINGS = <?php echo json_encode($from === 'settings');?>;
 var _curMode = <?php echo (int)$sigPrivacy;?>;
 var _noFriend = <?php echo (int)$sigNoFriend;?>;
@@ -143,7 +144,7 @@ function selectModeOpt(m) {
     });
 }
 function confirmMode() {
-    var labels = ['黑名单','白名单','仅自己能看见'];
+    var labels = [ESP_T.black, ESP_T.white, ESP_T.priv];
     document.getElementById('modeVal').textContent = labels[_curMode];
     var f = new URLSearchParams();
     f.append('action', 'set_sig_privacy');
@@ -168,7 +169,7 @@ function openSigList(type) {
 // ---- 禁止非朋友关系查看 ----
 function toggleNoFriend() {
     _noFriend = _noFriend ? 0 : 1;
-    document.getElementById('noFriendVal').textContent = _noFriend ? '已开启' : '已关闭';
+    document.getElementById('noFriendVal').textContent = _noFriend ? ESP_T.on : ESP_T.off;
     var f = new URLSearchParams();
     f.append('action', 'set_sig_no_friend');
     f.append('no_friend', String(_noFriend));
@@ -183,11 +184,11 @@ function toggleNoFriend() {
 
 // ---- 不可见时签名 ----
 function editHiddenText() {
-    var v = window.prompt('不可见时签名（留空则不显示）', _hiddenText);
+    var v = window.prompt(ESP_T.hiddenPrompt, _hiddenText);
     if (v === null) return;
     v = v.trim().slice(0, 100);
     _hiddenText = v;
-    document.getElementById('hiddenVal').textContent = v !== '' ? v : '（空）';
+    document.getElementById('hiddenVal').textContent = v !== '' ? v : ESP_T.empty;
     var f = new URLSearchParams();
     f.append('action', 'set_sig_hidden_text');
     f.append('hidden_text', v);

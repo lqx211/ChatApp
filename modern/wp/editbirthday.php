@@ -13,16 +13,16 @@ if ($birthTs > 0) {
     // age
     $by = (int)date('Y', $birthTs);
     $cy = (int)date('Y');
-    $age = ($cy - $by) . '岁';
+    $age = ($cy - $by) . t('bd_age_unit', '岁');
     // month-day display
-    $monthDay = date('n月j日', $birthTs);
+    $monthDay = sprintf(t('bd_month_day', '%s月%s日'), date('n', $birthTs), date('j', $birthTs));
     // simple zodiac
     $bd = (int)date('j', $birthTs);
     $bm = (int)date('n', $birthTs);
     $zodiacMap = [
-        [20, '水瓶座'],[19, '双鱼座'],[21, '白羊座'],[20, '金牛座'],
-        [21, '双子座'],[22, '巨蟹座'],[23, '狮子座'],[23, '处女座'],
-        [23, '天秤座'],[24, '天蝎座'],[23, '射手座'],[22, '摩羯座']
+        [20, t('p_zodiac_aquarius')],[19, t('p_zodiac_pisces')],[21, t('p_zodiac_aries')],[20, t('p_zodiac_taurus')],
+        [21, t('p_zodiac_gemini')],[22, t('p_zodiac_cancer')],[23, t('p_zodiac_leo')],[23, t('p_zodiac_virgo')],
+        [23, t('p_zodiac_libra')],[24, t('p_zodiac_scorpio')],[23, t('p_zodiac_sagittarius')],[22, t('p_zodiac_capricorn')]
     ];
     $z = $zodiacMap[$bm - 1];
     $zodiac = ($bd >= $z[0]) ? $z[1] : $zodiacMap[($bm - 2 + 12) % 12][1];
@@ -34,7 +34,7 @@ $displayBirthday = $birthday ? htmlspecialchars($birthday) : '';
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>选择出生日期</title>
+<title><?php echo t('bd_title', '选择出生日期');?></title>
 <link rel="stylesheet" href="/plan/editinfo.css?v=20260809">
 </head>
 <body>
@@ -43,30 +43,30 @@ $displayBirthday = $birthday ? htmlspecialchars($birthday) : '';
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title">选择出生日期</span>
+    <span class="nav-title"><?php echo t('bd_title', '选择出生日期');?></span>
     <span style="width:28px"></span>
   </div>
 
-  <div class="hint-text">你的生日日期不在资料中公开显示</div>
+  <div class="hint-text"><?php echo t('bd_hint', '你的生日日期不在资料中公开显示');?></div>
 
   <!-- 年龄 -->
   <div class="form-row">
-    <span class="row-label">年龄</span>
-    <span class="row-value" id="ageVal"><?php echo $age ?: '未知';?></span>
+    <span class="row-label"><?php echo t('bd_age', '年龄');?></span>
+    <span class="row-value" id="ageVal"><?php echo $age ?: t('bd_unknown', '未知');?></span>
     <span class="row-arrow" style="visibility:hidden">›</span>
   </div>
 
   <!-- 生日（点击弹出选择器） -->
   <div class="form-row" onclick="openBirthdayPicker()">
-    <span class="row-label">生日</span>
-    <span class="row-value<?php echo $monthDay ? '' : ' placeholder';?>" id="birthdayBD"><?php echo $monthDay ?: '请选择';?></span>
+    <span class="row-label"><?php echo t('bd_birthday', '生日');?></span>
+    <span class="row-value<?php echo $monthDay ? '' : ' placeholder';?>" id="birthdayBD"><?php echo $monthDay ?: t('bd_please_select', '请选择');?></span>
     <span class="row-arrow">›</span>
   </div>
 
   <!-- 星座 -->
   <div class="form-row">
-    <span class="row-label">星座</span>
-    <span class="row-value" id="zodiacVal"><?php echo $zodiac ?: '未知';?></span>
+    <span class="row-label"><?php echo t('bd_zodiac', '星座');?></span>
+    <span class="row-value" id="zodiacVal"><?php echo $zodiac ?: t('bd_unknown', '未知');?></span>
     <span class="row-arrow" style="visibility:hidden">›</span>
   </div>
 
@@ -76,9 +76,9 @@ $displayBirthday = $birthday ? htmlspecialchars($birthday) : '';
 <div class="picker-overlay" id="birthdayOverlay" onclick="closeBirthdayPicker()"></div>
 <div class="picker-panel" id="birthdayPanel">
   <div class="picker-header">
-    <button class="picker-cancel" onclick="closeBirthdayPicker()">取消</button>
-    <span class="picker-title">选择生日</span>
-    <button class="picker-confirm" onclick="confirmBirthday()">确定</button>
+    <button class="picker-cancel" onclick="closeBirthdayPicker()"><?php echo t('bd_cancel', '取消');?></button>
+    <span class="picker-title"><?php echo t('bd_pick_title', '选择生日');?></span>
+    <button class="picker-confirm" onclick="confirmBirthday()"><?php echo t('bd_confirm', '确定');?></button>
   </div>
   <div class="picker-body">
     <div class="picker-highlight"></div>
@@ -94,9 +94,10 @@ $displayBirthday = $birthday ? htmlspecialchars($birthday) : '';
   </div>
 </div>
 
-<div class="save-toast" id="saveToast">✓ 已保存</div>
+<div class="save-toast" id="saveToast">✓ <?php echo t('bd_saved', '已保存');?></div>
 
 <script>
+var EBD_T = { ageUnit: <?php echo json_encode(t('bd_age_unit', '岁'));?>, mdFmt: <?php echo json_encode(t('bd_month_day', '%s月%s日'));?>, yUnit: <?php echo json_encode(t('bd_year_unit', '年'));?>, mUnit: <?php echo json_encode(t('bd_month_unit', '月'));?>, dUnit: <?php echo json_encode(t('bd_day_unit', '日'));?>, zodiacs: [<?php echo implode(',', array_map(function ($v) { return json_encode(t('p_zodiac_' . $v)); }, ['aquarius','pisces','aries','taurus','gemini','cancer','leo','virgo','libra','scorpio','sagittarius','capricorn']));?>] };
 var _bdYear = <?php echo $birthTs ? (int)date('Y', $birthTs) : 2005;?>;
 var _bdMonth = <?php echo $birthTs ? (int)date('n', $birthTs) : 1;?>;
 var _bdDay = <?php echo $birthTs ? (int)date('j', $birthTs) : 1;?>;
@@ -125,13 +126,10 @@ function showToast() {
 }
 
 function computeZodiac(m, d) {
-    var map = [
-        [20, '水瓶座'],[19, '双鱼座'],[21, '白羊座'],[20, '金牛座'],
-        [21, '双子座'],[22, '巨蟹座'],[23, '狮子座'],[23, '处女座'],
-        [23, '天秤座'],[24, '天蝎座'],[23, '射手座'],[22, '摩羯座']
-    ];
-    var z = map[m - 1];
-    return (d >= z[0]) ? z[1] : map[(m - 2 + 12) % 12][1];
+    var cut = [20, 19, 21, 20, 21, 22, 23, 23, 23, 24, 23, 22];
+    var z = cut[m - 1];
+    var i = (d >= z) ? m - 1 : (m - 2 + 12) % 12;
+    return EBD_T.zodiacs[i];
 }
 
 function computeAge(y, m, d) {
@@ -139,7 +137,7 @@ function computeAge(y, m, d) {
     var cy = now.getFullYear(), cm = now.getMonth() + 1, cd = now.getDate();
     var age = cy - y;
     if (cm < m || (cm === m && cd < d)) age--;
-    return age + '岁';
+    return age + EBD_T.ageUnit;
 }
 
 // ---- Birthday picker ----
@@ -157,7 +155,7 @@ function initBirthdayPicker() {
 function buildYearScroll() {
     var h = '';
     for (var y = 1900; y <= 2026; y++) {
-        h += '<div class="picker-item' + (y === _bdYear ? ' selected' : '') + '" data-val="' + y + '">' + y + '年</div>';
+        h += '<div class="picker-item' + (y === _bdYear ? ' selected' : '') + '" data-val="' + y + '">' + y + EBD_T.yUnit + '</div>';
     }
     document.getElementById('yearScroll').innerHTML = h;
 }
@@ -165,7 +163,7 @@ function buildYearScroll() {
 function buildMonthScroll() {
     var h = '';
     for (var m = 1; m <= 12; m++) {
-        h += '<div class="picker-item' + (m === _bdMonth ? ' selected' : '') + '" data-val="' + m + '">' + m + '月</div>';
+        h += '<div class="picker-item' + (m === _bdMonth ? ' selected' : '') + '" data-val="' + m + '">' + m + EBD_T.mUnit + '</div>';
     }
     document.getElementById('monthScroll').innerHTML = h;
 }
@@ -174,7 +172,7 @@ function buildDayScroll() {
     var days = new Date(_bdYear, _bdMonth, 0).getDate();
     var h = '';
     for (var d = 1; d <= days; d++) {
-        h += '<div class="picker-item' + (d === _bdDay ? ' selected' : '') + '" data-val="' + d + '">' + d + '日</div>';
+        h += '<div class="picker-item' + (d === _bdDay ? ' selected' : '') + '" data-val="' + d + '">' + d + EBD_T.dUnit + '</div>';
     }
     document.getElementById('dayScroll').innerHTML = h;
 }
@@ -215,7 +213,7 @@ function confirmBirthday() {
 
     _bdYear = yv; _bdMonth = mv; _bdDay = dv;
 
-    document.getElementById('birthdayBD').textContent = mv + '月' + dv + '日';
+    document.getElementById('birthdayBD').textContent = EBD_T.mdFmt.replace('%s', mv).replace('%s', dv);
     document.getElementById('birthdayBD').classList.remove('placeholder');
     document.getElementById('ageVal').textContent = computeAge(yv, mv, dv);
     document.getElementById('zodiacVal').textContent = computeZodiac(mv, dv);

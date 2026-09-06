@@ -88,7 +88,7 @@ if (!$u) {
     $notFoundMode = 1;
 }
 if ($notFoundMode) {
-    $notFoundLabel = $notFoundMode === 2 ? '已删除的用户' : '未知用户';
+    $notFoundLabel = $notFoundMode === 2 ? t('sp_user_deleted', '已删除的用户') : t('sp_user_unknown', '未知用户');
     $u = [
         'username' => '', 'display_name' => $notFoundLabel, 'user_id' => 0,
         'avatar' => '', 'custom_title' => '', 'gender' => 0, 'gender_privacy' => 0,
@@ -130,7 +130,7 @@ if ($uid > 0 && $meUid > 0 && $meUid !== $uid) {
     }
 }
 $meAvatarUrl = chatapp_avatar_url($currentUser['avatar'] ?? '', $meName, $meUid);
-$spaceTitle = $displayName . '的空间';
+$spaceTitle = t('sp_user_space', '%s 的空间', $displayName);
 
 // 桌面版个人空间：不用个人上传封面（缩放观感差），从 modern/bg/ 随机选默认壁纸
 $bgFiles = glob(__DIR__ . '/../bg/*.{jpg,jpeg,png,webp,gif}', GLOB_BRACE);
@@ -181,7 +181,7 @@ function sp_ic(string $n): string {
 $ch = mb_strtoupper(mb_substr($displayName, 0, 1));
 // 精选相片（暂为示例占位，后续接相册）
 $samplePhotos = [];
-for ($i = 0; $i < 9; $i++) { $samplePhotos[] = ['src' => sp_ph($i, $ch, '#ffb300','#ff7043'), 'cap' => '相册 ' . ($i + 1)]; }
+for ($i = 0; $i < 9; $i++) { $samplePhotos[] = ['src' => sp_ph($i, $ch, '#ffb300','#ff7043'), 'cap' => t('sp_album_cap', '相册 %s', $i + 1)]; }
 
 // ===== 朋友圈：读取并过滤可见性 =====
 ensure_space_feeds_table();
@@ -406,7 +406,7 @@ $theirFeedLabel = $gender === 1 ? t('sp_their_feed_his', 'TA的动态') : ($gend
                   <span title="<?php echo t('sp_pick_photo', '照片');?>" onclick="spPickImages()"><?php echo sp_ic('image');?></span>
                   <span title="<?php echo t('sp_pick_emoji', '表情');?>" onclick="spToggleEmojiPicker(event, document.getElementById('spPoster'))"><?php echo sp_ic('smile');?></span>
                   <span title="<?php echo t('sp_pick_mention', '@好友');?>" onclick="spMentionOpen()"><?php echo sp_ic('at');?></span>
-                  <span title="<?php echo t('sp_pick_topic', '话题');?>" onclick="spAlert('话题')"><?php echo sp_ic('hash');?></span>
+                  <span title="<?php echo t('sp_pick_topic', '话题');?>" onclick="spAlert('<?php echo t('sp_pick_topic', '话题');?>')"><?php echo sp_ic('hash');?></span>
                 </div>
                 <div class="vis-select" id="spVisBtn" onclick="spVisToggle(event)">
                   <span class="vis-ic"><?php echo sp_ic('globe');?></span>
@@ -461,7 +461,7 @@ $theirFeedLabel = $gender === 1 ? t('sp_their_feed_his', 'TA的动态') : ($gend
                 <a data-f="photo"><?php echo t('sp_tab_album', '相册');?></a>
                 <a data-f="say"><?php echo t('sp_tab_say', '说说');?></a>
               </div>
-              <div class="feed-control-op"><span onclick="location.reload()" title="<?php echo t('sp_refresh', '刷新');?>"><?php echo t('sp_refresh', '刷新');?></span><span onclick="spAlert('设置')"><?php echo t('sp_settings', '设置');?></span></div>
+              <div class="feed-control-op"><span onclick="location.reload()" title="<?php echo t('sp_refresh', '刷新');?>"><?php echo t('sp_refresh', '刷新');?></span><span onclick="spAlert('<?php echo t('sp_settings', '设置');?>')"><?php echo t('sp_settings', '设置');?></span></div>
             </div>
 
             <!-- 说说列表 -->
@@ -503,7 +503,7 @@ $theirFeedLabel = $gender === 1 ? t('sp_their_feed_his', 'TA的动态') : ($gend
                   <div class="f-cmt-input">
                     <input class="f-cmt-text" placeholder="<?php echo t('sp_cmt_ph', '评论一下...');?>" maxlength="500">
                     <span class="sp-cmt-emoji" title="<?php echo t('sp_pick_emoji', '表情');?>" onclick="spToggleEmojiPicker(event, this.previousElementSibling)"><?php echo sp_ic('smile');?></span>
-                    <button class="btn-post btn-sm" onclick="spCmtSend(this)">发表</button>
+                    <button class="btn-post btn-sm" onclick="spCmtSend(this)"><?php echo t('sp_post', '发表');?></button>
                   </div>
                 </div>
               </li>
@@ -525,14 +525,14 @@ $theirFeedLabel = $gender === 1 ? t('sp_their_feed_his', 'TA的动态') : ($gend
                     <input id="spBlogTitle" placeholder="<?php echo t('sp_blog_title', '日志标题');?>" maxlength="200">
                     <select id="spBlogVis" title="<?php echo t('sp_vis_scope', '可见范围');?>">
                       <option value="0"><?php echo t('sp_vis_public', '所有人可见');?></option>
-                      <option value="1">好友可见</option>
-                      <option value="4">仅自己可见</option>
+                      <option value="1"><?php echo t('sp_vis_friend', '好友可见');?></option>
+                      <option value="4"><?php echo t('sp_vis_private', '仅自己可见');?></option>
                     </select>
                   </div>
-                  <textarea id="spBlogContent" placeholder="正文..." maxlength="20000"></textarea>
+                  <textarea id="spBlogContent" placeholder="<?php echo t('sp_blog_content_ph', '正文...');?>" maxlength="20000"></textarea>
                   <div class="sp-blog-ed-ft">
-                    <button class="btn-post" onclick="spBlogSave()">发布</button>
-                    <button class="btn-plain" onclick="spBlogCancel()">取消</button>
+                    <button class="btn-post" onclick="spBlogSave()"><?php echo t('sp_blog_publish', '发布');?></button>
+                    <button class="btn-plain" onclick="spBlogCancel()"><?php echo t('sp_blog_cancel', '取消');?></button>
                   </div>
                 </div>
               </div>
@@ -779,6 +779,7 @@ $spJsT = [
     'sp_editing' => t('sp_editing', '正在编辑动态 #%s'),
     'sp_cancel_edit' => t('sp_cancel_edit', '取消编辑'),
     'sp_edited' => t('sp_edited', '已编辑'),
+    'sp_coming_soon' => t('sp_coming_soon', '「%s」功能即将上线。'),
     'sp_save' => t('sp_save', '保存'),
     'sp_cancel' => t('sp_cancel', '取消'),
     'sp_edit_title' => t('sp_edit_title', '编辑动态'),
@@ -819,6 +820,20 @@ $spJsT = [
     'sp_common_friends' => t('sp_common_friends', '你们有 %s 个共同好友'),
     'sp_blog_empty_self' => t('sp_blog_empty_self', '还没有日志，写第一篇吧～'),
     'sp_blog_empty_other' => t('sp_blog_empty_other', '期待 TA 的第一篇日志～'),
+    'sp_fm_title' => t('sp_fm_title', '选择好友'),
+    'sp_fm_title_at' => t('sp_fm_title_at', '选择要 @ 的好友'),
+    'sp_fm_ok' => t('sp_fm_ok', '确定'),
+    'sp_fm_ok_at' => t('sp_fm_ok_at', '确定艾特'),
+    'sp_fm_max30' => t('sp_fm_max30', '最多添加 30 位好友'),
+    'sp_fm_unknown' => t('sp_fm_unknown', '用户'),
+    'sp_remove' => t('sp_remove', '移除'),
+    'sp_goto_soon' => t('sp_goto_soon', '「%s」模块即将上线（示例 UI）。'),
+    'sp_blog_views' => t('sp_blog_views', '浏览'),
+    'sp_blog_view_fail' => t('sp_blog_view_fail', '无法查看该日志'),
+    'sp_blog_back' => t('sp_blog_back', '返回列表'),
+    'sp_blog_need' => t('sp_blog_need', '标题和正文都不能为空'),
+    'sp_blog_pub_fail' => t('sp_blog_pub_fail', '发布失败'),
+    'sp_blog_del' => t('sp_blog_del', '删除这篇日志？'),
 ];
 ?>
 var SP_T = <?php echo json_encode($spJsT, JSON_UNESCAPED_UNICODE);?>;
@@ -978,8 +993,8 @@ var SP_VIS_LABELS = { 0: spT('sp_vis_public', '所有人可见'), 1: spT('sp_vis
 var SP_EDITING = 0; // 正在编辑的动态 id（0 = 正常发表）
 var SP_X_IC = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 
-function spAlert(what) { alert('「' + what + '」功能即将上线。'); }
-function spGoto(where) { alert('「' + where + '」模块即将上线（示例 UI）。'); }
+function spAlert(what) { alert(spT('sp_coming_soon', '「%s」功能即将上线。', '').replace('%s', what)); }
+function spGoto(where) { alert(spT('sp_goto_soon', '「%s」模块即将上线（示例 UI）。').replace('%s', where)); }
 
 /* ===== 艾特通知（与我相关） ===== */
 function spLoadMentions() {
@@ -1166,12 +1181,12 @@ function spFmOpen() {
   var fT = document.getElementById('spFmTitle');
   var fOk = document.querySelector('#spFmMask .sp-fm-ok');
   if (SP_FM_MODE === 'mention') {
-    if (fT) fT.textContent = '选择要 @ 的好友';
-    if (fOk) fOk.textContent = '确定艾特';
+    if (fT) fT.textContent = spT('sp_fm_title_at', '选择要 @ 的好友');
+    if (fOk) fOk.textContent = spT('sp_fm_ok_at', '确定艾特');
     SP_FM_SELECTED = SP_MENTIONS.map(function (m) { return m.uid; });
   } else {
-    if (fT) fT.textContent = '选择好友';
-    if (fOk) fOk.textContent = '确定';
+    if (fT) fT.textContent = spT('sp_fm_title', '选择好友');
+    if (fOk) fOk.textContent = spT('sp_fm_ok', '确定');
     SP_FM_SELECTED = SP_POST_FRIENDS.slice();
   }
   // 面板贴发表框底部（absolute 定位随页面滚动），无需手动设置坐标
@@ -1195,7 +1210,7 @@ function renderFmList() {
   var list = document.getElementById('spFmList');
   var html = '';
   if (SP_FM_GROUP === 'auth') {
-    list.innerHTML = '<div class="sp-fm-empty">暂无认证空间</div>';
+    list.innerHTML = '<div class="sp-fm-empty">' + spT('sp_no_auth', '暂无认证空间') + '</div>';
     renderFmPicked();
     return;
   }
@@ -1211,7 +1226,7 @@ function renderFmList() {
       + (on ? '<span class="sp-fm-ck">' + SP_X_IC + '</span>' : '')
       + '</div>';
   });
-  list.innerHTML = html || '<div class="sp-fm-empty">无匹配好友</div>';
+  list.innerHTML = html || '<div class="sp-fm-empty">' + spT('sp_no_match', '无匹配好友') + '</div>';
   renderFmPicked();
 }
 function renderFmPicked() {
@@ -1226,7 +1241,7 @@ function renderFmPicked() {
       var uid = +(f.user_id || 0);
       if (SP_FM_SELECTED.indexOf(uid) >= 0) {
         var name = (f.display_name || f.username || '');
-        html += '<span class="sp-fm-pick" data-uid="' + uid + '" title="移除" onclick="spFmToggle(event,' + uid + ')">'
+        html += '<span class="sp-fm-pick" data-uid="' + uid + '" title="' + spT('sp_remove', '移除') + '" onclick="spFmToggle(event,' + uid + ')">'
           + '<img src="' + (f.avatar || '') + '" alt="" onerror="this.style.visibility=\'hidden\'">'
           + '<span>' + spEsc(name) + '</span>' + SP_X_IC + '</span>';
       }
@@ -1242,7 +1257,7 @@ function spFmToggle(e, uid) {
   var idx = SP_FM_SELECTED.indexOf(uid);
   if (idx >= 0) SP_FM_SELECTED.splice(idx, 1);
   else {
-    if (SP_FM_SELECTED.length >= 30) { alert('最多添加 30 位好友'); return; }
+    if (SP_FM_SELECTED.length >= 30) { alert(spT('sp_fm_max30', '最多添加 30 位好友')); return; }
     SP_FM_SELECTED.push(uid);
   }
   renderFmList();
@@ -1252,7 +1267,7 @@ function spFmConfirm() {
   SP_POST_FRIENDS = SP_FM_SELECTED.slice();
   document.getElementById('spFmMask').style.display = 'none';
   var lbl = document.getElementById('spVisLabel');
-  if (lbl) lbl.textContent = (SP_POST_VIS === 3 ? '部分好友不可见' : '部分好友可见') + (SP_POST_FRIENDS.length ? '（' + SP_POST_FRIENDS.length + '）' : '');
+  if (lbl) lbl.textContent = (SP_POST_VIS === 3 ? spT('sp_vis_not', '部分好友不可见') : spT('sp_vis_some', '部分好友可见')) + (SP_POST_FRIENDS.length ? '（' + SP_POST_FRIENDS.length + '）' : '');
 }
 
 /* ===== 艾特（@好友） ===== */
@@ -1271,7 +1286,7 @@ function spMentionConfirm(ids) {
   ids.forEach(function (uid) {
     var f = null;
     SP_FRIENDS.forEach(function (x) { if (+(x.user_id) === uid) f = x; });
-    var n = (f && (f.display_name || f.username)) || ('用户' + uid);
+    var n = (f && (f.display_name || f.username)) || (spT('sp_fm_unknown', '用户') + uid);
     names.push(n);
   });
   if (!names.length) return;
@@ -1297,7 +1312,7 @@ function renderMentionBar() {
   if (!SP_MENTIONS.length) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
   bar.style.display = 'flex';
   bar.innerHTML = SP_MENTIONS.map(function (m, i) {
-    return '<span class="sp-mention-tag">(' + spEsc(m.name) + ')<span class="sp-mention-x" title="移除" onclick="spMentionRemove(' + i + ')">' + SP_X_IC + '</span></span>';
+    return '<span class="sp-mention-tag">(' + spEsc(m.name) + ')<span class="sp-mention-x" title="' + spT('sp_remove', '移除') + '" onclick="spMentionRemove(' + i + ')">' + SP_X_IC + '</span></span>';
   }).join('');
 }
 function spMentionRemove(i) {
@@ -1416,7 +1431,7 @@ function renderPostImgs() {
   box.style.display = '';   // 恢复 CSS grid（每行 3 个，各占约 32%）
   var html = '';
   SP_POST_IMAGES.forEach(function (u, i) {
-    html += '<div class="sp-post-img"><img src="' + u + '" alt=""><span class="sp-post-img-x" title="移除" onclick="spDropImg(' + i + ')">' + SP_X_IC + '</span></div>';
+    html += '<div class="sp-post-img"><img src="' + u + '" alt=""><span class="sp-post-img-x" title="' + spT('sp_remove', '移除') + '" onclick="spDropImg(' + i + ')">' + SP_X_IC + '</span></div>';
   });
   box.innerHTML = html;
 }
@@ -1945,7 +1960,7 @@ function spVpLoad() {
       var h = '';
       arr.forEach(function (v) {
         var av = v.avatar ? '<img src="' + v.avatar + '" alt="">' : '<span class="av-empty">' + esc((v.name || '?').charAt(0)) + '</span>';
-        var del = (SP_VP_TYPE === 'me') ? '<a class="top_del" title="删除" onclick="event.stopPropagation();spVpDel(' + v.uid + ')">×</a>' : '';
+        var del = (SP_VP_TYPE === 'me') ? '<a class="top_del" title="' + spT('sp_delete', '删除') + '" onclick="event.stopPropagation();spVpDel(' + v.uid + ')">×</a>' : '';
         h += '<li class="user-item" data-uid="' + v.uid + '" data-username="' + esc(v.username) + '" data-name="' + esc(v.name) + '" data-avatar="' + (v.avatar || '') + '" data-gender="' + v.gender + '" data-zodiac="' + esc(v.zodiac) + '" data-common="' + v.common + '" data-special="' + v.special + '" onmouseenter="spNcHoverIn(this)" onmouseleave="spNcHoverOut()">'
           + '<a class="user-avatar q_namecard">' + av + '<span class="sp-vis-name-ov">' + esc(v.name) + '</span></a>'
           + '<span class="date">' + esc(v.time) + '</span>'
@@ -2136,14 +2151,14 @@ function renderBlogList(blogs) {
     return;
   }
   var html = '';
-  var visLbl = ['所有人可见', '好友可见', '部分好友可见', '部分好友不可见', '仅自己可见'];
+  var visLbl = SP_VIS_LABELS;
   blogs.forEach(function (b) {
     html += '<div class="sp-blog-item" data-id="' + b.id + '">'
       + '<div class="sp-blog-title" onclick="spOpenBlog(' + b.id + ')">' + esc(b.title) + '</div>'
       + '<div class="sp-blog-summary" onclick="spOpenBlog(' + b.id + ')">' + esc(b.summary) + '</div>'
-      + '<div class="sp-blog-meta">' + b.time + ' · 浏览 ' + b.views
-      + (b.visibility != null ? ' · <span class="f-vis">' + visLbl[b.visibility] + '</span>' : '')
-      + (SP_SPACE.self ? ' · <a class="sp-blog-del" data-id="' + b.id + '">删除</a>' : '')
+      + '<div class="sp-blog-meta">' + b.time + ' · ' + spT('sp_blog_views', '浏览') + ' ' + b.views
+      + (b.visibility != null ? ' · <span class="f-vis">' + (visLbl[b.visibility] || b.visibility) + '</span>' : '')
+      + (SP_SPACE.self ? ' · <a class="sp-blog-del" data-id="' + b.id + '">' + spT('sp_delete', '删除') + '</a>' : '')
       + '</div></div>';
   });
   list.innerHTML = html;
@@ -2152,14 +2167,14 @@ function spOpenBlog(id) {
   fetch('../../api/space.php?action=get_blog&id=' + id, { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (d) {
-      if (!d || !d.success) { alert('无法查看该日志'); return; }
+      if (!d || !d.success) { alert(spT('sp_blog_view_fail', '无法查看该日志')); return; }
       var b = d.blog;
       var detail = document.getElementById('spBlogDetail');
       detail.innerHTML = '<div class="sp-blog-view">'
         + '<h2 class="sp-blog-view-title">' + esc(b.title) + '</h2>'
-        + '<div class="sp-blog-view-meta">' + b.time + ' · 浏览 ' + b.views + '</div>'
+        + '<div class="sp-blog-view-meta">' + b.time + ' · ' + spT('sp_blog_views', '浏览') + ' ' + b.views + '</div>'
         + '<div class="sp-blog-view-ct">' + esc(b.content).replace(/\n/g, '<br>') + '</div>'
-        + '<div class="sp-blog-view-ft"><button class="btn-plain" onclick="spBlogBack()">返回列表</button></div>'
+        + '<div class="sp-blog-view-ft"><button class="btn-plain" onclick="spBlogBack()">' + spT('sp_blog_back', '返回列表') + '</button></div>'
         + '</div>';
       document.getElementById('spBlogList').style.display = 'none';
       document.getElementById('spBlogEditor').style.display = 'none';
@@ -2177,7 +2192,7 @@ function spBlogCancel() { spBlogBack(); }
 function spBlogSave() {
   var t = document.getElementById('spBlogTitle').value.trim();
   var c = document.getElementById('spBlogContent').value.trim();
-  if (!t || !c) { alert('标题和正文都不能为空'); return; }
+  if (!t || !c) { alert(spT('sp_blog_need', '标题和正文都不能为空')); return; }
   var v = +(document.getElementById('spBlogVis').value || 0);
   var f = new URLSearchParams();
   f.append('action', 'add_blog'); f.append('title', t); f.append('content', c); f.append('visibility', v);
@@ -2189,9 +2204,9 @@ function spBlogSave() {
         document.getElementById('spBlogContent').value = '';
         spBlogBack();
         spLoadBlogList();
-      } else alert('发布失败');
+      } else alert(spT('sp_blog_pub_fail', '发布失败'));
     })
-    .catch(function () { alert('网络错误'); });
+    .catch(function () { alert(spT('sp_net_err', '网络错误')); });
 }
 (function () {
   var list = document.getElementById('spBlogList');
@@ -2199,7 +2214,7 @@ function spBlogSave() {
   list.addEventListener('click', function (e) {
     var d = e.target.closest('.sp-blog-del');
     if (!d) return;
-    if (window.confirm('删除这篇日志？')) {
+    if (window.confirm(spT('sp_blog_del', '删除这篇日志？'))) {
       var f = new URLSearchParams(); f.append('action', 'delete_blog'); f.append('id', d.getAttribute('data-id'));
       fetch('../../api/space.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
         .then(function (r) { return r.json(); })

@@ -138,7 +138,8 @@ var EI18N = {
     male: <?php echo json_encode(t('p_gender_male'));?>,
     hidden: <?php echo json_encode(t('e_hidden'));?>,
     location: <?php echo json_encode(t('e_location'));?>,
-    privacy: [<?php echo json_encode(t('e_privacy_all'));?>, <?php echo json_encode(t('e_privacy_friends'));?>, <?php echo json_encode(t('e_privacy_none'));?>]
+    privacy: [<?php echo json_encode(t('e_privacy_all'));?>, <?php echo json_encode(t('e_privacy_friends'));?>, <?php echo json_encode(t('e_privacy_none'));?>],
+    imgReadFail: <?php echo json_encode(t('e_img_read_fail'));?>
 };
 var FROM_SETTINGS = <?php echo json_encode($from === 'settings');?>;
 function goBack() {
@@ -339,7 +340,7 @@ function onAvatarChange(input) {
                 else { alert(d.error || 'Something went wrong.'); }
             }).catch(function() { alert('Something went wrong.'); });
         };
-        img.onerror = function() { alert('无法读取该图片'); };
+        img.onerror = function() { alert(EI18N.imgReadFail); };
         img.src = e.target.result;
     };
     reader.readAsDataURL(f);

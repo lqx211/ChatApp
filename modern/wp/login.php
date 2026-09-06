@@ -38,7 +38,7 @@ if ($__upSince > 0) {
     $__upDays = (int)floor($__upSec / 86400);
     $__upHours = (int)floor(($__upSec % 86400) / 3600);
 }
-$__upText = $__upSince > 0 ? 'ChatApp 已运行 ' . $__upDays . ' 天 ' . $__upHours . ' 小时' : '';
+$__upText = $__upSince > 0 ? t('home_uptime', 'ChatApp 已运行 %d 天 %d 小时', $__upDays, $__upHours) : '';
 ?><!DOCTYPE html>
 <html lang="<?php echo $currentLang === 'zh' ? 'zh-Hans' : 'en'; ?>">
 <head>
@@ -469,29 +469,29 @@ $__upText = $__upSince > 0 ? 'ChatApp 已运行 ' . $__upDays . ' 天 ' . $__upH
     <div class="auth-container home">
         <div class="home-logo"><img src="../../data/res/cil/cil-comment-bubble.svg" alt=""></div>
         <h1>ChatApp</h1>
-        <p class="home-subtitle">其实就是一个自己暑假期间写的聊天网站</p>
+        <p class="home-subtitle"><?php echo t('home_subtitle', '其实就是一个自己暑假期间写的聊天网站');?></p>
         <div class="home-entries">
             <a href="chat.php" class="home-card">
                 <div class="home-icon"><img src="../../data/res/cil/cil-comment-bubble.svg" alt=""></div>
-                <div class="home-label">最新版本</div>
-                <h2>目前正在开发的地方</h2>
-                <p>选这个准没错</p>
-                <div class="home-go">进入 →</div>
+                <div class="home-label"><?php echo t('home_latest', '最新版本');?></div>
+                <h2><?php echo t('home_main_title', '目前正在开发的地方');?></h2>
+                <p><?php echo t('home_main_sub', '选这个准没错');?></p>
+                <div class="home-go"><?php echo t('home_enter', '进入 →');?></div>
             </a>
             <a href="../../apps/music/index.html" class="home-card">
                 <div class="home-icon"><img src="../../data/res/cil/cil-music-note.svg" alt=""></div>
-                <div class="home-label">听音乐</div>
-                <h2>聊天界面里不起眼的音乐组件</h2>
-                <p>只想听音乐不想注册（热知识：兼容 IE9）</p>
-                <div class="home-go">进入 →</div>
+                <div class="home-label"><?php echo t('home_music', '听音乐');?></div>
+                <h2><?php echo t('home_music_title', '聊天界面里不起眼的音乐组件');?></h2>
+                <p><?php echo t('home_music_sub', '只想听音乐不想注册（热知识：兼容 IE9）');?></p>
+                <div class="home-go"><?php echo t('home_enter', '进入 →');?></div>
             </a>
         </div>
         <div class="home-extra">
-            <a href="../../tablet/index.html" class="home-tablet-link">点这里看看已废弃的「尝试兼容 IE9」版本</a>
+            <a href="../../tablet/index.html" class="home-tablet-link"><?php echo t('home_tablet', '点这里看看已废弃的「尝试兼容 IE9」版本');?></a>
             <br><br>
-            <a href="login.php" class="home-login-link">不想看主页？直接登录 →</a>
+            <a href="login.php" class="home-login-link"><?php echo t('home_go_login', '不想看主页？直接登录 →');?></a>
             <?php if ($__upText): ?><p class="home-credit" style="margin-top:14px"><?php echo htmlspecialchars($__upText); ?></p><?php endif; ?>
-            <p class="home-credit">(14 岁 + Deepseek V4 Flash 写的)</p>
+            <p class="home-credit">(<?php echo t('home_credit', '14 岁 + Deepseek V4 Flash 写的');?>)</p>
         </div>
     </div>
     <?php else: ?>

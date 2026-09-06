@@ -41,7 +41,7 @@ $chatMode  = $u['emoji_chat_mode'] ?? 'dynamic';
 
 </div>
 
-<div class="save-toast" id="saveToast">✓ 已保存</div>
+<div class="save-toast" id="saveToast">✓ <?php echo t('set_saved_toast', '已保存');?></div>
 
 <script>
 var panelMode = <?php echo json_encode($panelMode);?>;

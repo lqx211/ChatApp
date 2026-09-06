@@ -20,16 +20,16 @@ if (is_dir($wpDir)) {
         $bgPresets[] = basename($f);
     }
 }
-$bgPrivateLabel = '默认';
+$bgPrivateLabel = t('bgpr_default', '默认');
 if ($bgPrivateImage) {
     if (strpos($bgPrivateImage, 'bgi/') === 0) {
-        $bgPrivateLabel = '我上传的图片';
+        $bgPrivateLabel = t('bgpr_my_upload', '我上传的图片');
     } else {
         $bgPrivateLabel = basename($bgPrivateImage, '.' . pathinfo($bgPrivateImage, PATHINFO_EXTENSION));
     }
 }
 
-$modeLabels = [0 => '黑名单', 1 => '白名单', 2 => '仅自己能看见'];
+$modeLabels = [0 => t('bgpr_mode_black', '黑名单'), 1 => t('bgpr_mode_white', '白名单'), 2 => t('bgpr_mode_private', '仅自己能看见')];
 $blackCount = count($bgBlackList);
 $whiteCount = count($bgWhiteList);
 ?>
@@ -38,7 +38,7 @@ $whiteCount = count($bgWhiteList);
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=428, initial-scale=1.0, user-scalable=no">
-<title>背景图隐私设置</title>
+<title><?php echo t('bgpr_title', '背景图隐私设置');?></title>
 <link rel="stylesheet" href="/plan/editinfo.css?v=20260809">
 </head>
 <body>
@@ -47,24 +47,24 @@ $whiteCount = count($bgWhiteList);
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">‹</button>
-    <span class="nav-title">背景图隐私设置</span>
+    <span class="nav-title"><?php echo t('bgpr_title', '背景图隐私设置');?></span>
     <span style="width:28px"></span>
   </div>
 
-  <div class="hint-text">选择背景图的可见模式，并配置相应的黑名单/白名单。</div>
+  <div class="hint-text"><?php echo t('bgpr_hint', '选择背景图的可见模式，并配置相应的黑名单/白名单。');?></div>
 
   <!-- 选择模式 -->
   <div class="form-row" onclick="openModePicker()">
-    <span class="row-label">选择模式</span>
-    <span class="row-value" id="modeVal"><?php echo htmlspecialchars($modeLabels[$bgPrivacy] ?? '黑名单');?></span>
+    <span class="row-label"><?php echo t('bgpr_mode', '选择模式');?></span>
+    <span class="row-value" id="modeVal"><?php echo htmlspecialchars($modeLabels[$bgPrivacy] ?? t('bgpr_mode_black', '黑名单'));?></span>
     <span class="row-arrow">›</span>
   </div>
 
   <!-- 黑名单配置入口（仅黑名单模式显示） -->
   <?php if ($bgPrivacy === 0):?>
   <div class="form-row" onclick="openBgList('black')">
-    <span class="row-label">黑名单配置</span>
-    <span class="row-value">当前 <?php echo $blackCount;?> 人</span>
+    <span class="row-label"><?php echo t('bgpr_black_cfg', '黑名单配置');?></span>
+    <span class="row-value"><?php echo t('bgpr_cur_people', '当前 %s 人', $blackCount);?></span>
     <span class="row-arrow">›</span>
   </div>
   <?php endif;?>
@@ -72,8 +72,8 @@ $whiteCount = count($bgWhiteList);
   <!-- 白名单配置入口（仅白名单模式显示） -->
   <?php if ($bgPrivacy === 1):?>
   <div class="form-row" onclick="openBgList('white')">
-    <span class="row-label">白名单配置</span>
-    <span class="row-value">当前 <?php echo $whiteCount;?> 人</span>
+    <span class="row-label"><?php echo t('bgpr_white_cfg', '白名单配置');?></span>
+    <span class="row-value"><?php echo t('bgpr_cur_people', '当前 %s 人', $whiteCount);?></span>
     <span class="row-arrow">›</span>
   </div>
   <?php endif;?>
@@ -81,15 +81,15 @@ $whiteCount = count($bgWhiteList);
   <!-- 禁止非朋友关系查看背景图（黑白名单模式均显示） -->
   <?php if ($bgPrivacy === 0 || $bgPrivacy === 1):?>
   <div class="form-row" onclick="toggleNoFriend()">
-    <span class="row-label">禁止非朋友关系查看</span>
-    <span class="row-value" id="noFriendVal"><?php echo $bgNoFriend ? '已开启' : '已关闭';?></span>
+    <span class="row-label"><?php echo t('bgpr_no_friend', '禁止非朋友关系查看');?></span>
+    <span class="row-value" id="noFriendVal"><?php echo $bgNoFriend ? t('bgpr_on', '已开启') : t('bgpr_off', '已关闭');?></span>
     <span class="row-arrow">›</span>
   </div>
   <?php endif;?>
 
   <!-- 不可见时背景图（因隐私看不到背景时展示的默认图） -->
   <div class="form-row" onclick="openPrivatePicker()">
-    <span class="row-label">不可见时背景图</span>
+    <span class="row-label"><?php echo t('bgpr_private_img', '不可见时背景图');?></span>
     <span class="row-value" id="privateVal"><?php echo htmlspecialchars($bgPrivateLabel);?></span>
     <span class="row-arrow">›</span>
   </div>
@@ -100,34 +100,35 @@ $whiteCount = count($bgWhiteList);
 <div class="picker-overlay" id="modeOverlay" onclick="closeModePicker()"></div>
 <div class="picker-panel" id="modePanel">
   <div class="picker-header">
-    <button class="picker-cancel" onclick="closeModePicker()">取消</button>
-    <span class="picker-title">选择模式</span>
-    <button class="picker-confirm" onclick="confirmMode()">确定</button>
+    <button class="picker-cancel" onclick="closeModePicker()"><?php echo t('bgpr_cancel', '取消');?></button>
+    <span class="picker-title"><?php echo t('bgpr_mode', '选择模式');?></span>
+    <button class="picker-confirm" onclick="confirmMode()"><?php echo t('bgpr_confirm', '确定');?></button>
   </div>
-  <div class="picker-option" data-mode="0" onclick="selectModeOpt(0)">黑名单</div>
-  <div class="picker-option" data-mode="1" onclick="selectModeOpt(1)">白名单</div>
-  <div class="picker-option" data-mode="2" onclick="selectModeOpt(2)">仅自己能看见</div>
+  <div class="picker-option" data-mode="0" onclick="selectModeOpt(0)"><?php echo t('bgpr_mode_black', '黑名单');?></div>
+  <div class="picker-option" data-mode="1" onclick="selectModeOpt(1)"><?php echo t('bgpr_mode_white', '白名单');?></div>
+  <div class="picker-option" data-mode="2" onclick="selectModeOpt(2)"><?php echo t('bgpr_mode_private', '仅自己能看见');?></div>
 </div>
 
 <!-- 不可见时背景图选择弹层 -->
 <div class="picker-overlay" id="privateOverlay" onclick="closePrivatePicker()"></div>
 <div class="picker-panel" id="privatePanel">
   <div class="picker-header">
-    <button class="picker-cancel" onclick="closePrivatePicker()">取消</button>
-    <span class="picker-title">不可见时背景图</span>
+    <button class="picker-cancel" onclick="closePrivatePicker()"><?php echo t('bgpr_cancel', '取消');?></button>
+    <span class="picker-title"><?php echo t('bgpr_private_img', '不可见时背景图');?></span>
     <span style="width:28px"></span>
   </div>
-  <div class="picker-option" data-img="" onclick="selectPrivateImg('')">默认</div>
-  <div class="picker-option" onclick="uploadPrivateBg()">上传图片</div>
+  <div class="picker-option" data-img="" onclick="selectPrivateImg('')"><?php echo t('bgpr_default', '默认');?></div>
+  <div class="picker-option" onclick="uploadPrivateBg()"><?php echo t('bgpr_upload', '上传图片');?></div>
   <?php foreach ($bgPresets as $p): $pname = basename($p, '.' . pathinfo($p, PATHINFO_EXTENSION));?>
   <div class="picker-option" data-img="res/wallpaper/<?php echo htmlspecialchars($p);?>" onclick="selectPrivateImg('res/wallpaper/<?php echo htmlspecialchars($p);?>')"><?php echo htmlspecialchars($pname);?></div>
   <?php endforeach;?>
 </div>
 <input type="file" id="privateBgInput" accept="image/*,video/mp4,video/webm" style="display:none" onchange="onPrivateBgChange(this)">
 
-<div class="save-toast" id="saveToast">✓ 已保存</div>
+<div class="save-toast" id="saveToast">✓ <?php echo t('bgpr_saved', '已保存');?></div>
 
 <script>
+var EBP_T = { black: <?php echo json_encode(t('bgpr_mode_black', '黑名单'));?>, white: <?php echo json_encode(t('bgpr_mode_white', '白名单'));?>, priv: <?php echo json_encode(t('bgpr_mode_private', '仅自己能看见'));?>, on: <?php echo json_encode(t('bgpr_on', '已开启'));?>, off: <?php echo json_encode(t('bgpr_off', '已关闭'));?>, def: <?php echo json_encode(t('bgpr_default', '默认'));?>, mine: <?php echo json_encode(t('bgpr_my_upload', '我上传的图片'));?>, upFail: <?php echo json_encode(t('bgpr_up_fail', '上传失败'));?>, netErr: <?php echo json_encode(t('bgpr_net_err', '网络错误，上传失败'));?> };
 var FROM_SETTINGS = <?php echo json_encode($from === 'settings');?>;
 var _curMode = <?php echo (int)$bgPrivacy;?>;
 var _noFriend = <?php echo (int)$bgNoFriend;?>;
@@ -147,7 +148,7 @@ function closePrivatePicker() {
 function selectPrivateImg(img) {
     _privateImg = img;
     // 显示为名字（默认 / 预设名 / 我上传的图片）
-    var label = img === '' ? '默认' : (img.indexOf('res/wallpaper/') === 0 ? img.replace('res/wallpaper/', '').replace(/\.(jpg|png)$/i, '') : '我上传的图片');
+    var label = img === '' ? EBP_T.def : (img.indexOf('res/wallpaper/') === 0 ? img.replace('res/wallpaper/', '').replace(/\.(jpg|png)$/i, '') : EBP_T.mine);
     document.getElementById('privateVal').textContent = label;
     var f = new URLSearchParams();
     f.append('action', 'set_bg_private');
@@ -219,19 +220,19 @@ function onPrivateBgChange(input) {
         if (pctTimer) clearInterval(pctTimer);
         if (rateTimer) clearInterval(rateTimer);
         privProgHide();
-        try { var d = JSON.parse(xhr.responseText); } catch (e) { alert('上传失败'); input.value=''; return; }
+        try { var d = JSON.parse(xhr.responseText); } catch (e) { alert(EBP_T.upFail); input.value=''; return; }
         if (d && d.success) {
-            document.getElementById('privateVal').textContent = '我上传的图片';
+            document.getElementById('privateVal').textContent = EBP_T.mine;
             _privateImg = d.private_image || '';
             showToast();
-        } else { alert((d && d.error) || '上传失败'); }
+        } else { alert((d && d.error) || EBP_T.upFail); }
         input.value = '';
     };
     xhr.onerror = function () {
         if (pctTimer) clearInterval(pctTimer);
         if (rateTimer) clearInterval(rateTimer);
         privProgHide();
-        alert('网络错误，上传失败');
+        alert(EBP_T.netErr);
         input.value = '';
     };
     xhr.send(form);
@@ -274,7 +275,7 @@ function selectModeOpt(m) {
     });
 }
 function confirmMode() {
-    var labels = ['黑名单','白名单','仅自己能看见'];
+    var labels = [EBP_T.black, EBP_T.white, EBP_T.priv];
     document.getElementById('modeVal').textContent = labels[_curMode];
     var f = new URLSearchParams();
     f.append('action', 'set_bg_privacy');
@@ -299,7 +300,7 @@ function openBgList(type) {
 // ---- 禁止非朋友关系查看 ----
 function toggleNoFriend() {
     _noFriend = _noFriend ? 0 : 1;
-    document.getElementById('noFriendVal').textContent = _noFriend ? '已开启' : '已关闭';
+    document.getElementById('noFriendVal').textContent = _noFriend ? EBP_T.on : EBP_T.off;
     var f = new URLSearchParams();
     f.append('action', 'set_bg_no_friend');
     f.append('no_friend', String(_noFriend));

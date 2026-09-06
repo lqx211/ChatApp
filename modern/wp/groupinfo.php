@@ -59,7 +59,7 @@ $roleLabels = ['owner' => t('g_role_owner'), 'admin' => t('g_role_admin'), 'memb
     <!-- 群头像 + 群名 + 群号 -->
     <div class="g-head">
       <div class="g-avatar" id="gAvatarWrap"<?php if($canManage):?> onclick="document.getElementById('gAvatarInput').click()" style="cursor:pointer" title="<?php echo htmlspecialchars(t('g_upload_avatar'));?>"<?php endif;?>>
-        <?php if($avatarUrl):?><img src="<?php echo htmlspecialchars($avatarUrl);?>" alt=""><?php else:?><span class="g-avatar-ph">群</span><?php endif;?>
+        <?php if($avatarUrl):?><img src="<?php echo htmlspecialchars($avatarUrl);?>" alt=""><?php else:?><span class="g-avatar-ph"><?php echo t('g_avatar_ph', '群');?></span><?php endif;?>
       </div>
       <div class="g-name-col">
         <span class="g-name"><?php echo $gname;?></span>
