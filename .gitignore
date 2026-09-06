@@ -90,3 +90,6 @@ data/res/brand/src/
 # Python
 __pycache__/
 *.pyc
+
+# WSS runtime
+wss/wss.pid
