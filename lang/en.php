@@ -947,6 +947,8 @@ return [
     'opt_reload_client' => 'Reload Client',
     'opt_send_receipt_on' => 'Enable sending read receipts',
     'opt_send_receipt_off' => 'Disable sending read receipts',
+    'opt_view_receipt_on' => 'Enable showing read receipts',
+    'opt_view_receipt_off' => 'Disable showing read receipts',
 
     // ---- E2EE notices / badge / hint ----
     'e2ee_notice_me_on' => 'You have enabled end-to-end encryption',

@@ -759,6 +759,8 @@ return [
     'opt_video_call' => '视频通话',
     'opt_send_receipt_on' => '启用发送已读回执',
     'opt_send_receipt_off' => '禁用发送已读回执',
+    'opt_view_receipt_on' => '启用显示已读回执',
+    'opt_view_receipt_off' => '禁用显示已读回执',
     'opt_e2ee' => '🔒 端到端加密',
     'opt_safety_verify' => '🔐 安全验证',
     'opt_reload_client' => '重新载入客户端',

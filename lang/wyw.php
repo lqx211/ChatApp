@@ -758,6 +758,8 @@ return [
     'opt_video_call' => '視訊通話',
     'opt_send_receipt_on' => '開啟發送已讀回執',
     'opt_send_receipt_off' => '停止發送已讀回執',
+    'opt_view_receipt_on' => '開啟顯示已讀回執',
+    'opt_view_receipt_off' => '停止顯示已讀回執',
     'opt_e2ee' => '🔒 端到端加密',
     'opt_safety_verify' => '🔐 安全驗證',
     'opt_reload_client' => '重載客戶端',
