@@ -134,6 +134,8 @@ return [
     'msg_select_contact'     => '选择一个联系方可聊天',
     'msg_start_chatting'     => '始与对谈之人是',
     'msg_revoked'            => '[这个混乱和年龄可能被废除]',
+    'msg_sent'               => '已发送',
+    'msg_read_at'            => '已读于',
     'msg_typing'             => '在输出...',
     'msg_friends'            => '朋友',
     'msg_pending'            => '通过中',
@@ -490,6 +492,8 @@ return [
     'set_friend_perms'          => '朋友许可权',
     'set_bg_view_perm'          => '背景图查看许可权',
     'set_typing_visible'        => '我的输入状态可见',
+    'set_send_read_receipt'     => '发送已读回执',
+    'set_view_read_receipt'     => '查看他人已读回执',
 
     // 发现我的方法
     'set_findme_hint'           => '选择其他人可以在 ChatApp 里发现你的方法。',
@@ -755,6 +759,8 @@ return [
     'opt_share_screen' => '共享屏幕',
     'opt_voice_call' => '语音通话',
     'opt_video_call' => '视频通话',
+    'opt_send_receipt_on' => '启用发送已读回执',
+    'opt_send_receipt_off' => '禁用发送已读回执',
     'opt_e2ee' => '🔒 端到端加密',
     'opt_safety_verify' => '🔐 安全验证',
     'opt_reload_client' => '重新载入客户端',

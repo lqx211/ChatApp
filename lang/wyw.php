@@ -130,6 +130,8 @@ return [
     'msg_select_contact'     => '擇一往來者，方得暢談。',
     'msg_start_chatting'     => '與',
     'msg_revoked'            => '[此言已追回矣]',
+    'msg_sent'               => '已發送',
+    'msg_read_at'            => '已讀於',
     'msg_typing'             => '正奮筆疾書…',
     'msg_friends'            => '友朋',
     'msg_pending'            => '懸而未決',
@@ -485,6 +487,8 @@ return [
     'set_friend_perms'          => '友朋之權',
     'set_bg_view_perm'          => '觀背景之權',
     'set_typing_visible'        => '示吾正書之狀',
+    'set_send_read_receipt'     => '發送已讀回執',
+    'set_view_read_receipt'     => '查閱他人已讀回執',
 
     // Find me（覓吾之途）
     'set_findme_hint'           => '擇他人何以覓君於ChatApp。',
@@ -750,6 +754,8 @@ return [
     'opt_share_screen' => '共享螢幕',
     'opt_voice_call' => '語音通話',
     'opt_video_call' => '視訊通話',
+    'opt_send_receipt_on' => '開啟發送已讀回執',
+    'opt_send_receipt_off' => '停止發送已讀回執',
     'opt_e2ee' => '🔒 端到端加密',
     'opt_safety_verify' => '🔐 安全驗證',
     'opt_reload_client' => '重載客戶端',

@@ -77,14 +77,14 @@ $viewReadReceipt = (int)($u['view_read_receipt'] ?? 1);
     </label>
   </div>
   <div class="set-row" style="cursor:default">
-    <span class="row-label"><?php echo t('set_send_read_receipt', 'Send read receipts');?></span>
+    <span class="row-label"><?php echo t('set_send_read_receipt', '发送已读回执');?></span>
     <label class="set-switch">
       <input type="checkbox" id="sendReceiptSw" <?php echo $sendReadReceipt ? 'checked' : '';?> onchange="toggleCol('send_read_receipt','sendReceiptSw',this)">
       <span class="track"></span>
     </label>
   </div>
   <div class="set-row" style="cursor:default">
-    <span class="row-label"><?php echo t('set_view_read_receipt', 'View others\' read receipts');?></span>
+    <span class="row-label"><?php echo t('set_view_read_receipt', '查看他人已读回执');?></span>
     <label class="set-switch">
       <input type="checkbox" id="viewReceiptSw" <?php echo $viewReadReceipt ? 'checked' : '';?> onchange="toggleCol('view_read_receipt','viewReceiptSw',this)">
       <span class="track"></span>

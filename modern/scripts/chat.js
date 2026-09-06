@@ -2938,8 +2938,8 @@ function mrrHtml(m, own) {
     if (VIEW_RECEIPT !== 1) return '';      // 我没开“显示已读回执”
     if (m.receipt_visible !== 1) return ''; // 该消息 receipt_visible=隐藏 → 无标记
     var txt = m.read_at
-        ? T('msg_read_at', 'Read at') + ' ' + fmtTime(m.read_at)
-        : T('msg_sent', 'Sent');
+        ? T('msg_read_at', '已读于') + ' ' + fmtTime(m.read_at)
+        : T('msg_sent', '已发送');
     return '<span class="mrr"> · ' + txt + '</span>';
 }
 
@@ -7287,7 +7287,7 @@ window.handleReadReceipt = function(d) {
     var a = document.getElementById('dmMessagesArea');
     if (!a) return;
     var readAt = d.read_at || '';
-    var txt = T('msg_read_at', 'Read at') + (readAt ? ' ' + fmtTime(readAt) : '');
+    var txt = T('msg_read_at', '已读于') + (readAt ? ' ' + fmtTime(readAt) : '');
     var rows = a.querySelectorAll('.mr.own .mrr');
     rows.forEach(function(el) {
         el.textContent = ' · ' + txt;

@@ -130,6 +130,8 @@ return [
     'msg_select_contact'     => '选择一个联系人开始聊天。',
     'msg_start_chatting'     => '开始与',
     'msg_revoked'            => '[此消息已被撤回]',
+    'msg_sent'               => '已发送',
+    'msg_read_at'            => '已读于',
     'msg_typing'             => '正在输入...',
     'msg_friends'            => '好友',
     'msg_pending'            => '等待中',
@@ -485,6 +487,8 @@ return [
     'set_friend_perms'          => '好友权限',
     'set_bg_view_perm'          => '背景图查看权',
     'set_typing_visible'        => '我的输入状态可见',
+    'set_send_read_receipt'     => '发送已读回执',
+    'set_view_read_receipt'     => '查看他人已读回执',
 
     // 找到我的方式
     'set_findme_hint'           => '选择其他人可以通过哪些方式在 ChatApp 里找到你。',
@@ -751,6 +755,8 @@ return [
     'opt_share_screen' => '共享屏幕',
     'opt_voice_call' => '语音通话',
     'opt_video_call' => '视频通话',
+    'opt_send_receipt_on' => '启用发送已读回执',
+    'opt_send_receipt_off' => '禁用发送已读回执',
     'opt_e2ee' => '🔒 端到端加密',
     'opt_safety_verify' => '🔐 安全验证',
     'opt_reload_client' => '重新载入客户端',
