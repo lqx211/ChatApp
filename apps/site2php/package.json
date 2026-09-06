@@ -1,0 +1,11 @@
+{
+  "name": "site2php",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "输入 URL → 本地化 HTML/CSS/JS/图片 → 结构/配色/字体分析 → 生成可维护的 PHP include 模板骨架（仅用于你有权处理的站点）",
+  "bin": { "site2php": "cli.mjs" },
+  "dependencies": {
+    "cheerio": "^1.0.0"
+  }
+}
