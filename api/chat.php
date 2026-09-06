@@ -102,7 +102,7 @@ switch ($action) {
         $myUid = get_my_uid($pdo);
 
         $sel = "SELECT m.id, m.sender_id, su.username, su.display_name, su.avatar, su.user_id,
-                       m.recipient_id, ru.username AS recipient_name,
+                       m.recipient_id, ru.username AS recipient_name, ru.read_receipt AS recipient_receipt,
                        m.message, m.msg_type, m.attachment, m.time, m.datetime, m.deleted_at, m.reply_to, m.temp_upload_id
                 FROM messages m
                 LEFT JOIN users su ON su.user_id = m.sender_id
@@ -143,7 +143,7 @@ switch ($action) {
         $limit = min(50, max(1, (int)($_GET['limit'] ?? 50)));
 
         $sel = "SELECT m.id, m.sender_id, su.username, su.display_name, su.avatar, su.user_id,
-                       m.recipient_id, ru.username AS recipient_name, ru.display_name AS recipient_display, ru.user_id AS recipient_uid,
+                       m.recipient_id, ru.username AS recipient_name, ru.display_name AS recipient_display, ru.user_id AS recipient_uid, ru.read_receipt AS recipient_receipt,
                        m.message, m.msg_type, m.attachment, m.time, m.datetime, m.deleted_at, m.reply_to, m.temp_upload_id
                 FROM messages m
                 LEFT JOIN users su ON su.user_id = m.sender_id
@@ -245,7 +245,7 @@ switch ($action) {
         $total = (int)$countStmt->fetchColumn();
 
         $sql = "SELECT m.id, m.sender_id, su.username, su.display_name, su.avatar, su.user_id,
-                       m.recipient_id, ru.username AS recipient_name,
+                       m.recipient_id, ru.username AS recipient_name, ru.read_receipt AS recipient_receipt,
                        m.message, m.msg_type, m.attachment, m.time, m.datetime, m.deleted_at, m.reply_to, m.temp_upload_id
                 FROM messages m
                 LEFT JOIN users su ON su.user_id = m.sender_id
@@ -360,6 +360,8 @@ function proc(array $msgs): array {
         }
         $m['reply_data'] = (!empty($m['reply_to']) && isset($replyMap[(int)$m['reply_to']])) ? $replyMap[(int)$m['reply_to']] : null;
         unset($m['reply_to'], $m['sender_id'], $m['recipient_id'], $m['user_id'], $m['recipient_name'], $m['recipient_display'], $m['recipient_uid']);
+        // 已读回执：接收方是否开启回执（决定发送方是否显示 Sent/Read）
+        $m['recipient_receipt'] = (int)($m['recipient_receipt'] ?? 1);
         $out[] = $m;
     }
     return $out;

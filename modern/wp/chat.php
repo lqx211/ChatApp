@@ -631,6 +631,7 @@ var AUTO_FOCUS=<?php echo (int)($currentUser['auto_focus_input'] ?? 1);?>;
 var NOTIF_SYS=<?php echo (int)($currentUser['notif_system'] ?? 1);?>;
 var NOTIF_BANNER=<?php echo (int)($currentUser['notif_banner'] ?? 1);?>;
 var TYPING_VIS=<?php echo (int)($currentUser['typing_visible'] ?? 1);?>;
+var READ_RECEIPT=<?php echo (int)($currentUser['read_receipt'] ?? 1);?>;
 var ADMIN=<?php echo $isAdmin ? 'true' : 'false';?>;
 var IS_ROOT=<?php echo $isRoot ? 'true' : 'false';?>;
 var CACHE_KEY='<?php echo htmlspecialchars($currentUser['cache_key'] ?? '', ENT_QUOTES);?>';

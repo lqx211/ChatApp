@@ -584,6 +584,14 @@ function chat_action_mark_read(PDO $pdo, int $uid, string $username, array $p): 
     $aff->execute([$fromUid, $uid]);
     $marked = $aff->rowCount();
 
+    // 阅读者（B）是否开启已读回执：决定是否把「已读」实时推给发送方 A
+    $receiptOn = 1;
+    try {
+        $rr = $pdo->prepare("SELECT read_receipt FROM users WHERE user_id = ?");
+        $rr->execute([$uid]);
+        $receiptOn = (int)($rr->fetchColumn() ?: 1);
+    } catch (\Throwable $e) { $receiptOn = 1; }
+
     if ($marked > 0) {
         try {
             $cfg = chat_actions_lvconfig();
@@ -596,7 +604,7 @@ function chat_action_mark_read(PDO $pdo, int $uid, string $username, array $p): 
         }
     }
 
-    return ['success' => true, 'marked' => $fromUser, 'count' => $marked];
+    return ['success' => true, 'marked' => $fromUser, 'count' => $marked, 'receipt_on' => $receiptOn];
 }
 
 /**

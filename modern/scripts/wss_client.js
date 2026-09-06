@@ -211,6 +211,11 @@
                 }
                 break;
 
+            case 'read_receipt':
+                // 已读回执：对方（阅读者）已读了我发的消息 → 把当前会话里自己的 Sent 翻成 Read at
+                if (d.from && typeof window.handleReadReceipt === 'function') window.handleReadReceipt(d);
+                break;
+
             case 'typing':
                 // 打字指示器（仅当前对话对象）
                 if (d.from && D === d.from) {

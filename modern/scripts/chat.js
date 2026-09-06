@@ -737,6 +737,8 @@ function ehAttr(t) {
 // 兼容旧格式：datetime 列仍是 'Y-m-d H:i:s'（服务器本地 Asia/Hong_Kong 钟面，chat.php 注入 SERVER_TZ），
 // 解析旧字符串时必须显式按该偏移换算，绝不能追加 'Z' 当 UTC 用。
 var SERVER_TZ = (typeof SERVER_TZ !== 'undefined') ? SERVER_TZ : '+08:00';
+// 已读回执：chat.php 注入，默认开启；右键菜单与隐私设置双入口同步
+var READ_RECEIPT = (typeof READ_RECEIPT !== 'undefined') ? READ_RECEIPT : 1;
 
 // 把一条消息的 time 统一换算成毫秒时间戳：新版（epoch 秒）或旧字符串（服务器本地钟面）
 function timeToTs(s) {
@@ -2927,6 +2929,17 @@ function closeChatlogDetail() {
     document.getElementById('chatlogModal').classList.remove('active');
 }
 
+/** 已读回执标记：仅自己发出的消息；接收方开启回执 + 自己开启「查看已读回执」时才显示 Sent / Read at。 */
+function mrrHtml(m, own) {
+    if (!own) return '';
+    if (!m.recipient_receipt) return '';
+    if (typeof READ_RECEIPT !== 'undefined' && !READ_RECEIPT) return '';
+    var txt = m.read_at
+        ? T('msg_read_at', 'Read at') + ' ' + fmtTime(m.read_at)
+        : T('msg_sent', 'Sent');
+    return '<span class="mrr"> · ' + txt + '</span>';
+}
+
 /** 构建普通 DM 消息行（E2EE 解密后也复用）。 */
 function buildDmMsgRow(m, own) {
     var d = document.createElement('div');
@@ -2970,7 +2983,7 @@ function buildDmMsgRow(m, own) {
         rh = (own && !dl) ? tempMenu : ((!dl) ? tempMenu : '');
     } else if (own && !dl) rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-multi" onclick="enterMsgSelectMode(this);closeAllMsgMenus()">' + T('menu_multiselect') + '</div><div class="msg-fwd" onclick="openForwardModal(this);closeAllMsgMenus()">' + T('menu_forward') + '</div><div onclick="replyDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + emojiMenuItem + reportMenuItem + '<div onclick="revokeDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_revoke') + '</div></div>';
     else if (!dl) rh = '<button class="msg-more-btn" onclick="toggleMsgMenu(event,this)"><img src="../../data/res/svg/channel_more_16.svg" width="14"></button><div class="msg-menu"><div class="msg-multi" onclick="enterMsgSelectMode(this);closeAllMsgMenus()">' + T('menu_multiselect') + '</div><div class="msg-fwd" onclick="openForwardModal(this);closeAllMsgMenus()">' + T('menu_forward') + '</div><div onclick="replyDmMessage(' + m.id + ');closeAllMsgMenus()">' + T('menu_reply') + '</div>' + emojiMenuItem + reportMenuItem + '<div style="color:#555;cursor:not-allowed">' + T('menu_revoke') + '</div></div>';
-    d.innerHTML = av + '<div class="mc"><div class="mb"><div class="mu">' + eh(_contactNotes[m.username] || m.display_name || m.username) + '</div>' + rq + '<div class="mt' + dc + '">' + msgContent + '</div>' + md + '<div class="mti">' + fmtTime(m.time) + '</div></div>' + rh + '</div>';
+    d.innerHTML = av + '<div class="mc"><div class="mb"><div class="mu">' + eh(_contactNotes[m.username] || m.display_name || m.username) + '</div>' + rq + '<div class="mt' + dc + '">' + msgContent + '</div>' + md + '<div class="mti">' + fmtTime(m.time) + mrrHtml(m, own) + '</div></div>' + rh + '</div>';
     return d;
 }
 function appendDmMsgRow(a, d, m, prepend) {
@@ -7198,6 +7211,7 @@ function ensureUserCtxMenu() {
         '<button onclick="closeUserCtxMenu();viewDmProfile(_ctxUser)">' + T('btn_view_profile') + '</button>' +
         '<button onclick="closeUserCtxMenu();ctxToggleE2ee()">' + T('opt_e2ee') + '</button>' +
         '<button onclick="closeUserCtxMenu();ctxOpenSafetyVerify()">' + T('opt_safety_verify') + '</button>' +
+        '<button id="ctxReadBtn" onclick="closeUserCtxMenu();toggleReadReceipt()">' + T('opt_read_receipt_off', '关闭已读') + '</button>' +
         '<button onclick="closeUserCtxMenu();startVoiceCall(_ctxUser)">' + T('opt_voice_call') + '</button>' +
         '<button onclick="closeUserCtxMenu();startVideoCall(_ctxUser)">' + T('opt_video_call') + '</button>' +
         '<button onclick="closeUserCtxMenu();startStandaloneShare(_ctxUser)">' + T('opt_share_screen') + '</button>' +
@@ -7220,6 +7234,8 @@ function openUserCtxMenu(e, username) {
     _ctxUser = username;
     var pinBtn = document.getElementById('ctxPinBtn');
     if (pinBtn) pinBtn.textContent = ((username === U) ? _pinnedSelf : _pinned[username]) ? T('d_unpin') : T('d_pin');
+    var readBtn = document.getElementById('ctxReadBtn');
+    if (readBtn) readBtn.textContent = READ_RECEIPT ? T('opt_read_receipt_off', '关闭已读') : T('opt_read_receipt_on', '启用已读');
     refreshContactMenuSpecial(username);
     el.classList.add('active');
     var x = e.clientX,
@@ -7234,6 +7250,51 @@ function openUserCtxMenu(e, username) {
 function closeUserCtxMenu() {
     if (_userCtxEl) _userCtxEl.classList.remove('active');
 }
+// 已读回执：全局开关（右键菜单 + 隐私设置双入口同步）
+async function toggleReadReceipt() {
+    var f = new URLSearchParams();
+    f.append('action', 'toggle_read_receipt');
+    var r = await fetch('../../api/settings.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: f.toString()
+    });
+    var d = await r.json();
+    if (d && d.success) {
+        READ_RECEIPT = d.read_receipt;
+        var b = document.getElementById('ctxReadBtn');
+        if (b) b.textContent = READ_RECEIPT ? T('opt_read_receipt_off', '关闭已读') : T('opt_read_receipt_on', '启用已读');
+        // 隐私设置页开关若存在，同步刷新
+        if (typeof settingsReadReceiptUI === 'function') settingsReadReceiptUI();
+        // 立即重绘当前会话中自己发出的消息的回执标记
+        refreshOwnReceipts();
+        // 若当前有打开的私聊，重新拉取以确保标记按最新设置渲染（关→开补出 Sent/Read）
+        if (D && typeof loadDmMessages === 'function') loadDmMessages(0);
+    }
+}
+function refreshOwnReceipts() {
+    var a = document.getElementById('dmMessagesArea');
+    if (!a) return;
+    var rows = a.querySelectorAll('.mr.own .mrr');
+    rows.forEach(function(el) {
+        el.style.display = READ_RECEIPT ? '' : 'none';
+    });
+}
+// WSS 推送：对方（阅读者）已读 → 把当前会话里自己消息的 Sent 翻成 Read at
+window.handleReadReceipt = function(d) {
+    if (!d || !d.from) return;
+    if (D !== d.from) return;
+    var a = document.getElementById('dmMessagesArea');
+    if (!a) return;
+    var readAt = d.read_at || '';
+    var txt = T('msg_read_at', 'Read at') + (readAt ? ' ' + fmtTime(readAt) : '');
+    var rows = a.querySelectorAll('.mr.own .mrr');
+    rows.forEach(function(el) {
+        el.textContent = ' · ' + txt;
+    });
+};
 // 特别关心：切换 + 文本刷新（已开显示「取消特别关心」）
 function toggleSpecialContact(u) {
     var f = new URLSearchParams();

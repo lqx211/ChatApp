@@ -137,6 +137,8 @@ return [
     'msg_start_chatting'     => 'Start chatting with',
     'msg_revoked'            => '[This message has been revoked]',
     'msg_typing'             => 'is typing...',
+    'msg_sent'               => 'Sent',
+    'msg_read_at'            => 'Read at',
     'msg_friends'            => 'Friends',
     'msg_pending'            => 'Pending',
     'msg_enabled'            => 'Enabled',
@@ -492,6 +494,7 @@ return [
     'set_friend_perms'          => 'Friend permissions',
     'set_bg_view_perm'          => 'Background viewing permission',
     'set_typing_visible'        => 'Show my typing status',
+    'set_read_receipt'          => 'View others\' read receipts',
 
     // Find me
     'set_findme_hint'           => 'Choose how others can find you in ChatApp.',
@@ -939,6 +942,8 @@ return [
     'opt_e2ee' => '🔒 End-to-end Encryption',
     'opt_safety_verify' => '🔐 Safety Verification',
     'opt_reload_client' => 'Reload Client',
+    'opt_read_receipt_on' => 'Enable read receipts',
+    'opt_read_receipt_off' => 'Disable read receipts',
 
     // ---- E2EE notices / badge / hint ----
     'e2ee_notice_me_on' => 'You have enabled end-to-end encryption',
