@@ -157,16 +157,22 @@
                             if (typeof addAnnouncement === 'function') addAnnouncement(m);
                             if (typeof window.notifyNewMessage === 'function') window.notifyNewMessage(m);
                         } else if (D && ((m.username === U && m.recipient === D) || (m.username === D && m.recipient === U))) {
-                            // 当前打开的私聊
+                            // 当前打开的私聊（已渲染即标记处理，避免后续重复推送误计未读）
                             if (typeof addDmMessage === 'function') addDmMessage(m);
+                            if (m.id) _unreadSeen[m.id] = 1;
                         } else if (m.msg_type === 'like' && !(m.id > L)) {
                             // 点赞行合并更新（非新行且聊天未打开）：静默忽略，不重复加未读/提醒
                         } else {
-                            // 其他私聊：未读数 + 提醒（已读消息不计未读，避免重连/多标签重复推送把已读消息算成未读）
-                            if (!m.read_at) {
+                            // 其他私聊：未读数 + 提醒。
+                            // 只计“确实未读 + 首次见到”的消息（id 去重）：重连/多标签/重复推送、
+                            // 以及隐藏回执消息（服务端不下发 read_at）都不会把已读/远古消息算成未读
+                            if (m.id && !_unreadSeen[m.id] && !m.read_at) {
+                                _unreadSeen[m.id] = 1;
                                 if (!unreadCounts[m.username]) unreadCounts[m.username] = 0;
                                 unreadCounts[m.username]++;
                                 if (typeof window.notifyNewMessage === 'function') window.notifyNewMessage(m);
+                            } else if (m.id) {
+                                _unreadSeen[m.id] = 1;
                             }
                         }
                     }

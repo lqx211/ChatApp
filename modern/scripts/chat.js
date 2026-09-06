@@ -8,6 +8,8 @@ var seenMsgIds = {};
 var pendingMedia = null,
     pendingDmMedia = null;
 var unreadCounts = {};
+// 消息未读去重：同一 message id 只计一次未读（防重连/多标签/历史回放把已读或远古消息重复计入未读）
+var _unreadSeen = {};
 var attFile = null,
     attSendFn = null,
     attBtnId = null;
@@ -3511,18 +3513,25 @@ async function pm() {
         var r = await fetch(pollUrl),
             d = await r.json();
         if (d.success && d.messages.length > 0) {
+            // 首轮（L=0，常见于断线恢复/重连后的历史回放）只校准游标，绝不把远古消息计入未读
+            var firstPoll = (L === 0);
             for (var i = 0; i < d.messages.length; i++) {
                 var m = d.messages[i];
                 if (!m.recipient) { addAnnouncement(m); lcPersistMsg('announcement', m); }
                 if (D && m.recipient && ((m.username === U && m.recipient === D) || (m.username === D && m.recipient === U))) { addDmMessage(m); lcPersistMsg('dm_' + D, m); }
+                // 其它私聊：只把“确实未读 + 首次见到”的消息计入未读（历史回放/重复推送一律忽略）
                 if (m.recipient && m.username !== U && m.username !== D) {
-                    if (!unreadCounts[m.username]) unreadCounts[m.username] = 0;
-                    unreadCounts[m.username]++;
+                    if (!firstPoll && !m.read_at && m.id && !_unreadSeen[m.id]) {
+                        _unreadSeen[m.id] = 1;
+                        if (!unreadCounts[m.username]) unreadCounts[m.username] = 0;
+                        unreadCounts[m.username]++;
+                    }
                 }
-                if (m.username !== U && !m.is_deleted && !seenMsgIds['notif_' + m.id] && m.id > L) {
+                if (!firstPoll && m.username !== U && !m.is_deleted && !seenMsgIds['notif_' + m.id] && m.id > L) {
                     seenMsgIds['notif_' + m.id] = 1;
                     notifyNewMessage(m);
                 }
+                if (m.id) _unreadSeen[m.id] = 1;
             }
         }
         L = d.latest_id;
