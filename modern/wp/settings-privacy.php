@@ -5,7 +5,8 @@ $u = chatapp_get_user();
 $strangerInvite = (int)($u['stranger_invite_group'] ?? 1);
 $strangerLike   = (int)($u['stranger_like'] ?? 1);
 $typingVisible  = (int)($u['typing_visible'] ?? 1);
-$readReceipt    = (int)($u['read_receipt'] ?? 1);
+$sendReadReceipt = (int)($u['send_read_receipt'] ?? 1);
+$viewReadReceipt = (int)($u['view_read_receipt'] ?? 1);
 ?>
 <!DOCTYPE html>
 <html lang="zh">
@@ -76,9 +77,16 @@ $readReceipt    = (int)($u['read_receipt'] ?? 1);
     </label>
   </div>
   <div class="set-row" style="cursor:default">
-    <span class="row-label"><?php echo t('set_read_receipt', 'View others\' read receipts');?></span>
+    <span class="row-label"><?php echo t('set_send_read_receipt', 'Send read receipts');?></span>
     <label class="set-switch">
-      <input type="checkbox" id="readReceiptSw" <?php echo $readReceipt ? 'checked' : '';?> onchange="toggleCol('read_receipt','readReceiptSw',this)">
+      <input type="checkbox" id="sendReceiptSw" <?php echo $sendReadReceipt ? 'checked' : '';?> onchange="toggleCol('send_read_receipt','sendReceiptSw',this)">
+      <span class="track"></span>
+    </label>
+  </div>
+  <div class="set-row" style="cursor:default">
+    <span class="row-label"><?php echo t('set_view_read_receipt', 'View others\' read receipts');?></span>
+    <label class="set-switch">
+      <input type="checkbox" id="viewReceiptSw" <?php echo $viewReadReceipt ? 'checked' : '';?> onchange="toggleCol('view_read_receipt','viewReceiptSw',this)">
       <span class="track"></span>
     </label>
   </div>
@@ -125,9 +133,11 @@ function toggleCol(col, swId, el) {
         if (d.success) {
             // 输入状态可见性需同步父页面 TYPING_VIS
             if (col === 'typing_visible' && window.parent) window.parent.TYPING_VIS = d[col];
-            // 已读回执需同步父页面 READ_RECEIPT（右键菜单与隐私设置双入口同步）
-            if (col === 'read_receipt' && window.parent) {
-                window.parent.READ_RECEIPT = d[col];
+            // 发送已读回执：同步父页面 SEND_RECEIPT（与右键菜单同一开关）
+            if (col === 'send_read_receipt' && window.parent) window.parent.SEND_RECEIPT = d[col];
+            // 显示他人已读回执：同步父页面 VIEW_RECEIPT 并重绘本会话自己的回执标记
+            if (col === 'view_read_receipt' && window.parent) {
+                window.parent.VIEW_RECEIPT = d[col];
                 if (typeof window.parent.refreshOwnReceipts === 'function') window.parent.refreshOwnReceipts();
                 if (typeof window.parent.loadDmMessages === 'function') window.parent.loadDmMessages(0);
             }

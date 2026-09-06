@@ -441,6 +441,17 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
                 }
             }
         }
+        // ---- 已读回执快照：消息发出瞬间，接收方是否“发送已读回执”→ 决定发送方能否看到该消息已读（此后永不变）----
+        $receiptVisible = null;
+        if ($recipientId > 0) {
+            try {
+                $rvS = $pdo->prepare("SELECT send_read_receipt FROM users WHERE user_id = ?");
+                $rvS->execute([$recipientId]);
+                $rvVal = $rvS->fetchColumn();
+                // PDO 返回字符串 '0'；'0' ?: 1 会把 0 当 falsy 返回 1（PHP 陷阱），故先判断 null/false
+                if ($rvVal !== null && $rvVal !== false && (int)$rvVal === 0) $receiptVisible = 0;
+            } catch (\Throwable $e) {}
+        }
         // ---- 幂等去重：同一发送者 + 同一 client_msg_id 在 120s 内已插入 → 直接返回既有 id，不再插第二次 ----
         if ($clientMsgId !== '') {
             $dupStmt = $pdo->prepare(
@@ -450,8 +461,8 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
             $dupId = (int)$dupStmt->fetchColumn();
             if ($dupId) return ['success' => true, 'message_id' => $dupId];
         }
-        $pdo->prepare('INSERT INTO messages (sender_id, recipient_id, message, msg_type, attachment, reply_to, time, datetime, temp_upload_id, client_msg_id) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)')
-            ->execute([$senderUid, $recipientId, $msg, $msgType, $attachmentFilename, $replyTo ?: null, $time, $tempUploadId ?: null, $clientMsgId !== '' ? $clientMsgId : null]);
+        $pdo->prepare('INSERT INTO messages (sender_id, recipient_id, message, msg_type, attachment, reply_to, time, datetime, temp_upload_id, client_msg_id, receipt_visible) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)')
+            ->execute([$senderUid, $recipientId, $msg, $msgType, $attachmentFilename, $replyTo ?: null, $time, $tempUploadId ?: null, $clientMsgId !== '' ? $clientMsgId : null, $receiptVisible]);
         $newMsgId = (int)$pdo->lastInsertId();
 
         if ($tempUploadId > 0) {
@@ -580,19 +591,25 @@ function chat_action_mark_read(PDO $pdo, int $uid, string $username, array $p): 
     $fromUid = (int)($stmt->fetchColumn() ?: 0);
     if (!$fromUid) return ['success' => false, 'error' => 'Something went wrong.'];
 
-    $aff = $pdo->prepare("UPDATE messages SET read_at = NOW() WHERE sender_id = ? AND recipient_id = ? AND read_at IS NULL");
-    $aff->execute([$fromUid, $uid]);
-    $marked = $aff->rowCount();
-
-    // 阅读者（B）是否开启已读回执：决定是否把「已读」实时推给发送方 A
-    $receiptOn = 1;
-    try {
-        $rr = $pdo->prepare("SELECT read_receipt FROM users WHERE user_id = ?");
-        $rr->execute([$uid]);
-        $receiptOn = (int)($rr->fetchColumn() ?: 1);
-    } catch (\Throwable $e) { $receiptOn = 1; }
-
+    // 取出将被标记为已读的消息 id + receipt_visible 快照，再一次性更新
+    $selIds = $pdo->prepare("SELECT id, receipt_visible FROM messages WHERE sender_id = ? AND recipient_id = ? AND read_at IS NULL");
+    $selIds->execute([$fromUid, $uid]);
+    $ids = [];
+    $visible = 0;
+    foreach ($selIds->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $ids[] = (int)$row['id'];
+        $rv = $row['receipt_visible'];
+        if ($rv === null || (int)$rv === 1) $visible = 1;
+    }
+    $marked = count($ids);
+    $readAt = null;
     if ($marked > 0) {
+        $in = implode(',', $ids);
+        $pdo->exec("UPDATE messages SET read_at = NOW() WHERE id IN ($in)");
+        // 取数据库写下的 read_at（与 messages.datetime 同一服务器钟面），实时推送用一致时间
+        try {
+            $readAt = (string)($pdo->query("SELECT MAX(read_at) FROM messages WHERE id IN ($in)")->fetchColumn() ?: '');
+        } catch (\Throwable $e) {}
         try {
             $cfg = chat_actions_lvconfig();
             $dailyMax = (int)($cfg['exp_msg_max_daily'] ?? 500);
@@ -604,7 +621,8 @@ function chat_action_mark_read(PDO $pdo, int $uid, string $username, array $p): 
         }
     }
 
-    return ['success' => true, 'marked' => $fromUser, 'count' => $marked, 'receipt_on' => $receiptOn];
+    // visible：本次标为已读的消息里存在“可见”（receipt_visible 快照=显示）→ 可实时推已读给发送方 A
+    return ['success' => true, 'marked' => $fromUser, 'count' => $marked, 'visible' => $visible, 'read_at' => $readAt];
 }
 
 /**

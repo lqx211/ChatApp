@@ -399,7 +399,8 @@ function ws_proc_messages(PDO $pdo, array $msgs, array $replyMap = []): array {
         }
         $m['reply_data'] = (!empty($m['reply_to']) && isset($replyMap[(int)$m['reply_to']])) ? $replyMap[(int)$m['reply_to']] : null;
         unset($m['reply_to'], $m['sender_id'], $m['recipient_id'], $m['user_id'], $m['recipient_name'], $m['recipient_display'], $m['recipient_uid']);
-        $m['recipient_receipt'] = (int)($m['recipient_receipt'] ?? 1);
+        $m['receipt_visible'] = ($m['receipt_visible'] ?? null) === null || (int)$m['receipt_visible'] === 1 ? 1 : 0;
+        if (!$m['receipt_visible']) { $m['read_at'] = null; }
         $out[] = $m;
     }
     return $out;
@@ -620,8 +621,8 @@ function ws_poll_messages(): void {
     // ---------- 私聊 + 公告增量 ----------
     if ($minL > 0) {
         $stmt = $pdo->prepare("SELECT m.id, m.sender_id, su.username, su.display_name, su.avatar,
-            m.recipient_id, ru.username AS recipient_name, ru.read_receipt AS recipient_receipt,
-            m.message, m.msg_type, m.attachment, m.time, m.datetime, m.deleted_at, m.read_at, m.reply_to, m.temp_upload_id
+            m.recipient_id, ru.username AS recipient_name,
+            m.message, m.msg_type, m.attachment, m.time, m.datetime, m.deleted_at, m.read_at, m.receipt_visible, m.reply_to, m.temp_upload_id
             FROM messages m
             LEFT JOIN users su ON su.user_id = m.sender_id
             LEFT JOIN users ru ON ru.user_id = m.recipient_id
@@ -671,8 +672,8 @@ function ws_poll_messages(): void {
     // ---------- 点赞行合并更新推送（行 id 不变但次数+1，推给被赞方） ----------
     try {
         $likeStmt = $pdo->prepare("SELECT m.id, m.sender_id, su.username, su.display_name, su.avatar,
-            m.recipient_id, ru.username AS recipient_name, ru.read_receipt AS recipient_receipt,
-            m.message, m.msg_type, m.attachment, m.time, m.datetime, m.deleted_at, m.read_at, m.reply_to, m.temp_upload_id
+            m.recipient_id, ru.username AS recipient_name,
+            m.message, m.msg_type, m.attachment, m.time, m.datetime, m.deleted_at, m.read_at, m.receipt_visible, m.reply_to, m.temp_upload_id
             FROM messages m
             LEFT JOIN users su ON su.user_id = m.sender_id
             LEFT JOIN users ru ON ru.user_id = m.recipient_id
@@ -860,8 +861,8 @@ function ws_refresh_client(int $cid): void {
 
     // 私聊+公告：从 l 之后拉（增量补推）
     $stmt = $pdo->prepare("SELECT m.id, m.sender_id, su.username, su.display_name, su.avatar,
-        m.recipient_id, ru.username AS recipient_name, ru.read_receipt AS recipient_receipt,
-        m.message, m.msg_type, m.attachment, m.time, m.datetime, m.deleted_at, m.read_at, m.reply_to, m.temp_upload_id
+        m.recipient_id, ru.username AS recipient_name,
+        m.message, m.msg_type, m.attachment, m.time, m.datetime, m.deleted_at, m.read_at, m.receipt_visible, m.reply_to, m.temp_upload_id
         FROM messages m
         LEFT JOIN users su ON su.user_id = m.sender_id
         LEFT JOIN users ru ON ru.user_id = m.recipient_id
@@ -965,11 +966,11 @@ function ws_handle_request(int $cid, array $data): void {
                             }
                         }
                     } catch (\Throwable $e) {}
-                    // 已读回执：阅读者开启了回执 → 实时推给发送方（fromUser）所有连接
-                    if (!empty($result['receipt_on'])) {
+                    // 已读回执：被标记为已读的消息里存在“可见”（receipt_visible=显示）→ 实时推给发送方（fromUser）
+                    if (!empty($result['visible'])) {
                         $fromUser = (string)($result['marked'] ?? '');
                         if ($fromUser !== '') {
-                            $rp = ['type' => 'read_receipt', 'from' => $username, 'read_at' => date('Y-m-d H:i:s')];
+                            $rp = ['type' => 'read_receipt', 'from' => $username, 'read_at' => ($result['read_at'] ?? '') ?: date('Y-m-d H:i:s')];
                             foreach ($GLOBALS['clients'] as $c3 => $cl3) {
                                 if ((string)$cl3['username'] === $fromUser) ws_send_json($c3, $rp);
                             }

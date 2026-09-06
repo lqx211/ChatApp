@@ -737,8 +737,11 @@ function ehAttr(t) {
 // 兼容旧格式：datetime 列仍是 'Y-m-d H:i:s'（服务器本地 Asia/Hong_Kong 钟面，chat.php 注入 SERVER_TZ），
 // 解析旧字符串时必须显式按该偏移换算，绝不能追加 'Z' 当 UTC 用。
 var SERVER_TZ = (typeof SERVER_TZ !== 'undefined') ? SERVER_TZ : '+08:00';
-// 已读回执：chat.php 注入，默认开启；右键菜单与隐私设置双入口同步
-var READ_RECEIPT = (typeof READ_RECEIPT !== 'undefined') ? READ_RECEIPT : 1;
+// 已读回执（chat.php 注入，默认全开）：
+//   SEND_RECEIPT = 我是否向对方“发送”已读状态（右键菜单开关 / 隐私设置·发送已读回执）
+//   VIEW_RECEIPT = 我是否“显示”别人已读我消息的状态（隐私设置·显示他人已读回执）
+var SEND_RECEIPT = (typeof SEND_RECEIPT !== 'undefined') ? SEND_RECEIPT : 1;
+var VIEW_RECEIPT = (typeof VIEW_RECEIPT !== 'undefined') ? VIEW_RECEIPT : 1;
 
 // 把一条消息的 time 统一换算成毫秒时间戳：新版（epoch 秒）或旧字符串（服务器本地钟面）
 function timeToTs(s) {
@@ -2929,11 +2932,11 @@ function closeChatlogDetail() {
     document.getElementById('chatlogModal').classList.remove('active');
 }
 
-/** 已读回执标记：仅自己发出的消息；接收方开启回执 + 自己开启「查看已读回执」时才显示 Sent / Read at。 */
+/** 已读回执标记：仅自己发出的消息；需我自己开了“显示已读回执”且该消息 receipt_visible=显示（发送时快照）。 */
 function mrrHtml(m, own) {
     if (!own) return '';
-    if (!m.recipient_receipt) return '';
-    if (typeof READ_RECEIPT !== 'undefined' && !READ_RECEIPT) return '';
+    if (VIEW_RECEIPT !== 1) return '';      // 我没开“显示已读回执”
+    if (m.receipt_visible !== 1) return ''; // 该消息 receipt_visible=隐藏 → 无标记
     var txt = m.read_at
         ? T('msg_read_at', 'Read at') + ' ' + fmtTime(m.read_at)
         : T('msg_sent', 'Sent');
@@ -7211,7 +7214,7 @@ function ensureUserCtxMenu() {
         '<button onclick="closeUserCtxMenu();viewDmProfile(_ctxUser)">' + T('btn_view_profile') + '</button>' +
         '<button onclick="closeUserCtxMenu();ctxToggleE2ee()">' + T('opt_e2ee') + '</button>' +
         '<button onclick="closeUserCtxMenu();ctxOpenSafetyVerify()">' + T('opt_safety_verify') + '</button>' +
-        '<button id="ctxReadBtn" onclick="closeUserCtxMenu();toggleReadReceipt()">' + T('opt_read_receipt_off', '关闭已读') + '</button>' +
+        '<button id="ctxReadBtn" onclick="closeUserCtxMenu();toggleSendReceipt()">' + T('opt_send_receipt_off', '禁用发送已读回执') + '</button>' +
         '<button onclick="closeUserCtxMenu();startVoiceCall(_ctxUser)">' + T('opt_voice_call') + '</button>' +
         '<button onclick="closeUserCtxMenu();startVideoCall(_ctxUser)">' + T('opt_video_call') + '</button>' +
         '<button onclick="closeUserCtxMenu();startStandaloneShare(_ctxUser)">' + T('opt_share_screen') + '</button>' +
@@ -7235,7 +7238,7 @@ function openUserCtxMenu(e, username) {
     var pinBtn = document.getElementById('ctxPinBtn');
     if (pinBtn) pinBtn.textContent = ((username === U) ? _pinnedSelf : _pinned[username]) ? T('d_unpin') : T('d_pin');
     var readBtn = document.getElementById('ctxReadBtn');
-    if (readBtn) readBtn.textContent = READ_RECEIPT ? T('opt_read_receipt_off', '关闭已读') : T('opt_read_receipt_on', '启用已读');
+    if (readBtn) readBtn.textContent = SEND_RECEIPT === 1 ? T('opt_send_receipt_off', '禁用发送已读回执') : T('opt_send_receipt_on', '启用发送已读回执');
     refreshContactMenuSpecial(username);
     el.classList.add('active');
     var x = e.clientX,
@@ -7250,10 +7253,10 @@ function openUserCtxMenu(e, username) {
 function closeUserCtxMenu() {
     if (_userCtxEl) _userCtxEl.classList.remove('active');
 }
-// 已读回执：全局开关（右键菜单 + 隐私设置双入口同步）
-async function toggleReadReceipt() {
+// 是否发送已读回执：全局开关（右键菜单 + 隐私设置“发送已读回执”双入口同步）
+async function toggleSendReceipt() {
     var f = new URLSearchParams();
-    f.append('action', 'toggle_read_receipt');
+    f.append('action', 'toggle_send_read_receipt');
     var r = await fetch('../../api/settings.php', {
         method: 'POST',
         headers: {
@@ -7263,15 +7266,9 @@ async function toggleReadReceipt() {
     });
     var d = await r.json();
     if (d && d.success) {
-        READ_RECEIPT = d.read_receipt;
+        SEND_RECEIPT = d.send_read_receipt;
         var b = document.getElementById('ctxReadBtn');
-        if (b) b.textContent = READ_RECEIPT ? T('opt_read_receipt_off', '关闭已读') : T('opt_read_receipt_on', '启用已读');
-        // 隐私设置页开关若存在，同步刷新
-        if (typeof settingsReadReceiptUI === 'function') settingsReadReceiptUI();
-        // 立即重绘当前会话中自己发出的消息的回执标记
-        refreshOwnReceipts();
-        // 若当前有打开的私聊，重新拉取以确保标记按最新设置渲染（关→开补出 Sent/Read）
-        if (D && typeof loadDmMessages === 'function') loadDmMessages(0);
+        if (b) b.textContent = SEND_RECEIPT === 1 ? T('opt_send_receipt_off', '禁用发送已读回执') : T('opt_send_receipt_on', '启用发送已读回执');
     }
 }
 function refreshOwnReceipts() {
@@ -7279,13 +7276,14 @@ function refreshOwnReceipts() {
     if (!a) return;
     var rows = a.querySelectorAll('.mr.own .mrr');
     rows.forEach(function(el) {
-        el.style.display = READ_RECEIPT ? '' : 'none';
+        el.style.display = VIEW_RECEIPT === 1 ? '' : 'none';
     });
 }
 // WSS 推送：对方（阅读者）已读 → 把当前会话里自己消息的 Sent 翻成 Read at
 window.handleReadReceipt = function(d) {
     if (!d || !d.from) return;
     if (D !== d.from) return;
+    if (VIEW_RECEIPT !== 1) return;
     var a = document.getElementById('dmMessagesArea');
     if (!a) return;
     var readAt = d.read_at || '';

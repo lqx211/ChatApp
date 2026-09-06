@@ -494,7 +494,8 @@ return [
     'set_friend_perms'          => 'Friend permissions',
     'set_bg_view_perm'          => 'Background viewing permission',
     'set_typing_visible'        => 'Show my typing status',
-    'set_read_receipt'          => 'View others\' read receipts',
+    'set_send_read_receipt'     => 'Send read receipts',
+    'set_view_read_receipt'     => 'View others\' read receipts',
 
     // Find me
     'set_findme_hint'           => 'Choose how others can find you in ChatApp.',
@@ -942,8 +943,8 @@ return [
     'opt_e2ee' => '🔒 End-to-end Encryption',
     'opt_safety_verify' => '🔐 Safety Verification',
     'opt_reload_client' => 'Reload Client',
-    'opt_read_receipt_on' => 'Enable read receipts',
-    'opt_read_receipt_off' => 'Disable read receipts',
+    'opt_send_receipt_on' => 'Enable sending read receipts',
+    'opt_send_receipt_off' => 'Disable sending read receipts',
 
     // ---- E2EE notices / badge / hint ----
     'e2ee_notice_me_on' => 'You have enabled end-to-end encryption',

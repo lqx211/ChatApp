@@ -525,8 +525,10 @@ switch ($action) {
         settings_toggle_col('notif_banner'); break;
     case 'toggle_typing_visible':
         settings_toggle_col('typing_visible'); break;
-    case 'toggle_read_receipt':
-        settings_toggle_col('read_receipt'); break;
+    case 'toggle_send_read_receipt':
+        settings_toggle_col('send_read_receipt'); break;
+    case 'toggle_view_read_receipt':
+        settings_toggle_col('view_read_receipt'); break;
     case 'toggle_stranger_invite_group':
         settings_toggle_col('stranger_invite_group'); break;
     case 'toggle_stranger_like':
