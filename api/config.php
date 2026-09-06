@@ -1392,6 +1392,20 @@ function init_db(): void {
     db_add_column_if_missing('contacts', 'special', "TINYINT(1) NOT NULL DEFAULT 0");
     db_add_column_if_missing('incidents', 'images', "TEXT DEFAULT NULL");
     db_add_column_if_missing('messages', 'group_id', "INT DEFAULT NULL");
+    // 举报加密消息的证据副本（msg_crypt_temp）：举报时由举报方客户端解密 e2ee 消息后写入，
+    // 管理员查看举报时据此展示明文证据，而不是密文信封。ticket_id = incidents.id。
+    $pdo->exec("CREATE TABLE IF NOT EXISTS msg_crypt_temp (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        ticket_id INT NOT NULL,
+        message_id INT NOT NULL,
+        sender_id INT DEFAULT NULL,
+        msg_time BIGINT DEFAULT NULL,
+        md TINYINT(1) NOT NULL DEFAULT 0,
+        content MEDIUMTEXT,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_msg_ticket (message_id, ticket_id),
+        INDEX idx_mct_ticket (ticket_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     $pdo->exec("CREATE TABLE IF NOT EXISTS `groups` (
         id INT AUTO_INCREMENT PRIMARY KEY,
         group_id INT NOT NULL UNIQUE,

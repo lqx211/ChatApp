@@ -8,7 +8,7 @@ $action = $_POST['action'] ?? $_GET['action'] ?? '';
 header('Content-Type: application/json');
 
 // send/revoke/mark_read are state-changing → POST only.
-chatapp_read_actions(['unread_counts', 'fetch', 'all', 'search_messages', 'conversations', 'my_content'], $action);
+chatapp_read_actions(['unread_counts', 'fetch', 'all', 'search_messages', 'conversations', 'my_content', 'raw'], $action);
 
 function get_my_uid(PDO $pdo): int {
     $stmt = $pdo->prepare('SELECT user_id FROM users WHERE username = ?');
@@ -91,6 +91,44 @@ switch ($action) {
         $pdo = db();
         $myUid = get_my_uid($pdo);
         echo json_encode(chat_action_mark_read($pdo, $myUid, $_SESSION['username'], $_POST));
+        break;
+
+    case 'raw':
+        // 举报证据用：按 id 返回原始消息（仅参与者可读）。
+        // e2ee 消息返回密文信封（message），供举报方客户端解密后作为证据写入 msg_crypt_temp。
+        if (!isset($_SESSION['username'])) {
+            echo json_encode(['success' => false, 'error' => 'Not logged in']); exit;
+        }
+        $pdo = db();
+        $myUid = get_my_uid($pdo);
+        if (!$myUid) { echo json_encode(['success' => false]); exit; }
+        $ids = [];
+        foreach (explode(',', (string)($_GET['ids'] ?? '')) as $part) {
+            $v = (int)$part;
+            if ($v > 0) $ids[$v] = 1;
+        }
+        $ids = array_slice(array_keys($ids), 0, 50);
+        if (empty($ids)) { echo json_encode(['success' => true, 'messages' => []]); exit; }
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $pdo->prepare("SELECT m.id, m.sender_id, su.username, m.recipient_id, ru.username AS recipient_name,
+            m.msg_type, m.message, m.time
+            FROM messages m
+            LEFT JOIN users su ON su.user_id = m.sender_id
+            LEFT JOIN users ru ON ru.user_id = m.recipient_id
+            WHERE m.id IN ($ph) AND (m.sender_id = ? OR m.recipient_id = ?)");
+        $stmt->execute(array_merge($ids, [$myUid, $myUid]));
+        $out = [];
+        foreach ($stmt->fetchAll() as $r) {
+            $out[] = [
+                'id' => (int)$r['id'],
+                'username' => $r['username'] ?? 'Unknown',
+                'recipient' => $r['recipient_name'] ?? null,
+                'msg_type' => $r['msg_type'] ?? null,
+                'message' => $r['message'] ?? '',
+                'time' => $r['time'] ?? null,
+            ];
+        }
+        echo json_encode(['success' => true, 'messages' => $out]);
         break;
 
     case 'fetch':

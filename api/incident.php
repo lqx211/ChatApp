@@ -160,18 +160,27 @@ switch ($action) {
         $resStmt->execute([$id]);
         $incident['responses'] = $resStmt->fetchAll();
 
-        // For report-type incidents: resolve reported messages (show originals even if revoked)
+        // For report-type incidents: resolve reported messages (show originals even if revoked).
+        // E2EE 消息若有举报时写入的 msg_crypt_temp 证据 → 用明文替换密文信封。
         $incident['reported_messages'] = [];
         if ($isAdmin && $incident['type'] === 'report' && !empty($incident['message_ids'])) {
             $msgIds = json_decode($incident['message_ids'], true);
             if (is_array($msgIds) && count($msgIds) > 0) {
                 $placeholders = implode(',', array_fill(0, count($msgIds), '?'));
-                $msgStmt = $pdo->prepare("SELECT m.id, m.message, m.datetime, m.deleted_at, COALESCE(u.display_name, u.username) AS sender_name
+                $msgStmt = $pdo->prepare("SELECT m.id, m.message, m.msg_type, m.datetime, m.deleted_at, COALESCE(u.display_name, u.username) AS sender_name,
+                        t.content AS dec_content, t.md AS dec_md
                     FROM messages m JOIN users u ON u.user_id = m.sender_id
+                    LEFT JOIN msg_crypt_temp t ON t.message_id = m.id AND t.ticket_id = ?
                     WHERE m.id IN ($placeholders) ORDER BY m.id ASC");
-                $msgStmt->execute(array_map('intval', $msgIds));
+                $msgStmt->execute(array_merge([$id], array_map('intval', $msgIds)));
                 while ($msg = $msgStmt->fetch()) {
                     $msg['is_revoked'] = ($msg['deleted_at'] !== null);
+                    if ($msg['dec_content'] !== null && $msg['dec_content'] !== '') {
+                        $msg['message'] = $msg['dec_content'];
+                        $msg['md'] = (int)$msg['dec_md'];
+                        $msg['decrypted'] = true;
+                    }
+                    unset($msg['dec_content'], $msg['dec_md']);
                     $incident['reported_messages'][] = $msg;
                 }
             }

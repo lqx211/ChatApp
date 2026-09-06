@@ -38,6 +38,8 @@ switch ($action) {
         $targetUser = trim($_POST['target'] ?? '');
         $reason = trim(mb_substr($_POST['reason'] ?? '', 0, 1000));
         $msgIdsJson = trim($_POST['message_ids'] ?? '[]');
+        // 举报方客户端解密的 e2ee 证据：{"<message_id>": {"content": "...", "md": 0|1}, ...}
+        $decryptedJson = trim($_POST['decrypted'] ?? '{}');
         if (empty($targetUser)) {
             echo json_encode(['success' => false, 'error' => 'Invalid target.']); exit;
         }
@@ -58,6 +60,40 @@ switch ($action) {
         $subject = t('admin_restricted_status') . ': ' . $targetUser;
         $pdo->prepare("INSERT INTO incidents (type, reporter_id, target_id, subject, reason, message_ids, status) VALUES ('report', ?, ?, ?, ?, ?, 'open')")
             ->execute([$myUid, $targetUid, $subject, $reason ?: null, $msgIdsJson]);
+        $ticketId = (int)$pdo->lastInsertId();
+
+        // ---- 加密消息证据：把举报方解密后的明文写入 msg_crypt_temp（ticket_id=本次举报） ----
+        $decrypted = json_decode($decryptedJson, true);
+        if ($ticketId > 0 && is_array($decrypted) && count($decrypted) > 0) {
+            $metaIds = [];
+            foreach ($decrypted as $mid => $v) { $i = (int)$mid; if ($i > 0) $metaIds[$i] = 1; }
+            $metaIds = array_keys($metaIds);
+            $metaById = [];
+            if (!empty($metaIds)) {
+                try {
+                    $ph = implode(',', array_fill(0, count($metaIds), '?'));
+                    $mStmt = $pdo->prepare("SELECT id, sender_id, time FROM messages WHERE id IN ($ph)");
+                    $mStmt->execute($metaIds);
+                    while ($row = $mStmt->fetch()) $metaById[(int)$row['id']] = $row;
+                } catch (\Throwable $e) {}
+            }
+            try {
+                $ins = $pdo->prepare("INSERT INTO msg_crypt_temp (ticket_id, message_id, sender_id, msg_time, md, content)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE md = VALUES(md), content = VALUES(content)");
+                foreach ($decrypted as $mid => $v) {
+                    $i = (int)$mid;
+                    if ($i <= 0) continue;
+                    $content = is_array($v) ? trim((string)($v['content'] ?? '')) : trim((string)$v);
+                    if ($content === '') continue;
+                    $meta = $metaById[$i] ?? null;
+                    $sender = $meta ? (int)$meta['sender_id'] : null;
+                    $time = $meta ? ((int)$meta['time'] ?: null) : null;
+                    $md = (is_array($v) && !empty($v['md'])) ? 1 : 0;
+                    $ins->execute([$ticketId, $i, $sender ?: null, $time, $md, $content]);
+                }
+            } catch (\Throwable $e) { /* 证据写入失败不阻断举报提交 */ }
+        }
 
         // ---- Level system: first-ever report +20 exp (one-time) ----
         try {

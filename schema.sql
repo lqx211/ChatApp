@@ -199,6 +199,25 @@ CREATE TABLE IF NOT EXISTS incident_responses (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ----------------------------------------------------------------------
+-- Decrypted evidence of reported E2EE messages (msg_crypt_temp)
+--   Filled at report time by the reporter's client after decrypting.
+--   ticket_id = incidents.id ; admin sees `content` instead of the ciphertext.
+-- ----------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS msg_crypt_temp (
+    id INT NOT NULL AUTO_INCREMENT,
+    ticket_id INT NOT NULL,
+    message_id INT NOT NULL,
+    sender_id INT DEFAULT NULL,
+    msg_time BIGINT DEFAULT NULL,
+    md TINYINT(1) NOT NULL DEFAULT 0,
+    content MEDIUMTEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_msg_ticket (message_id, ticket_id),
+    KEY idx_mct_ticket (ticket_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ----------------------------------------------------------------------
 -- Reports
 -- ----------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS reports (

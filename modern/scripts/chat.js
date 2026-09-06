@@ -1339,11 +1339,33 @@ async function doReport() {
     var checked = [];
     var cbs = document.querySelectorAll('#reportMsgCheckboxes input:checked');
     for (var i = 0; i < cbs.length; i++) checked.push(cbs[i].value);
+    // 举报证据：所选消息若为 e2ee 加密 → 从服务端取密文信封，客户端解密后随举报提交留证
+    var decrypted = {};
+    if (checked.length && window.E2EE && typeof E2EE.decrypt === 'function') {
+        try {
+            var raw = await fetch('../../api/chat.php?action=raw&ids=' + checked.join(',')).then(function(r) { return r.json(); });
+            if (raw && raw.success && raw.messages && raw.messages.length) {
+                for (var i2 = 0; i2 < raw.messages.length; i2++) {
+                    var rm = raw.messages[i2];
+                    if (!rm || rm.msg_type !== 'e2ee' || !rm.message) continue;
+                    var peer = (rm.username === U) ? rm.recipient : rm.username;
+                    if (!peer) continue;
+                    try {
+                        var dec = await E2EE.decrypt(peer, rm.message);
+                        if (dec && dec.plaintext != null) {
+                            decrypted[rm.id] = { content: String(dec.plaintext), md: dec.isMarkdown ? 1 : 0 };
+                        }
+                    } catch (e) { /* 解不开就不附带该条证据 */ }
+                }
+            }
+        } catch (e) {}
+    }
     var f = new URLSearchParams();
     f.append('action', 'submit');
     f.append('target', repTarget);
     f.append('reason', reason);
     f.append('message_ids', JSON.stringify(checked));
+    f.append('decrypted', JSON.stringify(decrypted));
     var r = await fetch('../../api/report.php', {
         method: 'POST',
         headers: {
@@ -4168,7 +4190,11 @@ async function toggleSupportDetail(id) {
         h += '<div style="margin-top:6px;color:#c0a020;font-size:.75em">Reported Messages:</div>';
         for (var ri = 0; ri < inc.reported_messages.length; ri++) {
             var rm = inc.reported_messages[ri];
-            h += '<div class="sd-post"><div class="sd-meta"><strong>' + eh(rm.sender_name) + '</strong> &mdash; msg #' + rm.id + (rm.is_revoked ? ' <span style="color:#e06060">(Revoked &mdash; showing original)</span>' : '') + '</div><div class="sd-msg">' + eh(rm.message) + '</div></div>';
+            var tag = rm.is_revoked ? ' <span style="color:#e06060">(Revoked &mdash; showing original)</span>' : '';
+            if (rm.decrypted) tag += ' <span style="color:#2e9e5b">🔓 Decrypted evidence</span>';
+            var body = eh(rm.message);
+            if (rm.decrypted && rm.md && typeof renderMd === 'function') body = renderMd(rm.message);
+            h += '<div class="sd-post"><div class="sd-meta"><strong>' + eh(rm.sender_name) + '</strong> &mdash; msg #' + rm.id + tag + '</div><div class="sd-msg">' + body + '</div></div>';
         }
     }
     for (var i = 0; i < inc.responses.length; i++) {
