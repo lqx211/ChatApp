@@ -142,6 +142,7 @@ function computeAge(y, m, d) {
 
 // ---- Birthday picker ----
 function initBirthdayPicker() {
+    bindBirthdayScroll();
     buildYearScroll();
     buildMonthScroll();
     buildDayScroll();
@@ -174,6 +175,7 @@ function buildDayScroll() {
     for (var d = 1; d <= days; d++) {
         h += '<div class="picker-item' + (d === _bdDay ? ' selected' : '') + '" data-val="' + d + '">' + d + EBD_T.dUnit + '</div>';
     }
+    _dayBuiltYear = _bdYear; _dayBuiltMonth = _bdMonth;
     document.getElementById('dayScroll').innerHTML = h;
 }
 
@@ -181,6 +183,73 @@ function scrollToSelected(id, idx) {
     var el = document.getElementById(id);
     if (!el) return;
     el.scrollTop = idx * 40;
+}
+
+/* ---- 滚动即时高亮：切换年月日时，把 .selected 移到居中项，并随年月联动天数列 ---- */
+var _pickerBound = false;
+function bindBirthdayScroll() {
+    if (_pickerBound) return;
+    _pickerBound = true;
+    ['yearScroll', 'monthScroll', 'dayScroll'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        var timer = null;
+        el.addEventListener('scroll', function() {
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(function() { onPickerScroll(id); }, 50);
+        });
+        // 点击某一项 → 滚动到该项并高亮
+        el.addEventListener('click', function(e) {
+            var item = e.target && e.target.classList && e.target.classList.contains('picker-item')
+                ? e.target : null;
+            if (!item) return;
+            var items = el.querySelectorAll('.picker-item');
+            var idx = Array.prototype.indexOf.call(items, item);
+            if (idx < 0) return;
+            el.scrollTop = idx * 40;
+            onPickerScroll(id);
+        });
+    });
+}
+function pickerItemAt(el) {
+    var items = el.querySelectorAll('.picker-item');
+    if (!items.length) return null;
+    var idx = Math.max(0, Math.min(items.length - 1, Math.round(el.scrollTop / 40)));
+    items.forEach(function(it) { it.classList.remove('selected'); });
+    items[idx].classList.add('selected');
+    return { idx: idx, item: items[idx], val: parseInt(items[idx].getAttribute('data-val') || '0', 10) };
+}
+function onPickerScroll(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var hit = pickerItemAt(el);
+    if (!hit) return;
+    if (id === 'yearScroll') {
+        if (hit.val !== _bdYear) { _bdYear = hit.val; rebuildDayRangeIfNeeded(); }
+    } else if (id === 'monthScroll') {
+        if (hit.val !== _bdMonth) { _bdMonth = hit.val; rebuildDayRangeIfNeeded(); }
+    } else if (id === 'dayScroll') {
+        _bdDay = hit.val;
+    }
+}
+var _dayBuiltYear = -1, _dayBuiltMonth = -1;
+function rebuildDayRangeIfNeeded() {
+    var days = new Date(_bdYear, _bdMonth, 0).getDate();
+    var changed = (_bdYear !== _dayBuiltYear || _bdMonth !== _dayBuiltMonth);
+    var clamped = false;
+    if (_bdDay > days) { _bdDay = days; clamped = true; }
+    if (!changed && !clamped) return; // 天数没变，无需重建
+    _dayBuiltYear = _bdYear; _dayBuiltMonth = _bdMonth;
+    buildDayScroll();
+    var el = document.getElementById('dayScroll');
+    if (!el) return;
+    // 回到当前 day 并同步高亮（避免重建把选中丢回旧位置）
+    el.scrollTop = (_bdDay - 1) * 40;
+    var it = el.querySelector('.picker-item[data-val="' + _bdDay + '"]');
+    if (it) {
+        el.querySelectorAll('.picker-item').forEach(function(x) { x.classList.remove('selected'); });
+        it.classList.add('selected');
+    }
 }
 
 function openBirthdayPicker() {
