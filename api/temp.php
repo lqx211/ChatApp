@@ -105,9 +105,10 @@ switch ($action) {
         $filename = preg_replace('/[\x00-\x1F\x7F"\\\\]/', '', trim(mb_substr($_POST['filename'] ?? '', 0, 255)));
         if ($filename === '') $filename = 'file.bin';
         $size = (int)($_POST['size'] ?? 0);
+        // 闪传不限制大小：仅作展示用上限值保留；实际校验已注释（原 8GB 上限，按需可恢复）
         $MAX_SIZE = 8 * 1024 * 1024 * 1024;
         if ($size <= 0) { echo json_encode(['success' => false, 'error' => 'Empty file']); exit; }
-        if ($size > $MAX_SIZE) { echo json_encode(['success' => false, 'error' => 'File too large', 'max_size' => $MAX_SIZE]); exit; }
+        // if ($size > $MAX_SIZE) { echo json_encode(['success' => false, 'error' => 'File too large', 'max_size' => $MAX_SIZE]); exit; }
 
         // Lazy cleanup first
         temp_cleanup($pdo);
@@ -154,7 +155,8 @@ switch ($action) {
             // multipart：原始文件直传（无 base64 33% 膨胀、内存友好）
             $size = (int)$_FILES['file']['size'];
             if ($size <= 0) { echo json_encode(['success' => false, 'error' => 'Empty file']); exit; }
-            if ($size > $MAX_SIZE) { echo json_encode(['success' => false, 'error' => 'File too large', 'max_size' => $MAX_SIZE]); exit; }
+            // 闪传不限制大小（原上限判断注释保留）
+            // if ($size > $MAX_SIZE) { echo json_encode(['success' => false, 'error' => 'File too large', 'max_size' => $MAX_SIZE]); exit; }
             $hash = hash_file('sha256', $_FILES['file']['tmp_name']);
             $filePath = temp_dir() . '/' . $hash;
             if (!is_file($filePath)) {
@@ -167,7 +169,8 @@ switch ($action) {
             $raw = base64_decode($m[2]);
             if ($raw === false || $raw === '') { echo json_encode(['success' => false, 'error' => 'Empty file']); exit; }
             $size = strlen($raw);
-            if ($size > $MAX_SIZE) { echo json_encode(['success' => false, 'error' => 'File too large', 'max_size' => $MAX_SIZE]); exit; }
+            // 闪传不限制大小（原上限判断注释保留）
+            // if ($size > $MAX_SIZE) { echo json_encode(['success' => false, 'error' => 'File too large', 'max_size' => $MAX_SIZE]); exit; }
             $hash = hash('sha256', $raw);
             $filePath = temp_dir() . '/' . $hash;
             if (!is_file($filePath)) { file_put_contents($filePath, $raw); }

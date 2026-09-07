@@ -1056,7 +1056,8 @@ function ws_flash_up_start(int $cid, array $data): void {
     }
     $expected = (int)$rec['size'];
     if ($expected <= 0) { ws_flash_up_ack($cid, $up, false, ['error' => 'bad_size']); return; }
-    if ($expected > 8 * 1024 * 1024 * 1024) { ws_flash_up_ack($cid, $up, false, ['error' => 'too_large']); return; }
+    // 闪传不限制大小（原 8GB 上限判断注释保留，按需可恢复）
+    // if ($expected > 8 * 1024 * 1024 * 1024) { ws_flash_up_ack($cid, $up, false, ['error' => 'too_large']); return; }
 
     $name = (string)($data['name'] ?? $rec['filename'] ?? 'file');
     $tmp = ws_flash_upload_dir() . '/.up_' . $tid . '_' . $cid . '_' . bin2hex(random_bytes(6));

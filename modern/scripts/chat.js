@@ -5499,10 +5499,30 @@ function toggleMsgMenu(e, btn) {
         }
         menu.style.display = 'block';
         menu.style.position = 'fixed';
-        menu.style.left = Math.max(4, x - 8) + 'px';
-        menu.style.top = Math.max(4, y - 8) + 'px';
         menu.style.right = 'auto';
         menu.style.bottom = 'auto';
+        var vw = window.innerWidth, vh = window.innerHeight;
+        var left = x - 8;
+        var top = y - 8;
+        menu.style.left = left + 'px';
+        menu.style.top = top + 'px';
+        // 测量实际尺寸（fixed 定位后读取会触发重排，取到真实宽高）
+        var mw = menu.offsetWidth || 160;
+        var mh = menu.offsetHeight || 120;
+        // Windows 式翻转：下方放不下 → 改在锚点上方弹出
+        if (top + mh > vh - 4) {
+            top = y - 8 - mh;
+        }
+        // 右侧放不下 → 向左收边
+        if (left + mw > vw - 4) {
+            left = Math.max(4, vw - mw - 4);
+        }
+        // 最后收边：保证菜单完整可见（上/下都不够时至少贴边显示）
+        if (top < 4) top = 4;
+        if (top + mh > vh - 4) top = Math.max(4, vh - mh - 4);
+        if (left < 4) left = 4;
+        menu.style.left = left + 'px';
+        menu.style.top = top + 'px';
     }
 }
 var _emojiContextTimer = null;
@@ -5912,18 +5932,20 @@ function flashFileChosen(input, target) {
         return;
     }
     var f = files[0];
-    if (f.size > 8 * 1024 * 1024 * 1024) {
-        xalert(T('flash_too_large', '文件过大'));
-        return;
-    }
-    if (f.size > 20 * 1024 * 1024) {
-        // Large file - warn that server limits may apply
-        xconfirm(T('flash_large_warn', '文件较大，可能超过服务器上传限制，继续？')).then(function(ok) {
-            if (ok !== true) return;
-            _doFlashUpload(f, target);
-        });
-        return;
-    }
+    // 闪传不限大小：去掉硬性大小限制（保留代码，按需可恢复）
+    // if (f.size > 8 * 1024 * 1024 * 1024) {
+    //     xalert(T('flash_too_large', '文件过大'));
+    //     return;
+    // }
+    // 大文件提示（现在走 WSS 分片实时传输，不再有服务器体积限制，故此确认不再需要）
+    // if (f.size > 20 * 1024 * 1024) {
+    //     // Large file - warn that server limits may apply
+    //     xconfirm(T('flash_large_warn', '文件较大，可能超过服务器上传限制，继续？')).then(function(ok) {
+    //         if (ok !== true) return;
+    //         _doFlashUpload(f, target);
+    //     });
+    //     return;
+    // }
     _doFlashUpload(f, target);
 }
 
