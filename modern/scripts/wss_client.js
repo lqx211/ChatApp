@@ -41,6 +41,7 @@
     // ---- request/response 通信（POST 移植 WSS） ----
     var _reqId = 0;
     var _pendingReqs = {};   // id => {resolve, reject, timer}
+    var _upPending = {};     // 闪传分片上传控制回执 upId => {resolve, reject, timer}
 
     function _reqTimeout(id) {
         var p = _pendingReqs[id];
@@ -59,6 +60,16 @@
             }
         }
         _pendingReqs = {};
+    }
+    function _upRejectAll(err) {
+        for (var id in _upPending) {
+            if (Object.prototype.hasOwnProperty.call(_upPending, id)) {
+                var p = _upPending[id];
+                clearTimeout(p.timer);
+                p.reject(err);
+            }
+        }
+        _upPending = {};
     }
 
     /* ---------------- token ---------------- */
@@ -143,6 +154,17 @@
                     clearTimeout(p.timer);
                     delete _pendingReqs[rid];
                     p.resolve(d);
+                }
+                break;
+
+            case 'flash_up_ack':
+                // 闪传分片上传回执（start/end 的控制确认）
+                var uid2 = d.up;
+                if (uid2 !== undefined && _upPending[uid2]) {
+                    var p2 = _upPending[uid2];
+                    clearTimeout(p2.timer);
+                    delete _upPending[uid2];
+                    p2.resolve(d);
                 }
                 break;
 
@@ -343,6 +365,7 @@
                 wslog('Disconnected ✗ code=' + (ev && ev.code) + ' reason=' + (ev && ev.reason || '') + ' → 触发重连');
                 if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
                 _reqRejectAll(new Error('WSS_CLOSED'));
+                _upRejectAll(new Error('WSS_CLOSED'));
                 if (window.console) console.log('[WSS] 连接断开，准备重连');
                 scheduleReconnect();
             };
@@ -454,6 +477,99 @@
     /** WSS request 通道是否可用 */
     window.wssRequestAvailable = function() {
         return WS_STATE === 'open' && !!ws && ws.readyState === WebSocket.OPEN;
+    };
+
+    /* ============ 闪传分片上传（大文件经 WSS 实时传输） ============ */
+    var UP_CHUNK = 512 * 1024; // 512KB/片（隧道安全 + 单线程服务器逐片处理）
+    var UP_HIGH_WATER = 2 * 1024 * 1024; // 发送缓冲高水位（背压）
+
+    window.wssFlashUploadAvailable = function() {
+        return WS_STATE === 'open' && !!ws && ws.readyState === WebSocket.OPEN;
+    };
+
+    /**
+     * 把 file 分片经 WSS 上传到闪传占位 id（temp_uploads），收齐后置 ready。
+     * 返回 Promise；resolve=服务端 ack，reject=错误（调用方自行降级 HTTP XHR）。
+     * opts: { id, file, size?, onProgress?(sent,total) }
+     */
+    window.wssFlashUpload = function(opts) {
+        return new Promise(function(resolve, reject) {
+            if (!window.wssFlashUploadAvailable()) { reject(new Error('WSS_NOT_OPEN')); return; }
+            var id = opts.id;
+            var file = opts.file;
+            var total = (typeof opts.size === 'number') ? opts.size : (file && file.size) || 0;
+            if (!id || !file || total <= 0) { reject(new Error('BAD_PARAMS')); return; }
+            var onProgress = opts.onProgress || function() {};
+
+            _reqId++;
+            var upId = _reqId;
+
+            function sendCtrl(obj) {
+                try { ws.send(JSON.stringify(obj)); } catch (e) { return false; }
+                return true;
+            }
+            function waitAck(timeoutMs) {
+                return new Promise(function(res, rej) {
+                    _upPending[upId] = {
+                        resolve: res,
+                        reject: rej,
+                        timer: setTimeout(function() { delete _upPending[upId]; rej(new Error('WSS_UP_TIMEOUT')); }, timeoutMs || 20000)
+                    };
+                });
+            }
+            // 背压：发送缓冲超过高水位就等浏览器把数据发出去再继续
+            function drainBuffer() {
+                return new Promise(function(res) {
+                    (function step() {
+                        if (!ws || ws.readyState !== WebSocket.OPEN) { res(); return; }
+                        if (ws.bufferedAmount <= UP_HIGH_WATER) { res(); return; }
+                        setTimeout(step, 25);
+                    })();
+                });
+            }
+
+            // 1) start
+            sendCtrl({ type: 'flash_up', op: 'start', up: upId, id: id, size: total, name: file.name || '' });
+            waitAck(20000).then(function(ack) {
+                if (!ack || !ack.ok) throw new Error((ack && ack.error) || 'WSS_UP_REJECT');
+                // 2) 分片发送
+                var offset = 0;
+                return new Promise(function(res2, rej2) {
+                    var sent = false;
+                    function finishOk() { if (!sent) { sent = true; res2(); } }
+                    function fail(e) { if (!sent) { sent = true; rej2(e); } }
+                    function nextChunk() {
+                        if (sent) return;
+                        if (offset >= total) { finishOk(); return; }
+                        var end = Math.min(offset + UP_CHUNK, total);
+                        var slice;
+                        try { slice = file.slice(offset, end); } catch (e) { fail(e); return; }
+                        var rd = new FileReader();
+                        rd.onload = function() {
+                            if (sent) return;
+                            try { ws.send(rd.result); } catch (e) { fail(e); return; }
+                            offset = end;
+                            onProgress(offset, total);
+                            if (offset >= total) { finishOk(); return; }
+                            drainBuffer().then(nextChunk);
+                        };
+                        rd.onerror = function() { fail(new Error('READ_ERROR')); };
+                        try { rd.readAsArrayBuffer(slice); } catch (e) { fail(e); }
+                    }
+                    nextChunk();
+                });
+            }).then(function() {
+                // 3) end：服务器校验字节数并落盘 ready
+                sendCtrl({ type: 'flash_up', op: 'end', up: upId });
+                return waitAck(30000);
+            }).then(function(ackEnd) {
+                if (!ackEnd || !ackEnd.ok) throw new Error((ackEnd && ackEnd.error) || 'WSS_UP_END_FAIL');
+                onProgress(total, total);
+                resolve(ackEnd);
+            }).catch(function(e) {
+                reject(e);
+            });
+        });
     };
 
     // 调试

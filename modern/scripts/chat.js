@@ -453,10 +453,19 @@ function cancelAttachment() {
 }
 
 /* ==================== 批量文件：多选/拖拽 → 预览数量 → 确认 → 逐个普通发送 ==================== */
+// 普通附件超过该大小自动改走「闪传（临时）」分片 WSS 传输（绕过 HTTP 大请求体积限制与等级附件上限）
+var AUTO_FLASH_BYTES = 60 * 1024 * 1024;
 function mediaFilesChosen(input, kind) {
     var files = input.files ? Array.prototype.slice.call(input.files) : [];
     if (!files.length) return;
     if (files.length === 1) {
+        var f0 = files[0];
+        // 超大单文件（DM 需已选聊天对象）→ 自动转闪传分片上传
+        if (f0.size > AUTO_FLASH_BYTES && !(kind === 'dm' && !D)) {
+            input.value = '';
+            _doFlashUpload(f0, kind === 'ann' ? 'ann' : 'dm');
+            return;
+        }
         // 单文件保持原行为：普通附件预览 → 确认发送
         previewAttachment(input, kind === 'ann' ? sendAnnouncement : sendDmMessage, kind === 'ann' ? 'sendBtn' : 'dmSendBtn');
         return;
@@ -502,6 +511,11 @@ async function sendFilesOneByOne(files, kind) {
     }
 }
 function sendOneNormalAttachment(file, kind) {
+    // 超大文件（批量/拖拽逐个发送时）→ 自动转闪传分片上传，不占 HTTP 大请求
+    if (file.size > AUTO_FLASH_BYTES && !(kind === 'dm' && !D)) {
+        _doFlashUpload(file, kind === 'ann' ? 'ann' : 'dm');
+        return Promise.resolve(true);
+    }
     return new Promise(function(resolve) {
         var reader = new FileReader();
         reader.onerror = function() { resolve(false); };
@@ -6000,8 +6014,58 @@ function _doFlashUpload(file, target) {
     });
 }
 
-// XHR 上传字节，进度实时写回本端闪传卡片
+/* ---- 闪传字节上传：优先 WSS 分片实时传输，失败自动降级 HTTP XHR ---- */
+function _flashUpUI(tempId) {
+    var st = document.querySelector('.flash-state[data-temp="' + tempId + '"]');
+    var card = st && st.closest('.flash-card');
+    var bar = card && card.querySelector('.flash-progress');
+    var fill = bar && bar.querySelector('.flash-progress-fill');
+    var pctEl = bar && bar.querySelector('.flash-progress-pct');
+    return { st: st, bar: bar, fill: fill, pctEl: pctEl };
+}
+function _flashUpProgress(tempId, pct) {
+    var ui = _flashUpUI(tempId);
+    if (!ui.st) return;
+    if (ui.bar) ui.bar.style.display = 'block';
+    if (ui.fill) ui.fill.style.width = pct + '%';
+    if (ui.pctEl) ui.pctEl.textContent = pct + '%';
+    ui.st.textContent = T('flash_uploading', '正在上传') + ': ' + pct + '%';
+}
+function _flashUpDone(tempId) {
+    var ui = _flashUpUI(tempId);
+    if (ui.bar) ui.bar.style.display = 'none';
+    if (ui.st) ui.st.textContent = T('flash_has_uploaded', '已上传');
+    // 状态轮询会接手：ready 后恢复下载按钮
+}
+function _flashUpFail(tempId, msg) {
+    var ui = _flashUpUI(tempId);
+    if (ui.bar) ui.bar.style.display = 'none';
+    if (ui.st) ui.st.textContent = T('flash_upload_failed', '上传失败');
+    xalert(T('flash_fail', '闪传失败') + '：' + (msg || 'Something went wrong.'));
+}
+
 function uploadFlashBytes(tempId, file) {
+    // WSS 在线 → 分片实时传输（大小不限，不占 HTTP 大请求）
+    if (window.wssFlashUpload && window.wssFlashUploadAvailable()) {
+        window.wssFlashUpload({
+            id: tempId,
+            file: file,
+            onProgress: function(sent, total) {
+                _flashUpProgress(tempId, total > 0 ? Math.round(sent / total * 100) : 0);
+            }
+        }).then(function() {
+            _flashUpDone(tempId);
+        }).catch(function() {
+            // WSS 失败（断线/超时等）→ 降级 HTTP XHR 重传整个文件（占位记录仍是 uploading，可覆盖）
+            uploadFlashBytesXhr(tempId, file);
+        });
+        return;
+    }
+    uploadFlashBytesXhr(tempId, file);
+}
+
+// HTTP XHR 上传字节（WSS 不可用/失败时的兜底），进度实时写回本端闪传卡片
+function uploadFlashBytesXhr(tempId, file) {
     var fd = new FormData();
     fd.append('action', 'upload');
     fd.append('id', tempId);
@@ -6010,38 +6074,20 @@ function uploadFlashBytes(tempId, file) {
     xhr.open('POST', '../../api/temp.php');
     xhr.upload.onprogress = function(ev) {
         if (!ev.lengthComputable) return;
-        var pct = Math.round(ev.loaded / ev.total * 100);
-        var st = document.querySelector('.flash-state[data-temp="' + tempId + '"]');
-        if (!st) return;
-        var card = st.closest('.flash-card');
-        var bar = card && card.querySelector('.flash-progress');
-        var fill = bar && bar.querySelector('.flash-progress-fill');
-        var pctEl = bar && bar.querySelector('.flash-progress-pct');
-        if (bar) bar.style.display = 'block';
-        if (fill) fill.style.width = pct + '%';
-        if (pctEl) pctEl.textContent = pct + '%';
-        st.textContent = T('flash_uploading', '正在上传') + ': ' + pct + '%';
+        _flashUpProgress(tempId, Math.round(ev.loaded / ev.total * 100));
     };
     xhr.onload = function() {
         var d = null;
         try { d = JSON.parse(xhr.responseText); } catch (e) {}
-        var st = document.querySelector('.flash-state[data-temp="' + tempId + '"]');
-        var card = st && st.closest('.flash-card');
-        var bar = card && card.querySelector('.flash-progress');
-        if (bar) bar.style.display = 'none';
         if (d && d.success) {
-            if (st) st.textContent = T('flash_has_uploaded', '已上传');
-            // 状态轮询会接手：ready 后恢复下载按钮
+            _flashUpDone(tempId);
         } else {
             var msg = (d && d.error) ? d.error : ('HTTP ' + xhr.status);
-            if (st) st.textContent = T('flash_upload_failed', '上传失败');
-            xalert(T('flash_fail', '闪传失败') + '：' + msg);
+            _flashUpFail(tempId, msg);
         }
     };
     xhr.onerror = function() {
-        var st = document.querySelector('.flash-state[data-temp="' + tempId + '"]');
-        if (st) st.textContent = T('flash_upload_failed', '上传失败');
-        xalert(T('flash_fail_net', '闪传失败：网络错误（连接被中断）。'));
+        _flashUpFail(tempId, T('flash_fail_net', '闪传失败：网络错误（连接被中断）。'));
     };
     xhr.send(fd);
 }

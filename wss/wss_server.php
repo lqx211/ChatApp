@@ -141,6 +141,9 @@ function ws_decode_frame($sock): ?array {
         $len = unpack('J', $ext)[1];
     }
 
+    // 单帧体积上限（分片上传 512KB/片；防超大帧占满内存）。超限直接断开连接。
+    if ($len > 8 * 1024 * 1024) return null;
+
     $maskKey = '';
     if ($masked) {
         $maskKey = ws_read_exact($sock, 4);
@@ -496,6 +499,8 @@ function ws_pending_count(PDO $pdo, int $uid): int {
 function ws_close_conn(int $cid, int $code = 1000): void {
     $cl = $GLOBALS['clients'][$cid] ?? null;
     if (!$cl) return;
+    // 断开前清理进行中的分片上传（关闭句柄 + 删除暂存），占位记录留给 HTTP 过期清理
+    if (!empty($cl['up'])) ws_flash_up_cleanup($cid);
     try {
         @fwrite($cl['sock'], ws_encode_close($code));
     } catch (\Throwable $e) {}
@@ -994,6 +999,150 @@ function ws_handle_request(int $cid, array $data): void {
     ws_send_json($cid, array_merge(['type' => 'response', 'id' => $id], $result));
 }
 
+// ==================== 闪传文件分片上传（WSS 实时传输） ====================
+/**
+ * 让大文件上传不再受 HTTP/隧道单请求体积限制：客户端把文件切片后经 WebSocket
+ * 一条条发上来，服务端边收边写暂存文件，收齐后算 sha256 → 落到 data/sc/{hash}，
+ * 再把 temp_uploads 占位记录置为 status=1(ready)，与 HTTP upload 一致。
+ *
+ * 协议（与 wss_client.js 约定）:
+ *   start : {"type":"flash_up","op":"start","up":N,"id":<tempId>,"size":<int>,"name":"..."}
+ *   chunk : WebSocket binary 帧（opcode 0x2）= 裸字节分片（无需 base64，无 33% 膨胀）
+ *   end   : {"type":"flash_up","op":"end","up":N}
+ *   ack   : {"type":"flash_up_ack","up":N,"ok":true/false,"error":...,"hash":...,"size":...}
+ * 每个连接同一时间只允许一个进行中的分片上传；连接断开自动清理暂存文件。
+ */
+function ws_flash_upload_dir(): string {
+    $d = __DIR__ . '/../data/sc';
+    if (!is_dir($d)) @mkdir($d, 0755, true);
+    return $d;
+}
+
+function ws_flash_up_ack(int $cid, int $up, bool $ok, array $extra = []): void {
+    ws_send_json($cid, array_merge(['type' => 'flash_up_ack', 'up' => $up, 'ok' => $ok], $extra));
+}
+
+/** 清理某连接进行中的分片上传（关闭文件句柄 + 删除暂存文件 + 清状态）。 */
+function ws_flash_up_cleanup(int $cid): void {
+    if (!isset($GLOBALS['clients'][$cid]) || !is_array($GLOBALS['clients'][$cid])) return;
+    $up = $GLOBALS['clients'][$cid]['up'] ?? null;
+    if (!$up) return;
+    if (isset($up['fp']) && is_resource($up['fp'])) { @fclose($up['fp']); }
+    if (!empty($up['tmp']) && is_file($up['tmp'])) { @unlink($up['tmp']); }
+    $GLOBALS['clients'][$cid]['up'] = null;
+}
+
+function ws_flash_up_start(int $cid, array $data): void {
+    $cl = $GLOBALS['clients'][$cid] ?? null;
+    if (!$cl) return;
+    $up = (int)($data['up'] ?? 0);
+    $tid = (int)($data['id'] ?? 0);
+    if ($up <= 0 || $tid <= 0) { ws_flash_up_ack($cid, $up, false, ['error' => 'bad_params']); return; }
+    // 若该连接已有进行中的上传（重试场景）先清掉
+    if (!empty($GLOBALS['clients'][$cid]['up'])) ws_flash_up_cleanup($cid);
+
+    try {
+        $pdo = ws_db();
+        $stmt = $pdo->prepare("SELECT id, owner_uid, size, filename, status, revoked FROM temp_uploads WHERE id = ?");
+        $stmt->execute([$tid]);
+        $rec = $stmt->fetch();
+    } catch (\Throwable $e) { $rec = false; }
+    if (!$rec) { ws_flash_up_ack($cid, $up, false, ['error' => 'not_found']); return; }
+    if ((int)$rec['owner_uid'] !== (int)$cl['user_id'] && (int)$cl['user_id'] !== 10000) {
+        ws_flash_up_ack($cid, $up, false, ['error' => 'no_permission']); return;
+    }
+    if ((int)$rec['status'] !== 0 || (int)$rec['revoked']) {
+        ws_flash_up_ack($cid, $up, false, ['error' => 'already_finalized']); return;
+    }
+    $expected = (int)$rec['size'];
+    if ($expected <= 0) { ws_flash_up_ack($cid, $up, false, ['error' => 'bad_size']); return; }
+    if ($expected > 8 * 1024 * 1024 * 1024) { ws_flash_up_ack($cid, $up, false, ['error' => 'too_large']); return; }
+
+    $name = (string)($data['name'] ?? $rec['filename'] ?? 'file');
+    $tmp = ws_flash_upload_dir() . '/.up_' . $tid . '_' . $cid . '_' . bin2hex(random_bytes(6));
+    $fp = @fopen($tmp, 'wb');
+    if (!$fp) { ws_flash_up_ack($cid, $up, false, ['error' => 'io_error']); return; }
+
+    $GLOBALS['clients'][$cid]['up'] = [
+        'up'       => $up,
+        'id'       => $tid,
+        'expected' => $expected,
+        'received' => 0,
+        'name'     => $name,
+        'tmp'      => $tmp,
+        'fp'       => $fp,
+        'hctx'     => hash_init('sha256'),
+        'started'  => microtime(true),
+    ];
+    ws_flash_up_ack($cid, $up, true, ['id' => $tid]);
+    ws_log("分片上传开始 #$cid ({$cl['username']}) temp=$tid size=$expected");
+}
+
+/** 收到一个二进制分片（裸字节）→ 追加到暂存文件。无进行中的上传时直接忽略。 */
+function ws_flash_up_chunk(int $cid, string $raw): void {
+    if (!isset($GLOBALS['clients'][$cid]) || empty($GLOBALS['clients'][$cid]['up'])) return;
+    $up = $GLOBALS['clients'][$cid]['up'];
+    $len = strlen($raw);
+    if ($len <= 0) return;
+    if ($up['received'] + $len > $up['expected']) {
+        // 超出声明大小 → 中止（防刷盘/异常客户端）
+        $upId = $up['up'];
+        ws_flash_up_cleanup($cid);
+        ws_flash_up_ack($cid, $upId, false, ['error' => 'size_exceeded']);
+        return;
+    }
+    if (isset($up['fp']) && is_resource($up['fp'])) { @fwrite($up['fp'], $raw); }
+    hash_update($up['hctx'], $raw);
+    $up['received'] += $len;
+    // 写回进度，方便断线/统计
+    $GLOBALS['clients'][$cid]['up']['received'] = $up['received'];
+    // 有数据即视为活跃，防止心跳超时把长上传误断开
+    $GLOBALS['clients'][$cid]['last_seen'] = microtime(true);
+}
+
+/** 全部收齐 → 算 hash、落盘、更新 temp_uploads 置 ready。 */
+function ws_flash_up_end(int $cid, array $data): void {
+    $upId = (int)($data['up'] ?? 0);
+    if (empty($GLOBALS['clients'][$cid]['up'])) { ws_flash_up_ack($cid, $upId, false, ['error' => 'no_active']); return; }
+    $up = $GLOBALS['clients'][$cid]['up'];
+    $username = $GLOBALS['clients'][$cid]['username'] ?? '';
+    $tid = $up['id'];
+    if ($up['received'] !== $up['expected']) {
+        $got = $up['received']; $exp = $up['expected'];
+        ws_flash_up_cleanup($cid);
+        ws_flash_up_ack($cid, $upId, false, ['error' => 'size_mismatch', 'received' => $got, 'expected' => $exp]);
+        return;
+    }
+    $hash = hash_final($up['hctx']);
+    if (isset($up['fp']) && is_resource($up['fp'])) { @fclose($up['fp']); }
+    $tmp = $up['tmp'];
+    $final = ws_flash_upload_dir() . '/' . $hash;
+    $size = $up['received'];
+    // 同内容文件已存在 → 复用，删除暂存；否则移动
+    if (is_file($final)) { @unlink($tmp); }
+    else { @rename($tmp, $final); }
+    $GLOBALS['clients'][$cid]['up'] = null;
+    try {
+        $pdo = ws_db();
+        $pdo->prepare("UPDATE temp_uploads SET hash = ?, size = ?, uploaded_bytes = ?, status = 1 WHERE id = ?")
+            ->execute([$hash, $size, $size, $tid]);
+    } catch (\Throwable $e) {
+        @unlink($final);
+        ws_flash_up_ack($cid, $upId, false, ['error' => 'db_error']);
+        return;
+    }
+    ws_log("分片上传完成 #$cid ($username) temp=$tid size=$size hash=" . substr($hash, 0, 12));
+    ws_flash_up_ack($cid, $upId, true, ['id' => $tid, 'hash' => $hash, 'size' => $size]);
+}
+
+/** 周期清理：异常残留的分片暂存（.up_* 超过 1 小时未动）。 */
+function ws_flash_up_sweep(): void {
+    $dir = ws_flash_upload_dir();
+    foreach ((array)glob($dir . '/.up_*') as $f) {
+        if (is_file($f) && (time() - @filemtime($f)) > 3600) @unlink($f);
+    }
+}
+
 // ==================== 主事件循环 ====================
 function ws_main(): void {
     $port = WSS_PORT;
@@ -1116,6 +1265,10 @@ function ws_main(): void {
             if ($opcode === 0xA) { // pong
                 continue;
             }
+            if ($opcode === 0x2) { // binary → 闪传分片裸字节
+                ws_flash_up_chunk($cid, $payload);
+                continue;
+            }
             if ($opcode === 0x1) { // text
                 $data = json_decode($payload, true);
                 if (is_array($data)) {
@@ -1129,6 +1282,13 @@ function ws_main(): void {
                             break;
                         case 'request':
                             ws_handle_request($cid, $data);
+                            break;
+                        case 'flash_up':
+                            // 闪传分片上传控制：start / end（数据本身走 binary 帧）
+                            $op = $data['op'] ?? '';
+                            if ($op === 'start') ws_flash_up_start($cid, $data);
+                            elseif ($op === 'end') ws_flash_up_end($cid, $data);
+                            elseif ($op === 'cancel') ws_flash_up_cleanup($cid);
                             break;
                         case 'fetch_group':
                             // 客户端刚打开群聊时：把群游标对齐到当前群最新
@@ -1194,6 +1354,12 @@ function ws_main(): void {
                     ws_log("心跳超时，断开 #$cid ({$cl['username']})");
                     ws_close_conn($cid, 1001);
                 }
+            }
+            // 周期清理异常残留的分片暂存文件（约每 60s 一次）
+            static $lastUpSweep = 0;
+            if ($now - $lastUpSweep >= 60) {
+                try { ws_flash_up_sweep(); } catch (\Throwable $e) {}
+                $lastUpSweep = $now;
             }
             $lastCleanup = $now;
         }
