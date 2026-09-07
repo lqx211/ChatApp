@@ -23,6 +23,7 @@ ASSISTANT_ChatApp_README.md
 prompt_obfuscator.md
 .pnpm-store
 _*
+_chat_*.js
 ca-bkup-*.sql
 ca-fullbkup-*.tar.*
 tablet-archive-20260803.tar.gz
