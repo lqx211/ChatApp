@@ -278,6 +278,11 @@ function chatapp_require_login(): void {
 function chatapp_avatar_url(?string $avatar, ?string $username, int $uid = 0): string {
     static $ppCache = [];
     if (empty($username)) return '';
+    // 调用方没传 uid 时，尝试从「新格式文件名 {uid}.{ext}」还原 uid——这样 profile/
+    // space/editinfo/settings 等页面也能带上 mtime 版本号，换头像后不再命中 24h 旧缓存
+    if ($uid <= 0 && $avatar !== null && preg_match('/^(\d+)\.(png|jpe?g|gif|webp)$/i', $avatar, $__avm)) {
+        $uid = (int)$__avm[1];
+    }
     // data/pp/{uid}.{ext} 优先（磁盘真实文件，权威）——即使 DB 存的是旧值/data URI 也以磁盘为准
     if ($uid > 0) {
         if (!array_key_exists($uid, $ppCache)) {

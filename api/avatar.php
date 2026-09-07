@@ -7,6 +7,34 @@
 
 require_once __DIR__ . '/config.php';
 
+/**
+ * 以「必须回源校验」的方式输出头像文件：浏览器可缓存，但每次复用前会带
+ * If-None-Match/If-Modified-Since 回源，文件未变返回 304、变了才回 200。
+ * 这样即使调用方没带 &v= 版本号（contacts/admin/m.php/wss 等），换头像后
+ * 也不会再命中 24 小时旧缓存。
+ */
+function chatapp_serve_avatar_file(string $file): void {
+    $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+    $mime = ['png'=>'image/png','jpg'=>'image/jpeg','jpeg'=>'image/jpeg','gif'=>'image/gif','webp'=>'image/webp'][$ext] ?? 'image/png';
+    $mt = (int)@filemtime($file);
+    $size = (int)@filesize($file);
+    $etag = '"' . $mt . '-' . $size . '"';
+    header('Content-Type: ' . $mime);
+    header('Cache-Control: public, no-cache');           // 缓存但每次复用前回源校验
+    header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $mt) . ' GMT');
+    header('ETag: ' . $etag);
+    $inm = trim((string)($_SERVER['HTTP_IF_NONE_MATCH'] ?? ''));
+    if ($inm !== '' && ($inm === $etag || $inm === 'W/' . $etag)) { http_response_code(304); exit; }
+    $ims = (string)($_SERVER['HTTP_IF_MODIFIED_SINCE'] ?? '');
+    if ($inm === '' && $ims !== '') {
+        $imsT = strtotime($ims);
+        if ($imsT !== false && $imsT >= $mt) { http_response_code(304); exit; }
+    }
+    header('Content-Length: ' . $size);
+    readfile($file);
+    exit;
+}
+
 // ---- Group avatar (?g=group_id) ----
 $gid = trim($_GET['g'] ?? '');
 if ($gid !== '') {
@@ -21,13 +49,7 @@ if ($gid !== '') {
         $ppFile = __DIR__ . '/../data/pp/' . $gAv;
         $ppReal = realpath($ppFile);
         if ($ppBase !== false && $ppReal !== false && strpos($ppReal . '/', $ppBase . '/') === 0 && is_file($ppReal)) {
-            $ext = strtolower(pathinfo($ppReal, PATHINFO_EXTENSION));
-            $mime = ['png'=>'image/png','jpg'=>'image/jpeg','jpeg'=>'image/jpeg','gif'=>'image/gif','webp'=>'image/webp'][$ext] ?? 'image/png';
-            header('Content-Type: ' . $mime);
-            header('Cache-Control: public, max-age=86400');
-            header('Content-Length: ' . filesize($ppReal));
-            readfile($ppReal);
-            exit;
+            chatapp_serve_avatar_file($ppReal);
         }
     }
     // Group has no avatar → SVG placeholder with "群" initial
@@ -120,9 +142,4 @@ if (!$hasAvatar) {
     exit;
 }
 
-$ext = strtolower(pathinfo($avFile, PATHINFO_EXTENSION));
-$mime = ['png'=>'image/png','jpg'=>'image/jpeg','jpeg'=>'image/jpeg','gif'=>'image/gif','webp'=>'image/webp'][$ext] ?? 'image/png';
-header('Content-Type: ' . $mime);
-header('Cache-Control: public, max-age=86400');
-header('Content-Length: ' . filesize($avFile));
-readfile($avFile);
+chatapp_serve_avatar_file($avFile);
