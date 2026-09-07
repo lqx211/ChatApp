@@ -3637,6 +3637,35 @@ async function revokeAnnouncement(id) {
         }
     } else xalert('Something went wrong.')
 }
+// 把某条气泡原地标记为已撤回（.mt → "[此消息已被撤回]"、移除媒体/撤回标记）
+function markBubbleRevoked(el) {
+    if (!el) return;
+    if (el.getAttribute('data-revoked') === '1') return;
+    el.setAttribute('data-revoked', '1');
+    var t = el.querySelector('.mt');
+    if (t) {
+        t.textContent = T('msg_revoked');
+        t.classList.add('dl')
+    }
+    var md = el.querySelector('.msg-media');
+    if (md) md.remove();
+    var rv = el.querySelector('.mrv');
+    if (rv) rv.remove();
+    var mm = el.querySelector('.msg-more-btn');
+    if (mm) mm.remove(); // 已撤回的消息不再提供操作
+}
+// WSS 实时撤回：对方撤回 / 自己其它标签页撤回 → 在打开的聊天里原地更新，无需切换聊天
+window.handleMsgRevoked = function(d) {
+    var id = d && d.id;
+    if (!id) return;
+    ['dmMessagesArea', 'messagesArea'].forEach(function(aid) {
+        var area = document.getElementById(aid);
+        if (!area) return;
+        var el = area.querySelector('[data-msgid="' + id + '"]');
+        if (el) markBubbleRevoked(el);
+    });
+    if (typeof updateUnreads === 'function') updateUnreads();
+};
 async function initialLoad() {
     try {
         var r = await fetch('../../api/chat.php?action=all'),

@@ -188,6 +188,9 @@ $GLOBALS['id_count'] = 0;
 $GLOBALS['poll_latest'] = 0;
 // 闪传状态指纹缓存：cid => [temp_id => fingerprint]，仅推送变化的闪传状态
 $GLOBALS['temp_fp'] = [];
+// 消息撤回实时推送：revoke_scan=上次扫描时间；revoke_seen=已推送过的撤回消息 id => deleted_at
+$GLOBALS['revoke_scan'] = '';
+$GLOBALS['revoke_seen'] = [];
 
 function ws_clients(): array {
     return $GLOBALS['clients'];
@@ -749,6 +752,90 @@ function ws_poll_messages(): void {
 }
 
 /**
+ * 消息撤回实时推送：HTTP / WSS 撤回都只是把 messages.deleted_at 置为当前时间
+ * （不产生新行），增量轮询（id > 游标）永远不会发现它，导致对方已打开的聊天
+ * 里那条消息不消失，要切走再回来（重新拉历史）才发现被撤。这里每轮扫描最近
+ * 被置 deleted_at 的消息，向相关在线连接推 type=revoked，前端据此原地把气泡
+ * 标记为已撤回。
+ *
+ * 去重：用全局 revoke_seen 记录已推送过的消息 id（deleted_at 只会设置一次，
+ * 不会变化），并对扫描起点做 3s 余量，避免正好落在轮询边界上的撤回被漏掉。
+ */
+function ws_poll_revokes(): void {
+    $clients = $GLOBALS['clients'] ?? [];
+    if (empty($clients)) return;
+    $pdo = ws_db();
+    $nowStr = date('Y-m-d H:i:s', time());
+    // 扫描起点：上次扫描时间往前 3s 余量（防止恰好在 SELECT 边界执行的撤回被漏）
+    $base = $GLOBALS['revoke_scan'] ?? '';
+    $fromTs = ($base !== '') ? (strtotime($base) - 3) : (time() - 30);
+    $fromStr = date('Y-m-d H:i:s', max(0, $fromTs));
+    if (!is_array($GLOBALS['revoke_seen'] ?? null)) $GLOBALS['revoke_seen'] = [];
+
+    $rows = [];
+    try {
+        $stmt = $pdo->prepare(
+            "SELECT m.id, m.sender_id, m.recipient_id, m.group_id, m.deleted_at,
+                    su.username AS sender_name, ru.username AS recipient_name
+             FROM messages m
+             LEFT JOIN users su ON su.user_id = m.sender_id
+             LEFT JOIN users ru ON ru.user_id = m.recipient_id
+             WHERE m.deleted_at IS NOT NULL AND m.deleted_at > ? AND m.deleted_at <= ?
+             ORDER BY m.id ASC LIMIT 300");
+        $stmt->execute([$fromStr, $nowStr]);
+        $rows = $stmt->fetchAll();
+    } catch (\Throwable $e) { return; }
+    $GLOBALS['revoke_scan'] = $nowStr;
+    if (empty($rows)) return;
+
+    // 只推首次见到的
+    $push = [];
+    foreach ($rows as $r) {
+        $rid = (int)$r['id'];
+        if (isset($GLOBALS['revoke_seen'][$rid])) continue;
+        $GLOBALS['revoke_seen'][$rid] = (string)$r['deleted_at'];
+        $push[] = $r;
+    }
+    if (empty($push)) return;
+
+    // 清理 seen（只保留近 60s，避免无限增长）
+    $cut = date('Y-m-d H:i:s', time() - 60);
+    foreach ($GLOBALS['revoke_seen'] as $rid => $dt) {
+        if ($dt < $cut) unset($GLOBALS['revoke_seen'][$rid]);
+    }
+
+    // 路由推送
+    foreach ($push as $r) {
+        $msgId = (int)$r['id'];
+        $gid = (int)$r['group_id'];
+        if ($gid > 0) {
+            // 群消息：推给订阅了该群的所有在线连接
+            foreach ($clients as $cid => $cl) {
+                if (in_array($gid, $cl['group_ids'], true)) {
+                    ws_send_json($cid, ['type' => 'revoked', 'id' => $msgId, 'channel' => 'group:' . $gid]);
+                }
+            }
+            continue;
+        }
+        $recipientName = $r['recipient_name'];
+        $senderName = $r['sender_name'];
+        if ($recipientName === null) {
+            // 公告：推给所有在线连接
+            foreach ($clients as $cid => $cl) {
+                ws_send_json($cid, ['type' => 'revoked', 'id' => $msgId, 'channel' => 'announcement']);
+            }
+        } else {
+            // 私聊：推给收发双方在线连接
+            foreach ($clients as $cid => $cl) {
+                if ($cl['username'] === $senderName || $cl['username'] === $recipientName) {
+                    ws_send_json($cid, ['type' => 'revoked', 'id' => $msgId, 'channel' => 'dm']);
+                }
+            }
+        }
+    }
+}
+
+/**
  * 闪传状态推送：检测 temp_uploads 变化，仅在有变更时推送 type=temp_status 给相关用户。
  * 用于替代前端 2s HTTP 轮询（WSS 在线时）。
  * 采用全局指纹缓存：只有状态/进度/撤销发生变化才推送，避免每轮循环重复发送。
@@ -1167,6 +1254,9 @@ function ws_main(): void {
     try {
         $GLOBALS['poll_latest'] = (int)(ws_db()->query("SELECT MAX(id) FROM messages")->fetchColumn() ?? 0);
     } catch (\Throwable $e) {}
+    // 撤回扫描基线：只推送启动之后发生的撤回（历史已撤回的消息由客户端拉历史时展示）
+    $GLOBALS['revoke_scan'] = date('Y-m-d H:i:s', time());
+    $GLOBALS['revoke_seen'] = [];
 
     $nextPollTime = microtime(true);
     $nextTempPollTime = microtime(true);  // 闪传状态推送独立调度（2s）
@@ -1333,6 +1423,12 @@ function ws_main(): void {
                 ws_poll_messages();
             } catch (\Throwable $e) {
                 ws_log("轮询异常: " . $e->getMessage());
+            }
+            // 撤回实时推送（同一节奏；内部有客户端在线的空检查）
+            try {
+                ws_poll_revokes();
+            } catch (\Throwable $e) {
+                ws_log("撤回轮询异常: " . $e->getMessage());
             }
             $nextPollTime = microtime(true) + (WSS_POLL_MS / 1000);
         }

@@ -146,6 +146,11 @@
                 // 心跳确认（不做事）
                 break;
 
+            case 'revoked':
+                // 对方消息被撤回：让 chat.js 原地把气泡标记为已撤回
+                if (typeof window.handleMsgRevoked === 'function') window.handleMsgRevoked(d);
+                break;
+
             case 'response':
                 // request/response：POST 操作经 WSS 的回执
                 var rid = d.id;
