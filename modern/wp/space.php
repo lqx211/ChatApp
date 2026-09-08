@@ -252,6 +252,7 @@ if ($notFoundMode) { $showGenderRow = false; $genderLabel = ''; $sig = ''; $thei
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title><?php echo htmlspecialchars($spaceTitle);?> - ChatApp</title>
 <link rel="stylesheet" href="../style/space.css?v=<?php echo time();?>">
+<script src="../scripts/pow.js?v=<?php echo time();?>"></script>
 <!--[if IE]>
 <script type="text/javascript">
     window.Aegis = null;// 待兼容
@@ -284,7 +285,17 @@ if ($notFoundMode) { $showGenderRow = false; $genderLabel = ''; $sig = ''; $thei
         </a>
         <a class="logout-new" onclick="spLogout()"><?php echo t('sp_logout', '退出');?></a>
         <?php else: ?>
-        <a class="logout-new" href="login.php"><?php echo t('sp_login', '登录');?></a>
+        <!-- 顶栏登录：点击后在下方紧贴展开小登录框，不再跳到整页 login.php -->
+        <span class="sp-login-anchor">
+          <a class="logout-new sp-login-open" id="spInlineLoginOpen" href="javascript:void(0)" role="button"><?php echo t('sp_login', '登录');?></a>
+          <div class="sp-login-pop" id="spInlineLoginPop" style="display:none">
+            <div class="sp-login-field"><label><?php echo t('sp_login_acc', '账号');?></label><input id="spLgAcc" class="sp-login-input" autocomplete="username" spellcheck="false"></div>
+            <div class="sp-login-field"><label><?php echo t('sp_login_pwd', '密码');?></label><input id="spLgPwd" type="password" class="sp-login-input" autocomplete="current-password"></div>
+            <div class="sp-login-msg" id="spLgMsg"></div>
+            <button type="button" class="sp-login-btn" id="spLgBtn"><?php echo t('sp_login_go', '登录');?></button>
+            <a class="sp-login-reg" href="login.php"><?php echo t('sp_login_register', '没有账号？注册');?></a>
+          </div>
+        </span>
         <?php endif; ?>
       </div>
     </div>
@@ -2256,6 +2267,96 @@ document.addEventListener('keydown', function (e) {
   if (e.key === 'ArrowLeft') spLbNav(-1);
   if (e.key === 'ArrowRight') spLbNav(1);
 });
+
+/* ===== 顶栏内嵌登录（点「登录」在下方紧贴展开小登录框，不跳整页） ===== */
+var SP_LG_TXT = {
+  working: <?php echo json_encode(t('sp_login_working', '登录中…'), JSON_UNESCAPED_UNICODE);?>,
+  empty: <?php echo json_encode(t('sp_login_empty', '请输入账号和密码'), JSON_UNESCAPED_UNICODE);?>,
+  failed: <?php echo json_encode(t('sp_login_failed', '登录失败'), JSON_UNESCAPED_UNICODE);?>
+};
+function spLoginToggle(forceClose) {
+  var pop = document.getElementById('spInlineLoginPop');
+  if (!pop) return;
+  var show = (typeof forceClose === 'boolean') ? !forceClose : (pop.style.display !== 'block');
+  pop.style.display = show ? 'block' : 'none';
+  if (show) {
+    var msg = document.getElementById('spLgMsg');
+    if (msg) { msg.textContent = ''; msg.className = 'sp-login-msg'; }
+    var a = document.getElementById('spLgAcc');
+    if (a) { try { a.focus(); } catch (e) {} }
+  }
+}
+async function spInlineLogin() {
+  var accEl = document.getElementById('spLgAcc'),
+      pwdEl = document.getElementById('spLgPwd'),
+      msg = document.getElementById('spLgMsg'),
+      btn = document.getElementById('spLgBtn');
+  if (!accEl || !pwdEl || !msg || !btn) return;
+  var acc = accEl.value.trim(), pwd = pwdEl.value;
+  if (!acc || !pwd) {
+    msg.textContent = SP_LG_TXT.empty; msg.className = 'sp-login-msg sp-login-msg-err';
+    return;
+  }
+  var orig = btn.textContent;
+  btn.disabled = true; btn.textContent = SP_LG_TXT.working;
+  msg.textContent = ''; msg.className = 'sp-login-msg';
+  try {
+    var resp = await fetch('../../api/auth.php?action=challenge');
+    var pow = await resp.json();
+    if (!pow || !pow.success || !pow.challenge || !pow.target) throw new Error('challenge');
+    var solved = await ChatAppPow.solve(pow.challenge, pow.target, function () {});
+    if (!solved) throw new Error('pow');
+    var fd = new URLSearchParams();
+    fd.append('action', 'login');
+    fd.append('username', acc);
+    fd.append('password', pwd);
+    fd.append('pow_challenge', pow.challenge);
+    fd.append('pow_nonce', solved.nonce);
+    var r = await fetch('../../api/auth.php', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: fd.toString()
+    });
+    var d = await r.json();
+    if (d && d.maintenance_portal) { window.location.href = '/maintenance/portal.php'; return; }
+    if (d && d.success) {
+      msg.textContent = '';
+      if (d.oobe) { window.location.href = 'oobe.php'; return; }
+      // 重新以登录态加载当前空间页（游客→本人，或保留正在浏览的空间）
+      window.location.reload();
+      return;
+    }
+    msg.textContent = (d && d.error) || (d && d.restricted && d.reason) || SP_LG_TXT.failed;
+    msg.className = 'sp-login-msg sp-login-msg-err';
+  } catch (e) {
+    msg.textContent = SP_LG_TXT.failed;
+    msg.className = 'sp-login-msg sp-login-msg-err';
+  }
+  btn.disabled = false;
+  btn.textContent = orig;
+}
+(function () {
+  var open = document.getElementById('spInlineLoginOpen'),
+      pop = document.getElementById('spInlineLoginPop');
+  if (!open || !pop) return;
+  open.addEventListener('click', function (e) {
+    e.preventDefault(); e.stopPropagation();
+    spLoginToggle(false);
+  });
+  document.addEventListener('click', function (e) {
+    var wrap = document.querySelector('.sp-login-anchor');
+    if (pop.style.display === 'block' && wrap && !wrap.contains(e.target)) spLoginToggle(true);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && pop.style.display === 'block') spLoginToggle(true);
+  });
+  var btn = document.getElementById('spLgBtn');
+  if (btn) btn.addEventListener('click', function (e) { e.preventDefault(); spInlineLogin(); });
+  ['spLgAcc', 'spLgPwd'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', function (e) { if (e.key === 'Enter') spInlineLogin(); });
+  });
+})();
 </script>
 <!-- 表情选择器（朋友圈：内置 + 自定义） -->
 <div class="sp-emoji-popup" id="spEmojiPopup" style="display:none">

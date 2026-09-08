@@ -49,6 +49,22 @@ img{border:0;vertical-align:middle}
 .user-info .user-name{max-width:90px;font-size:13px;color:#ccc}
 .user-info .logout-new{font-size:12px;color:#999;cursor:pointer;padding:4px 6px}
 .user-info .logout-new:hover{color:#e05555}
+/* 顶栏内嵌登录：点「登录」在下方紧贴展开小登录框 */
+.sp-login-anchor{position:relative;display:inline-block}
+.sp-login-anchor .logout-new{font-size:12px;color:#999;cursor:pointer;padding:4px 6px;text-decoration:none}
+.sp-login-anchor .logout-new:hover{color:#7fb0dd}
+.sp-login-pop{position:absolute;top:calc(100% + 4px);right:0;width:224px;background:#232323;border:1px solid #3a3a3a;box-shadow:0 8px 24px rgba(0,0,0,.5);padding:12px 12px 10px;z-index:1200;display:none;text-align:left}
+.sp-login-pop .sp-login-field{margin-bottom:8px}
+.sp-login-pop label{display:block;font-size:11px;color:#999;margin-bottom:3px}
+.sp-login-input{width:100%;box-sizing:border-box;padding:7px 9px;background:#1a1a1a;border:1px solid #444;color:#e0e0e0;font-size:13px;font-family:inherit;outline:none;border-radius:0}
+.sp-login-input:focus{border-color:#6a9fd8}
+.sp-login-msg{min-height:14px;font-size:11px;color:#e06060;margin:0 0 6px}
+.sp-login-msg-err{color:#e06060}
+.sp-login-btn{width:100%;padding:8px 0;background:#3a6ea5;border:1px solid #4a7fba;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;border-radius:0}
+.sp-login-btn:hover{background:#4a7fba}
+.sp-login-btn:disabled{opacity:.6;cursor:default}
+.sp-login-reg{display:block;text-align:right;font-size:11px;color:#8fb6d9;margin-top:8px;text-decoration:none}
+.sp-login-reg:hover{text-decoration:underline}
 .top-search{display:flex;align-items:center;margin:0 10px 0 4px}
 .top-search .search-box{display:flex;align-items:center;background:#1e1e1e;border:1px solid #3a3a3a;border-radius:0;padding:0 4px 0 10px;height:28px;width:200px}
 .top-search .search-box:focus-within{border-color:var(--q-blue);background:#1e1e1e}
