@@ -4997,6 +4997,8 @@ function switchEmojiTab(tab) {
     document.getElementById('emojiTabCustom').classList.toggle('active', tab === 'custom');
     var grid = document.getElementById('emojiGrid'),
         h = '';
+    // 桌面端：自定义表情一排 4 个；内置表情仍一排 8 个
+    if (grid) grid.classList.toggle('emoji-custom', tab === 'custom');
     if (tab === 'builtin') {
         if (!Array.isArray(_emojiBuiltin) || _emojiBuiltin.length === 0) {
             fetch('../../api/emoji.php?action=list').then(function(r) {
