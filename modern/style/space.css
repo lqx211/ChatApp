@@ -476,7 +476,8 @@ body.embed .layout-background{min-height:0}
 .sp-blog-ed-head{display:flex;gap:10px;margin-bottom:12px}
 .sp-blog-ed-head input{flex:1;background:#1e1e1e;border:1px solid #3a3a3a;color:#e0e0e0;font-size:15px;font-weight:700;padding:10px 12px;outline:none}
 .sp-blog-ed-head select{background:#1e1e1e;border:1px solid #3a3a3a;color:#ccc;font-size:13px;padding:0 8px;outline:none;flex:none}
-.sp-blog-ed textarea{width:100%;box-sizing:border-box;background:#1e1e1e;border:1px solid #3a3a3a;color:#e0e0e0;font-size:14px;padding:12px;min-height:220px;resize:vertical;outline:none;line-height:1.8}
+/* 日志正文不用等宽字体：继承页面字体（默认 UA 会让 textarea 变 monospace） */
+.sp-blog-ed textarea{width:100%;box-sizing:border-box;background:#1e1e1e;border:1px solid #3a3a3a;color:#e0e0e0;font-size:14px;font-family:inherit;padding:12px;min-height:220px;resize:vertical;outline:none;line-height:1.8}
 .sp-blog-ed textarea:focus,.sp-blog-ed-head input:focus{border-color:#555}
 .sp-blog-ed-ft{margin-top:12px;display:flex;gap:10px;justify-content:flex-end}
 

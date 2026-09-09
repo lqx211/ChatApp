@@ -363,9 +363,9 @@ img[src*="data/res/svg/"],img[src*="data/res/cil/"],img[src*="data/res/brand/"]{
   align-content: start;
   background: #1e1e1e;
 }
-/* 桌面端：切到「自定义表情」标签时一排 4 个（自定义图更大更醒目），内置仍 8 个 */
+/* 桌面端：切到「自定义表情」标签时一排 6 个，内置仍 8 个 */
 #emojiPopup .emoji-grid.emoji-custom {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   max-height: 200px;
 }
 #emojiPopup .emoji-item {
