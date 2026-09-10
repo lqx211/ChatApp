@@ -66,12 +66,9 @@ $v = time();
       <input type="password" id="dsKey" placeholder="sk-..." autocomplete="off">
     </div>
     <div class="ds-field">
-      <label>模型</label>
+      <label>模型（当前仅支持此模型）</label>
       <select id="dsModel">
-        <option value="deepseek-chat">deepseek-chat（通用对话）</option>
-        <option value="deepseek-reasoner">deepseek-reasoner（推理/思考）</option>
         <option value="deepseek-v4-flash">deepseek-v4-flash</option>
-        <option value="deepseek-v4-pro">deepseek-v4-pro</option>
       </select>
     </div>
     <div class="ds-field">
@@ -93,7 +90,7 @@ $v = time();
 (function () {
   'use strict';
   var LS_CFG = 'chatapp_ds_cfg', LS_CONV = 'chatapp_ds_conv';
-  var cfg = { key: '', model: 'deepseek-chat', system: '', temp: 1, maxTokens: 2048 };
+  var cfg = { key: '', model: 'deepseek-v4-flash', system: '', temp: 1, maxTokens: 2048 };
   var conv = [];            // [{role:'user'|'assistant', content}]
   var streaming = false;
 
@@ -104,6 +101,7 @@ $v = time();
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
   function load() {
     try { var c = JSON.parse(localStorage.getItem(LS_CFG) || '{}'); if (c && typeof c === 'object') cfg = Object.assign(cfg, c); } catch (e) {}
+    cfg.model = 'deepseek-v4-flash'; // 只允许 V4 Flash：旧存档里的其他模型一律迁移过来
     try { var v = JSON.parse(localStorage.getItem(LS_CONV) || '[]'); if (Array.isArray(v)) conv = v; } catch (e) {}
   }
   function saveCfg() { try { localStorage.setItem(LS_CFG, JSON.stringify(cfg)); } catch (e) {} }
@@ -158,7 +156,7 @@ $v = time();
   /* ---------- 设置 ---------- */
   function openSettings() {
     $('dsKey').value = cfg.key || '';
-    $('dsModel').value = cfg.model || 'deepseek-chat';
+    $('dsModel').value = 'deepseek-v4-flash';
     $('dsSystem').value = cfg.system || '';
     $('dsTemp').value = (cfg.temp != null ? cfg.temp : 1);
     $('dsMaxTokens').value = (cfg.maxTokens || 2048);
@@ -168,7 +166,7 @@ $v = time();
   function closeSettings() { $('dsSettingsModal').classList.remove('active'); }
   function saveSettings() {
     cfg.key = $('dsKey').value.trim();
-    cfg.model = $('dsModel').value;
+    cfg.model = 'deepseek-v4-flash';
     cfg.system = $('dsSystem').value;
     var t = parseFloat($('dsTemp').value); cfg.temp = isNaN(t) ? 1 : Math.max(0, Math.min(2, t));
     var mt = parseInt($('dsMaxTokens').value, 10); cfg.maxTokens = isNaN(mt) ? 2048 : Math.max(1, Math.min(8192, mt));

@@ -39,9 +39,10 @@ $key = trim((string)($in['key'] ?? ''));
 if ($key === '') ds_err('缺少 API Key');
 if (!function_exists('curl_init')) ds_err('服务器未安装 cURL', 500);
 
-$ALLOWED_MODELS = ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v4-flash', 'deepseek-v4-pro'];
-$model = (string)($in['model'] ?? 'deepseek-chat');
-if (!in_array($model, $ALLOWED_MODELS, true)) $model = 'deepseek-chat';
+// 当前只允许 V4 Flash（其余模型一律回退到它）
+$ALLOWED_MODELS = ['deepseek-v4-flash'];
+$model = (string)($in['model'] ?? 'deepseek-v4-flash');
+if (!in_array($model, $ALLOWED_MODELS, true)) $model = 'deepseek-v4-flash';
 
 $messages = $in['messages'] ?? [];
 if (!is_array($messages) || count($messages) === 0) ds_err('缺少消息');
