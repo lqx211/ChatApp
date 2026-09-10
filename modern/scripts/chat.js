@@ -2953,14 +2953,14 @@ function openChatlogDetail(el) {
         if (!msgs.length) {
             body.innerHTML = '<div style="padding:20px;text-align:center;color:#666">…</div>';
         } else {
-            // 用正常聊天气泡渲染（.mr>.mc>.mb）；按需求本容器内统一靠右（加 own）
+            // 用正常聊天气泡渲染（.mr>.mc>.mb）；气泡贴左（不加 own）
             var h = '';
             for (var i = 0; i < msgs.length; i++) {
                 var mm = msgs[i] || {};
                 var t = mm.t != null ? String(mm.t) : '';
                 var nm = mm.n != null ? String(mm.n) : '';
                 var time = mm.time || '';
-                h += '<div class="mr own"><div class="mc"><div class="mb">'
+                h += '<div class="mr"><div class="mc"><div class="mb">'
                     + (nm ? '<div class="mu">' + eh(nm) + '</div>' : '')
                     + '<div class="mt">' + eh(t).replace(/\n/g, '<br>') + '</div>'
                     + (time ? '<div class="mti">' + eh(time) + '</div>' : '')
