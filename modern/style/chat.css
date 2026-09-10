@@ -526,6 +526,15 @@ img[src*="data/res/svg/"],img[src*="data/res/cil/"],img[src*="data/res/brand/"]{
 #chatlogModal .cl-d-name{color:#6a9fd8;font-size:.78em;font-weight:600}
 #chatlogModal .cl-d-time{color:#666;font-size:.68em;margin-left:8px}
 #chatlogModal .cl-d-text{color:#ddd;font-size:.85em;line-height:1.5;white-space:pre-wrap;word-break:break-word;margin-top:2px}
+/* 聊天记录详情：左靠、放大，改用正常聊天气泡渲染（容器内统一靠右） */
+.modal-overlay.cl-modal{align-items:flex-start;justify-content:flex-start;padding:40px 24px;overflow-y:auto}
+.cl-modal .modal-box{width:min(800px,94vw);max-width:none;max-height:84vh;text-align:left;padding:18px 20px}
+.cl-modal .modal-box h3{text-align:left;margin-bottom:10px;font-size:1.15em}
+.cl-modal .modal-actions{justify-content:flex-end}
+.chatlog-bubbles{max-height:66vh;overflow-y:auto;margin:6px 0 12px;padding:14px;border:1px solid #333;border-radius:8px;background:#1e1e1e;display:flex;flex-direction:column;gap:8px}
+.chatlog-bubbles .mr{margin:0}
+.chatlog-bubbles .mb{max-width:min(560px,80%)}
+.chatlog-bubbles .mt{font-size:.95em}
 .fwd-list{max-height:300px;overflow-y:auto;text-align:left;margin-bottom:12px}
 .fwd-item{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid #333;cursor:pointer}
 .fwd-item:hover{background:#2f2f2f}

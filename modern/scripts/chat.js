@@ -669,7 +669,7 @@ function switchPanel(n) {
     if (n === 'users') adminList(1);
     if (n === 'reports') loadReports();
     if (n === 'roles') loadRoleList();
-    if (n === 'music' || n === 'dscview' || n === 'midi' || n === 'proxy' || n === 'filemgr' || n === 'spessasynth' || n === 'space') loadAppPanel(n);
+    if (n === 'music' || n === 'dscview' || n === 'midi' || n === 'proxy' || n === 'filemgr' || n === 'spessasynth' || n === 'space' || n === 'deepseek') loadAppPanel(n);
     if (n === 'donations') loadDonations(1);
     if (n === 'profile-mgmt') loadPm();
     if (n === 'logs') loadAdminLogs(1);
@@ -2953,13 +2953,18 @@ function openChatlogDetail(el) {
         if (!msgs.length) {
             body.innerHTML = '<div style="padding:20px;text-align:center;color:#666">…</div>';
         } else {
+            // 用正常聊天气泡渲染（.mr>.mc>.mb）；按需求本容器内统一靠右（加 own）
             var h = '';
             for (var i = 0; i < msgs.length; i++) {
                 var mm = msgs[i] || {};
                 var t = mm.t != null ? String(mm.t) : '';
                 var nm = mm.n != null ? String(mm.n) : '';
                 var time = mm.time || '';
-                h += '<div class="cl-detail-line"><span class="cl-d-name">' + eh(nm) + '</span>' + (time ? '<span class="cl-d-time">' + eh(time) + '</span>' : '') + '<div class="cl-d-text">' + eh(t) + '</div></div>';
+                h += '<div class="mr own"><div class="mc"><div class="mb">'
+                    + (nm ? '<div class="mu">' + eh(nm) + '</div>' : '')
+                    + '<div class="mt">' + eh(t).replace(/\n/g, '<br>') + '</div>'
+                    + (time ? '<div class="mti">' + eh(time) + '</div>' : '')
+                    + '</div></div></div>';
             }
             body.innerHTML = h;
         }

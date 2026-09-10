@@ -901,6 +901,7 @@ return [
     'sb_create_group' => '+ Create Group',
     'sb_join_group' => '+ Join Group',
     'sb_dscview' => 'DS Chat Logs',
+    'sb_deepseek' => 'Deepseek',
     'sb_midi' => 'MIDI Obfuscator',
     'sb_proxy' => 'Web Proxy',
     'sb_filemgr' => 'File Manager',
