@@ -72,7 +72,7 @@ switch ($action) {
     case 'search_users':
         $q = trim($_GET['q'] ?? '');
         if (strlen($q) < 1) { echo json_encode(['success' => true, 'users' => []]); exit; }
-        $stmt = $pdo->prepare("SELECT user_id, username, COALESCE(display_name, username) AS display_name FROM users WHERE (username LIKE ? OR CAST(user_id AS CHAR) LIKE ?) AND enabled = 1 AND placeholder = 0 AND deleted_at IS NULL LIMIT 15");
+        $stmt = $pdo->prepare("SELECT user_id, username, COALESCE(display_name, username) AS display_name FROM users WHERE (username LIKE ? OR CAST(user_id AS CHAR) LIKE ?) AND enabled = 1 AND placeholder = 0 AND deleted_at IS NULL AND is_bot = 0 LIMIT 15");
         $stmt->execute(["%$q%", "%$q%"]);
         $users = $stmt->fetchAll();
         echo json_encode(['success' => true, 'users' => $users]);

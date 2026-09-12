@@ -315,6 +315,7 @@ $__upText = $__upSince > 0 ? t('home_uptime', 'ChatApp 已运行 %d 天 %d 小�
             margin-bottom: 16px;
             font-size: 0.85em;
             display: none;
+            white-space: pre-line;
         }
         .error-msg.show {
             display: block;
@@ -581,7 +582,7 @@ $__upText = $__upSince > 0 ? t('home_uptime', 'ChatApp 已运行 %d 天 %d 小�
     <!-- 共享底部版权栏（modern/partials/footer.php，一处更新全站生效） -->
     <?php include __DIR__ . '/../partials/footer.php'; ?>
 
-    <script src="../scripts/pow.js"></script>
+    <script src="../scripts/pow.js?v=<?php echo time();?>"></script>
     <script>
         var _currentLang = '<?php echo $currentLang; ?>';
         var LANG = <?php
@@ -590,6 +591,7 @@ $__upText = $__upSince > 0 ? t('home_uptime', 'ChatApp 已运行 %d 天 %d 小�
                 'msg_restricted_reason' => $langArr['msg_restricted_reason'] ?? 'Reason: %s',
                 'msg_pow_working' => $langArr['msg_pow_working'] ?? 'Logging in...',
                 'msg_pow_registering' => $langArr['msg_pow_registering'] ?? 'Registering...',
+                'msg_account_locked_retry' => $langArr['msg_account_locked_retry'] ?? 'Try again in %s.',
             ], JSON_UNESCAPED_UNICODE);
         ?>;
         var _restrictedUser = null;
@@ -620,15 +622,22 @@ $__upText = $__upSince > 0 ? t('home_uptime', 'ChatApp 已运行 %d 天 %d 小�
             el.classList.add('show');
         }
 
-        // 账号锁定：显示剩余时间实时倒计时（mm:ss）
+        // 账号锁定：显示剩余时间实时倒计时（Xd HH:MM:SS）
         function showLockedError(data) {
             var el = document.getElementById('errorMsg');
             var remaining = Math.max(0, (data.locked_seconds || 0));
             var base = data.error || 'Account locked.';
+            var retryTpl = t('msg_account_locked_retry', 'Try again in %s.');
             clearInterval(window._lockTimer);
+            function pad2(n) { return ('0' + n).slice(-2); }
             function tick() {
-                var m = Math.floor(remaining / 60), ss = remaining % 60;
-                el.textContent = base + ' (' + m + ':' + ('0' + ss).slice(-2) + ')';
+                var s = remaining;
+                var d = Math.floor(s / 86400);
+                var h = Math.floor((s % 86400) / 3600);
+                var m = Math.floor((s % 3600) / 60);
+                var ss = s % 60;
+                var cd = d + 'd ' + pad2(h) + ':' + pad2(m) + ':' + pad2(ss);
+                el.textContent = base + '\n' + retryTpl.replace('%s', cd);
                 el.classList.add('show');
                 if (remaining <= 0) { clearInterval(window._lockTimer); window._lockTimer = null; return; }
                 remaining--;

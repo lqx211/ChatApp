@@ -69,6 +69,12 @@ CREATE TABLE IF NOT EXISTS users (
     anyone_add_friend TINYINT(1) NOT NULL DEFAULT 1,
     likes INT NOT NULL DEFAULT 0,
     auto_focus_input TINYINT(1) NOT NULL DEFAULT 1,
+    -- 机器人联系人（多 AI 会话）：is_bot=1 的行是私有 AI 账号，bot_owner_uid 指向它的主人。
+    -- 这些行 enabled=0/searchable=0，只用于「和主人私聊」，不能登录、不能进群、搜不到。
+    -- 见 plan/bot-contacts.md；运行时由 chatapp_ensure_bot_columns() 兜底补列。
+    is_bot TINYINT(1) NOT NULL DEFAULT 0,
+    bot_owner_uid INT UNSIGNED DEFAULT NULL,
+    bot_persona TEXT DEFAULT NULL,
     PRIMARY KEY (user_id),
     UNIQUE KEY username (username),
     UNIQUE KEY user_id (user_id),

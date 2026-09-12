@@ -21,6 +21,31 @@ $me = chatapp_get_user();
 $myUid = (int)($me['user_id'] ?? 0);
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
+/**
+ * 朋友圈/日志配图校验：images 必须是 JSON 数组，且每一项只能是
+ *   1) 本人空间的图片：../../api/file.php?u=<uid>&f=space/<file>
+ *   2) 内置静态资源：  ../../data/res/...
+ * 任何其它值（外链/带引号/HTML）整单拒绝 —— 阻止「<img src=…>」属性注入 XSS。
+ * 返回规范化后的 JSON 字符串；非法输入返回 null。
+ */
+function space_clean_images($raw, int $uid): ?string {
+    if (!is_string($raw) || $raw === '' || $raw[0] !== '[') return null;
+    $arr = json_decode($raw, true);
+    if (!is_array($arr) || count($arr) < 1 || count($arr) > 9) return null;
+    $out = [];
+    foreach ($arr as $u) {
+        if (!is_string($u)) return null;
+        $u = trim($u);
+        if (preg_match('#^\.\./\.\./api/file\.php\?u=' . $uid . '&f=space/[A-Za-z0-9_.-]+$#', $u)
+            || preg_match('#^\.\./\.\./data/res/[A-Za-z0-9_./-]+$#', $u)) {
+            $out[] = $u;
+        } else {
+            return null;
+        }
+    }
+    return $out ? json_encode($out) : null;
+}
+
 switch ($action) {
     case 'post':
         $content = trim((string)($_POST['content'] ?? ''));
@@ -34,7 +59,11 @@ switch ($action) {
         }
         $images = null;
         $im = $_POST['images'] ?? '';
-        if (is_string($im) && $im !== '' && $im[0] === '[') $images = $im;   // 预留：JSON 数组
+        if (is_string($im) && $im !== '' && $im[0] === '[') {
+            // 仅允许本人 space 上传/内置资源 URL（防属性注入 XSS）
+            $images = space_clean_images($im, $myUid);
+            if ($images === null) { echo json_encode(['success' => false, 'error' => 'invalid_images']); exit; }
+        }
         if ($content === '' && !$images) { echo json_encode(['success' => false, 'error' => 'empty']); exit; }
         $stmt = $pdo->prepare("INSERT INTO space_feeds (user_id, content, images, visibility, visible_to) VALUES (?,?,?,?,?)");
         $stmt->execute([$myUid, mb_substr($content, 0, 5000), $images, $visibility, $visible_to]);
@@ -67,7 +96,7 @@ switch ($action) {
                 $mUids = [];
                 foreach ($arr as $v) { $v = (int)$v; if ($v > 0 && $v !== $myUid) $mUids[$v] = $v; }
                 if ($mUids) {
-                    $uStmt = $pdo->prepare("SELECT user_id FROM users WHERE user_id IN (" . implode(',', array_map('intval', array_keys($mUids))) . ") AND enabled = 1 AND placeholder = 0");
+                    $uStmt = $pdo->prepare("SELECT user_id FROM users WHERE user_id IN (" . implode(',', array_map('intval', array_keys($mUids))) . ") AND enabled = 1 AND placeholder = 0 AND is_bot = 0");
                     $uStmt->execute();
                     foreach ($uStmt->fetchAll(PDO::FETCH_COLUMN) as $validUid) { $validUid = (int)$validUid; if ($validUid && $validUid !== $myUid) $mUids[$validUid] = $validUid; }
                     $mStmt = $pdo->prepare("INSERT IGNORE INTO space_mentions (feed_id, mentioned_uid, by_uid) VALUES (?,?,?)");
@@ -97,7 +126,10 @@ switch ($action) {
         if (!$own->fetchColumn()) { echo json_encode(['success' => false, 'error' => 'denied']); break; }
         $images = null;
         $im = $_POST['images'] ?? '';
-        if (is_string($im) && $im !== '' && $im[0] === '[') $images = $im;   // 编辑时同步覆盖图片
+        if (is_string($im) && $im !== '' && $im[0] === '[') {
+            $images = space_clean_images($im, $myUid);   // 编辑时同步覆盖图片（同样校验）
+            if ($images === null) { echo json_encode(['success' => false, 'error' => 'invalid_images']); break; }
+        }
         $up = $pdo->prepare("UPDATE space_feeds SET content=?, images=?, visibility=?, visible_to=?, edited_at=NOW() WHERE id=? AND user_id=?");
         $up->execute([mb_substr($content, 0, 5000), $images, $visibility, $visible_to, $id, $myUid]);
         echo json_encode(['success' => true]);
@@ -230,7 +262,7 @@ switch ($action) {
             foreach ($q->fetchAll() as $r) {
             $ouid = (int)$r['other_uid'];
             if ($ouid <= 0) continue;
-            $u = $pdo->prepare("SELECT user_id, username, display_name, avatar, gender, birthday FROM users WHERE user_id=? AND enabled=1 AND placeholder=0 AND deleted_at IS NULL");
+            $u = $pdo->prepare("SELECT user_id, username, display_name, avatar, gender, birthday FROM users WHERE user_id=? AND enabled=1 AND placeholder=0 AND deleted_at IS NULL AND is_bot=0");
             $u->execute([$ouid]);
             $uu = $u->fetch();
             if (!$uu) continue;

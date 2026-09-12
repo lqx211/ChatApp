@@ -17,6 +17,7 @@ exit;
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ChatApp</title>
     <style>
+        @import url('/css/global.css');
         @font-face {
             font-family: 'Roboto';
             src: url('css/fonts/Roboto-Regular.ttf') format('truetype');

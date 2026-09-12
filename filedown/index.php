@@ -33,6 +33,7 @@
 <meta http-equiv="refresh" content="1800">
 <meta content="document" name="resource-type">
 <link href="indexfiles/style.css" type="text/css" rel="styleSheet">
+<link rel="stylesheet" href="/css/global.css">
 
 
 <!-- START FADED ICONS SCRIPT -->

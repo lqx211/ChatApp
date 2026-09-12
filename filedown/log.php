@@ -23,6 +23,7 @@
 <meta content="ALL,INDEX,FOLLOW" name="robots">
 <meta content="document" name="resource-type">
 <link href="indexfiles/style.css" type="text/css" rel="styleSheet">
+<link rel="stylesheet" href="/css/global.css">
 </head>
 
 

@@ -6,43 +6,20 @@
  * 用法：
  *   $pow = chatapp_pow_issue('pow');              // 签发（默认键 pow）
  *   chatapp_verify_pow($ch, $nonce, 'pow');       // 校验（单次，成功后清除）
- * 前端 pow.js 与 PHP 端位级一致，无 32 位溢出/编码坑。
+ *  hash = SHA-256：PHP 用 hash('sha256', ...)，前端 pow.js 为同步 SHA-256
+ *  实现（FIPS 180-4），两侧可用标准测试向量互相校验，无自定义密码学。
  */
 
 if (!defined('POW_TARGET_BITS'))    define('POW_TARGET_BITS', 15);      // sub-second difficulty (~2^15 tries)
 if (!defined('POW_MAX_NONCE_LEN'))  define('POW_MAX_NONCE_LEN', 10);    // nonce is decimal, <= 9999999999
 if (!defined('POW_CHALLENGE_TTL'))  define('POW_CHALLENGE_TTL', 300);   // seconds before a challenge expires
 
-/** Custom PoW hash → 64 lowercase hex chars. Only 0-255 arithmetic (add/xor/
- *  shift), so the PHP and JS implementations are bit-for-bit identical with no
- *  32-bit signed-overflow or encoding pitfalls. Input is ASCII. */
+/** PoW hash → 64 lowercase hex chars. Standard SHA-256 (FIPS 180-4):
+ *  the JS side (modern/scripts/pow.js) runs a synchronous SHA-256 that mirrors
+ *  this call exactly, so both sides are bit-for-bit identical and verifiable
+ *  against public test vectors. Input is ASCII (challenge + ':' + nonce). */
 function chatapp_pow_hash(string $input): string {
-    $seed = [0x24, 0x5a, 0x10, 0x9f, 0x3d, 0x77, 0x81, 0xc2, 0x4b, 0x0e, 0x96, 0x55,
-             0x1a, 0x68, 0xdc, 0x03, 0x7e, 0x92, 0x40, 0xcf, 0x11, 0x5d, 0xaa, 0x38,
-             0x66, 0xf1, 0x0b, 0x9c, 0x27, 0x74, 0xdb, 0x32];
-    $state = $seed;
-    $bytes = array_values(unpack('C*', $input));
-    $n = count($bytes);
-    for ($round = 0; $round < 32; $round++) {
-        $state[0] = ($state[0] ^ ($round + 1)) & 0xff;
-        for ($i = 0; $i < 32; $i++) {
-            $ib = $n > 0 ? $bytes[($i + $round) % $n] : 0;
-            $a = $state[$i];
-            $b = $state[($i + 7) % 32];
-            $c = $state[($i + 13) % 32];
-            $x = ((($a << 3) | ($a >> 5)) & 0xff);
-            $x = ($x + $b) & 0xff;
-            $x = ($x ^ $c) & 0xff;
-            $x = ($x ^ $ib) & 0xff;
-            $k = (($round * 31 + $i * 7 + 11) & 0xff);
-            $state[$i] = ($x + $k) & 0xff;
-        }
-        $t = $state[0]; $state[0] = $state[31]; $state[31] = $t;
-        $t = $state[5]; $state[5] = $state[21]; $state[21] = $t;
-    }
-    $out = '';
-    foreach ($state as $b) { $out .= sprintf('%02x', $b); }
-    return $out;
+    return hash('sha256', $input);
 }
 
 /** Target = 2^(256 - bits), a 64-char lowercase hex string (no gmp needed). */

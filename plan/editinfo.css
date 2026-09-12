@@ -1,7 +1,8 @@
 /* ================================================================
    QQ 编辑资料 · 暗色版 · 428px 基准
-   字体：抄 global.css 的 Roboto + Chinese
+   字体：统一由 /css/global.css 提供（Harmony Sans → Roboto）
    ================================================================ */
+@import url('/css/global.css');
 
 /* === 字体（抄 css/global.css）=== */
 @font-face {

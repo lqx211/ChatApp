@@ -10,8 +10,9 @@ return [
     'login_injection_web' => '可以啊，塞%s是让我自己填是吗？',
     'login_username_toooo_long' => '你这用户名不对劲，咋这么长呢？',
     'login_username_too_short' => '你这用户名这么短，老实交代你吃了多少？',
-    'msg_too_many_attempts' => 'Too many attempts!',
-    'msg_account_locked' => 'Account temporarily locked due to too many failed attempts. Try again in about %s min.',
+    'msg_too_many_attempts' => 'You have sent too many requests to server. Please wait a while before you submit another one.',
+    'msg_account_locked' => 'Account temporarily locked due to too many failed attempts.',
+    'msg_account_locked_retry' => 'Try again in %s.',
     // General
     'enterchat_loading_pagename' => 'ChatApp',
     'enterchat_loading_loadstr'  => 'Loading',
@@ -996,6 +997,8 @@ return [
     'share_no_dm' => 'Open a private chat first',
     'share_audio_on' => 'Sound On',
     'share_audio_off' => 'Sound Off',
+    'share_no_permission' => 'Screen capture permission denied. Enable "Screen Recording" for this browser in System Settings.',
+    'share_capture_fail' => 'Failed to capture your screen. Check the browser screen-recording permission and retry.',
 
     // ---- Voice / video call ----
     'call_calling' => 'Calling…',
@@ -1021,6 +1024,11 @@ return [
     'flash_partner_uploading' => 'The other side is uploading',
     'flash_uploading_btn' => 'Uploading…',
     'flash_has_uploaded' => 'Uploaded',
+    'flash_sys_uploaded_me' => 'You have uploaded the flash file',
+    'flash_sys_uploaded_them' => 'The other side has uploaded the flash file',
+    'flash_sys_recv_me' => 'You received the flash file at %s',
+    'flash_sys_recv_them' => 'The other side received the flash file at %s',
+    'flash_downloading_self' => 'Downloading',
     'flash_upload_failed' => 'Upload failed',
     'flash_fail_413' => 'Flash transfer failed: file too large, exceeds server upload limit.',
     'flash_fail_5xx' => 'Flash transfer failed: server error (HTTP %s).',

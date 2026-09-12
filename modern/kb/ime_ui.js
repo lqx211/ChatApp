@@ -161,6 +161,10 @@ var ImePinyinUI = (function () {
             ImePinyin.load(function (ok) { if (ok && _py) doRefresh(); });
             return;
         }
+        // 扩展词典懒加载（桌面端 ~40MB）：加载完成后重刷候选，把兜底词补进来
+        if (!ImePinyin.isExtReady()) {
+            ImePinyin.loadExt(function (ok) { if (ok && _py) doRefresh(); });
+        }
         doRefresh();
     }
     function doRefresh() {

@@ -140,6 +140,69 @@ if (!function_exists('chatapp_save_attachment')) {
     }
 }
 
+if (!function_exists('chat_actions_flash_notice')) {
+    /**
+     * 闪传系统行（聊天中间居中蓝字，样式看齐 like / e2ee 系统行）
+     *
+     *   $kind = 'up'  上传完成 → 给所有引用该 temp 的私聊会话各插一行（msg_type='temp_up'）
+     *                 接收方看到「对方已上传闪传文件」，上传方看到「你已上传闪传文件」
+     *   $kind = 'dl'  接收完成 → 由下载者插一行发给该会话的文件主人（msg_type='temp_dl'）
+     *                 对方看到「对方于 %s 接收闪传文件」，下载者自己看到「你于 %s 接收闪传文件」
+     *
+     * 仅处理私聊（recipient 非空）——公告/群聊不插，避免刷屏。
+     * 幂等：同一 temp（+会话 / +下载者）只插一次；任何异常都不得影响上传/下载主流程。
+     */
+    function chat_actions_flash_notice(PDO $pdo, int $tempId, string $kind, int $actorUid = 0): void {
+        if ($tempId <= 0) return;
+        try {
+            if ($kind === 'up') {
+                // 引用该 temp 的所有私聊闪传消息（转发会共享同一 temp → 每个会话都该收到“已上传”）
+                $msgStmt = $pdo->prepare(
+                    "SELECT m.sender_id, m.recipient_id, MAX(m.id) AS last_id
+                     FROM messages m
+                     WHERE m.temp_upload_id = ? AND m.msg_type = 'temp'
+                       AND m.group_id IS NULL AND m.recipient_id IS NOT NULL
+                     GROUP BY m.sender_id, m.recipient_id
+                     ORDER BY last_id DESC LIMIT 20"
+                );
+                $msgStmt->execute([$tempId]);
+                foreach ($msgStmt->fetchAll() as $src) {
+                    $senderUid = (int)$src['sender_id'];
+                    $recipUid = (int)$src['recipient_id'];
+                    if ($senderUid <= 0 || $recipUid <= 0) continue;
+                    $dup = $pdo->prepare("SELECT id FROM messages WHERE msg_type = 'temp_up' AND temp_upload_id = ? AND recipient_id = ? LIMIT 1");
+                    $dup->execute([$tempId, $recipUid]);
+                    if ($dup->fetchColumn()) continue;
+                    $pdo->prepare("INSERT INTO messages (sender_id, recipient_id, message, msg_type, temp_upload_id, time, datetime)
+                                   VALUES (?, ?, '', 'temp_up', ?, ?, NOW())")
+                        ->execute([$senderUid, $recipUid, $tempId, time()]);
+                }
+            } elseif ($kind === 'dl') {
+                if ($actorUid <= 0) return;
+                // 下载者视角：找“发给下载者的那条闪传消息”，其 sender = 文件主人（支持转发场景）
+                $msgStmt = $pdo->prepare(
+                    "SELECT sender_id, recipient_id FROM messages
+                     WHERE temp_upload_id = ? AND msg_type = 'temp' AND group_id IS NULL AND recipient_id = ?
+                     ORDER BY id DESC LIMIT 1"
+                );
+                $msgStmt->execute([$tempId, $actorUid]);
+                $src = $msgStmt->fetch();
+                if (!$src) return; // 下载者不是该闪传的接收方（管理员代查/下载自己的文件等）→ 不插
+                $ownerUid = (int)$src['sender_id'];
+                if ($ownerUid <= 0 || $ownerUid === $actorUid) return;
+                $dup = $pdo->prepare("SELECT id FROM messages WHERE msg_type = 'temp_dl' AND temp_upload_id = ? AND sender_id = ? LIMIT 1");
+                $dup->execute([$tempId, $actorUid]);
+                if ($dup->fetchColumn()) return;
+                $pdo->prepare("INSERT INTO messages (sender_id, recipient_id, message, msg_type, temp_upload_id, time, datetime)
+                               VALUES (?, ?, '', 'temp_dl', ?, ?, NOW())")
+                    ->execute([$actorUid, $ownerUid, $tempId, time()]);
+            }
+        } catch (\Throwable $e) {
+            // 通知失败绝不影响上传/下载主流程
+        }
+    }
+}
+
 if (!function_exists('chat_actions_exp_daily_incr')) {
     /**
      * 每日限次 EXP 计数器（UTC+8）
@@ -226,6 +289,39 @@ function chat_actions_attach_exp(PDO $pdo, int $senderUid, ?string $attachmentFi
     }
 }
 
+if (!function_exists('chat_actions_valid_e2ee_envelope')) {
+    /**
+     * Validate an E2EE envelope string:
+     *   {"v":1,"h":{"dh":"<b64>","pn":N,"n":N},"nonce":"<b64>","ct":"<b64>","md":0|1[,"init":{...}]}
+     * Base64/JSON fields never contain '<' or '>' — rejecting those (plus the
+     * structural checks) keeps the raw stored message free of HTML, so it can
+     * never be echoed as markup by clients that render server text verbatim
+     * (e.g. reply previews). 旧客户端若发不合规 envelope 会被拒绝（前端已有降级提示）。
+     */
+    function chat_actions_valid_e2ee_envelope(string $message): bool {
+        if ($message === '' || strpos($message, '<') !== false || strpos($message, '>') !== false) return false;
+        $env = json_decode($message, true);
+        if (!is_array($env) || (int)($env['v'] ?? 0) !== 1) return false;
+        // top-level keys whitelist
+        $allow = ['v' => 1, 'h' => 1, 'nonce' => 1, 'ct' => 1, 'md' => 1, 'init' => 1];
+        foreach (array_keys($env) as $k) { if (!isset($allow[$k])) return false; }
+        $h = $env['h'] ?? null;
+        if (!is_array($h)) return false;
+        $dh = $h['dh'] ?? null;
+        if (!is_string($dh) || $dh === '' || strlen($dh) > 64 || !preg_match('/^[A-Za-z0-9+\/=]+$/', $dh)) return false;
+        foreach (['pn', 'n'] as $k) {
+            $v = $h[$k] ?? 0;
+            if (!is_int($v) && !(is_string($v) && ctype_digit($v))) return false;
+            if ((int)$v > 100000000) return false;
+        }
+        foreach (['nonce', 'ct'] as $k) {
+            $v = $env[$k] ?? null;
+            if (!is_string($v) || $v === '' || strlen($v) > 65536 || !preg_match('/^[A-Za-z0-9+\/=]+$/', $v)) return false;
+        }
+        return true;
+    }
+}
+
 /**
  * 发送消息（私聊 + 公告）。
  *
@@ -264,7 +360,8 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
 
     $msgType = null;
     $attachmentFilename = null;
-    // E2EE：message 是 base64 JSON envelope（无 HTML 活性内容），存原样、不 htmlspecialchars
+    // E2EE：message 是 base64 JSON envelope（经 chat_actions_valid_e2ee_envelope
+    // 校验后原样存储，不做 htmlspecialchars —— 密文不含 HTML）
     $isE2ee = (($p['msg_type'] ?? '') === 'e2ee');
 
     if (!empty($attachmentB64)) {
@@ -328,6 +425,16 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
     }
 
     $replyTo = (int)($p['reply_to'] ?? 0);
+    if ($replyTo > 0) {
+        // 只允许回复「发送者自己参与」的消息：阻止借 reply_to 把他人私聊内容
+        // 拉进自己的会话（回复引用会在双方客户端原样回显）。
+        $rq = $pdo->prepare('SELECT sender_id, recipient_id FROM messages WHERE id = ?');
+        $rq->execute([$replyTo]);
+        $rr = $rq->fetch();
+        if (!$rr || ((int)$rr['sender_id'] !== $senderUid && (int)$rr['recipient_id'] !== $senderUid)) {
+            $replyTo = 0;
+        }
+    }
     $isMd = (($p['md'] ?? '') === '1' || ($p['md'] ?? '') === 1 || ($p['md'] ?? '') === true);
     if ($isMd) {
         // Defense-in-depth: strip_tags is not a safe HTML sanitizer. Reject
@@ -341,7 +448,11 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
         $msg = strip_tags($message);
         $msgType = 'md';
     } elseif ($isE2ee) {
-        // E2EE 密文：JSON envelope（base64 字段，无 <>& 活性内容），原样存储
+        // E2EE 密文：必须是结构合法的 JSON envelope（base64 字段）才能入库，
+        // 否则拒绝 —— 防止用 msg_type=e2ee 把任意 HTML 存进 messages 表。
+        if (!chat_actions_valid_e2ee_envelope($message)) {
+            return ['success' => false, 'error' => 'Invalid e2ee envelope'];
+        }
         $msg = $message;
         $msgType = 'e2ee';
     } else {
@@ -416,10 +527,25 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
             $recipientId = (int)($uidStmt->fetchColumn() ?: 0);
             if (!$recipientId) return ['success' => false];
 
+            // 机器人联系人：只有 owner 能和自己的机器人私聊（不需要额外的好友关系校验）
+            // 非 owner 一律当 not_friends 处理（防止蹭到别人的机器人）
+            chatapp_ensure_bot_columns();
+            $botStmt = $pdo->prepare('SELECT is_bot, bot_owner_uid FROM users WHERE user_id = ?');
+            $botStmt->execute([$recipientId]);
+            $botRow = $botStmt->fetch() ?: null;
+            if ($botRow && (int)$botRow['is_bot'] === 1) {
+                if ((int)$botRow['bot_owner_uid'] === $senderUid) {
+                    /* 自己的机器人：直接放行（不检查好友行，机器人也不能进群） */
+                    $isBotPeer = true;
+                } else {
+                    return ['success' => false, 'error' => 'not_friends'];
+                }
+            }
+
             // ---- Security: 私聊必须互为好友，防止骚扰 ----
             // 公告（recipient_id 为 NULL）无需校验；
             // 自己给自己发送（如转发给自己）无需好友关系。
-            if ($recipientId !== $senderUid) {
+            if ($recipientId !== $senderUid && empty($isBotPeer)) {
                 // 黑名单：任一方向拉黑则禁止私聊
                 $blStmt = $pdo->prepare(
                     "SELECT 1 FROM user_blocks

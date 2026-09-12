@@ -12,7 +12,8 @@ return [
     'login_username_toooo_long' => '你这用户名不对劲',
     'login_username_too_short' => '你这用户名这么短，老实交代你吃了多少？',
     'msg_too_many_attempts' => '请求过多',
-    'msg_account_locked' => '因密码错误次数过多，账号已临时锁定，请约 %s 分钟后重试',
+    'msg_account_locked' => '因密碼屢誤，賬號已暫鎖。',
+    'msg_account_locked_retry' => '請於 %s 後復試。',
 
     // General
     'enterchat_loading_pagename' => 'ChatApp',
@@ -809,6 +810,8 @@ return [
     'share_no_dm' => '請先開啟一私聊',
     'share_audio_on' => '發聲',
     'share_audio_off' => '靜音',
+    'share_no_permission' => '屏幕採集見拒。請於系統設定中允瀏覽器「錄屏」之權。',
+    'share_capture_fail' => '採屏未成，請查瀏覽器錄屏之權而復試。',
 
     // ---- Call ----
     'call_calling' => '呼叫中…',
@@ -834,6 +837,11 @@ return [
     'flash_partner_uploading' => '彼方正在上傳',
     'flash_uploading_btn' => '上傳中…',
     'flash_has_uploaded' => '已上傳',
+    'flash_sys_uploaded_me' => '吾已上傳閃傳之物',
+    'flash_sys_uploaded_them' => '彼已上傳閃傳之物',
+    'flash_sys_recv_me' => '汝於 %s 收得閃傳之物',
+    'flash_sys_recv_them' => '彼於 %s 收得閃傳之物',
+    'flash_downloading_self' => '下載中',
     'flash_upload_failed' => '上傳失敗',
     'flash_fail_413' => '瞬傳失敗：檔案過大，超出伺服器上傳限制。',
     'flash_fail_5xx' => '瞬傳失敗：伺服器錯誤 (HTTP %s)。',

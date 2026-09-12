@@ -37,11 +37,12 @@ switch ($action) {
             exit;
         }
         // Exact match only: UID or username (respect the searchable privacy flags)
+        // is_bot=0：机器人搜不到（只能从「添加机器人」建）
         if (is_numeric($q)) {
-            $stmt = $pdo->prepare("SELECT username, user_id FROM users WHERE user_id = ? AND username != ? AND searchable = 1 AND searchable_by_uid = 1 LIMIT 1");
+            $stmt = $pdo->prepare("SELECT username, user_id FROM users WHERE user_id = ? AND username != ? AND searchable = 1 AND searchable_by_uid = 1 AND is_bot = 0 LIMIT 1");
             $stmt->execute([(int)$q, $myUsername]);
         } else {
-            $stmt = $pdo->prepare("SELECT username, user_id FROM users WHERE username = ? AND username != ? AND searchable = 1 LIMIT 1");
+            $stmt = $pdo->prepare("SELECT username, user_id FROM users WHERE username = ? AND username != ? AND searchable = 1 AND is_bot = 0 LIMIT 1");
             $stmt->execute([$q, $myUsername]);
         }
         $users = $stmt->fetchAll();
@@ -65,10 +66,11 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Something went wrong.']);
             exit;
         }
-        $stmt = $pdo->prepare("SELECT user_id FROM users WHERE username = ?");
+        $stmt = $pdo->prepare("SELECT user_id, is_bot FROM users WHERE username = ?");
         $stmt->execute([$toUser]);
-        $toUid = (int)($stmt->fetchColumn() ?: 0);
-        if (!$toUid) {
+        $toRow = $stmt->fetch() ?: null;
+        $toUid = (int)($toRow['user_id'] ?? 0);
+        if (!$toUid || (int)($toRow['is_bot'] ?? 0) === 1) {
             echo json_encode(['success' => false, 'error' => 'Something went wrong.']);
             exit;
         }
@@ -144,9 +146,11 @@ switch ($action) {
             $maxContacts = level_limits(user_level($pdo, $myUid))['max_contacts'];
             $friendCount = (int)$pdo->query(
                 "SELECT COUNT(*) FROM (
-                    SELECT user_to AS uid FROM contacts WHERE user_from = $myUid AND status = 'accepted'
+                    SELECT c.user_to AS uid FROM contacts c JOIN users u ON u.user_id = c.user_to
+                     WHERE c.user_from = $myUid AND c.status = 'accepted' AND u.is_bot = 0
                     UNION
-                    SELECT user_from AS uid FROM contacts WHERE user_to = $myUid AND status = 'accepted'
+                    SELECT c.user_from AS uid FROM contacts c JOIN users u ON u.user_id = c.user_from
+                     WHERE c.user_to = $myUid AND c.status = 'accepted' AND u.is_bot = 0
                  ) t"
             )->fetchColumn();
             if ($friendCount >= $maxContacts) {
@@ -268,7 +272,7 @@ switch ($action) {
 
     case 'list':
         $stmt = $pdo->prepare("
-            SELECT u.username, u.user_id, COALESCE(u.display_name, u.username) AS display_name, u.avatar,
+            SELECT u.username, u.user_id, COALESCE(u.display_name, u.username) AS display_name, u.avatar, u.is_bot, u.bot_kind,
                    c_my.note AS note, c_my.pinned AS pinned, c_my.special AS special,
                    MAX(m.datetime) AS last_msg_time
             FROM users u
@@ -283,11 +287,11 @@ switch ($action) {
                     (m.sender_id = u.user_id AND m.recipient_id = ?)
                 )
             )
-            WHERE u.user_id != ?
-            GROUP BY u.username, u.user_id, COALESCE(u.display_name, u.username), u.avatar, c_my.note, c_my.pinned, c_my.special, u.user_id
+            WHERE u.user_id != ? AND (u.is_bot = 0 OR u.bot_owner_uid = ?)
+            GROUP BY u.username, u.user_id, COALESCE(u.display_name, u.username), u.avatar, u.is_bot, u.bot_kind, c_my.note, c_my.pinned, c_my.special, u.user_id
             ORDER BY c_my.pinned DESC, last_msg_time IS NULL ASC, last_msg_time DESC
         ");
-        $stmt->execute([$myUid, $myUid, $myUid, $myUid, $myUid, $myUid]);
+        $stmt->execute([$myUid, $myUid, $myUid, $myUid, $myUid, $myUid, $myUid]);
         $contacts = $stmt->fetchAll();
         // 新格式 avatar 存的是文件名（如 10077.png），需转成 /api/avatar.php 可访问的 URL
         foreach ($contacts as &$c) {
@@ -305,7 +309,7 @@ switch ($action) {
             SELECT u.username, COALESCE(u.display_name, u.username) AS display_name, u.avatar, c.msg, c.created_at
             FROM contacts c
             JOIN users u ON u.user_id = c.user_from
-            WHERE c.user_to = ? AND c.status = 'pending'
+            WHERE c.user_to = ? AND c.status = 'pending' AND u.is_bot = 0
         ");
         $stmt->execute([$myUid]);
         $pending = $stmt->fetchAll();

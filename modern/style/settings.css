@@ -2,7 +2,9 @@
    ChatApp · 设置页
    基础样式来自 ../../plan/editinfo.css（.card/.nav-bar/.form-row/.picker-*）
    本文件只追加设置页专属样式
+   字体：统一由 /css/global.css 提供
    ================================================================ */
+@import url('/css/global.css');
 
 /* ---- 搜索栏 ---- */
 .set-searchbar {

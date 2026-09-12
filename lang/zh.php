@@ -12,7 +12,8 @@ return [
     'login_username_toooo_long' => '你这用户名不对劲，咋这么长呢？',
     'login_username_too_short' => '你这用户名这么短，老实交代你吃了多少？',
     'msg_too_many_attempts' => '请求过多',
-    'msg_account_locked' => '因密码错误次数过多，账号已临时锁定，请约 %s 分钟后重试',
+    'msg_account_locked' => '因密码错误次数过多，账号已临时锁定。',
+    'msg_account_locked_retry' => '请在 %s 后重试。',
     // General
     'enterchat_loading_pagename' => 'ChatApp',
     'enterchat_loading_loadstr'  => '加载中',
@@ -810,6 +811,8 @@ return [
     'share_no_dm' => '请先打开一个私聊对话',
     'share_audio_on' => '声音开',
     'share_audio_off' => '声音关',
+    'share_no_permission' => '屏幕采集被拒绝。请在系统设置里允许浏览器「屏幕录制」权限。',
+    'share_capture_fail' => '采集屏幕失败，请检查浏览器的屏幕录制权限后重试。',
 
     // ---- Call ----
     'call_calling' => '呼叫中…',
@@ -835,6 +838,11 @@ return [
     'flash_partner_uploading' => '对方正在上传中',
     'flash_uploading_btn' => '上传中…',
     'flash_has_uploaded' => '已上传',
+    'flash_sys_uploaded_me' => '你已上传闪传文件',
+    'flash_sys_uploaded_them' => '对方已上传闪传文件',
+    'flash_sys_recv_me' => '你于 %s 接收闪传文件',
+    'flash_sys_recv_them' => '对方于 %s 接收闪传文件',
+    'flash_downloading_self' => '下载中',
     'flash_upload_failed' => '上传失败',
     'flash_fail_413' => '闪传失败：文件过大，超出服务器上传限制。',
     'flash_fail_5xx' => '闪传失败：服务器错误 (HTTP %s)。',

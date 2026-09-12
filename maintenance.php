@@ -67,6 +67,7 @@ if (is_array($__status) && !empty($__status['is_maintenance'])) {
 	<meta name="Description" content=""> 
 	<title>Emergency Repair 紧急修复</title>
 	<style type="text/css">
+	@import url(\'/css/global.css\');
 	@font-face {
 		font-family: \'CustomOTF\';              /* 自定义字体名称，可随意起 */
 		src: url(\'/errors/default.otf\') format(\'opentype\');

@@ -33,7 +33,7 @@ if (!preg_match('/^[a-zA-Z0-9_]+$/', $target)) {
     exit;
 }
 
-$stmt = $pdo->prepare('SELECT user_id, username, stranger_like FROM users WHERE username = ? AND deleted_at IS NULL');
+$stmt = $pdo->prepare('SELECT user_id, username, stranger_like FROM users WHERE username = ? AND deleted_at IS NULL AND is_bot = 0');
 $stmt->execute([$target]);
 $t = $stmt->fetch();
 if (!$t) { echo json_encode(['success' => false, 'error' => 'User not found.']); exit; }

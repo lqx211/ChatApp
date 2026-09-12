@@ -1,21 +1,32 @@
+/* ================================================================
+   ChatApp · 全局字体（唯一入口 / single font entry point）
+   任意页面引用本文件即可统一字体：
+       <link rel="stylesheet" href="/css/global.css">
+   CSS 内亦可：@import url('/css/global.css');
+   字体栈：Harmony Sans（HarmonyOS Sans SC）→ Roboto → 系统回退
+   ================================================================ */
+
+/* ---- Harmony Sans 全字重（文件在 css/fonts/）----
+   100 Thin (chinese_thin) / 300 Light (chinese_light) / 400 Regular (chinese)
+   500 Medium (chinese_medium) / 700 Bold (chinese_bold) / 900 Black (chinese_black)
+   字重文件按需懒加载：页面没用到就不会下载（如全站只用 400+700 ≈ 16MB）。
+   600(semi-bold) 会按 CSS 规则自动落到 700；800 自动落到 900。
+   若觉得 600 偏粗，可把 Medium 那行改成 font-weight: 500 600; 让 600 用 Medium。 */
+@font-face { font-family: 'Harmony Sans'; src: url('fonts/chinese_thin.ttf')   format('truetype'); font-weight: 100; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Harmony Sans'; src: url('fonts/chinese_light.ttf')  format('truetype'); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Harmony Sans'; src: url('fonts/chinese.ttf')        format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Harmony Sans'; src: url('fonts/chinese_medium.ttf') format('truetype'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Harmony Sans'; src: url('fonts/chinese_bold.ttf')   format('truetype'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Harmony Sans'; src: url('fonts/chinese_black.ttf')  format('truetype'); font-weight: 900; font-style: normal; font-display: swap; }
+
 @font-face {
     font-family: 'Roboto';
     src: url('fonts/Roboto-Regular.ttf') format('truetype');
     font-weight: 400;
     font-style: normal;
+    font-display: swap;
 }
 
-@font-face {
-    font-family: 'Chinese';
-    src: url('fonts/chinese.otf') format('opentype');
-    font-weight: 400;
-    font-style: normal;
-}
-
-* {
-    font-family:  'Roboto', 'Chinese', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif !important;
-}
-
-body, button, input, textarea, select, table, th, td, div, span, a, p, h1, h2, h3, h4, h5, h6, label {
-    font-family: 'Roboto', 'Chinese', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif !important;
+*, *::before, *::after {
+    font-family: 'Harmony Sans', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif !important;
 }

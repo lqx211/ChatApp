@@ -1,7 +1,9 @@
 /* =====================================================================
    ChatApp Mobile UI — QQ 风格手机端（暗色）
    配色取自 QQ 暗色模式 dump（plan/qq/messages_dark.*）
+   字体：统一由 /css/global.css 提供
    ===================================================================== */
+@import url('/css/global.css');
 @font-face{font-family:'Roboto';src:url('../../css/fonts/Roboto-Regular.ttf') format('truetype');font-weight:400;font-style:normal}
 @font-face{font-family:'Chinese';src:url('../../css/fonts/chinese.otf') format('opentype');font-weight:400;font-style:normal}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}

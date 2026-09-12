@@ -106,6 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OOBE · 首次引导</title>
 <style>
+  @import url('/css/global.css');
   @font-face {
     font-family: 'Roboto';
     src: url('../../css/fonts/Roboto-Regular.ttf') format('truetype');

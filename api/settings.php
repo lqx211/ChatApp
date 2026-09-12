@@ -446,7 +446,7 @@ switch ($action) {
         $perPage = 15;
         $pdo = db();
 
-        $where = "WHERE u.searchable = 1 AND u.enabled = 1 AND u.username != ?";
+        $where = "WHERE u.searchable = 1 AND u.enabled = 1 AND u.username != ? AND u.is_bot = 0";
         $params = [$_SESSION['username']];
 
         if ($q !== '') {

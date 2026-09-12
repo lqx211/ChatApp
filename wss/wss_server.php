@@ -111,9 +111,17 @@ function ws_encode_close(int $code = 1000, string $reason = ''): string {
  */
 function ws_read_exact($sock, int $n): ?string {
     $buf = '';
+    // 非阻塞 socket：数据未到（EAGAIN）时等可读再继续，而不是断言线（上限 5s）
+    $deadline = microtime(true) + 5.0;
     while (strlen($buf) < $n) {
         $chunk = fread($sock, $n - strlen($buf));
-        if ($chunk === false || $chunk === '') return null;
+        if ($chunk === false) return null;
+        if ($chunk === '') {
+            if (feof($sock) || microtime(true) > $deadline) return null;
+            $r = [$sock]; $w = null; $e = null;
+            @stream_select($r, $w, $e, 0, 100000);
+            continue;
+        }
         $buf .= $chunk;
     }
     return $buf;
@@ -152,9 +160,19 @@ function ws_decode_frame($sock): ?array {
 
     $payload = '';
     $remaining = $len;
+    // 非阻塞 socket：大帧（闪传 512KB/片）分多个 TCP 段到达时，fread 会先返回空串（EAGAIN）。
+    // 旧实现把空串当断线直接断开 → 上传偶发失败。这里改为「等可读再继续读」，
+    // 给单帧设置一个等待上限（超时才判定为异常连接）。
+    $deadline = microtime(true) + 5.0;
     while ($remaining > 0) {
         $chunk = fread($sock, min($remaining, 65536));
-        if ($chunk === false || $chunk === '') return null;
+        if ($chunk === false) return null;
+        if ($chunk === '') {
+            if (feof($sock) || microtime(true) > $deadline) return null;
+            $r = [$sock]; $w = null; $e = null;
+            @stream_select($r, $w, $e, 0, 100000); // 最多等 100ms 等数据到达
+            continue;
+        }
         $payload .= $chunk;
         $remaining -= strlen($chunk);
     }
@@ -432,7 +450,8 @@ function ws_resolve_replies(PDO $pdo, array $msgs): array {
                 'id' => (int)$r['id'],
                 'username' => $r['username'],
                 'display_name' => $r['display_name'],
-                'message' => ($r['deleted_at'] !== null) ? '[This message has been revoked]' : mb_substr($r['message'], 0, 80),
+                // 普通消息以 htmlspecialchars 存库；先解码再截断，客户端统一转义显示
+                'message' => ($r['deleted_at'] !== null) ? '[This message has been revoked]' : mb_substr(htmlspecialchars_decode((string)$r['message'], ENT_QUOTES), 0, 80),
             ];
         }
     }
@@ -845,11 +864,14 @@ function ws_poll_temp_status(): void {
     if (empty($clients)) return;
     $pdo = ws_db();
 
-    // 为控制查询量，只查询有状态/进度的记录（not_started 无变化无需推送）
+    // 活跃记录：上传中(0)/已就绪(1)/被撤回；过期无人下载的记录不再推送。
+    // 注：已就绪但还没人下载的行也必须包含——否则「上传完成 → ready」这一刻
+    // 行会掉出结果集，接收方的下载按钮就要等 10s HTTP 兜底轮询才能亮起。
+    // 去重交给下面的指纹（fp）比对，无变化不会产生推送。
     try {
-        $stmt = $pdo->query("SELECT id, owner_uid, revoked, download_complete, downloaded_bytes, size, expires_at, last_download_at
+        $stmt = $pdo->query("SELECT id, owner_uid, revoked, download_complete, downloaded_bytes, uploaded_bytes, size, expires_at, last_download_at, status
             FROM temp_uploads
-            WHERE revoked = 1 OR download_complete = 1 OR downloaded_bytes > 0 OR download_started_at IS NOT NULL
+            WHERE revoked = 1 OR expires_at > UTC_TIMESTAMP()
             ORDER BY id DESC LIMIT 200");
         $rows = $stmt->fetchAll();
     } catch (\Throwable $e) {
@@ -880,10 +902,14 @@ function ws_poll_temp_status(): void {
         if ($tidList) {
             $placeholders = implode(',', array_fill(0, count($tidList), '?'));
             try {
-                $stmt = $pdo->prepare("SELECT DISTINCT temp_upload_id FROM messages
+                // 注意：MySQL 8 ONLY_FULL_GROUP_BY 下 `SELECT DISTINCT x ... ORDER BY id` 会报 3065，
+                // 必须改成 GROUP BY + ORDER BY MAX(id)（旧写法异常被 catch 吞掉 → 接收方永远收不到推送）
+                $stmt = $pdo->prepare("SELECT temp_upload_id FROM messages
                     WHERE temp_upload_id IN ($placeholders)
                       AND (sender_id = ? OR recipient_id = ? OR recipient_id IS NULL)
-                    ORDER BY id DESC LIMIT 50");
+                    GROUP BY temp_upload_id
+                    ORDER BY MAX(id) DESC
+                    LIMIT 50");
                 $stmt->execute(array_merge($tidList, [$uid, $uid]));
                 foreach ($stmt->fetchAll() as $mt) {
                     $tid = (int)$mt['temp_upload_id'];
@@ -916,10 +942,15 @@ function ws_poll_temp_status(): void {
                 $item['size'] = (int)$tr['size'];
                 $item['download_complete'] = (int)$tr['download_complete'];
                 if (!empty($tr['last_download_at'])) $item['last_download_at'] = $tr['last_download_at'];
+            } else {
+                // 接收方：上传进度（百分比/速度）与就绪状态
+                $item['uploaded_bytes'] = (int)$tr['uploaded_bytes'];
+                $item['size'] = (int)$tr['size'];
+                $item['upload_status'] = ((int)$tr['status'] === 1) ? 'ready' : 'uploading';
             }
 
-            // 指纹：status + revoked + (owner 时 downloaded_bytes)
-            $fp = $status . '|' . (int)$tr['revoked'] . '|' . ($isOwner ? (int)$tr['downloaded_bytes'] : '');
+            // 指纹：status + revoked + 进度（owner 看下载字节，接收方看上传字节）+ 上传是否完成
+            $fp = $status . '|' . (int)$tr['revoked'] . '|' . ($isOwner ? (int)$tr['downloaded_bytes'] : (int)$tr['uploaded_bytes']) . '|' . (int)$tr['status'];
             if (($newFingerprint[$tid] ?? null) === $fp) continue; // 无变化跳过
 
             $newFingerprint[$tid] = $fp;
@@ -1161,6 +1192,7 @@ function ws_flash_up_start(int $cid, array $data): void {
         'fp'       => $fp,
         'hctx'     => hash_init('sha256'),
         'started'  => microtime(true),
+        'lastdb'   => 0,   // 上次进度写库时间（≥1s 一次，接收端靠它看实时速度）
     ];
     ws_flash_up_ack($cid, $up, true, ['id' => $tid]);
     ws_log("分片上传开始 #$cid ({$cl['username']}) temp=$tid size=$expected");
@@ -1186,6 +1218,16 @@ function ws_flash_up_chunk(int $cid, string $raw): void {
     $GLOBALS['clients'][$cid]['up']['received'] = $up['received'];
     // 有数据即视为活跃，防止心跳超时把长上传误断开
     $GLOBALS['clients'][$cid]['last_seen'] = microtime(true);
+    // 实时进度写库（≥1s 一次）：temp_uploads.uploaded_bytes → ws_poll_temp_status 推给接收端
+    // 显示「对方正在上传中: x% · 速度」（收尾时 ws_flash_up_end 会写最终值）
+    $nowTs = microtime(true);
+    if ($nowTs - ($up['lastdb'] ?? 0) >= 1.0) {
+        $GLOBALS['clients'][$cid]['up']['lastdb'] = $nowTs;
+        try {
+            ws_db()->prepare("UPDATE temp_uploads SET uploaded_bytes = ? WHERE id = ? AND status = 0")
+                ->execute([$up['received'], (int)$up['id']]);
+        } catch (\Throwable $e) {}
+    }
 }
 
 /** 全部收齐 → 算 hash、落盘、更新 temp_uploads 置 ready。 */
@@ -1214,6 +1256,8 @@ function ws_flash_up_end(int $cid, array $data): void {
         $pdo = ws_db();
         $pdo->prepare("UPDATE temp_uploads SET hash = ?, size = ?, uploaded_bytes = ?, status = 1 WHERE id = ?")
             ->execute([$hash, $size, $size, $tid]);
+        // 上传完成 → 会话内居中蓝字系统行（接收方「对方已上传闪传文件」）
+        chat_actions_flash_notice($pdo, $tid, 'up');
     } catch (\Throwable $e) {
         @unlink($final);
         ws_flash_up_ack($cid, $upId, false, ['error' => 'db_error']);

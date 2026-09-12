@@ -152,7 +152,7 @@ $__wallpaper = rand(1, 10);
     <p class="foot-note">This login is used when the site is in maintenance mode.<br>Once logged in, you can control maintenance from the portal.</p>
 </div>
 
-<script src="../modern/scripts/pow.js"></script>
+<script src="../modern/scripts/pow.js?v=<?php echo time();?>"></script>
 <script>
 var POW = { challenge: <?php echo json_encode($__pow['challenge']); ?>, target: <?php echo json_encode($__pow['target']); ?> };
 

@@ -127,22 +127,43 @@ sudo chown -R www-data:www-data /var/www/html
 sudo chmod -R 777 /tmp
 
 # --- Security hardening + 友好错误页 ---
-# Honor .htaccess (so the data/*.htaccess deny rules take effect), disable
-# directory listing, hide PHP errors, and route 403/404/500 to ChatApp's
-# friendly error pages.
-sudo tee /etc/apache2/conf-available/chatapp-security.conf > /dev/null <<'EOF'
+# 完整 deny-list（.git/.venv/node_modules/bkup/ws_test/tests/lab/cli/tablet、
+# 备份/日志/文档/脚本后缀、_* 调试文件、data/ 目录直连 …）来自仓库内的
+# gh_apache_security.conf —— 本地 macOS 与容器共用同一份规则，避免两边漂移。
+# 这里再追加容器专用的运行时目录配置（.htaccess 生效 / 关目录列表 / 隐藏报错）。
+if [ -f "$ROOT_DIR/gh_apache_security.conf" ]; then
+    { cat "$ROOT_DIR/gh_apache_security.conf"; cat <<'EOF'
+
+# ---- 容器运行时目录配置（由 gh_container_setup.sh 追加）----
 <Directory /var/www/html>
     AllowOverride All
     Options -Indexes
     php_value display_errors 0
     php_value log_errors 1
 </Directory>
-
+EOF
+    } | sudo tee /etc/apache2/conf-available/chatapp-security.conf > /dev/null
+else
+    echo "  ⚠  gh_apache_security.conf 未找到，写入最小回退配置"
+    sudo tee /etc/apache2/conf-available/chatapp-security.conf > /dev/null <<'EOF'
+<Directory /var/www/html>
+    AllowOverride All
+    Options -Indexes
+    php_value display_errors 0
+    php_value log_errors 1
+</Directory>
+Options -Indexes
+<LocationMatch "(?i)^/(\.git|\.svn|\.venv|\.pnpm-store|node_modules|bkup|ws_test|tests|lab|cli|tablet)(/|$)">Require all denied</LocationMatch>
+<LocationMatch "(?i)\.(sql|log|md|txt|sh|conf|bak|tar|tgz|tar\.gz|zip)$">Require all denied</LocationMatch>
+<LocationMatch "^/_">Require all denied</LocationMatch>
+<DirectoryMatch "^/var/www/html/data(/|$)">Require all denied</DirectoryMatch>
+<DirectoryMatch "^/var/www/html/data/res(/|$)">Require all granted</DirectoryMatch>
 # ChatApp 友好错误页：403 / 404 / 500 自动导向
 ErrorDocument 403 /errors/403.php
 ErrorDocument 404 /errors/404.php
 ErrorDocument 500 /errors/500.php
 EOF
+fi
 sudo a2enconf chatapp-security
 sudo a2enmod rewrite 2>/dev/null || true
 sudo service apache2 start

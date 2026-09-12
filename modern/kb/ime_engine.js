@@ -68,6 +68,59 @@ var ImePinyin = (function () {
     }
     function isReady() { return _ready; }
 
+    /* ---------- 扩展词典（CustomPinyinDictionary，无词频，仅兜底覆盖） ---------- */
+    var _ext = null;          // {u8, keyCount, keysIdx, wordsIdx, dec}
+    var _extLoading = false;
+    var _extCallbacks = [];
+    function isExtReady() { return !!_ext; }
+    function loadExt(cb) {
+        if (_ext) { if (cb) cb(true); return; }
+        if (cb) _extCallbacks.push(cb);
+        if (_extLoading) return;
+        _extLoading = true;
+        fetch('../kb/data/ext_data.bin').then(function (r) {
+            if (!r.ok) throw new Error('ext http ' + r.status);
+            return r.arrayBuffer();
+        }).then(function (ab) {
+            var dv = new DataView(ab);
+            var keyCount = dv.getUint32(0, true);
+            var keysIdx = new Uint32Array(ab, 4, keyCount + 1);
+            var wordsIdx = new Uint32Array(ab, 4 + (keyCount + 1) * 4, keyCount + 1);
+            _ext = { u8: new Uint8Array(ab), keyCount: keyCount, keysIdx: keysIdx, wordsIdx: wordsIdx, dec: new TextDecoder('utf-8') };
+            var cbs = _extCallbacks; _extCallbacks = [];
+            for (var i = 0; i < cbs.length; i++) cbs[i](true);
+        }).catch(function () {
+            _extLoading = false;
+            var cbs = _extCallbacks; _extCallbacks = [];
+            for (var i = 0; i < cbs.length; i++) cbs[i](false);
+        });
+    }
+    // 读取 offset 起的 NUL 结尾 UTF-8 字符串，返回 {s, next}
+    function extStrAt(off) {
+        var u8 = _ext.u8, end = off;
+        while (end < u8.length && u8[end] !== 0) end++;
+        return { s: _ext.dec.decode(u8.subarray(off, end)), next: end + 1 };
+    }
+    // 二分查找 normalized pinyin → 该键的词数组
+    function extLookup(norm) {
+        if (!_ext) return [];
+        var lo = 0, hi = _ext.keyCount - 1, found = -1;
+        while (lo <= hi) {
+            var mid = (lo + hi) >> 1;
+            var k = extStrAt(_ext.keysIdx[mid]).s;
+            if (k === norm) { found = mid; break; }
+            if (k < norm) lo = mid + 1; else hi = mid - 1;
+        }
+        if (found < 0) return [];
+        var out = [], pos = _ext.wordsIdx[found], e = _ext.wordsIdx[found + 1];
+        while (pos < e) {
+            var r = extStrAt(pos);
+            if (r.s) out.push(r.s);
+            pos = r.next;
+        }
+        return out;
+    }
+
     /* ---------- 64位编码：拼音列表 → 与 Google Long.toNumber() 一致的 Number ---------- */
     function longToNumber(big) {
         var low32 = Number(big & 0xFFFFFFFFn);            // 无符号低32位
@@ -365,6 +418,58 @@ var ImePinyin = (function () {
         return [];
     }
 
+    /* ---------- 简拼展开（w'q → wo+qu → 我去 / n'h → ni+hao → 你好） ----------
+       单字母里只有 a/o/e 是真实音节（啊/哦/诶），w/q/n/h/m… 都是首字母缩写。
+       Google 词典对 'wq' 这类简拼整串映射只能给出 武器 这种低频词（0.274），
+       把缩写还原成完整音节再查词典，我去(0.319) 就能按真实词频自然胜出。 */
+    function isAbbrevSeg(t) {
+        if (!t || t.length > 1) return false;
+        return !(t === 'a' || t === 'o' || t === 'e');
+    }
+    function seqHasAbbrev(seq) {
+        for (var i = 0; i < seq.length; i++) if (isAbbrevSeg(seq[i])) return true;
+        return false;
+    }
+    // 缩写段 → 完整音节候选（按该音节首候选词频排序）：w → wo(我)/wei(为)/wan(玩)、q → qu(去)/qi(其)/qian(钱)
+    function segExpansions(t, limit) {
+        if (!isAbbrevSeg(t)) return [t];
+        var cand = [], toks = _d.chosTokens;
+        for (var i = 0; i < toks.length; i++) {
+            var syl = toks[i];
+            if (syl.length > 1 && syl.indexOf(t) === 0) {
+                var m = getTargetMappings([syl]);
+                if (m.length && m[0].prob) cand.push({ s: syl, p: m[0].prob });
+            }
+        }
+        cand.sort(function (a, b) { return b.p - a.p; });
+        var out = [];
+        for (var j = 0; j < cand.length && out.length < (limit || 3); j++) out.push(cand[j].s);
+        return out.length ? out : [t];
+    }
+    // 简拼整串 → 组合展开后查完整拼音词典（wo+qu → 我去），拿到带真实词频的整词候选
+    function expandSegments(seq, perSeg, maxWords) {
+        var sets = [], i;
+        for (i = 0; i < seq.length; i++) sets.push(segExpansions(seq[i], perSeg || 3));
+        var combos = [[]];
+        for (i = 0; i < sets.length; i++) {
+            var next = [];
+            for (var c = 0; c < combos.length && next.length <= 16; c++) {
+                for (var v = 0; v < sets[i].length; v++) next.push(combos[c].concat([sets[i][v]]));
+            }
+            combos = next;
+        }
+        var seen = {}, out = [];
+        for (var k = 0; k < combos.length; k++) {
+            if (combos[k].join('|') === seq.join('|')) continue; // 没有实际展开
+            var m = getTargetMappings(combos[k]);
+            for (var j = 0; j < m.length && out.length < (maxWords || 6); j++) {
+                if (m[j].word && !seen[m[j].word]) { seen[m[j].word] = 1; out.push(m[j]); }
+            }
+        }
+        out.sort(function (a, b) { return (b.prob || 0) - (a.prob || 0); });
+        return out;
+    }
+
     /* ---------- 最优分词（Viterbi）：倾向用词典词组，组合成整句候选 ---------- */
     function bestSegmentation(s) {
         var n = s.length;
@@ -424,7 +529,10 @@ var ImePinyin = (function () {
         if (!py) return [];
         var complete = isComplete(py);
         var s = segmentPinyin(py);
+        var norm = py.replace(/'/g, '');
         var out = [], seen = {};
+        // 简拼展开（w'q→wo+qu→我去）：段里有单字母缩写时，还原完整音节再查词典
+        var exp = (s.length > 1 && seqHasAbbrev(s)) ? expandSegments(s, 3, 6) : [];
 
         function add(c) { if (c && c.word && !seen[c.word]) { seen[c.word] = true; out.push(c); } }
 
@@ -433,17 +541,37 @@ var ImePinyin = (function () {
             var full = getTargetMappings(s);
             // 单音节时给模糊/容错候选留 ~4 个位（否则精确填满 9 名，模糊永远排不上：zong 里 中/重 出不来）
             var aCap = s.length === 1 ? Math.max(3, maxResults - 4) : maxResults;
+            var hasGoogleFull = false;
             for (var i = 0; i < full.length && out.length < aCap; i++) {
                 // 整串多字词组：完整覆盖所有拼音 → 排序时加权置顶（否则被高频单字淹没）
-                if (full[i].word && full[i].word.length >= 2) full[i].full = true;
+                // 简拼整串映射（wq→武器）例外：不加权，按真实词频与展开结果竞争
+                if (full[i].word && full[i].word.length >= 2 && !exp.length) { full[i].full = true; hasGoogleFull = true; }
                 add(full[i]);
+            }
+            // 扩展词典兜底（CustomPinyinDictionary，无词频）：完整拼音精确匹配。
+            // Google 查不到整词时，扩展整词直接置顶（如 四氧化三铁 → 第一项）。
+            // （简拼输入跳过：扩展词典键是完整拼音，w'q 这类缩写由 exp 展开处理）
+            if (s.length >= 2 && !exp.length) {
+                var extWords = extLookup(norm);
+                for (var ex = 0; ex < extWords.length; ex++) {
+                    var ew = extWords[ex];
+                    if (!ew || seen[ew]) continue;
+                    seen[ew] = true;
+                    out.push({ word: ew, prob: 0.1 / ew.length, full: !hasGoogleFull && ew.length >= 2, ext: 1 });
+                }
             }
         }
 
         if (s.length > 1) {
+            // 简拼还原出的整词（w'q→我去）：按完整拼音的真实词频参与排序
+            for (var ei = 0; ei < exp.length; ei++) add(exp[ei]);
+
             // 最优分词整句（syllableCandidates 已模糊/容错感知：woxianzaihenkaixin→我现在很开心）
             var best = bestSegmentation(s);
-            if (best && best.word.length >= 2) add(best);
+            if (best && best.word.length >= 2) {
+                if (exp.length) best.full = false; // 简拼：不加权，避免词典猜测（wq→武器）盖过还原结果
+                add(best);
+            }
 
             // 每音节 top1 连成句（作为候选）
             var perSyllable = [];
@@ -474,7 +602,6 @@ var ImePinyin = (function () {
         }
 
         // C) 用户习惯：词频加权（常用词排前）+ 注入自造词
-        var norm = py.replace(/'/g, '');
         for (var li = 0; li < out.length; li++) {
             var lv = _learn[out[li].word];
             if (lv) out[li].prob = (out[li].prob || 0.0001) * (1 + Math.log(1 + lv.count));
@@ -489,6 +616,9 @@ var ImePinyin = (function () {
         // 按「有效分数」降序：整句/整词（full，覆盖完整拼音）加权置顶，避免被高频单字淹没
         var FULL_BOOST = 8;
         out.sort(function (a, b) {
+            // 扩展词典唯一完整匹配（Google 无整词）绝对置顶
+            var aExt = !!(a.ext && a.full), bExt = !!(b.ext && b.full);
+            if (aExt !== bExt) return aExt ? -1 : 1;
             var sa = (a.prob || 0) * (a.full ? FULL_BOOST : 1);
             var sb = (b.prob || 0) * (b.full ? FULL_BOOST : 1);
             return sb - sa;
@@ -496,5 +626,5 @@ var ImePinyin = (function () {
         return out.slice(0, maxResults);
     }
 
-    return { load: load, isReady: isReady, decode: decode, segment: segmentPinyin, setLearning: setLearning, bumpLearning: bumpLearning, getLearning: getLearning, setFuzzy: setFuzzy, isFuzzy: isFuzzy };
+    return { load: load, isReady: isReady, loadExt: loadExt, isExtReady: isExtReady, decode: decode, segment: segmentPinyin, setLearning: setLearning, bumpLearning: bumpLearning, getLearning: getLearning, setFuzzy: setFuzzy, isFuzzy: isFuzzy };
 })();

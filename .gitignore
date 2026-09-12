@@ -28,7 +28,7 @@ ca-bkup-*.sql
 ca-fullbkup-*.tar.*
 tablet-archive-20260803.tar.gz
 jh.md
-littlelab
+lab
 tests
 getdb.sh
 jsvm-obfuscator

@@ -228,15 +228,35 @@ sudo mysql -e "CREATE DATABASE IF NOT EXISTS chatapp DEFAULT CHARACTER SET utf8m
 ensure_mysql_tcp_root
 sudo apt install php-mysql php8.3-mysql php8.3-mbstring php8.3-gd php8.3-curl -y
 
-# --- Security hardening: honor .htaccess (so data/*.htaccess rules apply)
-# --- and disable directory listing. (On mac/brew adjust the conf path.)
+# --- Security hardening：完整 deny-list（.git/.venv/备份/日志/调试文件/data 直连 …）
+# --- 来自仓库内的 gh_apache_security.conf —— 本地与容器共用同一份规则。
 if [ -d /etc/apache2/conf-available ]; then
-    sudo tee /etc/apache2/conf-available/chatapp-security.conf > /dev/null <<'EOF'
+    if [ -f "$ROOT_DIR/gh_apache_security.conf" ]; then
+        { cat "$ROOT_DIR/gh_apache_security.conf"; cat <<'EOF'
+
+# ---- 运行时目录配置（由 setup.sh 追加）----
+<Directory /var/www/html>
+    AllowOverride All
+    Options -Indexes
+    php_value display_errors 0
+    php_value log_errors 1
+</Directory>
+EOF
+        } | sudo tee /etc/apache2/conf-available/chatapp-security.conf > /dev/null
+    else
+        sudo tee /etc/apache2/conf-available/chatapp-security.conf > /dev/null <<'EOF'
 <Directory /var/www/html>
     AllowOverride All
     Options -Indexes
 </Directory>
+Options -Indexes
+<LocationMatch "(?i)^/(\.git|\.svn|\.venv|\.pnpm-store|node_modules|bkup|ws_test|tests|lab|cli|tablet)(/|$)">Require all denied</LocationMatch>
+<LocationMatch "(?i)\.(sql|log|md|txt|sh|conf|bak|tar|tgz|tar\.gz|zip)$">Require all denied</LocationMatch>
+<LocationMatch "^/_">Require all denied</LocationMatch>
+<DirectoryMatch "^/var/www/html/data(/|$)">Require all denied</DirectoryMatch>
+<DirectoryMatch "^/var/www/html/data/res(/|$)">Require all granted</DirectoryMatch>
 EOF
+    fi
     sudo a2enconf chatapp-security || true
 fi
 

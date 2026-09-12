@@ -178,7 +178,10 @@
                 if (d.messages && d.messages.length) {
                     for (var i = 0; i < d.messages.length; i++) {
                         var m = d.messages[i];
-                        if (!m || m.username === U) continue;
+                        if (!m) continue;
+                        // 闪传系统行（上传完成/接收完成）：即使由自己触发，也要在当前打开的会话里实时出现
+                        var flwSys = (m.msg_type === 'temp_up' || m.msg_type === 'temp_dl');
+                        if (m.username === U && !flwSys) continue;
                         if (!m.recipient) {
                             // 公告
                             if (typeof addAnnouncement === 'function') addAnnouncement(m);
@@ -186,6 +189,9 @@
                         } else if (D && ((m.username === U && m.recipient === D) || (m.username === D && m.recipient === U))) {
                             // 当前打开的私聊（已渲染即标记处理，避免后续重复推送误计未读）
                             if (typeof addDmMessage === 'function') addDmMessage(m);
+                            if (m.id) _unreadSeen[m.id] = 1;
+                        } else if (m.username === U) {
+                            // 自己触发的闪传系统行：会话未打开 → 静默（不加未读、不提醒）
                             if (m.id) _unreadSeen[m.id] = 1;
                         } else if (m.msg_type === 'like' && !(m.id > L)) {
                             // 点赞行合并更新（非新行且聊天未打开）：静默忽略，不重复加未读/提醒

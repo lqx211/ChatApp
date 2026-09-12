@@ -61,7 +61,8 @@ function chatapp_group_proc_messages(PDO $pdo, array $msgs): array {
                     'id' => (int)$r['id'],
                     'username' => $r['username'],
                     'display_name' => $r['display_name'],
-                    'message' => ($r['deleted_at'] !== null) ? '[This message has been revoked]' : mb_substr($r['message'], 0, 80),
+                    // 普通消息以 htmlspecialchars 存库；先解码再截断，客户端统一转义显示
+                    'message' => ($r['deleted_at'] !== null) ? '[This message has been revoked]' : mb_substr(htmlspecialchars_decode((string)$r['message'], ENT_QUOTES), 0, 80),
                 ];
             }
         }
@@ -182,12 +183,14 @@ switch ($action) {
         }
         $uname = trim(mb_substr($_POST['username'] ?? '', 0, 20));
         if ($uname === '') { echo json_encode(['success' => false, 'error' => 'Empty username']); exit; }
-        $ustmt = $pdo->prepare("SELECT user_id, placeholder FROM users WHERE username = ?");
+        $ustmt = $pdo->prepare("SELECT user_id, placeholder, is_bot FROM users WHERE username = ?");
         $ustmt->execute([$uname]);
         $tu = $ustmt->fetch();
         if (!$tu) { echo json_encode(['success' => false, 'error' => 'User not found']); exit; }
         $tuId = (int)$tu['user_id'];
         if ((int)$tu['placeholder']) { echo json_encode(['success' => false, 'error' => 'Placeholder user']); exit; }
+        // 机器人只能 DM（不能进群）—— 见 plan/bot-contacts.md
+        if ((int)($tu['is_bot'] ?? 0) === 1) { echo json_encode(['success' => false, 'error' => 'Bots cannot join groups']); exit; }
         if ($pdo->query("SELECT 1 FROM group_members WHERE group_id=$gid AND user_id=$tuId")->fetch()) {
             echo json_encode(['success' => false, 'error' => 'Already a member']); exit;
         }

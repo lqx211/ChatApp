@@ -17,6 +17,7 @@ $bgWallpaper = (int)$_SESSION['wallpaper'];
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title><?php echo t('errorpage'); ?> - ChatApp</title>
 <style>
+@import url('/css/global.css');
 @font-face{font-family:'Roboto';src:url('../css/fonts/Roboto-Regular.ttf') format('truetype');font-weight:400;font-style:normal}
 @font-face{font-family:'Chinese';src:url('../css/fonts/chinese.otf') format('opentype');font-weight:400;font-style:normal}
 *{margin:0;padding:0;box-sizing:border-box;font-family:'Roboto','Chinese',-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',sans-serif !important}

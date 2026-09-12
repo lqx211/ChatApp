@@ -1,9 +1,10 @@
 /* ================================================================
    个人主页 · 暗色版 · 428px 基准
-   字体：Default（default.otf）第 1 + Roboto 第 2 + Chinese
+   字体：统一由 /css/global.css 提供（Harmony Sans → Roboto）
    ================================================================ */
+@import url('/css/global.css');
 
-/* === 字体（Default → Roboto → Chinese）=== */
+/* === 字体（页面内旧定义保留，实际以 global.css 为准）=== */
 @font-face {
   font-family: 'Default';
   src: url('../../errors/default.otf') format('opentype');

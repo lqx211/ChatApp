@@ -2,6 +2,10 @@
 # 只提交我们自己写的东西 + 用到的词典：
 #   - ime_engine.js / ime_ui.js   （自写引擎 / UI）
 #   - data/pinyin_data.js         （Google 拼音词典 8MB，Apache 2.0，见 LICENSE）
+#   - tools/build_ext_dict.py     （把 CustomPinyinDictionary txt 编译成扩展词典的脚本）
+#
+# 扩展词典是生成物（40MB），由 tools/build_ext_dict.py 从 txt 生成，不进 git：
+data/ext_data.bin
 #
 # 下面这些是上游 google-input-tools 的完整源码（chrome/os XKB、Windows IME client、
 # cloud 输入工具），本仓库只借用了 pinyin_data.js，其余没有任何运行时引用，

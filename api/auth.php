@@ -215,7 +215,7 @@ switch ($action) {
                 'locked' => true,
                 'locked_until' => date('Y-m-d H:i:s', $__lockUntil),
                 'locked_seconds' => $__secs,
-                'error' => t('msg_account_locked', (int)ceil($__secs / 60)),
+                'error' => t('msg_account_locked'),
             ]);
             exit;
         }
@@ -286,7 +286,7 @@ switch ($action) {
             $__resp['locked'] = true;
             $__resp['locked_until'] = $__newLock;
             $__resp['locked_seconds'] = (int)chatapp_lock_duration($__newFails);
-            $__resp['error'] = t('msg_account_locked', (int)ceil(chatapp_lock_duration($__newFails) / 60));
+            $__resp['error'] = t('msg_account_locked');
         }
         echo json_encode($__resp);
         break;

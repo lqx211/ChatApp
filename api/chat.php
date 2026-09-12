@@ -321,7 +321,8 @@ function proc(array $msgs): array {
                 'id' => (int)$r['id'],
                 'username' => $r['username'],
                 'display_name' => $r['display_name'],
-                'message' => ($r['deleted_at'] !== null) ? '[This message has been revoked]' : mb_substr($r['message'], 0, 80),
+                // 普通消息以 htmlspecialchars 存库；先解码再截断，客户端统一转义显示
+                'message' => ($r['deleted_at'] !== null) ? '[This message has been revoked]' : mb_substr(htmlspecialchars_decode((string)$r['message'], ENT_QUOTES), 0, 80),
             ];
         }
     }

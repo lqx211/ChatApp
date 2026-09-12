@@ -4,6 +4,8 @@
  * upload / download (streaming + progress) / status / revoke / my
  */
 require_once __DIR__ . '/config.php';
+// 共享消息业务逻辑（闪传系统提示行 chat_actions_flash_notice；零副作用，CLI/Web 双环境安全）
+require_once __DIR__ . '/chat_actions.php';
 
 chatapp_session_start();
 if (!isset($_SESSION['username'])) {
@@ -185,7 +187,29 @@ switch ($action) {
         if ($t < 4) $t = 4;
         exp_daily_incr($myUid, 'temp_upload', 10, $t, 'temp_upload');
 
+        // 上传完成 → 会话内居中蓝字系统行（接收方「对方已上传闪传文件」）
+        chat_actions_flash_notice($pdo, $id, 'up');
+
         echo json_encode(['success' => true, 'id' => $id, 'hash' => $hash, 'size' => $size, 'status' => 'ready']);
+        exit;
+
+    case 'progress':
+        // 上传进度上报（HTTP XHR 兜底路径用；WSS 分片路径由服务端自行写库，见 ws_flash_up_chunk）
+        // 仅上传者可报；只在占位中（status=0）生效，防止覆盖已完成的记录
+        $id = (int)($_POST['id'] ?? 0);
+        $bytes = (int)($_POST['bytes'] ?? 0);
+        if ($id <= 0 || $bytes < 0) { echo json_encode(['success' => false]); exit; }
+        $rec = temp_get($pdo, $id);
+        if (!$rec) { echo json_encode(['success' => false, 'error' => 'Not found']); exit; }
+        if ((int)$rec['owner_uid'] !== $myUid && $myUid !== 10000) {
+            echo json_encode(['success' => false, 'error' => 'No permission']);
+            exit;
+        }
+        if ((int)$rec['status'] !== 1) {
+            if ($bytes > (int)$rec['size']) $bytes = (int)$rec['size'];
+            $pdo->prepare("UPDATE temp_uploads SET uploaded_bytes = ? WHERE id = ? AND status = 0")->execute([$bytes, $id]);
+        }
+        echo json_encode(['success' => true]);
         exit;
 
     case 'download':
@@ -248,6 +272,8 @@ switch ($action) {
         if ($downloaded >= $rec['size'] && !connection_aborted()) {
             $pdo->prepare("UPDATE temp_uploads SET download_complete = 1, downloaded_bytes = ? WHERE id = ?")
                 ->execute([$rec['size'], $id]);
+            // 完全下载（中途断开/取消不算）→ 插入「对方于 xx 接收闪传文件」系统行
+            chat_actions_flash_notice($pdo, $id, 'dl', $myUid);
         }
         exit;
 

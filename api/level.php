@@ -162,7 +162,7 @@ switch ($action) {
 
     case 'leaderboard':
         // Manual level is displayed (users.level), exp for tiebreak.
-        $rows = $pdo->query("SELECT user_id, username, display_name, exp, level FROM users WHERE deleted_at IS NULL AND placeholder = 0 ORDER BY level DESC, exp DESC, user_id ASC LIMIT 50")->fetchAll();
+        $rows = $pdo->query("SELECT user_id, username, display_name, exp, level FROM users WHERE deleted_at IS NULL AND placeholder = 0 AND is_bot = 0 ORDER BY level DESC, exp DESC, user_id ASC LIMIT 50")->fetchAll();
         $list = [];
         $rank = 1;
         foreach ($rows as $r) {
@@ -185,10 +185,10 @@ switch ($action) {
         $row = $stmt->fetch();
         $myLevel = max(1, (int)($row['level'] ?? 1));
         $myExp = (int)($row['exp'] ?? 0);
-        $higher = $pdo->prepare("SELECT COUNT(*) FROM users WHERE deleted_at IS NULL AND placeholder = 0 AND (level > ? OR (level = ? AND exp > ?))");
+        $higher = $pdo->prepare("SELECT COUNT(*) FROM users WHERE deleted_at IS NULL AND placeholder = 0 AND is_bot = 0 AND (level > ? OR (level = ? AND exp > ?))");
         $higher->execute([$myLevel, $myLevel, $myExp]);
         $rank = (int)$higher->fetchColumn() + 1;
-        $total = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE deleted_at IS NULL AND placeholder = 0")->fetchColumn();
+        $total = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE deleted_at IS NULL AND placeholder = 0 AND is_bot = 0")->fetchColumn();
         echo json_encode(['success' => true, 'rank' => $rank, 'total' => $total]);
         exit;
 
