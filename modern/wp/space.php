@@ -982,13 +982,13 @@ function renderStreamFeeds(feeds) {
       var isMine = (window.SP_SPACE && SP_SPACE.meUid === f.user_id);
       html += '<li class="f-single" data-id="' + f.id + '">'
         + '<div class="f-single-head">'
-        + (f.avatar ? '<img class="user-avatar" src="' + f.avatar + '" alt="">' : '<span class="user-avatar av-empty">' + esc(ch) + '</span>')
+        + (f.avatar ? '<img class="user-avatar" src="' + esc(f.avatar) + '" alt="">' : '<span class="user-avatar av-empty">' + esc(ch) + '</span>')
         + '<div class="user-info">'
         + '<div class="f-nick">' + esc(f.author) + (f.special ? ' <span class="sp-special-tag">\u2665 ' + spT('sp_care', '特别关心') + '</span>' : '') + '</div>'
         + '<div class="info-detail">' + spT('sp_pub_at', '发布于 %s', esc(f.time)) + (f.edited ? ' · ' + spT('sp_edited_at', '编辑于 %s', esc(f.edited)) : '') + (isMine ? ' · <span class="f-vis">' + esc(SP_VIS_LABELS[f.vis] || '') + '</span>' : '') + '</div>'
         + '</div></div>'
         + '<div class="f-single-content"><div class="f-ct-text">' + spRenderContent(f.content) + '</div>'
-        + (f.images && f.images.length ? '<div class="f-ct-txtimg"><div class="img-box' + (f.images.length === 1 ? ' one' : '') + '" data-lb="' + f.id + '">' + f.images.map(function (im, i) { return '<a class="img-item" onclick="spOpenLightbox(' + f.id + ',' + i + ')"><img src="' + im + '" alt=""></a>'; }).join('') + '</div></div>' : '')
+        + (f.images && f.images.length ? '<div class="f-ct-txtimg"><div class="img-box' + (f.images.length === 1 ? ' one' : '') + '" data-lb="' + f.id + '">' + f.images.map(function (im, i) { return '<a class="img-item" onclick="spOpenLightbox(' + f.id + ',' + i + ')"><img src="' + esc(im) + '" alt=""></a>'; }).join('') + '</div></div>' : '')
         + '</div>'
         + '<div class="f-single-foot"><ul class="op-list">'
         + '<li class="op-like' + (f.liked ? ' liked' : '') + '" data-id="' + f.id + '">' + SP_ICONS.like + ' ' + spT('sp_like', '赞') + (f.likes ? ' (' + f.likes + ')' : '') + '</li>'
@@ -1048,7 +1048,7 @@ function renderMentions(list) {
       var delTxt = spT('sp_orig_del', '（原说说已删除）');
       html += '<li class="f-single sp-mention-item" data-mid="' + m.id + '" data-feed="' + m.feed_id + '">'
         + '<div class="f-single-head">'
-        + (m.by_avatar ? '<img class="user-avatar" src="' + m.by_avatar + '" alt="">' : '<span class="sp-mention-avph">' + esc(ch) + '</span>')
+        + (m.by_avatar ? '<img class="user-avatar" src="' + esc(m.by_avatar) + '" alt="">' : '<span class="sp-mention-avph">' + esc(ch) + '</span>')
         + '<div class="user-info">'
         + '<div class="f-nick">' + esc(m.by_display) + '</div>'
         + '<div class="info-detail">' + esc(m.time) + ' · ' + esc(typeLabel) + '</div>'
@@ -1240,7 +1240,7 @@ function renderFmList() {
     if (!uid) return;
     var on = SP_FM_SELECTED.indexOf(uid) >= 0;
     html += '<div class="sp-fm-item' + (on ? ' on' : '') + '" data-uid="' + uid + '" onclick="spFmToggle(event,' + uid + ')">'
-      + '<img src="' + (f.avatar || '') + '" alt="" onerror="this.style.visibility=\'hidden\'">'
+      + '<img src="' + esc(f.avatar || '') + '" alt="" onerror="this.style.visibility=\'hidden\'">'
       + '<span class="sp-fm-name">' + spEsc(name) + '</span>'
       + (on ? '<span class="sp-fm-ck">' + SP_X_IC + '</span>' : '')
       + '</div>';
@@ -1261,7 +1261,7 @@ function renderFmPicked() {
       if (SP_FM_SELECTED.indexOf(uid) >= 0) {
         var name = (f.display_name || f.username || '');
         html += '<span class="sp-fm-pick" data-uid="' + uid + '" title="' + spT('sp_remove', '移除') + '" onclick="spFmToggle(event,' + uid + ')">'
-          + '<img src="' + (f.avatar || '') + '" alt="" onerror="this.style.visibility=\'hidden\'">'
+          + '<img src="' + esc(f.avatar || '') + '" alt="" onerror="this.style.visibility=\'hidden\'">'
           + '<span>' + spEsc(name) + '</span>' + SP_X_IC + '</span>';
       }
     });
@@ -1450,7 +1450,7 @@ function renderPostImgs() {
   box.style.display = '';   // 恢复 CSS grid（每行 3 个，各占约 32%）
   var html = '';
   SP_POST_IMAGES.forEach(function (u, i) {
-    html += '<div class="sp-post-img"><img src="' + u + '" alt=""><span class="sp-post-img-x" title="' + spT('sp_remove', '移除') + '" onclick="spDropImg(' + i + ')">' + SP_X_IC + '</span></div>';
+    html += '<div class="sp-post-img"><img src="' + esc(u) + '" alt=""><span class="sp-post-img-x" title="' + spT('sp_remove', '移除') + '" onclick="spDropImg(' + i + ')">' + SP_X_IC + '</span></div>';
   });
   box.innerHTML = html;
 }
@@ -1525,7 +1525,7 @@ function esc(s) {
 }
 /* ===== 表情（朋友圈：内置 + 自定义，与 chat.php 同款） ===== */
 var SP_EMOJI = [];
-fetch('../../api/emoji.php?action=list').then(function (r) { return r.json(); }).then(function (d) { if (d && d.success) SP_EMOJI = d.emojis || []; }).catch(function () {});
+fetch('../../api/emoji.php?v=p1&action=list').then(function (r) { return r.json(); }).then(function (d) { if (d && d.success) SP_EMOJI = d.emojis || []; }).catch(function () {});
 function spRenderEmoji(t) {
   if (Array.isArray(SP_EMOJI) && SP_EMOJI.length) {
     for (var i = 0; i < SP_EMOJI.length; i++) {
@@ -1571,7 +1571,7 @@ function spSwitchEmojiTab(tab) {
   if (!grid) return;
   if (tab === 'builtin') {
     if (!SP_EMOJI.length) {
-      fetch('../../api/emoji.php?action=list').then(function (r) { return r.json(); }).then(function (d) { if (d && d.success) { SP_EMOJI = d.emojis || []; spSwitchEmojiTab('builtin'); } });
+      fetch('../../api/emoji.php?v=p1&action=list').then(function (r) { return r.json(); }).then(function (d) { if (d && d.success) { SP_EMOJI = d.emojis || []; spSwitchEmojiTab('builtin'); } });
       return;
     }
     var h = '';
@@ -1689,7 +1689,7 @@ function renderComments(box, comments, iAmOwner) {
 function cmtTopHtml(c, iAmOwner) {
   var del = (c.mine || iAmOwner) ? '<a class="f-cmt-del" data-id="' + c.id + '">' + spT('sp_delete', '删除') + '</a>' : '';
   return '<div class="f-cmt" data-id="' + c.id + '">'
-    + (c.card.avatar ? '<img class="f-cmt-av" src="' + c.card.avatar + '" alt="">' : '<div class="f-cmt-av av-empty">' + esc(c.card.name.charAt(0)) + '</div>')
+    + (c.card.avatar ? '<img class="f-cmt-av" src="' + esc(c.card.avatar) + '" alt="">' : '<div class="f-cmt-av av-empty">' + esc(c.card.name.charAt(0)) + '</div>')
     + '<div class="f-cmt-bd">'
     + '<div class="f-cmt-txt"><b>' + esc(c.card.name) + '</b>：' + spRenderContent(c.content) + '</div>'
     + '<div class="f-cmt-meta">' + c.time + ' · <a class="f-cmt-reply" data-id="' + c.id + '" data-name="' + esc(c.card.name) + '">' + spT('sp_reply', '回复') + '</a>' + del + '</div>'
@@ -1765,7 +1765,7 @@ function renderBoard(msgs, iAmOwner) {
   msgs.forEach(function (m) {
     var del = (m.mine || iAmOwner) ? '<a class="sp-board-del" data-id="' + m.id + '">' + spT('sp_delete', '删除') + '</a>' : '';
     html += '<li class="sp-board-item" data-id="' + m.id + '">'
-      + (m.card.avatar ? '<img class="sp-board-av" src="' + m.card.avatar + '" alt="">' : '<div class="sp-board-av av-empty">' + esc(m.card.name.charAt(0)) + '</div>')
+      + (m.card.avatar ? '<img class="sp-board-av" src="' + esc(m.card.avatar) + '" alt="">' : '<div class="sp-board-av av-empty">' + esc(m.card.name.charAt(0)) + '</div>')
       + '<div class="sp-board-bd">'
       + '<div class="sp-board-top"><b>' + esc(m.card.name) + '</b><span class="sp-board-time">' + m.time + '</span></div>'
       + '<div class="sp-board-ct">' + spRenderContent(m.content) + '</div>'
@@ -1829,9 +1829,9 @@ function renderVisitorList(list, arr, type) {
   if (!arr.length) { list.innerHTML = '<li class="sp-vis-empty">' + spT('sp_no_visitor', '暂无访客') + '</li>'; return; }
   var h = '';
   arr.forEach(function (v) {
-    var av = v.avatar ? '<img src="' + v.avatar + '" alt="">' : '<div class="av-empty">' + esc((v.name || '?').charAt(0)) + '</div>';
+    var av = v.avatar ? '<img src="' + esc(v.avatar) + '" alt="">' : '<div class="av-empty">' + esc((v.name || '?').charAt(0)) + '</div>';
     var del = (type === 'me') ? '<span class="sp-vis-del" data-uid="' + v.uid + '" onclick="event.stopPropagation();spVisitorDel(' + v.uid + ')">×</span>' : '';
-    h += '<li class="sp-vis-item" data-uid="' + v.uid + '" data-username="' + esc(v.username) + '" data-name="' + esc(v.name) + '" data-avatar="' + (v.avatar || '') + '" data-gender="' + v.gender + '" data-zodiac="' + esc(v.zodiac) + '" data-common="' + v.common + '" data-special="' + v.special + '" onmouseenter="spNcHoverIn(this)" onmouseleave="spNcHoverOut()">'
+    h += '<li class="sp-vis-item" data-uid="' + v.uid + '" data-username="' + esc(v.username) + '" data-name="' + esc(v.name) + '" data-avatar="' + esc(v.avatar || '') + '" data-gender="' + v.gender + '" data-zodiac="' + esc(v.zodiac) + '" data-common="' + v.common + '" data-special="' + v.special + '" onmouseenter="spNcHoverIn(this)" onmouseleave="spNcHoverOut()">'
       + '<div class="sp-vis-av">' + av + del + '<span class="sp-vis-name-ov">' + esc(v.name) + '</span></div>'
       + '<span class="sp-vis-time">' + esc(v.time) + '</span>'
       + '</li>';
@@ -1978,7 +1978,7 @@ function spVpLoad() {
       if (!arr.length) { list.innerHTML = '<li class="sp-vis-empty">' + (SP_VP_TYPE === 'refuse' ? spT('sp_no_blocked', '暂无被挡访客') : spT('sp_no_visitor', '暂无访客')) + '</li>'; return; }
       var h = '';
       arr.forEach(function (v) {
-        var av = v.avatar ? '<img src="' + v.avatar + '" alt="">' : '<span class="av-empty">' + esc((v.name || '?').charAt(0)) + '</span>';
+        var av = v.avatar ? '<img src="' + esc(v.avatar) + '" alt="">' : '<span class="av-empty">' + esc((v.name || '?').charAt(0)) + '</span>';
         var del = (SP_VP_TYPE === 'me') ? '<a class="top_del" title="' + spT('sp_delete', '删除') + '" onclick="event.stopPropagation();spVpDel(' + v.uid + ')">×</a>' : '';
         h += '<li class="user-item" data-uid="' + v.uid + '" data-username="' + esc(v.username) + '" data-name="' + esc(v.name) + '" data-avatar="' + (v.avatar || '') + '" data-gender="' + v.gender + '" data-zodiac="' + esc(v.zodiac) + '" data-common="' + v.common + '" data-special="' + v.special + '" onmouseenter="spNcHoverIn(this)" onmouseleave="spNcHoverOut()">'
           + '<a class="user-avatar q_namecard">' + av + '<span class="sp-vis-name-ov">' + esc(v.name) + '</span></a>'
@@ -2030,7 +2030,7 @@ function renderAlbumList(albums) {
   if (!albums.length) { wrap.innerHTML = '<div class="sp-album-empty">' + spT('sp_no_album', '暂无相册') + '</div>'; return; }
   var h = '<div class="sp-album-grid">';
   albums.forEach(function (a) {
-    var cover = a.cover ? '<img src="' + a.cover + '" alt="">' : '<div class="sp-album-noimg">📷</div>';
+    var cover = a.cover ? '<img src="' + esc(a.cover) + '" alt="">' : '<div class="sp-album-noimg">📷</div>';
     var del = SP_SPACE.self ? '<span class="sp-album-del" title="' + spT('sp_delete_album', '删除相册') + '" onclick="event.stopPropagation();spAlbumDel(' + a.id + ')">✕</span>' : '';
     h += '<div class="sp-album-card" onclick="spAlbumView(' + a.id + ')">'
       + '<div class="sp-album-cover">' + cover + del + '</div>'
@@ -2056,7 +2056,7 @@ function spAlbumView(id) {
       else {
         h += '<div class="sp-album-grid">';
         d.photos.forEach(function (p) {
-          h += '<div class="sp-album-card sp-album-photo" onclick="spOpenLightboxUrl(\'' + p.media.replace(/'/g, "\\'") + '\')"><div class="sp-album-cover"><img src="' + p.media + '" alt=""></div>' + (p.mine ? '<span class="sp-photo-del" title="' + spT('sp_delete', '删除') + '" onclick="event.stopPropagation();spPhotoDel(' + p.id + ')">&times;</span>' : '') + '</div>';
+          h += '<div class="sp-album-card sp-album-photo" onclick="spOpenLightboxUrl(\'' + esc(p.media.replace(/\\/g, '\\\\').replace(/'/g, "\\'")) + '\')"><div class="sp-album-cover"><img src="' + esc(p.media) + '" alt=""></div>' + (p.mine ? '<span class="sp-photo-del" title="' + spT('sp_delete', '删除') + '" onclick="event.stopPropagation();spPhotoDel(' + p.id + ')">&times;</span>' : '') + '</div>';
         });
         h += '</div>';
       }

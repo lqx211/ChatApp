@@ -75,7 +75,7 @@
     /* ---------------- 表情渲染 ---------------- */
     var _emojiBuiltin = [];
     function loadEmojiList() {
-        apiGet('../../api/emoji.php?action=list').then(function (d) {
+        apiGet('../../api/emoji.php?v=p1&action=list').then(function (d) {
             if (d && d.success && d.emojis) {
                 _emojiBuiltin = d.emojis;
                 // 列表到达后重渲染可见内容（首屏可能先于接口渲染）

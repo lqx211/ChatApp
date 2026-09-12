@@ -1,5 +1,6 @@
+@import url('/css/global.css'); /* 统一字体：Harmony Sans → Roboto */
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;background:transparent;color:#e0e0e0;height:100vh;display:flex}
+body{font-family:'Harmony Sans','Roboto',-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',sans-serif;background:transparent;color:#e0e0e0;height:100vh;display:flex}
 .sidebar{width:200px;min-width:200px;background:rgba(30,30,30,0.85);border-right:1px solid rgba(58,58,58,0.6);display:flex;flex-direction:column;height:100vh;user-select:none}
 .sidebar-profile{padding:14px;border-bottom:1px solid #3a3a3a;text-align:center}
 .sa{width:44px;height:44px;border:1px solid #555;margin:0 auto 6px;overflow:hidden;background:#2a2a2a}
@@ -20,8 +21,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .ngb{display:none}
 .ngb.op{display:block}
 .csi{display:flex;align-items:center;gap:8px;padding:6px 14px 6px 24px;cursor:pointer;color:#888;font-size:.78em}
-.like-sysline{text-align:center;font-size:.72em;color:#7f8288;padding:6px 0;margin:2px 0}
-.like-sysline a{color:#8fb6d9;text-decoration:none;cursor:pointer}
+.like-sysline{text-align:center;font-size:.72em;color:#4da3ff;padding:6px 0;margin:2px 0}
+.like-sysline a{color:inherit;text-decoration:none;cursor:pointer}
 .like-sysline a:hover{text-decoration:underline}
 /* E2EE 状态系统行：蓝色 */
 .like-sysline.e2ee-sysline{color:#4da3ff}
@@ -315,7 +316,7 @@ img[src*="data/res/svg/"],img[src*="data/res/cil/"],img[src*="data/res/brand/"]{
  .user-sidebar{width:100vw}
 }
 
-.ca img, .msg-avatar img, .srch-avatar img { background: url(../../data/profile_empty.png) center/cover no-repeat; }
+.ca img, .msg-avatar img, .srch-avatar img { background: url(../../data/res/profile_empty.png) center/cover no-repeat; }
 
 /* ---- Emoji Popup ---- */
 #emojiPopup {
@@ -1104,3 +1105,173 @@ input[type="date"]:focus {
 #audioWin input[type=range] { -webkit-appearance: none; appearance: none; height: 4px; background: #444; outline: none; cursor: pointer; }
 #audioWin input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 12px; height: 12px; background: #4a9dd8; cursor: pointer; border: none; }
 #audioWin input[type=range]::-moz-range-thumb { width: 12px; height: 12px; background: #4a9dd8; cursor: pointer; border: none; }
+
+/* ============================================================
+   机器人联系人（多 AI 会话） —— 见 plan/bot-contacts.md
+   ============================================================ */
+.csi .bot-badge { font-size: .9em; margin-left: 4px; opacity: .85; }
+.csi.is-bot .cn { color: #9fd0ff; }
+.csi.is-bot .ca { position: relative; }
+.csi.is-bot .ca::after {
+  content: '🤖'; position: absolute; right: -3px; bottom: -3px; font-size: 10px;
+  background: #1e1e1e; border-radius: 50%; line-height: 1; padding: 1px;
+}
+/* 机器人配置窗口（添加机器人 / 机器人设置 共用一套；基于 .modal-overlay + .modal-box） */
+.ds-bot-modal { width: min(460px, 92vw); text-align: left; border-radius: 8px; padding: 18px 20px; }
+.ds-bot-modal h3 { text-align: left; margin: 0 0 12px; font-size: 1.05em; }
+.ds-bot-label { display: block; font-size: .76em; color: #9a9a9a; margin: 10px 0 4px; }
+.ds-bot-label:first-of-type { margin-top: 0; }
+.ds-bot-input {
+  width: 100%; box-sizing: border-box;
+  background: #1e1e1e; border: 1px solid #444; color: #e0e0e0;
+  font-size: .86em; padding: 8px 10px; outline: none; font-family: inherit; border-radius: 4px;
+}
+.ds-bot-input:focus { border-color: #4a9dd8; }
+.ds-bot-textarea { min-height: 108px; line-height: 1.55; resize: vertical; }
+.ds-bot-note {
+  font-size: .72em; color: #8a8a8a; line-height: 1.65; margin: 12px 0 0;
+  border-top: 1px solid #333; padding-top: 10px; text-align: left;
+}
+.ds-bot-note a { color: #6a9fd8; }
+.ds-bot-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }
+.ds-bot-actions .bsm { min-width: 76px; }
+.ds-bot-actions .ds-bot-primary { background: #2a4a2a; border-color: #3a6a3a; }
+.ds-bot-actions .ds-bot-danger { background: #4a2a2a; border-color: #6a3a3a; margin-right: auto; }
+@media (max-width: 480px) {
+  .ds-bot-modal { width: 94vw; padding: 16px; }
+  .ds-bot-textarea { min-height: 88px; }
+}
+/* 伪人：人格摘要（机器人设置里） */
+.ds-bot-profile {
+  white-space: pre-wrap; font-size: .74em; line-height: 1.7; color: #a8b4bd;
+  background: #1a1e22; border: 1px solid #2f3439; border-radius: 4px; padding: 8px 10px; margin: 0 0 10px;
+  font-family: inherit; max-height: 160px; overflow-y: auto;
+}
+.ds-bot-kind { display: flex; gap: 14px; padding: 2px 0 4px; }
+.ds-bot-kind label { display: flex; align-items: center; gap: 6px; font-size: .82em; color: #c0c0c0; cursor: pointer; }
+.ds-bot-kind input[type=radio] { accent-color: #4caf50; }
+/* 伪人分析卡：分析过程直接显示在聊天流里 */
+.ds-analysis {
+  align-self: flex-start; max-width: min(560px, 88%); margin: 6px 0;
+  background: #1b2026; border: 1px solid #2f3944; border-left: 3px solid #5a7a9a;
+  border-radius: 6px; padding: 8px 10px; font-size: .76em; color: #9fb4c7;
+}
+.ds-analysis.done { border-left-color: #4a9d5a; }
+.ds-analysis.err { border-left-color: #a05252; }
+.ds-an-head { display: flex; align-items: center; gap: 6px; }
+.ds-an-ico { font-size: 1.05em; }
+.ds-an-title { flex: 1; font-weight: 600; color: #cfe0ef; }
+.ds-an-toggle { cursor: pointer; color: #7f8c99; font-size: .92em; }
+.ds-an-toggle:hover { color: #a9b7c4; }
+.ds-an-body { display: none; margin-top: 6px; }
+.ds-analysis.open .ds-an-body { display: block; }
+.ds-an-thinking { color: #7d8794; font-style: italic; white-space: pre-wrap; line-height: 1.55; max-height: 120px; overflow-y: auto; margin-bottom: 4px; }
+.ds-an-raw {
+  background: #14181c; border: 1px solid #2b3238; border-radius: 4px; padding: 6px 8px; margin: 0;
+  color: #93a2b0; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .92em;
+  white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow-y: auto;
+}
+.ds-an-sum { margin-top: 2px; line-height: 1.7; }
+.ds-an-line { margin: 2px 0; }
+.ds-an-line b { color: #8fc7ff; font-weight: 600; margin-right: 6px; }
+.ds-an-line.dim { color: #7d8794; font-size: .95em; }
+.ds-an-line.err { color: #e08080; }
+.ds-an-actions { display: flex; gap: 8px; margin-top: 8px; }
+.ds-an-actions .bsm { font-size: .95em; padding: 4px 10px; }
+
+/* ===== 伪人「人格优化」窗口（P2） ===== */
+.opt-win { width: min(620px, 94vw); max-height: 88vh; display: flex; flex-direction: column; padding: 0; }
+.opt-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid #2f3944; }
+.opt-title { font-size: 1.02em; font-weight: 600; color: #dbe8f4; }
+.opt-sub { flex: 1; font-size: .82em; color: #8b98a6; }
+.opt-x { background: none; border: 0; color: #8b98a6; font-size: 1.05em; cursor: pointer; }
+.opt-chat { flex: 1; min-height: 240px; max-height: 52vh; overflow-y: auto; padding: 12px 14px; background: #12161a; }
+.opt-empty { color: #7d8794; font-size: .85em; line-height: 1.8; }
+.opt-msg { max-width: 86%; margin: 6px 0; padding: 7px 10px; border-radius: 7px; font-size: .84em; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+.opt-msg.me { margin-left: auto; background: #26456b; color: #e6f0fa; }
+.opt-msg.bot { background: #1d242b; color: #cfdbe6; border: 1px solid #2c343c; }
+.opt-why { margin-top: 5px; padding-top: 5px; border-top: 1px dashed #3a444e; color: #8b98a6; font-size: .95em; }
+.opt-note { margin: 6px 0; color: #7d8794; font-size: .82em; text-align: center; }
+.opt-note.ok { color: #6fbf7f; }
+.opt-note.err { color: #e08080; text-align: left; }
+.opt-raw { margin: 6px 0 0; padding: 6px 8px; background: #14181c; border: 1px solid #2b3238; border-radius: 4px; color: #93a2b0;
+  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .92em; white-space: pre-wrap; word-break: break-word; max-height: 180px; overflow-y: auto; }
+.opt-card { margin: 8px 0; padding: 9px 11px; background: #1b2026; border: 1px solid #33414f; border-left: 3px solid #c9a227; border-radius: 6px; }
+.opt-card.done { opacity: .85; }
+.opt-card.done.ok, .opt-card.done { border-left-color: #4a9d5a; }
+.opt-q { font-size: .86em; color: #dbe8f4; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.opt-q img.chat-emoji { height: 26px; width: auto; vertical-align: middle; }
+.opt-cnt { font-weight: 400; color: #8b98a6; font-size: .88em; }
+.opt-qt { margin-top: 5px; font-size: .84em; color: #c2cdd8; line-height: 1.6; }
+.opt-ex { margin-top: 5px; font-size: .8em; color: #7d8794; line-height: 1.7; }
+.opt-in { width: 100%; margin-top: 7px; box-sizing: border-box; background: #14181c; border: 1px solid #333c45; border-radius: 5px;
+  color: #dbe8f4; padding: 6px 8px; font-size: .84em; resize: vertical; font-family: inherit; }
+.opt-acts { display: flex; gap: 8px; margin-top: 8px; }
+.opt-btn { padding: 5px 14px; border-radius: 5px; border: 0; cursor: pointer; font-size: .84em; }
+.opt-btn.gray { background: #2a323a; color: #a9b7c4; }
+.opt-btn.gray:hover { background: #333c45; }
+.opt-btn.green { background: #2e7d43; color: #eaf7ee; }
+.opt-btn.green:hover { background: #358f4d; }
+.opt-diff { margin-top: 7px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .82em; line-height: 1.75; }
+.opt-dline { display: flex; gap: 6px; word-break: break-word; }
+.opt-dop { flex: 0 0 1.2em; }
+.opt-dline.add { color: #7fd39a; }
+.opt-dline.chg { color: #e6c86e; }
+.opt-dline.same { color: #7d8794; }
+.opt-bar { display: flex; gap: 8px; padding: 8px 14px 0; }
+.opt-input { display: flex; gap: 8px; padding: 8px 14px 12px; }
+.opt-input textarea { flex: 1; background: #14181c; border: 1px solid #333c45; border-radius: 6px; color: #dbe8f4; padding: 7px 9px;
+  font-size: .86em; resize: none; font-family: inherit; max-height: 120px; }
+.opt-send { align-self: flex-end; }
+@media (max-width: 600px) {
+  .opt-win { width: 96vw; }
+  .opt-chat { max-height: 46vh; }
+  .opt-msg { max-width: 94%; }
+}
+
+/* 伪人「思考过程」卡（复用分析卡样式，加一个更淡的变体） */
+.ds-analysis.ds-think { border-left-color: #6a5acd; background: #191c22; }
+.ds-analysis.ds-think .ds-an-title { color: #a9a2e0; font-weight: 500; }
+.ds-analysis.ds-think .ds-an-thinking { color: #8a8f9e; max-height: 220px; }
+.ds-analysis.ds-think .ds-an-toggle { font-size: .9em; }
+
+/* 伪人「内心戏」卡：阶段行 + 心情 + 念头列表 */
+.ds-an-phase { text-align: center; color: #6f7a86; font-size: .88em; margin: 2px 0 6px; }
+.ds-an-inner { white-space: pre-wrap; word-break: break-word; color: #8a8f9e; font-style: italic; line-height: 1.6;
+  max-height: 220px; overflow-y: auto; margin-bottom: 6px; }
+.ds-mood { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0; }
+.ds-mood-chip { padding: 2px 10px; border-radius: 999px; font-size: .92em; font-weight: 600; border: 1px solid #3a444e; color: #cfe0ef; }
+.ds-mood-chip.neg { border-color: #7a4a4a; color: #e2a0a0; background: #2a1c1c; }
+.ds-mood-chip.pos { border-color: #4a7a5a; color: #a0e0b0; background: #1c2a20; }
+.ds-mood-meta { color: #7d8794; font-size: .85em; }
+.ds-th { margin: 3px 0 6px; padding-left: 18px; color: #c2cdd8; }
+.ds-th li { margin: 2px 0; line-height: 1.6; }
+.ds-th.hold li { color: #8a8f9e; text-decoration: line-through dashed rgba(138,143,158,.45); }
+.ds-an-line.mem { color: #b9a86e; }
+
+/* 优化窗口：实时思考过程 + 可折叠的「思考过程」条目 */
+.opt-live-title { color: #a9a2e0; font-size: .9em; margin-bottom: 4px; }
+.opt-think-live { color: #8a8f9e; font-style: italic; white-space: pre-wrap; word-break: break-word;
+  line-height: 1.6; max-height: 220px; overflow-y: auto; margin-bottom: 6px; text-align: left; }
+.opt-note.think { text-align: left; background: #191c22; border: 1px solid #2f3944; border-left: 3px solid #6a5acd;
+  border-radius: 6px; padding: 7px 10px; }
+.opt-think-head { cursor: pointer; color: #a9a2e0; font-size: .88em; display: flex; align-items: center; gap: 8px; }
+.opt-think-body { display: none; margin-top: 6px; }
+.opt-note.think.open .opt-think-body { display: block; }
+
+/* 表情卡：AI 猜预设按钮 */
+.opt-btn.guess { background: #33405a; color: #bcd0ea; }
+.opt-btn.guess:hover { background: #3d4d6b; }
+.opt-btn.guess[disabled] { opacity: .6; cursor: default; }
+.opt-card .opt-in { color: #dbe8f4; }
+.opt-card .opt-hint { color: #8fae9a; }
+.opt-card img.chat-emoji { height: 40px; width: auto; vertical-align: middle; }
+
+/* 记忆点卡片 */
+.opt-mem { margin: 6px 0; border: 1px solid #2f3944; border-radius: 5px; background: #161a1f; }
+.opt-mem-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-bottom: 1px solid #232a31;
+  color: #cfdbe6; font-size: .84em; line-height: 1.6; }
+.opt-mem-row:last-child { border-bottom: none; }
+.opt-mem-x { cursor: pointer; color: #7d8794; font-size: .9em; flex: 0 0 auto; }
+.opt-mem-x:hover { color: #e08080; }
+.opt-mem-add { margin-top: 6px; }

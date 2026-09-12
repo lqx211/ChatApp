@@ -62,47 +62,10 @@ function _emoji_file_for_hash(string $hash): ?string {
     return null;
 }
 
-// Helper: load built-in emoji config
+// Helper: load built-in emoji config（实现已抽到 emoji_config.php，机器人这边共用同一份）
+require_once __DIR__ . '/emoji_config.php';
 function _builtin_list(): array {
-    static $cache = null;
-    if ($cache !== null) return $cache;
-    $path = __DIR__ . '/../data/res/emoji/default_config.json';
-    if (!file_exists($path)) { $cache = []; return []; }
-    $raw = json_decode(file_get_contents($path), true);
-    $list = [];
-    $dir = __DIR__ . '/../data/res/emoji/';
-    foreach (($raw['normalPanelResult']['SysEmojiGroupList'] ?? []) as $g) {
-        $gname = $g['groupName'] ?? 'Emoji';
-        foreach ($g['SysEmojiList'] ?? [] as $e) {
-            if (!empty($e['isHide'])) continue;
-            $etype = (int)($e['emojiType'] ?? 0);
-            $eid   = (string)($e['emojiId'] ?? '');
-            $desc  = $e['describe'] ?? '';
-            $entry = [
-                'id'    => $eid,
-                'code'  => $desc,
-                'type'  => $etype,
-                'group' => $gname,
-                'img'   => null,
-            ];
-            if ($etype === 4) {
-                // Unicode native emoji – no PNG
-                $entry['unicode'] = $eid;
-            } else {
-                if (file_exists($dir . $eid . '.png')) {
-                    $entry['img'] = 'data/res/emoji/' . $eid . '.png';
-                    if (file_exists($dir . 's' . $eid . '.png')) {
-                        $entry['img_dyn'] = 'data/res/emoji/s' . $eid . '.png';
-                    }
-                } else {
-                    continue; // missing PNG – skip
-                }
-            }
-            $list[] = $entry;
-        }
-    }
-    $cache = $list;
-    return $list;
+    return chatapp_builtin_emojis();
 }
 
 switch ($action) {

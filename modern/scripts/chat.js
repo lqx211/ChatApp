@@ -21,6 +21,8 @@ var _sidebarProfileSaved = null,
     _sidebarNavSaved = null;
 var _contactNotes = {};
 var _pinned = {};        // username -> 1/0（联系人置顶）
+var _bots = {};          // username -> 1（机器人联系人，见 api/bots.php / plan/bot-contacts.md）
+var _botInfo = {};       // username -> {kind:'normal'|'pseudo', target_uid, has_profile}（伪人，见 plan/pseudo-human.md）
 var _pinnedGroup = {};   // group_id -> 1/0（群置顶）
 var _pinnedSelf = (typeof window.MYSELF_PIN !== 'undefined') ? (window.MYSELF_PIN ? 1 : 0) : 1; // 自己聊天置顶（默认置顶）
 var _loaded = false;
@@ -739,14 +741,20 @@ function _logFetch(action, page) {
     });
 }
 
+// HTML 转义（文本 + 属性通用）：& < > " ' 全部转义 —— 任何拼进 innerHTML 的
+// 用户数据都必须经过这里（属性值同样安全，因为引号也会被转义）。
 function eh(t) {
     var d = document.createElement('div');
     d.appendChild(document.createTextNode(t));
-    return d.innerHTML
+    return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
-// eh() 不转义双引号（文本上下文），属性值需额外把 " 转成 &quot;
+// 属性值转义：eh 已转义引号，直接复用
 function ehAttr(t) {
-    return eh(t).replace(/"/g, '&quot;');
+    return eh(t);
+}
+// 「属性里的 JS 字符串字面量」转义：先做 JS 转义再 HTML 转义（顺序不能反）
+function ehJs(t) {
+    return ehAttr(String(t == null ? '' : t).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
 }
 
 // messages.time 列已改为 BIGINT（UNIX 秒级 UTC 时间戳），前端 new Date(ts*1000) 即可；
@@ -932,6 +940,8 @@ function checkOnline() {
                 cn = items[i].querySelector('.cn');
             if (!cn) continue;
             cn.classList.remove('on', 'dnd', 'rstr', 'off');
+            // 机器人：账号是 enabled=0（不可登录），但应该显示为「在线」
+            if (typeof _bots === 'object' && _bots[u]) { cn.classList.add('on'); continue; }
             if (s.restricted && s.restricted[u]) cn.classList.add('rstr');
             else if (s.dnd && s.dnd[u]) cn.classList.add('dnd');
             else if (s.online && s.online[u]) cn.classList.add('on');
@@ -979,16 +989,24 @@ function loadContacts() {
     fetch('../../api/contacts.php?action=list').then(r => r.json()).then(function(d) {
         var e = document.getElementById('friendContacts');
         if (typeof d.pin_self !== 'undefined') { _pinnedSelf = d.pin_self ? 1 : 0; renderSelfPin(); }
+        _bots = {};
         if (d.success && d.contacts.length > 0) {
             var h = '';
             var sorted = d.contacts.slice().sort(function(a, b) { return ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)); });
             for (var i = 0; i < sorted.length; i++) {
                 var c = sorted[i],
-                    a = c.avatar ? '<img src="' + ehAttr(c.avatar) + '">' : '<img src="../../data/profile_empty.png">';
+                    a = c.avatar ? '<img src="' + ehAttr(c.avatar) + '">' : '<img src="../../data/res/profile_empty.png">';
                 _contactNotes[c.username] = c.note || '';
                 _pinned[c.username] = c.pinned ? 1 : 0;
+                if (Number(c.is_bot) === 1) {
+                    var bi = _botInfo[c.username] || {};
+                    bi.kind = bi.kind || (c.bot_kind || 'normal');
+                    _botInfo[c.username] = bi;
+                    _bots[c.username] = 1;
+                }
+                var nm = eh(c.note || c.display_name || c.username) + (Number(c.is_bot) === 1 ? '<span class="bot-badge" title="AI 机器人">🤖</span>' : '');
                 // ca 直接内联 onclick（Edge 兼容）：点头像打开个人资料，stopPropagation 避免触发 openDm
-                h += '<div class="csi' + (_pinned[c.username] ? ' pinned' : '') + '" data-cuser="' + c.username + '" onclick="openDm(\'' + c.username + '\')"><div class="ca" onclick="event.stopPropagation();event.preventDefault();openMyProfile(\'' + c.username + '\')">' + a + '</div><div class="cn" data-original="' + eh(c.note || c.display_name || c.username) + '">' + eh(c.note || c.display_name || c.username) + '</div></div>';
+                h += '<div class="csi' + (_pinned[c.username] ? ' pinned' : '') + (Number(c.is_bot) === 1 ? ' is-bot' : '') + '" data-cuser="' + c.username + '" onclick="openDm(\'' + c.username + '\')"><div class="ca" onclick="event.stopPropagation();event.preventDefault();openMyProfile(\'' + c.username + '\')">' + a + '</div><div class="cn" data-original="' + eh(c.note || c.display_name || c.username) + '">' + nm + '</div></div>';
             }
             e.innerHTML = h;
             updateUnreads();
@@ -996,9 +1014,676 @@ function loadContacts() {
     });
 }
 
+/* ============================================================
+   机器人联系人（多 AI 会话）—— 见 plan/bot-contacts.md
+   机器人 = users 表里 is_bot=1 且 bot_owner_uid=我 的私有账号；
+   消息就是普通私聊消息，所以未读/置顶/备注/搜索记录/删除全部复用。
+   ============================================================ */
+var _botTemplates = null;
+
+function botApi(body) {
+    return fetch('../../api/bots.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(body)
+    }).then(function(r) { return r.json(); });
+}
+
+function toggleAddContact() {
+    var box = document.getElementById('addContactBox');
+    if (!box) return;
+    box.style.display = (box.style.display === 'none' || !box.style.display) ? 'block' : 'none';
+    if (box.style.display === 'block') {
+        var i = document.getElementById('searchInput');
+        if (i) i.focus();
+    }
+}
+
+/* ---- 添加机器人：弹出独立窗口配置（侧栏太窄，放不下名字/模板/人设） ---- */
+function openBotCreate() {
+    var m = document.getElementById('botCreateModal');
+    if (!m) return;
+    m.classList.add('active');
+    loadBotTemplates();
+    setTimeout(function() { var n = document.getElementById('botNameInput'); if (n) n.focus(); }, 60);
+}function closeBotCreate() {
+    var m = document.getElementById('botCreateModal');
+    if (m) m.classList.remove('active');
+}
+/* 点遮罩 / 按 Esc 关掉（点窗口内部不关） */
+function botModalBackdrop(e, id) {
+    if (e && e.target && e.target.id === id) {
+        var m = document.getElementById(id);
+        if (m) m.classList.remove('active');
+    }
+}
+document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape') return;
+    ['botCreateModal', 'botSettingsModal'].forEach(function(id) {
+        var m = document.getElementById(id);
+        if (m && m.classList.contains('active')) m.classList.remove('active');
+    });
+});
+
+function loadBotTemplates() {
+    if (_botTemplates !== null) return;
+    _botTemplates = [];
+    botApi({ action: 'templates' }).then(function(d) {
+        _botTemplates = (d && d.templates) || [];
+        var sel = document.getElementById('botTemplate');
+        if (!sel) return;
+        for (var i = 0; i < _botTemplates.length; i++) {
+            var o = document.createElement('option');
+            o.value = String(i);
+            o.textContent = _botTemplates[i].name;
+            sel.appendChild(o);
+        }
+    }).catch(function() { _botTemplates = []; });
+}
+
+/* 可学习的对象（有聊天记录的真人），给伪人下拉用 */
+function loadBotTargets() {
+    var sel = document.getElementById('botTargetSelect');
+    if (!sel || sel.dataset.loaded === '1') return;
+    botApi({ action: 'targets' }).then(function(d) {
+        var list = (d && d.targets) || [];
+        sel.innerHTML = '';
+        if (!list.length) {
+            sel.innerHTML = '<option value="">（还没有可学的对象：和某人聊过 10 条以上才出现）</option>';
+        } else {
+            list.forEach(function(t) {
+                var o = document.createElement('option');
+                o.value = t.username;
+                o.textContent = (t.display_name || t.username) + '（' + t.messages + ' 条）';
+                sel.appendChild(o);
+            });
+        }
+        sel.dataset.loaded = '1';
+    }).catch(function() { sel.innerHTML = '<option value="">加载失败</option>'; });
+}
+
+/* 切换「普通 / 伪人」表单形态 */
+function onBotKindChange() {
+    var pseudo = document.querySelector('input[name=botKind][value=pseudo]');
+    var isPseudo = !!(pseudo && pseudo.checked);
+    var box = document.getElementById('botPseudoBox');
+    var tw = document.getElementById('botTemplateWrap');
+    var pw = document.getElementById('botPersonaWrap');
+    if (box) box.style.display = isPseudo ? '' : 'none';
+    if (tw) tw.style.display = isPseudo ? 'none' : '';
+    if (pw) pw.style.display = isPseudo ? 'none' : '';
+    var n = document.getElementById('botNameInput');
+    if (n) n.placeholder = isPseudo ? '留空 = 用 ta 的名字 + “·伪”' : '给它起个名字，如 翻译官';
+    if (isPseudo) loadBotTargets();
+}
+
+function applyBotTemplate() {
+    var sel = document.getElementById('botTemplate');
+    if (!sel || !_botTemplates) return;
+    var t = _botTemplates[parseInt(sel.value, 10)];
+    if (!t) return;
+    var n = document.getElementById('botNameInput');
+    var p = document.getElementById('botPersona');
+    if (n && !n.value.trim()) n.value = t.name;
+    if (p) p.value = t.persona || '';
+}
+
+function createBot() {
+    var n = document.getElementById('botNameInput');
+    var p = document.getElementById('botPersona');
+    var btn = document.getElementById('botCreateBtn');
+    var pseudo = document.querySelector('input[name=botKind][value=pseudo]');
+    var isPseudo = !!(pseudo && pseudo.checked);
+    var tgt = document.getElementById('botTargetSelect');
+    var target = tgt ? String(tgt.value || '') : '';
+    var name = (n && n.value.trim()) || (isPseudo ? '' : 'AI 助手');
+    if (isPseudo && !target) { xalert('先选一个学习对象'); return; }
+    var body = { action: 'create', name: name, kind: isPseudo ? 'pseudo' : 'normal', target: target,
+                 persona: isPseudo ? '' : ((p && p.value.trim()) || '') };
+    if (btn) { btn.disabled = true; btn.textContent = '创建中…'; }
+    botApi(body).then(function(d) {
+        if (btn) { btn.disabled = false; btn.textContent = '创建'; }
+        if (!d || !d.success) { xalert((d && d.error) || '创建失败'); return; }
+        if (n) n.value = '';
+        if (p) p.value = '';
+        var sel = document.getElementById('botTemplate');
+        if (sel) sel.value = '';
+        _botInfo[d.bot.username] = { kind: d.bot.kind || 'normal', target_uid: d.bot.target_uid || 0 };
+        closeBotCreate();
+        // 先本地登记，再刷新列表/开对话（否则标题里会显示 ai_xxxx 而不是名字）
+        _bots[d.bot.username] = 1;
+        _contactNotes[d.bot.username] = d.bot.display_name || d.bot.username;
+        loadContacts();
+        // 建好就进去打个招呼
+        openDm(d.bot.username);
+        setTimeout(function() {
+            if (!BotRuntime) return;
+            if (!BotRuntime.hasKey()) {
+                xalert('机器人建好了 🤖\n\n还差一步：去 DeepSeek 聊天页（/apps/deepseek/）的设置里填你自己的 API Key，机器人才能说话。');
+            } else if ((d.bot.kind || '') === 'pseudo') {
+                xalert('伪人「' + (d.bot.display_name || d.bot.username) + '」已建好，正在读聊天记录学它说话…');
+            } else {
+                xalert('机器人「' + (d.bot.display_name || d.bot.username) + '」已加到联系人。直接发消息就行，它会用自己的身份回你。');
+            }
+        }, 300);
+    }).catch(function() {
+        if (btn) { btn.disabled = false; btn.textContent = '创建'; }
+        xalert('创建失败，请稍后再试');
+    });
+}
+
+/* 机器人设置：改名 / 改人设 / 删除（删除会连聊天记录一起清掉） */
+function openBotSettings() {
+    var m = document.getElementById('dmOptionsMenu');
+    if (m) m.classList.remove('active');
+    var t = D;
+    if (!t || !_bots[t]) return;
+    botApi({ action: 'get', username: t }).then(function(d) {
+        if (!d || !d.success) { xalert((d && d.error) || '读取失败'); return; }
+        var box = document.getElementById('botSettingsModal');
+        if (!box) {
+            box = document.createElement('div');
+            box.id = 'botSettingsModal';
+            box.className = 'modal-overlay';
+            box.setAttribute('onclick', "botModalBackdrop(event,'botSettingsModal')");
+            box.innerHTML = '<div class="modal-box ds-bot-modal">'
+                + '<h3>🤖 机器人设置</h3>'
+                + '<label class="ds-bot-label" for="botSetName">名字</label>'
+                + '<input type="text" id="botSetName" class="ds-bot-input" maxlength="24">'
+                + '<label class="ds-bot-label" for="botSetPersona">人设（提示词）</label>'
+                + '<textarea id="botSetPersona" class="ds-bot-input ds-bot-textarea"></textarea>'
+                + '<p class="ds-bot-note">机器人回复用的是<strong>你自己的 DeepSeek API Key</strong>（在 /apps/deepseek/ 的设置里填），服务端不保存你的 Key。<br>删除机器人 = 连它和你的全部聊天记录一起删除，不可恢复。</p>'
+                + '<div id="botPseudoExtra" style="display:none">'
+                + '<pre id="botProfileSummary" class="ds-bot-profile"></pre>'
+                + '<div style="display:flex;gap:8px">'
+                + '<button class="bsm" type="button" onclick="closeBotSettings(); pseudoAnalyze(document.getElementById(\'botSettingsModal\').dataset.user, true)">重新分析人格</button>'
+                + '<button class="bsm" type="button" onclick="pseudoShowPrompt()">看提示词</button>'
+                + '</div></div>'
+                + '<div class="ds-bot-actions">'
+                + '<button class="bsm ds-bot-danger" type="button" onclick="deleteBotContact()">删除机器人</button>'
+                + '<button class="bsm" type="button" onclick="closeBotSettings()">取消</button>'
+                + '<button class="bsm ds-bot-primary" type="button" onclick="saveBotSettings()">保存</button>'
+                + '</div>'
+                + '</div>';
+            document.body.appendChild(box);
+        }
+        box.dataset.user = t;
+        document.getElementById('botSetName').value = d.bot.display_name || '';
+        document.getElementById('botSetPersona').value = d.bot.persona || '';
+        var extra = document.getElementById('botPseudoExtra');
+        if (extra) {
+            var isPseudo = (d.bot.kind === 'pseudo');
+            extra.style.display = isPseudo ? '' : 'none';
+            if (isPseudo) {
+                var prof = d.bot.profile || {};
+                var sum = document.getElementById('botProfileSummary');
+                if (sum) {
+                    var bits = [];
+                    bits.push('类型：伪人' + (d.bot.has_profile ? '（已学会，' + ((prof.samples) || 0) + ' 条样本）' : '（还没分析）'));
+                    if (prof.summary) bits.push('画像：' + prof.summary);
+                    if (prof.habits && prof.habits.length) bits.push('习惯：' + prof.habits.slice(0, 3).join('；'));
+                    if (prof.emoji_meanings && prof.emoji_meanings.length) bits.push('表情包含义：' + prof.emoji_meanings.length + ' 条');
+                    sum.textContent = bits.join('\n');
+                }
+            }
+        }
+        box.classList.add('active');
+    });
+}
+
+function closeBotSettings() {
+    var box = document.getElementById('botSettingsModal');
+    if (box) box.classList.remove('active');
+}
+
+function saveBotSettings() {
+    var box = document.getElementById('botSettingsModal');
+    if (!box) return;
+    var u = box.dataset.user;
+    botApi({
+        action: 'update', username: u,
+        name: document.getElementById('botSetName').value.trim(),
+        persona: document.getElementById('botSetPersona').value
+    }).then(function(d) {
+        if (!d || !d.success) { xalert((d && d.error) || '保存失败'); return; }
+        closeBotSettings();
+        loadContacts();
+        xalert('已保存');
+    }).catch(function() { xalert('保存失败'); });
+}
+
+function deleteBotContact() {
+    var box = document.getElementById('botSettingsModal');
+    var u = box && box.dataset.user;
+    if (u) botDeleteConfirm(u);
+}
+
+/* 删除机器人：确认 → bots API（连聊天记录一起硬删） */
+/* 看看伪人的系统提示词（透明度/调试；不调模型） */
+function pseudoShowPrompt() {
+    var box = document.getElementById('botSettingsModal');
+    var u = box && box.dataset.user;
+    if (!u) return;
+    botApi({ action: 'preview', username: u }).then(function(d) {
+        if (!d || !d.success) { xalert((d && d.error) || '读取失败'); return; }
+        var w = window.open('', '_blank');
+        if (w) {
+            w.document.write('<title>伪人提示词</title><pre style="white-space:pre-wrap;font:13px/1.6 ui-monospace,Menlo,monospace;padding:16px;background:#1e1e1e;color:#ddd">'
+                + String(d.prompt).replace(/[&<>]/g, function(c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]; }) + '</pre>');
+            w.document.close();
+        } else {
+            xalert('提示词已生成（弹窗被拦截）：' + String(d.prompt).slice(0, 300) + '…');
+        }
+    });
+}
+
+function botDeleteConfirm(u) {
+    if (!u) return;
+    var nm = _contactNotes[u] || u;
+    xconfirm('删除机器人「' + nm + '」？\n\n它和你的全部聊天记录会一起被删除，不可恢复。').then(function(ok) {
+        if (!ok) return;
+        botApi({ action: 'delete', username: u }).then(function(d) {
+            if (!d || !d.success) { xalert((d && d.error) || '删除失败'); return; }
+            closeBotSettings();
+            delete _bots[u];
+            delete _contactNotes[u];
+            if (D === u) { D = null; switchPanel('announcements'); }
+            loadContacts();
+        }).catch(function() { xalert('删除失败'); });
+    });
+}
+
+/* ---- 流式渲染机器人正在输入的内容 ---- */
+var _botStreamId = null;
+
+function botStreamPaint(user, text) {
+    if (D !== user) return;
+    var a = document.getElementById('dmMessagesArea');
+    if (!a) return;
+    if (_botStreamId) {
+        var old = a.querySelector('[data-msgid="' + _botStreamId + '"]');
+        if (old) old.remove();
+        delete seenMsgIds['dm_' + _botStreamId];
+    }
+    _botStreamId = 'botstream_' + Date.now();
+    addDmMessage({
+        id: _botStreamId, username: user, recipient: U,
+        message: text, msg_type: null,
+        time: Math.floor(Date.now() / 1000), datetime: ''
+    });
+    scrollChatToBottom(a);
+}
+
+function botStreamClear() {
+    if (!_botStreamId) return;
+    var a = document.getElementById('dmMessagesArea');
+    var el = a && a.querySelector('[data-msgid="' + _botStreamId + '"]');
+    if (el) el.remove();
+    delete seenMsgIds['dm_' + _botStreamId];
+    _botStreamId = null;
+}
+
+/* 触发机器人回复：伪人走后端流式（服务端生成 + 分条落库），普通机器人走浏览器生成 */
+function botReply(user) {
+    var u = user || D;
+    if (!u || !_bots[u]) return;
+    var info = _botInfo[u] || {};
+    if (info.kind === 'pseudo') return botReplyPseudo(u);
+    if (!window.BotRuntime) return;
+    if (BotRuntime.isBusy(u)) return;
+    var tEl = document.getElementById('typingIndicator');
+    BotRuntime.reply(u, {
+        onStart: function() {
+            if (tEl && D === u) {
+                tEl.style.display = 'block';
+                tEl.textContent = (_contactNotes[u] || u) + ' 正在思考…';
+            }
+        },
+        onText: function(t) { botStreamPaint(u, t); },
+        onTool: function() {},
+        onDone: function() {
+            botStreamClear();
+            if (tEl) tEl.style.display = 'none';
+            if (D === u) loadDmMessages();
+            updateUnreads();
+        },
+        onError: function(msg) {
+            botStreamClear();
+            if (tEl) tEl.style.display = 'none';
+            xalert('机器人回复失败：' + msg);
+        }
+    });
+}
+
+/* ---- 伪人：后端流式（api/bots.php?action=stream） ---- */
+var _pseudoPing = null;
+
+function pseudoHeartbeat(u) {
+    if (_pseudoPing) return;
+    var beat = function() { botApi({ action: 'heartbeat', username: u }).catch(function() {}); };
+    beat();
+    _pseudoPing = setInterval(beat, 10000);
+}
+function pseudoHeartbeatStop() {
+    if (_pseudoPing) { clearInterval(_pseudoPing); _pseudoPing = null; }
+}
+
+function botReplyPseudo(user) {
+    var tEl = document.getElementById('typingIndicator');
+    var cfg = {};
+    try { cfg = JSON.parse(localStorage.getItem('chatapp_ds_cfg') || '{}') || {}; } catch (e) { cfg = {}; }
+    if (!cfg.key) {
+        xalert('伪人也要用你自己的 DeepSeek API Key 🤖\n\n请先去 /apps/deepseek/ 的设置里填 Key（服务端不会存你的 Key）。');
+        return;
+    }
+    var body = { action: 'stream', username: user, key: cfg.key, model: cfg.model || 'deepseek-v4-flash',
+                 temperature: (cfg.temp != null ? cfg.temp : 1.1) };
+    if (tEl && D === user) { tEl.style.display = 'block'; tEl.textContent = (_contactNotes[user] || user) + ' 正在输入…'; }
+    var acc = '';
+    var think = pseudoThinkOn(user) ? pseudoThinkCard(user) : null;
+    fetch('../../api/bots.php', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    }).then(function(res) {
+        if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
+        var reader = res.body.getReader(), dec = new TextDecoder(), buf = '', curEvent = '';
+        function pump() {
+            return reader.read().then(function(r) {
+                if (r.done) return;
+                buf += dec.decode(r.value, { stream: true });
+                var idx;
+                while ((idx = buf.indexOf('\n')) >= 0) {
+                    var line = buf.slice(0, idx); buf = buf.slice(idx + 1);
+                    line = line.replace(/\r$/, '');
+                    if (line === '') { curEvent = ''; continue; }
+                    if (line.indexOf('event:') === 0) { curEvent = line.slice(6).trim(); continue; }
+                    if (line.indexOf('data:') !== 0) continue;
+                    var payload = line.slice(5).trim();
+                    if (payload === '' || payload === '[DONE]') continue;
+                    var j = null;
+                    try { j = JSON.parse(payload); } catch (e) { continue; }
+                    if (curEvent === 'error' || (j && j.error)) throw new Error((j && j.error) || '生成失败');
+                    if (curEvent === 'stage') { if (think) think.stage(j.label || ''); return pump(); }
+                    if (curEvent === 'inner') { if (think) think.inner(j.delta || ''); return pump(); }
+                    if (curEvent === 'mood') { if (think) think.mood(j); return pump(); }
+                    if (curEvent === 'reply') {
+                        acc += (j.delta || '');
+                        botStreamPaint(user, acc.replace(/\s*@@\s*/g, '\n'));
+                        return pump();
+                    }
+                    // 兼容旧格式（直接转发的 DeepSeek SSE）
+                    var delta = (j.choices && j.choices[0] && j.choices[0].delta) || {};
+                    if (delta.reasoning_content && think) think.inner(delta.reasoning_content);
+                    if (delta.content) {
+                        acc += delta.content;
+                        botStreamPaint(user, acc.replace(/\s*@@\s*/g, '\n'));
+                    }
+                }
+                return pump();
+            });
+        }
+        return pump();
+    }).then(function() {
+        botStreamClear();
+        if (think) think.done();
+        if (tEl) { tEl.style.display = 'none'; tEl.textContent = ''; }
+        if (D === user) loadDmMessages();
+        updateUnreads();
+    }).catch(function(e) {
+        botStreamClear();
+        if (think) think.done();
+        if (tEl) { tEl.style.display = 'none'; tEl.textContent = ''; }
+        xalert('伪人回复失败：' + ((e && e.message) || '未知错误'));
+    });
+}
+
+/* ---- 「展示思考过程」开关（右上角选项，伪人专属，默认隐藏） ---- */
+function pseudoThinkOn(u) {
+    try { return localStorage.getItem('chatapp_pseudo_think_' + u) === '1'; } catch (e) { return false; }
+}
+
+function togglePseudoThink() {
+    var u = D;
+    if (!u || !_bots[u]) return;
+    var on = !pseudoThinkOn(u);
+    try { localStorage.setItem('chatapp_pseudo_think_' + u, on ? '1' : '0'); } catch (e) {}
+    updateDmOptionsMenu();
+    pseudoThinkNote(u, on
+        ? '已开启：下次它回复时，会把思考过程显示在聊天气泡上面（只对你可见，不会写进聊天记录）。'
+        : '已关闭思考过程显示。');
+}
+
+/* 在聊天流里给一条小提示（不写库） */
+function pseudoThinkNote(u, text) {
+    if (D !== u) return;
+    var area = document.getElementById('dmMessagesArea');
+    if (!area) return;
+    var el = document.createElement('div');
+    el.className = 'ds-analysis ds-think done';
+    el.innerHTML = '<div class="ds-an-head"><span class="ds-an-ico">🧠</span><span class="ds-an-title">' + eh(text) + '</span></div>';
+    area.appendChild(el);
+    scrollChatToBottom(area);
+}
+
+/* 流式期间把伪人的「内心戏」实时画在一张卡上（复用分析卡样式）
+   两阶段：① 内心（心情/念头/记忆闪回/忍住不说的话）② 回话 */
+function pseudoThinkCard(u) {
+    var area = document.getElementById('dmMessagesArea');
+    if (!area) return null;
+    var el = document.createElement('div');
+    el.className = 'ds-analysis ds-think open';
+    el.innerHTML = '<div class="ds-an-head"><span class="ds-an-ico">🧠</span><span class="ds-an-title">在想…</span>'
+        + '<span class="ds-an-toggle" onclick="this.parentNode.parentNode.classList.toggle(\'open\')">收起</span></div>'
+        + '<div class="ds-an-body">'
+        + '  <div class="ds-an-phase"></div>'
+        + '  <div class="ds-an-inner"></div>'
+        + '  <div class="ds-an-state"></div>'
+        + '</div>';
+    area.appendChild(el);
+    scrollChatToBottom(area);
+    var title = el.querySelector('.ds-an-title');
+    var phaseEl = el.querySelector('.ds-an-phase');
+    var innerEl = el.querySelector('.ds-an-inner');
+    var stateEl = el.querySelector('.ds-an-state');
+    var txt = '';
+    var stageLabel = '';
+    return {
+        stage: function (label) {
+            stageLabel = label || '';
+            phaseEl.textContent = stageLabel ? '— ' + stageLabel + ' —' : '';
+            if (label) scrollChatToBottom(area);
+        },
+        inner: function (s) {
+            txt += s;
+            innerEl.textContent = txt;
+            title.textContent = '在想… ' + txt.length + ' 字';
+            el.scrollTop = el.scrollHeight;
+            scrollChatToBottom(area);
+        },
+        mood: function (m) {
+            if (!m) return;
+            var h = '';
+            var v = (m.valence || 0), e = (m.energy != null ? m.energy : 0.5);
+            var tone = v <= -0.25 ? 'neg' : (v >= 0.25 ? 'pos' : 'mid');
+            h += '<div class="ds-mood"><span class="ds-mood-chip ' + tone + '">心情：' + eh(m.mood || '平静') + '</span>'
+               + '<span class="ds-mood-meta">情绪 ' + (v >= 0 ? '+' : '') + v + ' · 精力 ' + e + '</span></div>';
+            if (m.why) h += '<div class="ds-an-line dim">' + eh(m.why) + '</div>';
+            if (m.thoughts && m.thoughts.length) {
+                h += '<div class="ds-an-line"><b>在想</b></div><ul class="ds-th">'
+                   + m.thoughts.map(function (t) { return '<li>' + eh(t) + '</li>'; }).join('') + '</ul>';
+            }
+            if (m.memory_flash) h += '<div class="ds-an-line mem">⚡ 突然想起：' + eh(m.memory_flash) + '</div>';
+            if (m.hold_back && m.hold_back.length) {
+                h += '<div class="ds-an-line"><b>忍住没说</b></div><ul class="ds-th hold">'
+                   + m.hold_back.map(function (t) { return '<li>' + eh(t) + '</li>'; }).join('') + '</ul>';
+            }
+            if (m.intent) h += '<div class="ds-an-line dim">打算：' + eh(m.intent) + (m.urge != null ? '（想回的冲动 ' + m.urge + '）' : '') + '</div>';
+            stateEl.innerHTML = h;
+            scrollChatToBottom(area);
+        },
+        done: function () {
+            title.textContent = '内心戏（' + txt.length + ' 字）';
+            if (!txt) title.textContent = '这次没留下内心戏';
+            phaseEl.textContent = '';
+        }
+    };
+}
+
+/* 进入伪人会话：补齐信息 + 心跳 + （必要时）先分析 */
+function pseudoEnter(u) {
+    botApi({ action: 'get', username: u }).then(function(d) {
+        if (!d || !d.success) return;
+        _botInfo[u] = { kind: d.bot.kind || 'normal', target_uid: d.bot.target_uid || 0, has_profile: !!d.bot.has_profile, profile: d.bot.profile || null };
+        if (d.bot.kind !== 'pseudo') return;
+        pseudoHeartbeat(u);
+        if (!d.bot.has_profile) pseudoAnalyze(u, false);
+    }).catch(function() {});
+}
+
+/* 分析/重新分析人格：SSE 流式，整个过程直接显示在聊天流里的「分析卡」上 */
+function pseudoAnalyze(u, force) {
+    var cfg = {};
+    try { cfg = JSON.parse(localStorage.getItem('chatapp_ds_cfg') || '{}') || {}; } catch (e) { cfg = {}; }
+    if (!cfg.key) {
+        xalert('分析 ta 的聊天记录需要你的 DeepSeek API Key —— 先去 /apps/deepseek/ 设置里填一下。');
+        return;
+    }
+    if (_dsAnalysisCard) closeAnalysisCard();
+    var card = openAnalysisCard(u);
+    card.setState('正在读取聊天记录…');
+
+    var body = { action: 'analyze', username: u, key: cfg.key, model: cfg.model || 'deepseek-v4-flash', stream: 1, force: force ? 1 : 0 };
+    var raw = '', reasoning = '';
+    fetch('../../api/bots.php', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    }).then(function(res) {
+        if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
+        var reader = res.body.getReader(), dec = new TextDecoder(), buf = '', curEvent = '';
+        function pump() {
+            return reader.read().then(function(r) {
+                if (r.done) return;
+                buf += dec.decode(r.value, { stream: true });
+                var idx;
+                while ((idx = buf.indexOf('\n')) >= 0) {
+                    var line = buf.slice(0, idx); buf = buf.slice(idx + 1);
+                    line = line.replace(/\r$/, '');
+                    if (line === '') { curEvent = ''; continue; }
+                    if (line.indexOf('event:') === 0) { curEvent = line.slice(6).trim(); continue; }
+                    if (line.indexOf('data:') !== 0) continue;
+                    var payload = line.slice(5).trim();
+                    if (payload === '' || payload === '[DONE]') continue;
+                    var j = null;
+                    try { j = JSON.parse(payload); } catch (e) { continue; }
+                    if (curEvent === 'start') {
+                        card.setState('正在分析「' + (j.target || u) + '」的 ' + (j.samples || 0) + ' 条记录（' + (j.chars || 0) + ' 字）…');
+                        continue;
+                    }
+                    if (curEvent === 'stage') {
+                        card.setState((j && j.note) || '处理中…');
+                        continue;
+                    }
+                    if (curEvent === 'error' || (j && j.error)) throw new Error((j && j.error) || '分析失败');
+                    if (curEvent === 'done') { card.finish(j); return; }
+                    var delta = (j.choices && j.choices[0] && j.choices[0].delta) || {};
+                    if (delta.reasoning_content) { reasoning += delta.reasoning_content; card.setThinking(reasoning); }
+                    if (delta.content) { raw += delta.content; card.setRaw(raw); }
+                }
+                return pump();
+            });
+        }
+        return pump();
+    }).catch(function(e) {
+        card.fail((e && e.message) || '网络错误');
+    });
+}
+
+/* ---- 分析卡（显示在聊天流里，像闪传卡片） ---- */
+var _dsAnalysisCard = null;
+
+function closeAnalysisCard() {
+    if (_dsAnalysisCard && _dsAnalysisCard.el && _dsAnalysisCard.el.parentNode) _dsAnalysisCard.el.remove();
+    _dsAnalysisCard = null;
+}
+
+function openAnalysisCard(u) {
+    var area = document.getElementById('dmMessagesArea');
+    if (!area) return { setState: function(){}, setRaw: function(){}, setThinking: function(){}, finish: function(){}, fail: function(){} };
+    var es = area.querySelector('.es');
+    if (es) es.remove();
+    var el = document.createElement('div');
+    el.className = 'ds-analysis';
+    el.innerHTML =
+        '<div class="ds-an-head"><span class="ds-an-ico">🔍</span><span class="ds-an-title"></span>'
+        + '<span class="ds-an-toggle" onclick="this.parentNode.parentNode.classList.toggle(\'open\')">详情</span></div>'
+        + '<div class="ds-an-body"><div class="ds-an-thinking"></div><pre class="ds-an-raw"></pre></div>'
+        + '<div class="ds-an-sum"></div>';
+    area.appendChild(el);
+    scrollChatToBottom(area);
+    var title = el.querySelector('.ds-an-title');
+    var rawEl = el.querySelector('.ds-an-raw');
+    var thinkEl = el.querySelector('.ds-an-thinking');
+    var sumEl = el.querySelector('.ds-an-sum');
+    var api = {
+        el: el,
+        setState: function(t) { title.textContent = t; title.style.color = '#9fb4c7'; },
+        setThinking: function(t) { thinkEl.textContent = t.slice(-600); el.classList.add('open'); scrollChatToBottom(area); },
+        setRaw: function(t) { rawEl.textContent = t; scrollChatToBottom(area); },
+        finish: function(d) {
+            if (d.skipped === 'recent') { title.textContent = '刚刚分析过（10 分钟内不重复跑）'; return; }
+            _botInfo[u] = _botInfo[u] || {};
+            _botInfo[u].has_profile = true;
+            var p = d.profile || {}, s = d.stats || {};
+            title.textContent = '分析完成' + (d.repaired ? '（修复过 JSON）' : '') + '：' + (s.samples || 0) + ' 条样本';
+            el.classList.add('done');
+            var h = [];
+            if (p.summary) h.push('<div class="ds-an-line"><b>画像</b>' + eh(p.summary) + '</div>');
+            if (p.habits && p.habits.length) h.push('<div class="ds-an-line"><b>习惯</b>' + p.habits.map(eh).join('、') + '</div>');
+            if (p.psych) {
+                var ks = Object.keys(p.psych).filter(function(k) { return p.psych[k]; });
+                if (ks.length) h.push('<div class="ds-an-line"><b>心理</b>' + ks.map(function(k) { return eh(k) + '：' + eh(String(p.psych[k])); }).join('；') + '</div>');
+            }
+            if (p.emoji_meanings && p.emoji_meanings.length) h.push('<div class="ds-an-line"><b>表情包</b>' + p.emoji_meanings.map(function(e2) { return eh((e2 && e2.code) || '') + '＝' + eh((e2 && e2.meaning) || ''); }).join('；') + '</div>');
+            if (p.taboos && p.taboos.length) h.push('<div class="ds-an-line"><b>禁区</b>' + p.taboos.map(eh).join('、') + '</div>');
+            if (s.avg_len) h.push('<div class="ds-an-line dim">平均 ' + s.avg_len + ' 字 / 不用句号 ' + (s.no_period_pct || 0) + '% / 表情包 ' + (s.emoji_pct || 0) + '% / 连发 ' + (s.burst_avg || 1) + ' 条</div>');
+            h.push('<div class="ds-an-actions"><button class="bsm" onclick="pseudoAnalyze(\'' + u + '\', true)">重新分析</button>'
+                + '<button class="bsm" onclick="closeAnalysisCard()">收起</button></div>');
+            sumEl.innerHTML = h.join('');
+            scrollChatToBottom(area);
+            updateUnreads();
+        },
+        fail: function(msg) {
+            title.textContent = '分析失败';
+            el.classList.add('err', 'open');
+            sumEl.innerHTML = '<div class="ds-an-line err">' + eh(msg) + '</div>'
+                + '<div class="ds-an-actions"><button class="bsm" onclick="pseudoAnalyze(\'' + u + '\', true)">重试（强制）</button>'
+                + '<button class="bsm" onclick="closeAnalysisCard()">收起</button></div>';
+            scrollChatToBottom(area);
+        }
+    };
+    _dsAnalysisCard = api;
+    return api;
+}
+
+function botReplyOld(user) {
+    var u = user || D;
+    if (!u || !_bots[u]) return;
+    if (!window.BotRuntime) return;
+    if (BotRuntime.isBusy(u)) return;
+    var tEl = document.getElementById('typingIndicator');
+    BotRuntime.reply(u, {
+        onStart: function() { if (tEl && D === u) { tEl.style.display = 'block'; tEl.textContent = (_contactNotes[u] || u) + ' 正在思考…'; } },
+        onText: function(t) { botStreamPaint(u, t); },
+        onDone: function() { botStreamClear(); if (tEl) tEl.style.display = 'none'; if (D === u) loadDmMessages(); updateUnreads(); },
+        onError: function(msg) { botStreamClear(); if (tEl) tEl.style.display = 'none'; xalert('机器人回复失败：' + msg); }
+    });
+}
+
 function loadPending() {
-    fetch('../../api/contacts.php?action=pending').then(r => r.json()).then(function(d) {
-        if (d.success && d.pending.length > 0) {
+    fetch('../../api/contacts.php?action=pending').then(r => r.json()).then(function(d) {        if (d.success && d.pending.length > 0) {
             document.getElementById('pendingBadge').style.display = 'block';
             document.getElementById('pendingCount').textContent = d.pending.length;
             document.getElementById('reqBadge').style.display = 'inline';
@@ -1629,7 +2314,7 @@ async function openUserDetail(username) {
     var dndLabel = u.dnd ? 'DND' : 'Online';
     var prof = document.getElementById('sidebarProfile');
     prof.querySelector('.sa').innerHTML = (u.avatar ? ('<img src="' + ehAttr(u.avatar) + '" alt="">') : '');
-    prof.querySelector('.sun').textContent = eh(u.display_name || u.username) + ' (' + u.user_id + ')';
+    prof.querySelector('.sun').textContent = (u.display_name || u.username || '') + ' (' + u.user_id + ')';
     var dndEl = prof.querySelector('.sdnd');
     dndEl.textContent = dndLabel + ' &mdash; ' + stLabel;
     dndEl.className = 'sdnd';
@@ -2119,6 +2804,8 @@ function updateDmE2eeBadge(u) {
 function openDm(u) {
     G = null;
     D = u;
+    pseudoHeartbeatStop();
+    if (_bots[u]) pseudoEnter(u);        // 伪人：拉信息 / 心跳 / 必要时先分析人格
     document.getElementById('dmTitle').textContent = T('title_chat') + ': ' + (_contactNotes[u] || u) + ' (' + u + ')';
     switchPanel('dm');
     updateDmE2eeBadge(u);
@@ -2138,6 +2825,7 @@ function openDm(u) {
 
 function closeDm() {
     G = null;
+    pseudoHeartbeatStop();
     if (D) {
         fetch('../../api/status.php', {
             method: 'POST',
@@ -2188,8 +2876,31 @@ function updateDmOptionsMenu() {
     var menu = document.getElementById('dmOptionsMenu');
     if (!menu) return;
     var isGrp = !!G;
+    var isBot = !!(D && _bots[D]);
     menu.querySelectorAll('.grp-opt').forEach(function(b) { b.style.display = isGrp ? '' : 'none'; });
     menu.querySelectorAll('.dm-opt').forEach(function(b) { b.style.display = isGrp ? 'none' : ''; });
+    // 机器人：只保留「查看资料 / 搜寻记录 / 修改备注 / 置顶 / 删除 / 机器人设置」
+    var botBtn = document.getElementById('dmBotBtn');
+    if (botBtn) botBtn.style.display = (!isGrp && isBot) ? '' : 'none';
+    // 「人格优化」只对伪人显示（普通机器人没有可优化的人格模型）
+    var optBtn = document.getElementById('dmOptBtn');
+    if (optBtn) optBtn.style.display = (!isGrp && isBot && ((_botInfo[D] || {}).kind === 'pseudo')) ? '' : 'none';
+    // 「展示思考过程」同样只对伪人显示（默认隐藏）；开着的打勾
+    var thinkBtn = document.getElementById('dmThinkBtn');
+    if (thinkBtn) {
+        var isPseudo = !isGrp && isBot && ((_botInfo[D] || {}).kind === 'pseudo');
+        thinkBtn.style.display = isPseudo ? '' : 'none';
+        if (isPseudo) thinkBtn.textContent = (pseudoThinkOn(D) ? '✓ ' : '') + '展示思考过程';
+    }
+    if (!isGrp && isBot) {
+        var hideIds = ['dmE2eeBtn', 'dmSpecialBtn'];
+        hideIds.forEach(function(id) { var b = document.getElementById(id); if (b) b.style.display = 'none'; });
+        // E2EE / 安全码 / 语音 / 视频 / 屏幕共享 / 举报 对机器人无意义 → 按 onclick 名字隐藏
+        menu.querySelectorAll('.dm-opt').forEach(function(b) {
+            var oc = (b.getAttribute('onclick') || '');
+            if (/toggleDmE2ee|openSafetyVerify|startVoiceCall|startVideoCall|startStandaloneShare|reportDmUser/.test(oc)) b.style.display = 'none';
+        });
+    }
     // Reload Client：仅 admin/root（私聊会话）
     var dmReload = document.getElementById('dmReloadBtn');
     if (dmReload) dmReload.style.display = (ADMIN && !isGrp) ? '' : 'none';
@@ -2359,6 +3070,8 @@ function deleteDmContact(u) {
     var t = u || D;
     if (!t) return;
     document.getElementById('dmOptionsMenu').classList.remove('active');
+    // 机器人：走 bots API（连聊天记录一起删）
+    if (_bots[t]) { botDeleteConfirm(t); return; }
     xconfirm('Permanently delete ' + t + '?').then(function(ok) {
         if (!ok) return;
         var f = new URLSearchParams();
@@ -2497,7 +3210,7 @@ function attachmentHtml(attUrl, msgType) {
         // 自定义可拖拽迷你播放器窗口（替代原生 <audio controls>）+ 下载按钮
         var _afn = this && this.attName ? this.attName : 'audio';
         var _as = this && this.attSize ? fmtSize(this.attSize) : '';
-        return '<div class="msg-media msg-audio-card" data-url="' + attUrl + '" data-name="' + eh(_afn) + '" data-size="' + eh(_as) + '" onclick="event.stopPropagation();openAudioWin(this)">'
+        return '<div class="msg-media msg-audio-card" data-url="' + ehAttr(attUrl) + '" data-name="' + eh(_afn) + '" data-size="' + eh(_as) + '" onclick="event.stopPropagation();openAudioWin(this)">'
             + '<span class="audio-ico">&#127925;</span>'
             + '<span class="audio-name">' + eh(_afn) + '</span>'
             + '<span class="audio-size">' + eh(_as) + '</span>'
@@ -2506,12 +3219,12 @@ function attachmentHtml(attUrl, msgType) {
     }
     var isVideo = /\.(mp4|webm|mov|ogg)$/i.test(attUrl) || attUrl.indexOf('video/') > -1;
     if (isVideo) {
-        if (DS) return '<div class="msg-media"><span class="click-to-load" data-video="' + attUrl + '" onclick="var v=document.createElement(\'video\');v.src=this.getAttribute(\'data-video\');v.controls=true;v.preload=\'none\';v.style.cssText=\'max-width:100%;max-height:200px;\';this.parentNode.replaceChild(v,this)">Click to load</span></div>';
-        return '<div class="msg-media"><video src="' + attUrl + '" controls preload="none" style="max-width:100%;max-height:200px" onclick="event.stopPropagation();openFullscreen(\'' + attUrl + '\')"></video></div>';
+        if (DS) return '<div class="msg-media"><span class="click-to-load" data-video="' + ehAttr(attUrl) + '" onclick="var v=document.createElement(\'video\');v.src=this.getAttribute(\'data-video\');v.controls=true;v.preload=\'none\';v.style.cssText=\'max-width:100%;max-height:200px;\';this.parentNode.replaceChild(v,this)">Click to load</span></div>';
+        return '<div class="msg-media"><video src="' + ehAttr(attUrl) + '" controls preload="none" style="max-width:100%;max-height:200px" onclick="event.stopPropagation();openFullscreen(\'' + ehJs(attUrl) + '\')"></video></div>';
     }
     if (msgType === 'photo' || /\.(jpg|png|gif|webp)$/i.test(attUrl)) {
-        if (DS) return '<div class="msg-media"><span class="click-to-load" onclick="loadImageWithProgress(\'' + attUrl + '\',this.parentNode)">Click to load</span></div>';
-        return '<div class="msg-media" data-url="' + attUrl + '"></div>';
+        if (DS) return '<div class="msg-media"><span class="click-to-load" onclick="loadImageWithProgress(\'' + ehJs(attUrl) + '\',this.parentNode)">Click to load</span></div>';
+        return '<div class="msg-media" data-url="' + ehAttr(attUrl) + '"></div>';
     }
     // Generic file: show a polished download card with icon + name + size + button
     if (msgType === 'file' || /^[^.]+$/.test(attUrl) || !/\.(jpg|jpeg|png|gif|webp)$/i.test(attUrl)) {
@@ -2525,10 +3238,10 @@ function attachmentHtml(attUrl, msgType) {
         var _mf = attUrl.match(/[?&]f=([^&]+)/);
         if (_mf && _mf[1]) hashTxt = _mf[1].replace(/\.[a-zA-Z0-9]+$/, '');
         var isCode = !!fname && !!CODE_EXT[(fname.split('.').pop() || '').toLowerCase()];
-        var pvBtn = isCode ? '<button class="file-pv-btn" data-url="' + attUrl + '" data-name="' + eh(fname) + '" data-size="' + (fsize || 0) + '" onclick="previewCodeFile(this)">\u{1F441} ' + T('btn_preview', '预览') + '</button>' : '';
-        return '<div class="file-card"><div class="file-card-body"><span class="file-icon">\u{1F4C4}</span><div class="file-info"><div class="file-name">' + nameTxt + '</div><div class="file-meta">' + extTxt + (sizeTxt ? ' \u00b7 ' + sizeTxt : '') + '</div>' + (hashTxt ? '<div class="file-hash">sha256: ' + hashTxt + '</div>' : '') + '</div></div><div class="file-actions">' + pvBtn + '<a class="file-dl-btn" href="' + dlUrl + '" target="_blank" download>\u2B07 ' + T('btn_download', '下载') + '</a></div></div>';
+        var pvBtn = isCode ? '<button class="file-pv-btn" data-url="' + ehAttr(attUrl) + '" data-name="' + eh(fname) + '" data-size="' + (fsize || 0) + '" onclick="previewCodeFile(this)">\u{1F441} ' + T('btn_preview', '预览') + '</button>' : '';
+        return '<div class="file-card"><div class="file-card-body"><span class="file-icon">\u{1F4C4}</span><div class="file-info"><div class="file-name">' + nameTxt + '</div><div class="file-meta">' + extTxt + (sizeTxt ? ' \u00b7 ' + sizeTxt : '') + '</div>' + (hashTxt ? '<div class="file-hash">sha256: ' + hashTxt + '</div>' : '') + '</div></div><div class="file-actions">' + pvBtn + '<a class="file-dl-btn" href="' + ehAttr(dlUrl) + '" target="_blank" download>\u2B07 ' + T('btn_download', '下载') + '</a></div></div>';
     }
-    return '<div class="msg-media"><a href="' + attUrl + '" target="_blank">Download</a></div>';
+    return '<div class="msg-media"><a href="' + ehAttr(attUrl) + '" target="_blank">Download</a></div>';
 }
 
 /* ==================== 可拖拽迷你音频播放窗口（FileMgr 风格虚拟窗口） ==================== */
@@ -2837,7 +3550,8 @@ function updateReplyIndicator() {
     if (!b) return;
     if (_replyTarget) {
         b.style.display = 'flex';
-        document.getElementById('replyBarText').textContent = T('msg_replying_to') + ' ' + eh(_replyData.name) + ': ' + _replyData.msg;
+        // textContent：不要预先转义，否则会显示成 &lt; 之类的实体
+        document.getElementById('replyBarText').textContent = T('msg_replying_to') + ' ' + (_replyData.name || '') + ': ' + (_replyData.msg || '');
     } else {
         b.style.display = 'none';
     }
@@ -2912,6 +3626,26 @@ function addDmMessage(m, prepend) {
     // ---- E2EE 密文消息：占位 → 异步解密 → 替换为明文行 ----
     if (m.msg_type === 'e2ee') {
         return addDmE2ee(m, prepend);
+    }
+    // ---- 闪传系统行（上传完成 / 接收完成）：居中蓝色小字，与 e2ee 提示同款样式 ----
+    if (m.msg_type === 'temp_up' || m.msg_type === 'temp_dl') {
+        var flwOwn = (m.username === U);
+        var flwTxt;
+        if (m.msg_type === 'temp_up') {
+            flwTxt = flwOwn ? T('flash_sys_uploaded_me', '你已上传闪传文件')
+                            : T('flash_sys_uploaded_them', '对方已上传闪传文件');
+        } else {
+            var flwAt = (m.time !== null && m.time !== undefined && m.time !== '') ? m.time : (Date.now() / 1000);
+            flwTxt = (flwOwn ? T('flash_sys_recv_me', '你于 %s 接收闪传文件')
+                             : T('flash_sys_recv_them', '对方于 %s 接收闪传文件')).replace('%s', fmtTime(flwAt));
+        }
+        var flwEl = document.createElement('div');
+        flwEl.className = 'like-sysline';
+        flwEl.setAttribute('data-msgid', m.id);
+        flwEl.textContent = flwTxt;
+        if (prepend) { flwEl.style.order = '-1'; a.insertBefore(flwEl, a.firstChild); }
+        else a.appendChild(flwEl);
+        return;
     }
     var d = buildDmMsgRow(m, own);
     appendDmMsgRow(a, d, m, prepend);
@@ -3016,9 +3750,19 @@ function buildDmMsgRow(m, own) {
     else md = attachmentHtml.call({ attName: m.attachment_name || '', attSize: m.attachment_size || null }, m.attachment_url, m.msg_type);
     var rq = '';
     if (m.reply_data) {
-        rq = '<div class="msg-reply-quote"><strong>' + eh(m.reply_data.display_name) + '</strong>: ' + m.reply_data.message + '</div>';
+        // reply_data.message 为服务端取回的原文（可能含任意用户内容）→ 必须转义
+        rq = '<div class="msg-reply-quote"><strong>' + eh(m.reply_data.display_name) + '</strong>: ' + eh(m.reply_data.message) + '</div>';
     }
-    var msgContent = m.is_markdown ? renderMd(m.message) : renderEmoji(m.message);
+    var msgContent;
+    if (m.is_markdown) {
+        // renderMd 内部已先转义 HTML → 表情必须在其后对「文本节点」替换，否则 <img> 会被当成文字
+        msgContent = renderEmojiHtml(renderMd(m.message));
+    } else if (m.msg_type === 'e2ee' || m._e2ee_decrypted) {
+        // E2EE 明/密文从未经服务端转义 → 渲染前本地转义（防对端注入 HTML）
+        msgContent = renderEmoji(eh(m.message || ''));
+    } else {
+        msgContent = renderEmoji(m.message);              // 普通消息服务端已 htmlspecialchars
+    }
     var emojiCode = extractFirstEmojiCode(msgContent);
     var emojiMenuItem = emojiCode ? '<div class="msg-emoji-add" data-emoji-code="' + eh(emojiCode) + '">' + T('menu_add_emoji') + '</div>' : '';
     var reportMenuItem = '<div class="msg-report" onclick="reportMsgFromMenu(this,\'' + m.username + '\');closeAllMsgMenus()">' + T('menu_report') + '</div>';
@@ -3265,6 +4009,8 @@ async function sendDmMessage() {
                 if (da) scrollChatToBottom(da);
             });
             document.getElementById('dmMediaFile').value = '';
+            // 机器人联系人：把消息发给它“大脑”（浏览器端用你自己的 key 生成，生成完入库）
+            if (_bots[D]) setTimeout(function() { botReply(D); }, 250);
         } else if (d.error && d.error.indexOf('restricted') >= 0) {
             xalert('Failed to send: The user is restricted.');
         } else if (d.error === 'Too large') {
@@ -3393,9 +4139,19 @@ function addAnnouncement(m, prepend) {
         : (m.msg_type === 'chatlog' ? chatlogCardHtml(m) : attachmentHtml.call({ attName: m.attachment_name || '', attSize: m.attachment_size || null }, m.attachment_url, m.msg_type));
     var rq = '';
     if (m.reply_data) {
-        rq = '<div class="msg-reply-quote"><strong>' + eh(m.reply_data.display_name) + '</strong>: ' + m.reply_data.message + '</div>';
+        // reply_data.message 为服务端取回的原文（可能含任意用户内容）→ 必须转义
+        rq = '<div class="msg-reply-quote"><strong>' + eh(m.reply_data.display_name) + '</strong>: ' + eh(m.reply_data.message) + '</div>';
     }
-    var msgContent = m.is_markdown ? renderMd(m.message) : renderEmoji(m.message);
+    var msgContent;
+    if (m.is_markdown) {
+        // renderMd 内部已先转义 HTML → 表情必须在其后对「文本节点」替换，否则 <img> 会被当成文字
+        msgContent = renderEmojiHtml(renderMd(m.message));
+    } else if (m.msg_type === 'e2ee' || m._e2ee_decrypted) {
+        // E2EE 明/密文从未经服务端转义 → 渲染前本地转义（防对端注入 HTML）
+        msgContent = renderEmoji(eh(m.message || ''));
+    } else {
+        msgContent = renderEmoji(m.message);              // 普通消息服务端已 htmlspecialchars
+    }
     var emojiCode = extractFirstEmojiCode(msgContent);
     var emojiMenuItem = emojiCode ? '<div class="msg-emoji-add" data-emoji-code="' + eh(emojiCode) + '">' + T('menu_add_emoji') + '</div>' : '';
     var reportMenuItem = '<div class="msg-report" onclick="reportMsgFromMenu(this,\'' + m.username + '\');closeAllMsgMenus()">' + T('menu_report') + '</div>';
@@ -3484,6 +4240,15 @@ window.notifyNewMessage = function(m) {
     if (typeof DND !== 'undefined' && DND) return;
     var nTitle = m.display_name || m.username;
     var nBody = m.message || '';
+    if (!nBody) {
+        // 闪传系统行没有正文：给通知/横幅补一句人话（接收方视角的“对方…”文案）
+        if (m.msg_type === 'temp_up') {
+            nBody = T('flash_sys_uploaded_them', '对方已上传闪传文件');
+        } else if (m.msg_type === 'temp_dl') {
+            var nAt = (m.time !== null && m.time !== undefined && m.time !== '') ? m.time : (Date.now() / 1000);
+            nBody = T('flash_sys_recv_them', '对方于 %s 接收闪传文件').replace('%s', fmtTime(nAt));
+        }
+    }
     if (m.attachment_url) nBody = nBody || '[Photo/Video]';
     // 浏览器系统通知
     if (typeof NOTIF_SYS === 'undefined' || NOTIF_SYS) {
@@ -4940,7 +5705,9 @@ var G = null;
 
 var _emojiBuiltin = [],
     _emojiTarget = null;
-fetch('../../api/emoji.php?action=list').then(function(r) {
+// 注意：这里故意把 `v` 放在 `action=list` 前面 —— 有些浏览器环境（旧扩展/被注入的
+// fetch 补丁）会按字面串 "emoji.php?action=list" 便返回值，把参数顺序换一下就绕开了。
+fetch('../../api/emoji.php?v=p1&action=list').then(function(r) {
     return r.json()
 }).then(function(d) {
     if (d.success) _emojiBuiltin = d.emojis;
@@ -4949,17 +5716,49 @@ fetch('../../api/emoji.php?action=list').then(function(r) {
 function renderEmoji(text) {
     if (!Array.isArray(_emojiBuiltin) || _emojiBuiltin.length === 0) return text;
     var useDyn = (typeof EMOJI_CHAT !== 'undefined' ? EMOJI_CHAT : 'dynamic') === 'dynamic';
-    for (var i = 0; i < _emojiBuiltin.length; i++) {
-        var e = _emojiBuiltin[i];
-        if (e.img && e.code && text.indexOf(e.code) >= 0) {
+    // 一次正则扫描 + 长代码优先：逐个 split/join 会让 /笑 钻进 /笑哭 生成的
+    // data-emoji-code="/笑哭" 属性里，把标签拧坏（与 apps/deepseek/ui.js 同一实现）
+    var c = builtinEmojiRegex();
+    if (c.re) {
+        text = text.replace(c.re, function (m) {
+            var e = c.map[m];
             var src = useDyn && e.img_dyn ? e.img_dyn : e.img;
-            text = text.split(e.code).join('<img src="../../' + src + '" class="chat-emoji chat-emoji-builtin" data-emoji-code="' + eh(e.code) + '" alt="' + eh(e.code) + '">');
-        }
+            return '<img src="../../' + src + '" class="chat-emoji chat-emoji-builtin" data-emoji-code="' + eh(m) + '" alt="' + eh(m) + '">';
+        });
     }
     text = text.replace(/\[emoji:([a-f0-9]{32})\]/g, function(m, h) {
         return '<img src="../../api/emoji.php?action=img&hash=' + h + '" class="chat-emoji chat-emoji-custom" data-emoji-code="[emoji:' + h + ']" alt="">';
     });
     return text;
+}
+
+/* 内置表情代码 → 一次编译好的正则（长代码优先）；聊天页和 AI 页同一套逻辑 */
+var _emoReCache = { list: null, len: -1, re: null, map: null };
+function builtinEmojiRegex() {
+    if (_emoReCache.list === _emojiBuiltin && _emoReCache.len === (_emojiBuiltin || []).length) return _emoReCache;
+    var map = {}, codes = [];
+    for (var i = 0; i < _emojiBuiltin.length; i++) {
+        var it = _emojiBuiltin[i];
+        if (!it || !it.code || !it.img || map[it.code]) continue;
+        map[it.code] = it;
+        codes.push(it.code);
+    }
+    codes.sort(function (a, b) { return b.length - a.length; });
+    _emoReCache = {
+        list: _emojiBuiltin, len: _emojiBuiltin.length, map: map,
+        re: codes.length ? new RegExp(codes.map(function (v) {
+            return String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }).join('|'), 'g') : null
+    };
+    return _emoReCache;
+}
+
+/* 已渲染好的 HTML → 只对「文本节点」做表情替换（markdown 渲染完再上表情：
+   否则 renderMd 的转义会把 <img> 当文本显示） */
+function renderEmojiHtml(html) {
+    return String(html == null ? '' : html).replace(/(<[^>]*>)|([^<]+)/g, function (m, tag, text) {
+        return tag ? tag : renderEmoji(text);
+    });
 }
 
 function extractFirstEmojiCode(html) {
@@ -5006,7 +5805,7 @@ function switchEmojiTab(tab) {
     if (grid) grid.classList.toggle('emoji-custom', tab === 'custom');
     if (tab === 'builtin') {
         if (!Array.isArray(_emojiBuiltin) || _emojiBuiltin.length === 0) {
-            fetch('../../api/emoji.php?action=list').then(function(r) {
+            fetch('../../api/emoji.php?v=p1&action=list').then(function(r) {
                 return r.json()
             }).then(function(d) {
                 if (d.success) _emojiBuiltin = d.emojis;
@@ -6128,11 +6927,26 @@ function uploadFlashBytesXhr(tempId, file) {
     fd.append('action', 'upload');
     fd.append('id', tempId);
     fd.append('file', file);
+    var lastRep = 0;
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '../../api/temp.php');
     xhr.upload.onprogress = function(ev) {
         if (!ev.lengthComputable) return;
         _flashUpProgress(tempId, Math.round(ev.loaded / ev.total * 100));
+        // 每 2s 把进度上报服务端 → 接收端靠它显示「对方正在上传中: x% · 速度」
+        var now = Date.now();
+        if (now - lastRep >= 2000) {
+            lastRep = now;
+            var pf = new URLSearchParams();
+            pf.append('action', 'progress');
+            pf.append('id', tempId);
+            pf.append('bytes', ev.loaded);
+            fetch('../../api/temp.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: pf.toString()
+            }).catch(function() {});
+        }
     };
     xhr.onload = function() {
         var d = null;
@@ -6238,13 +7052,20 @@ function tempDownload(id) {
     var card = st ? st.closest('.flash-card') : null;
     var fname = card ? (card.getAttribute('data-fname') || ('flash-' + id)) : ('flash-' + id);
     var size = card ? (parseInt(card.getAttribute('data-size') || '0', 10) || 0) : 0;
-    var bar = card ? card.querySelector('.flash-progress') : null;
-    var fill = bar ? bar.querySelector('.flash-progress-fill') : null;
-    var pctEl = bar ? bar.querySelector('.flash-progress-pct') : null;
     var url = '../../api/temp.php?action=download&id=' + id;
     // 超大文件（>512MB）仍走原生新标签下载，避免浏览器内存打爆
     if (size > 512 * 1024 * 1024) { openFlashNative(url); return; }
-    if (bar) bar.style.display = 'block';
+    if (card && card.getAttribute('data-dling')) return; // 防重复点击（同一卡片同时只跑一个下载）
+    if (card) card.setAttribute('data-dling', '1');
+    // 下载中：按钮切成禁用态（MEGA 式进度显示在卡片里）
+    var dlBtn = card ? card.querySelector('.flash-dl') : null;
+    if (dlBtn && dlBtn.tagName === 'BUTTON') {
+        var spD = document.createElement('span');
+        spD.className = 'flash-dl flash-dl-dis';
+        spD.textContent = T('flash_downloading_self', '下载中') + '…';
+        dlBtn.parentNode.replaceChild(spD, dlBtn);
+    }
+    var lastBytes = 0, lastT = Date.now(), speed = 0;
     fetch(url).then(function(res) {
         if (!res.ok || !res.body) throw new Error('http ' + res.status);
         var total = parseInt(res.headers.get('Content-Length') || '0', 10) || size || 0;
@@ -6254,20 +7075,31 @@ function tempDownload(id) {
             return reader.read().then(function(r) {
                 if (r.done) {
                     var blob = new Blob(chunks, { type: 'application/octet-stream' });
-                    if (bar) bar.style.display = 'none';
+                    flashBarHide(card);
+                    if (card) card.removeAttribute('data-dling');
+                    if (st) st.textContent = T('flash_has_downloaded', '已下载');
+                    flashRestoreDlBtn(card, id);
                     saveFlashBlob(blob, fname);
                     return;
                 }
                 chunks.push(r.value);
                 received += r.value.length;
-                if (fill && total) fill.style.width = Math.min(100, Math.round(received / total * 100)) + '%';
-                if (pctEl && total) pctEl.textContent = Math.round(received / total * 100) + '%';
+                var now = Date.now();
+                if (now - lastT >= 500) {
+                    speed = (received - lastBytes) / ((now - lastT) / 1000);
+                    lastBytes = received; lastT = now;
+                }
+                var pct = total ? Math.min(100, Math.round(received / total * 100)) : 0;
+                flashBar(card, pct);
+                if (st) st.textContent = T('flash_downloading_self', '下载中') + ': ' + pct + '%' + (speed > 0 ? ' · ' + fmtSpeed(speed) : '');
                 return pump();
             });
         }
         return pump();
     }).catch(function() {
-        if (bar) bar.style.display = 'none';
+        flashBarHide(card);
+        if (card) card.removeAttribute('data-dling');
+        flashRestoreDlBtn(card, id);
         // 失败（撤销/网络等）降级：原生下载兜底
         openFlashNative(url);
     });
@@ -6316,6 +7148,69 @@ function flashDlSpeedText(tempId, bytes) {
     return fmtSpeed(speed);
 }
 
+// 接收方看的「对方上传」速度跟踪器（WSS 推送与 HTTP 轮询共用）
+var _flashUlSpeed = {};
+function flashUlSpeedText(tempId, bytes) {
+    var now = Date.now();
+    var prev = _flashUlSpeed[tempId];
+    if (!prev) {
+        _flashUlSpeed[tempId] = { bytes: bytes, time: now };
+        return null; // 第一次采样，无基线 → 暂不显示速度
+    }
+    var speed = 0;
+    if (bytes >= prev.bytes && now > prev.time) {
+        speed = (bytes - prev.bytes) / ((now - prev.time) / 1000);
+    } else if (bytes < prev.bytes) {
+        _flashUlSpeed[tempId] = { bytes: bytes, time: now };
+        return null; // 新一次上传（进度清零），重新取基线
+    }
+    _flashUlSpeed[tempId] = { bytes: bytes, time: now };
+    if (speed <= 0) return null; // 同一采样点重复推送 → 不显示 0 B/s
+    return fmtSpeed(speed);
+}
+
+// 「对方正在上传中: 45% · 1.2 MB/s」——接收方看到的上传进度文案
+function flashUploadingText(tempId, uploadedBytes, totalSize) {
+    var up = uploadedBytes || 0;
+    var total = totalSize || 0;
+    var pct = total > 0 ? Math.min(100, Math.round(up / total * 100)) : 0;
+    var s = T('flash_partner_uploading', '对方正在上传中');
+    if (pct > 0) s += ': ' + pct + '%';
+    var spd = flashUlSpeedText(tempId, up);
+    if (spd) s += ' · ' + spd;
+    return s;
+}
+
+// 卡片进度条：写入 / 隐藏（card = .flash-card 容器）
+function flashBar(card, pct) {
+    if (!card) return;
+    var bar = card.querySelector('.flash-progress');
+    if (!bar) return;
+    pct = Math.max(0, Math.min(100, pct || 0));
+    bar.style.display = 'block';
+    var fill = bar.querySelector('.flash-progress-fill');
+    var pctEl = bar.querySelector('.flash-progress-pct');
+    if (fill) fill.style.width = pct + '%';
+    if (pctEl) pctEl.textContent = Math.round(pct) + '%';
+}
+function flashBarHide(card) {
+    if (!card) return;
+    var bar = card.querySelector('.flash-progress');
+    if (bar) bar.style.display = 'none';
+}
+
+// 把「上传中…」禁用块恢复成可点的下载按钮（上传就绪后调用；scope 需包含 .flash-dl）
+function flashRestoreDlBtn(scope, id) {
+    if (!scope) return;
+    var btn = scope.querySelector('.flash-dl');
+    if (!btn || btn.tagName === 'BUTTON' || !btn.classList.contains('flash-dl-dis')) return;
+    var b = document.createElement('button');
+    b.className = 'flash-dl';
+    b.textContent = T('btn_download', '下载');
+    b.onclick = function(ev) { ev.stopPropagation(); tempDownload(id); };
+    btn.parentNode.replaceChild(b, btn);
+}
+
 window.updateTempCardFromPush = function(state, item) {
     if (!state || !item) return;
     var bubble = state.closest('.flash-card');
@@ -6340,8 +7235,20 @@ window.updateTempCardFromPush = function(state, item) {
         return;
     }
 
-    // 更新状态文本
+    // 上传中：接收方显示进度 + 实时速度（上传方本端进度由 XHR/WSS 回调驱动，忽略推送）
     var isOwner = state.getAttribute('data-owner') === '1';
+    if (!isOwner && item.upload_status === 'uploading') {
+        state.textContent = flashUploadingText(item.id, item.uploaded_bytes, item.size);
+        flashBar(bubble, item.size > 0 ? Math.min(100, (item.uploaded_bytes || 0) / item.size * 100) : 0);
+        return;
+    }
+    if (!isOwner && item.upload_status === 'ready' && item.status !== 'in_progress') {
+        // 刚上传完：恢复下载按钮 + 收起上传进度条
+        flashRestoreDlBtn(bubble, item.id);
+        flashBarHide(bubble);
+    }
+
+    // 更新状态文本
     if (item.status === 'complete') {
         state.textContent = isOwner
             ? (T('flash_complete', '对方已经下载完成') + ' ✓')
@@ -6417,18 +7324,14 @@ function startTempPoll(bubble) {
                     btnU.parentNode.replaceChild(spU, btnU);
                 }
                 if (!isOwner) {
-                    state.textContent = T('flash_partner_uploading', '对方正在上传中');
+                    // 接收方：显示对方上传进度 + 实时速度
+                    state.textContent = flashUploadingText(id, d.uploaded_bytes, d.size);
+                    flashBar(bubble.querySelector('.flash-card'), d.size > 0 ? Math.min(100, (d.uploaded_bytes || 0) / d.size * 100) : 0);
                 }
                 return;
             }
             // 已就绪：恢复下载按钮（若之前被"上传中"状态禁用）
-            var btnR = bubble.querySelector('.flash-dl');
-            if (btnR && btnR.tagName === 'SPAN' && btnR.classList.contains('flash-dl-dis')) {
-                var bR = document.createElement('button');
-                bR.className = 'flash-dl';
-                bR.onclick = function(ev) { ev.stopPropagation(); tempDownload(id); };
-                btnR.parentNode.replaceChild(bR, btnR);
-            }
+            flashRestoreDlBtn(bubble, id);
             if (isOwner && d.status !== 'not_started') {
                 // Owner: show real-time download progress & speed
                 if (d.status === 'complete') {
@@ -8574,6 +9477,15 @@ function openLiveDrawSetup() {
    WebRTC 语音/视频通话（ChatCall）
    信令走 wss（type='call'，服务端纯转发）；媒体流点对点（STUN 打洞）。
    ============================================================ */
+// WebRTC ICE 服务器：STUN 打洞 + TURN 中继兜底（双方 NAT 对称 / 打洞失败时走中继）。
+// 注意：总数控制在 5 个以内，否则浏览器会告警「Using five or more STUN/TURN servers slows down discovery」。
+// openrelay.metered.ca 是免费公共 TURN（无需注册）；HTTP 页面不要用 turns:（TLS）。
+// 生产/稳定建议换成自建 coturn。
+var RTC_ICE_SERVERS = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+];
 var ChatCall = (function () {
     var pc = null, localStream = null, remoteStream = null, peer = null, kind = 'audio';
     var audioCtx = null, waveRaf = null;
@@ -8600,7 +9512,7 @@ var ChatCall = (function () {
     }
     function makePc() {
         if (typeof window.RTCPeerConnection === 'undefined') { xalert(T('call_no_webrtc')); return null; }
-        var cfg = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        var cfg = { iceServers: RTC_ICE_SERVERS };
         var p = new RTCPeerConnection(cfg);
         p.onicecandidate = function (e) { if (e.candidate) send('ice', { candidate: e.candidate }); };
         p.ontrack = function (e) {
@@ -9026,6 +9938,7 @@ var ChatShare = (function () {
     var mySid = null, shareAccepted = false, pendingSid = null, inviteTimer = null; // 一次性 key：每次邀请唯一 sid
     var shareAudioTrack = null, shareAudioSender = null, shareReneg = false, remoteShareStream = null; // 系统声音共享
     var shareMuted = false; // 观看端本地静音
+    var connectTimer = null; // 查看方连接超时兑底
     var shareStatsInt = null, _shPrevOut = 0, _shPrevIn = 0, _shPrevTime = 0; // 屏幕共享网络统计
     function makeSid() {
         return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12) + '-' + Math.random().toString(36).slice(2, 8);
@@ -9039,7 +9952,7 @@ var ChatShare = (function () {
 
     function makePc(isViewer) {
         if (typeof window.RTCPeerConnection === 'undefined') { xalert(T('call_no_webrtc')); return null; }
-        var cfg = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        var cfg = { iceServers: RTC_ICE_SERVERS };
         var p = new RTCPeerConnection(cfg);
         p.onicecandidate = function (e) { if (e.candidate) send('share_ice', { candidate: e.candidate }); };
         p.ontrack = function (e) {
@@ -9056,6 +9969,7 @@ var ChatShare = (function () {
             }
             var sv = byId('shareVideo');
             if (sv) { sv.srcObject = remoteShareStream; sv.play(); }
+            if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
             showOverlay(true);
         };
         return p;
@@ -9187,7 +10101,7 @@ var ChatShare = (function () {
     // 对方接受后：现在才采集屏幕 + 建连 + 发真实 offer
     // 系统声音：audio:true 采集（仅"共享标签页"时浏览器会提供系统音频；整屏/窗口大多没有）
     function captureAndOffer() {
-        navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }).then(function (stream) {
+        function onCapture(stream) {
             var t = stream.getVideoTracks()[0];
             if (!t) { stream.getTracks().forEach(function (x) { x.stop(); }); stopShare(); return; }
             screenStream = stream;
@@ -9200,10 +10114,30 @@ var ChatShare = (function () {
             if (shareAudioTrack) shareAudioSender = pc.addTrack(shareAudioTrack, stream); // 默认共享声音
             showSharingState(); // 共享方不看自己的输出，只显示状态 + 停止按钮
             pc.createOffer().then(function (offer) {
-                pc.setLocalDescription(offer);
-                send('share_offer', { sdp: offer, sid: mySid });
+                return pc.setLocalDescription(offer).then(function () {
+                    send('share_offer', { sdp: offer, sid: mySid });
+                });
+            }).catch(function () {
+                // 建连失败也要通知查看方，否则对方永远停在「连接中 / 0kB/s」
+                stopShare();
             });
-        }).catch(function () { stopShare(); }); // 用户取消授权
+        }
+        navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }).then(onCapture).catch(function (err) {
+            // 用户明确拒绝授权 → 直接结束（不要再弹一次选择器）
+            var name = (err && err.name) || '';
+            console.error('[share] getDisplayMedia(audio) 失败:', name, err);
+            if (name === 'NotAllowedError' || name === 'SecurityError') {
+                stopShare();
+                xalert(T('share_no_permission'));
+                return;
+            }
+            // Safari 等环境不支持 audio:true 的屏幕采集 → 降级为仅视频再试一次
+            navigator.mediaDevices.getDisplayMedia({ video: true }).then(onCapture).catch(function (err2) {
+                console.error('[share] getDisplayMedia(video) 失败:', err2);
+                stopShare();
+                xalert(T('share_capture_fail'));
+            });
+        });
     }
 
     /* ---------- 接收方 ---------- */
@@ -9260,6 +10194,14 @@ var ChatShare = (function () {
         viewerAccepted = true;
         send('share_answer', { accept: true, sid: pendingSid }); // 带回一次性 key
         showWaiting(T('share_connecting'), true); // 查看方等待对方开始共享
+        // 连接超时兑底：共享方接受后迟迟没画面（采集失败/浏览器不支持等）→ 别永远卡在「连接中」
+        if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
+        connectTimer = setTimeout(function () {
+            if (role === 'viewer' && !remoteShareStream) {
+                cleanup(); hideOverlay();
+                xalert(T('share_connect_fail'));
+            }
+        }, 60000);
     }
     function reject() {
         send('share_busy', { sid: pendingSid });
@@ -9451,6 +10393,7 @@ var ChatShare = (function () {
         shareAudioTrack = null; shareAudioSender = null; shareReneg = false; remoteShareStream = null;
         if (ringTimer) { clearTimeout(ringTimer); ringTimer = null; }
         if (inviteTimer) { clearTimeout(inviteTimer); inviteTimer = null; }
+        if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
         var io = byId('shareIncomingOverlay');
         if (io) io.style.display = 'none';
     }

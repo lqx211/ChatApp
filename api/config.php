@@ -498,6 +498,28 @@ function db_add_column_if_missing(string $table, string $column, string $definit
 }
 
 /**
+ * 机器人联系人（bots）需要的 users 列：幂等 + 每请求只查一次。
+ * is_bot / bot_owner_uid / bot_persona —— 见 plan/bot-contacts.md。
+ * bot_kind / bot_target_uid / bot_profile / bot_stats —— 伪人，见 plan/pseudo-human.md。
+ */
+function chatapp_ensure_bot_columns(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    db_add_column_if_missing('users', 'is_bot', "TINYINT(1) NOT NULL DEFAULT 0");
+    db_add_column_if_missing('users', 'bot_owner_uid', "INT UNSIGNED DEFAULT NULL");
+    db_add_column_if_missing('users', 'bot_persona', "TEXT DEFAULT NULL");
+    db_add_column_if_missing('users', 'bot_kind', "VARCHAR(10) DEFAULT NULL");
+    db_add_column_if_missing('users', 'bot_target_uid', "INT UNSIGNED DEFAULT NULL");
+    db_add_column_if_missing('users', 'bot_profile', "LONGTEXT DEFAULT NULL");
+    db_add_column_if_missing('users', 'bot_stats', "LONGTEXT DEFAULT NULL");
+    db_add_column_if_missing('users', 'bot_analyzed_at', "DATETIME DEFAULT NULL");
+    // 心理状态（心情/念头/记忆闪回/没说出口的话…）—— 伪人的「这一秒在想什么」
+    db_add_column_if_missing('users', 'bot_state', "LONGTEXT DEFAULT NULL");
+    db_add_column_if_missing('users', 'bot_state_at', "DATETIME DEFAULT NULL");
+}
+
+/**
  * 确保签名隐私列存在（幂等；init_db 已调用，这里供 sig API/页面在操作前自愈，
  * 避免升级后列缺失导致“设置改不动/报错”）。
  */

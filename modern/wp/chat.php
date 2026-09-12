@@ -115,6 +115,7 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
      <div id="pendingList" style="display:none"></div>
      <div class="na" onclick="toggleAddContact()"><?php echo t('btn_add_contact');?></div>
      <div id="addContactBox" style="display:none"><div class="sbox"><input type="text" id="searchInput" placeholder="<?php echo t('label_search_username');?>" oninput="searchUsers()" autocomplete="off"></div><div class="sr" id="searchResults"></div></div>
+     <div class="na" onclick="openBotCreate()">🤖 添加机器人</div>
     </div>
    </div>
    <div class="ng">
@@ -189,7 +190,7 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
  </div>
 
  <div class="panel" id="panel-dm">
-  <div class="ch"><h2 id="dmTitle"><?php echo t('title_chat');?></h2><span id="dmE2eeBadge" class="dm-e2ee-badge" style="display:none"></span><div class="dm-options-wrap"><button class="bsm" onclick="toggleDmOptions(event)"><?php echo t('btn_options');?></button><div class="dm-options-menu" id="dmOptionsMenu"><button class="grp-opt" onclick="openGroupInfo()"><?php echo t('g_view_group');?></button><button class="grp-opt" id="grpPinBtn" onclick="togglePinGroup()"><?php echo t('d_pin');?></button><button class="dm-opt" onclick="viewDmProfile()"><?php echo t('btn_view_profile');?></button><button class="dm-opt" id="dmE2eeBtn" onclick="toggleDmE2ee()"><?php echo t('opt_e2ee');?></button><button class="dm-opt" onclick="openSafetyVerify()"><?php echo t('opt_safety_verify');?></button><button class="dm-opt" onclick="startVoiceCall()"><img src="../../data/res/svg/phone_24.svg" width="15" style="vertical-align:-2px"> <?php echo t('opt_voice_call');?></button><button class="dm-opt" onclick="startVideoCall()"><img src="../../data/res/svg/video_24.svg" width="15" style="vertical-align:-2px"> <?php echo t('opt_video_call');?></button><button class="dm-opt" onclick="startStandaloneShare()"><img src="../../data/res/svg/share_screen_24.svg" width="15" style="vertical-align:-2px"> <?php echo t('opt_share_screen');?></button><button class="dm-opt" onclick="reportDmUser()"><?php echo t('btn_report_user');?></button><button class="dm-opt" onclick="openDmSearch()"><?php echo t('d_search_history');?></button><button class="dm-opt" onclick="changeNickname()"><?php echo t('d_change_nickname');?></button><button class="dm-opt" id="dmReloadBtn" onclick="reloadDmClient()"><?php echo t('opt_reload_client');?></button><button class="dm-opt" id="dmPinBtn" onclick="togglePinContact()"><?php echo t('d_pin');?></button><button class="dm-opt" id="dmSpecialBtn" onclick="toggleDmSpecial()"><?php echo t('d_special', '特别关心');?></button><button class="dm-opt danger" onclick="deleteDmContact()"><?php echo t('btn_delete_contact');?></button></div></div></div>
+  <div class="ch"><h2 id="dmTitle"><?php echo t('title_chat');?></h2><span id="dmE2eeBadge" class="dm-e2ee-badge" style="display:none"></span><div class="dm-options-wrap"><button class="bsm" onclick="toggleDmOptions(event)"><?php echo t('btn_options');?></button><div class="dm-options-menu" id="dmOptionsMenu"><button class="grp-opt" onclick="openGroupInfo()"><?php echo t('g_view_group');?></button><button class="grp-opt" id="grpPinBtn" onclick="togglePinGroup()"><?php echo t('d_pin');?></button><button class="dm-opt" onclick="viewDmProfile()"><?php echo t('btn_view_profile');?></button><button class="dm-opt" id="dmE2eeBtn" onclick="toggleDmE2ee()"><?php echo t('opt_e2ee');?></button><button class="dm-opt" onclick="openSafetyVerify()"><?php echo t('opt_safety_verify');?></button><button class="dm-opt" onclick="startVoiceCall()"><img src="../../data/res/svg/phone_24.svg" width="15" style="vertical-align:-2px"> <?php echo t('opt_voice_call');?></button><button class="dm-opt" onclick="startVideoCall()"><img src="../../data/res/svg/video_24.svg" width="15" style="vertical-align:-2px"> <?php echo t('opt_video_call');?></button><button class="dm-opt" onclick="startStandaloneShare()"><img src="../../data/res/svg/share_screen_24.svg" width="15" style="vertical-align:-2px"> <?php echo t('opt_share_screen');?></button><button class="dm-opt" onclick="reportDmUser()"><?php echo t('btn_report_user');?></button><button class="dm-opt" onclick="openDmSearch()"><?php echo t('d_search_history');?></button><button class="dm-opt" onclick="changeNickname()"><?php echo t('d_change_nickname');?></button><button class="dm-opt" id="dmReloadBtn" onclick="reloadDmClient()"><?php echo t('opt_reload_client');?></button><button class="dm-opt" id="dmPinBtn" onclick="togglePinContact()"><?php echo t('d_pin');?></button><button class="dm-opt" id="dmSpecialBtn" onclick="toggleDmSpecial()"><?php echo t('d_special', '特别关心');?></button><button class="dm-opt bot-opt" id="dmBotBtn" onclick="openBotSettings()" style="display:none">🤖 机器人设置</button><button class="dm-opt bot-opt" id="dmOptBtn" onclick="openBotOptimizer()" style="display:none">🧠 人格优化</button><button class="dm-opt bot-opt" id="dmThinkBtn" onclick="togglePseudoThink()" style="display:none">展示思考过程</button><button class="dm-opt danger" onclick="deleteDmContact()"><?php echo t('btn_delete_contact');?></button></div></div></div>
   <div class="ma" id="dmMessagesArea"><div class="es"><p><?php echo t('msg_select_contact');?></p></div></div>
   <div class="typing-indicator" id="typingIndicator"></div>
   <div class="upload-progress" id="dmUploadProgress"><div></div></div>
@@ -655,10 +656,12 @@ var WSS_URLS=<?php echo json_encode($__wssUrls);?>;
 var SERVER_TZ='<?php echo date('P');?>';
 var MYSELF_PIN=<?php echo (int)($currentUser['pin_self'] ?? 1);?>;
 </script>
-<script src="../scripts/vendor/nacl.min.js"></script>
-<script src="../scripts/vendor/nacl-util.min.js"></script>
+<script src="../scripts/vendor/nacl.min.js?v=<?php echo time();?>"></script>
+<script src="../scripts/vendor/nacl-util.min.js?v=<?php echo time();?>"></script>
 <script src="../scripts/e2ee.js?v=<?php echo time();?>"></script>
 <script src="../scripts/chat.js?v=<?php echo time();?>"></script>
+<script src="../scripts/bot_runtime.js?v=<?php echo time();?>"></script>
+<script src="../scripts/bot_optimizer.js?v=<?php echo time();?>"></script>
 <script>window.EARS_ON = <?php echo (int)($currentUser['space_ears'] ?? 0) ? 'true' : 'false'; ?>;</script>
 <script src="../scripts/ears.js?v=<?php echo time();?>"></script>
 <script src="../scripts/markdown.js?v=<?php echo time();?>"></script>
@@ -686,6 +689,59 @@ try {
 <!-- My flash files modal -->
 <div class="modal-overlay" id="flashMyModal"><div class="modal-box"><h3><?php echo t('flash_my', '我的闪传文件');?></h3><div id="flashMyList" style="max-height:360px;overflow-y:auto;text-align:left;margin-bottom:14px"></div><div class="modal-actions"><button class="bsm" onclick="closeFlashMyModal()"><?php echo t('btn_cancel');?></button></div></div></div>
 <div class="modal-overlay" id="customDialog"><div class="modal-box cd-win"><div class="cd-titlebar"><span class="cd-title" id="cdTitle"></span><button type="button" class="cd-close" onclick="closeCustomDialog(false)" title="Close"><img src="../../data/res/cil/cil-x.svg" style="width:14px;height:14px"></button></div><div class="cd-body"><p class="cd-msg" id="cdMsg"></p><input type="text" id="cdInput" class="cd-input" style="display:none"><div class="modal-actions cd-actions"><button class="bsm" id="cdCancel" onclick="cdResolve(false)">Cancel</button><button class="bsm" id="cdOk" onclick="cdResolve(true)">OK</button></div></div></div></div>
+
+<!-- 添加机器人配置窗口：必须放在 .sidebar 之外（侧栏带 transform，会困住 position:fixed） -->
+<div class="modal-overlay" id="botCreateModal" onclick="botModalBackdrop(event,'botCreateModal')">
+ <div class="modal-box ds-bot-modal">
+  <h3>🤖 添加机器人</h3>
+  <label class="ds-bot-label">类型</label>
+  <div class="ds-bot-kind">
+   <label><input type="radio" name="botKind" value="normal" checked onchange="onBotKindChange()"> 普通机器人</label>
+   <label><input type="radio" name="botKind" value="pseudo" onchange="onBotKindChange()"> 伪人（学习某个人的聊天记录）</label>
+  </div>
+  <div id="botPseudoBox" style="display:none">
+   <label class="ds-bot-label" for="botTargetSelect">学习对象（要有一定聊天记录的人才学得出来）</label>
+   <select id="botTargetSelect" class="ds-bot-input"><option value="">加载中…</option></select>
+  </div>
+  <label class="ds-bot-label" for="botNameInput">名字</label>
+  <input type="text" id="botNameInput" class="ds-bot-input" maxlength="24" placeholder="给它起个名字，如 翻译官" autocomplete="off">
+  <div id="botTemplateWrap">
+   <label class="ds-bot-label" for="botTemplate">模板（可选，会把对应人设填进下面）</label>
+   <select id="botTemplate" class="ds-bot-input" onchange="applyBotTemplate()"><option value="">自定义</option></select>
+  </div>
+  <div id="botPersonaWrap">
+   <label class="ds-bot-label" for="botPersona">人设（提示词）</label>
+   <textarea id="botPersona" class="ds-bot-input ds-bot-textarea" placeholder="告诉它该怎么说话、擅长什么。例如：你是中英互译专家，用户发中文就译成地道英文，只给译文。"></textarea>
+  </div>
+  <p class="ds-bot-note">机器人的回复用的是<strong>你自己的 DeepSeek API Key</strong>（在 <a href="/apps/deepseek/" target="_blank" rel="noopener">Deepseek 应用</a>的设置里填，服务端不保存）。<br>只能私聊、不能进群；删除这个联系人时会连聊天记录一起删掉。<br>伪人会先分析 ta 的聊天记录（断句、口头禅、表情包、心理画像），只存在你自己账号下，别人看不到。</p>
+  <div class="ds-bot-actions">
+   <button class="bsm" type="button" onclick="closeBotCreate()">取消</button>
+   <button class="bsm ds-bot-primary" type="button" id="botCreateBtn" onclick="createBot()">创建</button>
+  </div>
+ </div>
+</div>
+
+<!-- 伪人「人格优化」窗口：和优化器 AI 对话，补全/修正人格模型。同样必须在 sidebar 之外 -->
+<div class="modal-overlay" id="botOptModal" onclick="botModalBackdrop(event,'botOptModal')">
+ <div class="modal-box opt-win">
+  <div class="opt-head">
+   <div class="opt-title" id="botOptTitle">🧠 人格优化器</div>
+   <div class="opt-sub" id="botOptSub"></div>
+   <button class="opt-x" type="button" onclick="closeBotOptimizer()">✕</button>
+  </div>
+  <div class="opt-chat" id="botOptChat"></div>
+  <div class="opt-bar">
+   <button class="bsm" type="button" onclick="optLoadEmojiQuestions(false)" title="扫一遍 ta 用过的表情，逐个问你含义">表情包待补全</button>
+   <button class="bsm" type="button" onclick="optAskCheck()" title="让优化器通读人格，找问题">让优化器体检</button>
+   <button class="bsm" type="button" onclick="optShowMemories()" title="关于 ta 的事实（可手写/删除，聊天时会用上）">🧷 记忆点</button>
+  </div>
+  <div class="opt-input">
+   <textarea id="botOptInput" rows="1" placeholder="问优化器点什么…（Enter 发送，Shift+Enter 换行）" onkeydown="optInputKey(event)"></textarea>
+   <button class="bsm opt-send" type="button" onclick="optSend()">发送</button>
+  </div>
+  <p class="ds-bot-note" style="margin:6px 0 0">优化器用的是你的 DeepSeek API Key；这里的对话<strong>不会发给伪人</strong>，也不写进聊天记录。改动一律先给你看 diff。</p>
+ </div>
+</div>
 
 <!-- EXP toast container (bottom-right, in-page) -->
 <div id="expToasts"></div>
