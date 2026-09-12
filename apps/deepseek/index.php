@@ -8,6 +8,53 @@
  * Deepseek 写的
  */
 require_once __DIR__ . '/../../maintenance.php';
+require_once __DIR__ . '/../../api/config.php';
+chatapp_session_start();
+
+// 当前登录用户（只用于把名字/UID 注入系统提示词上下文；未登录时为空）
+$__dsUser = isset($_SESSION['username']) ? (string)$_SESSION['username'] : '';
+$__dsUid = 0;
+$__dsEmojiPanel = 'dynamic';
+$__dsEmojiChat = 'dynamic';
+if ($__dsUser !== '') {
+    try {
+        $__st = db()->prepare('SELECT user_id, emoji_panel_mode, emoji_chat_mode FROM users WHERE username = ?');
+        $__st->execute([$__dsUser]);
+        $__row = $__st->fetch() ?: [];
+        $__dsUid = (int)($__row['user_id'] ?? 0);
+        // 表情显示模式跟随用户在聊天页的设置：dynamic(APNG) / hover(摸到才动) / static(PNG)
+        $__dsEmojiPanel = in_array(($__row['emoji_panel_mode'] ?? ''), ['dynamic', 'hover', 'static'], true) ? $__row['emoji_panel_mode'] : 'dynamic';
+        $__dsEmojiChat = in_array(($__row['emoji_chat_mode'] ?? ''), ['dynamic', 'static'], true) ? $__row['emoji_chat_mode'] : 'dynamic';
+    } catch (\Throwable $__e) {}
+}
+// 内置表情表：直接从 data/res/emoji/default_config.json 读，服务端注入
+// （不走 api/emoji.php —— 那个接口要求登录，而且异步返回会让历史消息先以纯文本显示一下）
+$__dsEmojiList = [];
+$__emojiCfgPath = __DIR__ . '/../../data/res/emoji/default_config.json';
+if (is_file($__emojiCfgPath)) {
+    $__emojiRaw = json_decode((string)file_get_contents($__emojiCfgPath), true);
+    $__emojiDir = __DIR__ . '/../../data/res/emoji/';
+    foreach ((array)($__emojiRaw['normalPanelResult']['SysEmojiGroupList'] ?? []) as $__g) {
+        $__gname = (string)($__g['groupName'] ?? 'Emoji');
+        foreach ((array)($__g['SysEmojiList'] ?? []) as $__e) {
+            if (!empty($__e['isHide'])) continue;
+            $__etype = (int)($__e['emojiType'] ?? 0);
+            $__eid   = (string)($__e['emojiId'] ?? '');
+            $__ecode = (string)($__e['describe'] ?? '');
+            if ($__eid === '' && $__ecode === '') continue;
+            $__entry = ['id' => $__eid, 'code' => $__ecode, 'type' => $__etype, 'group' => $__gname, 'img' => null];
+            if ($__etype === 4) {
+                $__entry['unicode'] = $__eid;
+            } elseif (is_file($__emojiDir . $__eid . '.png')) {
+                $__entry['img'] = 'data/res/emoji/' . $__eid . '.png';
+                if (is_file($__emojiDir . 's' . $__eid . '.png')) $__entry['img_dyn'] = 'data/res/emoji/s' . $__eid . '.png';
+            } else {
+                continue;   // 没有 PNG 的跳过
+            }
+            $__dsEmojiList[] = $__entry;
+        }
+    }
+}
 $v = time();
 ?><!DOCTYPE html>
 <html lang="zh-CN">
@@ -18,9 +65,12 @@ $v = time();
 <!-- 复用聊天样式：气泡/输入栏与正常私聊完全一致 -->
 <link rel="stylesheet" href="../../modern/style/chat.css?v=<?php echo $v;?>">
 <style>
-  html,body{margin:0;height:100%;background:#1a1a1a;color:#e0e0e0;
+  html,body{margin:0;height:100%;background:transparent;color:#e0e0e0;
     font-family:Roboto,-apple-system,"system-ui","Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",Arial,sans-serif}
-  .ds-wrap{display:flex;flex-direction:column;height:100%}
+  /* chat.css 里 body{display:flex} 是给主界面(侧栏+主区)用的，这边整页就是这个 App，必须复位成 block，
+     否则 .ds-wrap 作为 flex item 会被压成内容宽度，顶部标题栏/底部输入栏都只有一小条 */
+  body{display:block}
+  .ds-wrap{position:relative;z-index:1;display:flex;flex-direction:column;height:100%;width:100%}
   .ds-wrap .ch{gap:8px}
   .ds-wrap .ch h2 .ds-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#4caf50;margin-right:8px;vertical-align:1px}
   .ds-key-warn{background:#3a2a1e;border-bottom:1px solid #5a3a1e;color:#e0a040;font-size:.78em;padding:8px 20px}
@@ -36,25 +86,120 @@ $v = time();
   #dsSettingsModal textarea{min-height:70px;resize:vertical}
   .ds-row2{display:flex;gap:10px}
   .ds-row2>div{flex:1}
+  /* ---- Agent 工具 UI ---- */
+  .ds-check{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-top:1px solid #2c2c2c}
+  .ds-check label{display:flex;align-items:flex-start;gap:8px;font-size:.8em;color:#c0c0c0;margin:0;cursor:pointer;line-height:1.5}
+  .ds-check input[type=checkbox]{width:auto;flex:0 0 auto;margin-top:3px;accent-color:#4caf50}
+  .ds-check .ds-hint{display:block;color:#7c7c7c;font-size:.92em;margin-top:2px}
+  .ds-badge{font-size:.7em;color:#7f8c99;border:1px solid #3a444e;border-radius:999px;padding:2px 9px;align-self:center;white-space:nowrap}
+  .ds-badge.off{color:#8a7f6a;border-color:#4a4234}
+  .ds-status{color:#8a939c;font-size:.75em;font-style:italic;padding:2px 0 4px}
+  /* ---- 工具逐项选择 ---- */
+  .ds-tool-list{max-height:216px;overflow:auto;border:1px solid #333;background:#181818;padding:4px 9px}
+  .ds-tool-group{color:#7f8c99;font-size:.72em;font-weight:600;padding:7px 0 3px;border-bottom:1px solid #2a2a2a;letter-spacing:.04em}
+  .ds-tool-row{display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-bottom:1px solid #202020;cursor:pointer}
+  .ds-tool-row:last-child{border-bottom:none}
+  .ds-tool-row.dis{opacity:.45;cursor:not-allowed}
+  .ds-tool-row input[type=checkbox]{width:auto;flex:0 0 auto;margin-top:3px;accent-color:#4caf50}
+  .ds-tool-row b{display:inline-block;color:#9fd0ff;font-weight:600;font-size:.8em;margin-right:6px;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .ds-tool-row i{font-style:normal;color:#8a8a8a;font-size:.76em;line-height:1.5}
+  /* ---- AI 权限档位 ---- */
+  .ds-level{border:1px solid #333;background:#181818;padding:2px 10px}
+  .ds-level-row{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-top:1px solid #262626;cursor:pointer;font-size:.8em;color:#c0c0c0;margin:0}
+  .ds-level-row:first-child{border-top:none}
+  .ds-level-row input[type=radio]{width:auto;flex:0 0 auto;margin-top:3px;accent-color:#4caf50}
+  .ds-level-row b{color:#9fd0ff;font-weight:600;white-space:nowrap;min-width:62px}
+  .ds-level-row .ds-hint{margin-top:0}
+  /* ---- 聊天外壳：附件条 / 图片 / 9 点菜单 / 表情面板 / 涂鸦 ---- */
+  .ds-att{display:flex;align-items:center;gap:10px;padding:8px 20px;background:rgba(42,42,42,.92);border-top:1px solid #3a3a3a}
+  .ds-att img{width:54px;height:54px;object-fit:cover;border-radius:6px;border:1px solid #555}
+  .ds-att span{font-size:.74em;color:#9aa7b3}
+  .ds-att .ds-att-x{margin-left:auto;cursor:pointer;color:#e08080;font-size:1.15em;padding:0 6px}
+  .ds-img{max-width:min(300px,62vw);max-height:320px;border-radius:8px;display:block;margin:2px 0;cursor:zoom-in;border:1px solid #444}
+  /* 表情选择器 / 9 点菜单的样式全部来自 chat.css（#emojiPopup 与 #dmNineMenu），这里只补手机端停靠 */
+  .ds-wrap.emoji-open .ma{padding-bottom:44vh}
+  .ds-doodle{position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.35)}
+  .ds-doodle canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+  .ds-doodle-bar{position:fixed;left:0;right:0;bottom:0;display:flex;align-items:center;gap:10px;padding:10px 16px;background:#1e1e1e;border-top:1px solid #444;flex-wrap:wrap;z-index:3001}
+  .ds-doodle-title{color:#fff;font-size:13px;font-weight:700}
+  .ds-doodle-colors{display:flex;gap:6px}
+  .ds-doodle-colors button{width:20px;height:20px;border-radius:50%;border:2px solid #444;cursor:pointer;padding:0}
+  .ds-doodle-colors button.active{border-color:#fff}
+  .ds-doodle-size{color:#ccc;font-size:12px;display:flex;align-items:center;gap:6px}
 </style>
 </head>
 <body>
+<script>
+  // 服务端注入：登录状态（工具要用它判断能不能读 ChatApp 数据）+ 表情显示设置 + 内置表情表
+  // 必须在 ui.js 之前：ui.js 加载时就要用到 EMOJI_BUILTIN
+  var DS_USER = { username: <?php echo json_encode($__dsUser, JSON_UNESCAPED_UNICODE); ?>, uid: <?php echo (int)$__dsUid; ?> };
+  var EMOJI_PANEL = <?php echo json_encode($__dsEmojiPanel); ?>;   // dynamic / hover / static
+  var EMOJI_CHAT  = <?php echo json_encode($__dsEmojiChat); ?>;    // dynamic / static
+  // 内置表情表（服务端直出，不依赖登录、无异步闪烁）
+  var EMOJI_BUILTIN = <?php echo json_encode($__dsEmojiList, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+</script>
 <script src="../../modern/scripts/markdown.js?v=<?php echo $v;?>"></script>
+<script src="agent.js?v=<?php echo $v;?>"></script>
+<script src="ui.js?v=<?php echo $v;?>"></script>
+<div id="app-bg"></div>
+<div class="bg-overlay" id="app-bg-overlay"></div>
 
 <div class="ds-wrap">
   <div class="ch">
     <h2><span class="ds-dot"></span>Deepseek</h2>
+    <span class="ds-badge" id="dsToolBadge"></span>
     <button class="bsm" id="dsSettingsBtn" type="button">设置</button>
     <button class="bsm" id="dsClearBtn" type="button">清空</button>
   </div>
   <div class="ds-key-warn" id="dsKeyWarn" style="display:none">
     还没填 DeepSeek API Key —— 点「<a id="dsKeyWarnLink">这里</a>」填写后即可开聊（Key 只存在你浏览器本地）。
   </div>
-  <div class="ma" id="aiMessages"><div class="es"><p>和 DeepSeek 聊聊吧～</p></div></div>
+  <div class="ma" id="aiMessages"><div class="es"><p>我是内置的 AI 助手，会自己调用工具把事办完：<br>算数、换算单位、看时间 · 查你的等级/资料/好友/群/会话/工单 · 帮你记点小事。<br>比如问我「现在几点」「帮我算 (3+5)*2」「我几级了」。想让我听你的？点右上角「设置」。</p></div></div>
   <div class="typing-indicator" id="aiTyping">DeepSeek 正在输入…</div>
+  <div class="ds-att" id="dsAttachChip" style="display:none"></div>
   <div class="cia">
-    <textarea id="aiInput" rows="1" placeholder="输入消息…（Enter 发送，Shift+Enter 换行）" style="resize:none;overflow-y:auto;line-height:1.4;max-height:12em"></textarea>
+    <textarea id="aiInput" rows="1" placeholder="输入消息…（Enter 发送，Shift+Enter 换行）" style="resize:none;overflow-y:auto;line-height:1.4;max-height:20em"></textarea>
+    <input type="file" id="dmMediaFile" multiple accept="image/*" style="display:none">
+    <button class="bsm" id="dmEmojiBtn" onclick="toggleEmojiPicker(event,'aiInput')" title="Emoji"><img src="../../data/res/svg/expression_24.svg" width="16" style="vertical-align:-2px"></button>
+    <button class="bsm" id="dmNineBtn" onclick="toggleDmNineMenu(event,this)" title="更多"><svg width="16" height="16" viewBox="0 0 24 24" fill="#ccc"><circle cx="5" cy="5" r="1.8"/><circle cx="12" cy="5" r="1.8"/><circle cx="19" cy="5" r="1.8"/><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/><circle cx="5" cy="19" r="1.8"/><circle cx="12" cy="19" r="1.8"/><circle cx="19" cy="19" r="1.8"/></svg></button>
     <button class="bs" id="aiSendBtn" type="button">发送</button>
+  </div>
+</div>
+
+<!-- 9 点菜单（结构与 chat.php 的 #dmNineMenu 完全一致；按需求只保留：表情 / 图片 / 涂鸦） -->
+<div class="nine-menu" id="dmNineMenu" style="display:none">
+  <div class="nine-cell" onclick="nineEmoji()"><img src="../../data/res/svg/expression_24.svg" alt=""><span>表情</span></div>
+  <div class="nine-cell" onclick="nineUpload()"><img src="../../data/res/svg/folder_16.svg" alt=""><span>图片</span></div>
+  <div class="nine-cell" onclick="ninePen()"><img src="../../data/res/svg/brush_24.svg" alt=""><span>涂鸦</span></div>
+</div>
+
+<!-- 表情选择器（markup 与 chat.php 的 #emojiPopup 一致，CSS 直接用 chat.css） -->
+<input type="file" id="customEmojiFile" accept="image/*" multiple style="display:none">
+<div class="emoji-popup" id="emojiPopup" style="display:none">
+  <div class="emoji-sidebar">
+    <button class="active" id="emojiTabBuiltin" onclick="switchEmojiTab('builtin')">内置表情</button>
+    <button id="emojiTabCustom" onclick="switchEmojiTab('custom')">自定义表情</button>
+  </div>
+  <div class="emoji-grid" id="emojiGrid"></div>
+</div>
+
+<div id="dsDoodle" class="ds-doodle" style="display:none">
+  <canvas id="dsDoodleCanvas"></canvas>
+  <div class="ds-doodle-bar">
+    <span class="ds-doodle-title">涂鸦</span>
+    <span class="ds-doodle-colors" id="dsDoodleColors">
+      <button class="active" data-color="#ff4d4d" style="background:#ff4d4d"></button>
+      <button data-color="#ffb84d" style="background:#ffb84d"></button>
+      <button data-color="#4dd06a" style="background:#4dd06a"></button>
+      <button data-color="#4ea1ff" style="background:#4ea1ff"></button>
+      <button data-color="#c86bff" style="background:#c86bff"></button>
+      <button data-color="#ffffff" style="background:#fff"></button>
+    </span>
+    <label class="ds-doodle-size">粗细 <input type="range" id="dsDoodleSize" min="1" max="40" value="6"></label>
+    <button class="bsm" id="dsDoodleUndo" type="button">撤销</button>
+    <button class="bsm" id="dsDoodleClear" type="button">清空</button>
+    <button class="bsm" id="dsDoodleCancel" type="button">取消</button>
+    <button class="bs" id="dsDoodleSend" type="button" style="background:#2a4a2a;border-color:#3a6a3a">画好了，发给 AI</button>
   </div>
 </div>
 
@@ -62,8 +207,12 @@ $v = time();
   <div class="modal-box">
     <h3>DeepSeek 设置</h3>
     <div class="ds-field">
-      <label>API Key（仅存本机浏览器，不上传服务器保存）</label>
+      <label>API Key（只存本机 localStorage，不会上传服务器保存）</label>
       <input type="password" id="dsKey" placeholder="sk-..." autocomplete="off">
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+        <span id="dsKeyState" style="font-size:.72em;color:#7c9c7c"></span>
+        <button class="bsm" id="dsKeyClear" type="button" style="font-size:.72em;padding:3px 8px">清除已保存的 Key</button>
+      </div>
     </div>
     <div class="ds-field">
       <label>模型（当前仅支持此模型）</label>
@@ -72,8 +221,40 @@ $v = time();
       </select>
     </div>
     <div class="ds-field">
-      <label>系统提示词（角色设定，可留空）</label>
-      <textarea id="dsSystem" placeholder="You are a helpful assistant."></textarea>
+      <label>系统提示词（角色设定；留空 = 使用内置默认提示词）</label>
+      <textarea id="dsSystem" placeholder="留空即可 —— 内置默认提示词已包含工具协议、行为准则与安全边界"></textarea>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+        <button class="bsm" id="dsLoadDefault" type="button">载入默认提示词</button>
+        <span style="font-size:.72em;color:#7c7c7c">工具清单与当前上下文会自动附加</span>
+      </div>
+    </div>
+    <div class="ds-check">
+      <label><input type="checkbox" id="dsTools"> 允许使用工具（总开关）
+        <span class="ds-hint">关掉后模型完全看不到工具；下面的逐项勾选只决定「哪些工具可用」，权限的最终判定始终在服务端</span>
+      </label>
+    </div>
+    <div class="ds-field">
+      <label>可用工具（逐项选择）</label>
+      <div class="ds-tool-list" id="dsToolList"></div>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button class="bsm" id="dsToolsDefault" type="button">恢复默认</button>
+        <button class="bsm" id="dsToolsAll" type="button">全选可用</button>
+        <button class="bsm" id="dsToolsNone" type="button">全不选</button>
+      </div>
+    </div>
+    <div class="ds-field" style="margin-bottom:4px"><label>AI 权限（账号级，存在服务器；默认「关闭」）</label></div>
+    <div class="ds-level" id="dsLevelGroup">
+      <label class="ds-level-row"><input type="radio" name="dsAiLevel" value="0" checked>
+        <b>关闭</b><span class="ds-hint">AI 只能算数/看时间/用表情，读不到你的 ChatApp 数据</span></label>
+      <label class="ds-level-row"><input type="radio" name="dsAiLevel" value="1">
+        <b>仅读</b><span class="ds-hint">可读我的资料/等级/好友/群/会话/聊天记录（只读，不会发消息）</span></label>
+      <label class="ds-level-row"><input type="radio" name="dsAiLevel" value="2">
+        <b>读写</b><span class="ds-hint">仅读 + 可代我发私聊（仅好友、5 分钟 3 条、全量审计、发送前会先问你）</span></label>
+      <label class="ds-level-row"><input type="radio" name="dsAiLevel" value="3">
+        <b>允许所有</b><span class="ds-hint">读写 + 管理员统计，以及以后新增的工具</span></label>
+    </div>
+    <div class="ds-hint" style="margin:2px 0 10px;color:#8a7f6a">
+      ⚠ 「仅读」及以上意味着你允许 AI 读取的相应内容会发送给 DeepSeek 用于生成回复（服务端不存日志，调用记录见「AI 访问记录」）。随时可改回「关闭」，立即生效。
     </div>
     <div class="ds-row2">
       <div class="ds-field"><label>温度 (0~2)</label><input type="number" id="dsTemp" min="0" max="2" step="0.1" value="1"></div>
@@ -90,9 +271,17 @@ $v = time();
 (function () {
   'use strict';
   var LS_CFG = 'chatapp_ds_cfg', LS_CONV = 'chatapp_ds_conv';
-  var cfg = { key: '', model: 'deepseek-v4-flash', system: '', temp: 1, maxTokens: 2048 };
-  var conv = [];            // [{role:'user'|'assistant', content}]
+  var DS = window.DSAgent;
+  var USER = window.DS_USER || { username: '', uid: 0 };
+  // tools=总开关；toolPrefs=逐项开关({工具名:bool}，缺省用工具的 defaultOn)
+  // 账号级权限（读会话摘要 / 允许代发私聊）由服务端持有 → serverPrefs
+  var cfg = { key: '', model: 'deepseek-v4-flash', system: '', temp: 0.7, maxTokens: 2048, tools: true, toolPrefs: null };
+  var serverPrefs = { ai_level: 0 };
+  var conv = [];            // [{role:'user'|'assistant', content, hidden?, kind?}]  hidden = 工具结果，不上屏但发给模型
   var streaming = false;
+  var aborter = null;       // 当前流的中断控制器（「停止」按钮）
+  var CONV_KEEP = 80;       // 本地最多保留多少条（含隐藏的工具结果）
+  var WELCOME = '我是内置的 AI 助手，会自己调用工具把事办完：<br>算数、换算单位、看时间 · 查你的等级/资料/好友/群/会话/工单 · 帮你记点小事。<br>比如问我「现在几点」「帮我算 (3+5)*2」「我几级了」。想让我听你的？点右上角「设置」。';
 
   var $ = function (id) { return document.getElementById(id); };
   var msgArea = $('aiMessages'), input = $('aiInput'), sendBtn = $('aiSendBtn'),
@@ -102,10 +291,83 @@ $v = time();
   function load() {
     try { var c = JSON.parse(localStorage.getItem(LS_CFG) || '{}'); if (c && typeof c === 'object') cfg = Object.assign(cfg, c); } catch (e) {}
     cfg.model = 'deepseek-v4-flash'; // 只允许 V4 Flash：旧存档里的其他模型一律迁移过来
+    if (cfg.tools == null) cfg.tools = true;
+    if (!(cfg.temp >= 0)) cfg.temp = 0.7;
+    delete cfg.readChats;   // 旧字段：已搬到服务端账号开关（tools.php）
+    if (!cfg.toolPrefs || typeof cfg.toolPrefs !== 'object') cfg.toolPrefs = DS.defaultEnabledMap();
+    DS.setEnabled(cfg.toolPrefs);      // 前端只能收窄；服务端会独立再判一次
+    DS.setContext({ loggedIn: !!(USER && USER.username) });
     try { var v = JSON.parse(localStorage.getItem(LS_CONV) || '[]'); if (Array.isArray(v)) conv = v; } catch (e) {}
   }
   function saveCfg() { try { localStorage.setItem(LS_CFG, JSON.stringify(cfg)); } catch (e) {} }
-  function saveConv() { try { localStorage.setItem(LS_CONV, JSON.stringify(conv)); } catch (e) {} }
+  function saveConv() {
+    if (conv.length > CONV_KEEP) conv = conv.slice(-CONV_KEEP);
+    // 老消息里的图片太大（base64），只保留最近 6 条，避免 localStorage 爆掉
+    for (var i = 0; i < conv.length - 6; i++) { if (conv[i].images) delete conv[i].images; }
+    try { localStorage.setItem(LS_CONV, JSON.stringify(conv)); } catch (e) {}
+  }
+  function refreshBadge() {
+    var b = $('dsToolBadge');
+    if (!b) return;
+    if (cfg.tools === false) { b.className = 'ds-badge off'; b.textContent = '工具已关闭'; return; }
+    b.className = 'ds-badge';
+    b.textContent = '🛠 ' + DS.activeTools().length + '/' + DS.TOOLS.length + ' 个工具';
+  }
+
+  /* ---------- 账号级权限（服务端持有，页面只负责读/写） ---------- */
+  function loadServerPrefs() {
+    return DS.prefs().then(function (j) {
+      if (j && j.ok && j.data) {
+        serverPrefs = { ai_level: Math.max(0, Math.min(3, Number(j.data.ai_level) || 0)) };
+        if (j.data.username) USER = { username: j.data.username, uid: j.data.uid, isAdmin: !!j.data.is_admin };
+        DS.setContext({ loggedIn: true, isAdmin: !!j.data.is_admin, aiLevel: serverPrefs.ai_level });
+      }
+      refreshBadge();
+    }).catch(function () {
+      DS.setContext({ loggedIn: !!(USER && USER.username) });
+      refreshBadge();
+    });
+  }
+
+  /* ---------- 工具逐项选择 ---------- */
+  var GROUP_TITLE = { local: '本地工具（不出浏览器，不需要登录）', mine: '我的 ChatApp 数据（服务端只读）', write: '会改动数据的操作（默认关闭）', admin: '管理员工具' };
+  function renderToolList() {
+    var box = $('dsToolList');
+    if (!box) return;
+    box.innerHTML = '';
+    var groups = {};
+    DS.TOOLS.forEach(function (t) { (groups[t.group] = groups[t.group] || []).push(t); });
+    Object.keys(GROUP_TITLE).forEach(function (g) {
+      if (!groups[g]) return;
+      var h = document.createElement('div');
+      h.className = 'ds-tool-group';
+      h.textContent = GROUP_TITLE[g];
+      box.appendChild(h);
+      groups[g].forEach(function (t) {
+        var reason = DS.unavailableReason(t);
+        var row = document.createElement('label');
+        row.className = 'ds-tool-row' + (reason ? ' dis' : '');
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.setAttribute('data-tool', t.name);
+        cb.checked = !reason && DS.isOn(t);
+        cb.disabled = !!reason;
+        var sp = document.createElement('span');
+        var bEl = document.createElement('b'); bEl.textContent = t.name;
+        var iEl = document.createElement('i'); iEl.textContent = reason ? ('不可用 · ' + reason) : t.desc;
+        sp.appendChild(bEl); sp.appendChild(iEl);
+        row.appendChild(cb); row.appendChild(sp);
+        box.appendChild(row);
+      });
+    });
+  }
+  function collectToolPrefs() {
+    var m = {};
+    Array.prototype.forEach.call($('dsToolList').querySelectorAll('input[data-tool]'), function (cb) {
+      m[cb.getAttribute('data-tool')] = cb.checked;
+    });
+    return m;
+  }
 
   function hasKey() { return !!(cfg.key && cfg.key.trim()); }
   function refreshKeyWarn() { keyWarn.style.display = hasKey() ? 'none' : ''; }
@@ -113,13 +375,25 @@ $v = time();
   function clearEmpty() { var e = msgArea.querySelector('.es'); if (e) e.remove(); }
   function scrollBottom() { msgArea.scrollTop = msgArea.scrollHeight; }
 
-  // 用户气泡（靠右，与私聊 .mr.own 一致）
-  function addUserBubble(text) {
+  // 用户气泡（靠右，与私聊 .mr.own 一致）；text 可空（只发图片）
+  function addUserBubble(text, images) {
     clearEmpty();
     var r = document.createElement('div');
     r.className = 'mr own';
     r.innerHTML = '<div class="mc"><div class="mb"><div class="mt"></div><div class="mti"></div></div></div>';
-    r.querySelector('.mt').textContent = text;
+    var mt = r.querySelector('.mt');
+    (images || []).forEach(function (u) {
+      var img = document.createElement('img');
+      img.className = 'ds-img';
+      img.src = u;
+      img.addEventListener('click', function () { try { window.open(u, '_blank'); } catch (e) {} });
+      mt.appendChild(img);
+    });
+    if (text) {
+      var t = document.createElement('div');
+      t.innerHTML = DSUI.renderEmoji(esc(DSUI.normalizeEmojiHtml(text)));
+      mt.appendChild(t);
+    }
     r.querySelector('.mti').textContent = nowTime();
     msgArea.appendChild(r); scrollBottom();
     return r;
@@ -140,26 +414,94 @@ $v = time();
     return d.getFullYear() + '/' + p(d.getMonth() + 1) + '/' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
   }
 
+  /* ---------- 气泡内排版：正文块 + 工具卡按出现顺序排列 ---------- */
+  function appendPart(b, el) {
+    var mb = b.querySelector('.mb');
+    mb.insertBefore(el, mb.querySelector('.mti'));
+  }
+  function newTextBlock(b) {
+    var el = document.createElement('div'); el.className = 'mt'; appendPart(b, el); return el;
+  }
+  function addStatus(b, text) {
+    var el = document.createElement('div'); el.className = 'ds-status'; el.textContent = text;
+    appendPart(b, el); return el;
+  }
+  // 隐藏的 tool_result 消息 → 还原每个工具的返回，用于历史重绘时把卡片结果填回去
+  function resultsFromHidden(content) {
+    var out = [], re = /<tool_result name="([^"]*)">([\s\S]*?)<\/tool_result>/g, m;
+    while ((m = re.exec(String(content || '')))) {
+      var r; try { r = JSON.parse(m[2]); } catch (e) { r = { ok: false, error: '历史结果解析失败' }; }
+      out.push(r);
+    }
+    return out;
+  }
+  // 把一条 assistant 消息（可能含 <tool> 块）画进气泡
+  function renderAssistant(b, content, results, toolCalls) {
+    var parts = DS.splitToolBlocks(content), ti = 0;
+    parts.forEach(function (p) {
+      if (p.type === 'text') {
+        if (!String(p.text).trim()) return;
+        var el = newTextBlock(b);
+        el.innerHTML = DSUI.renderEmojiHtml(renderMd(DSUI.normalizeEmojiHtml(String(p.text))));
+      } else {
+        var card = DS.toolCard(p);
+        appendPart(b, card);
+        var r = results && results[ti++];
+        DS.fillToolCard(card, r || { ok: true, data: '（历史记录：该结果未保存）' });
+      }
+    });
+    // 原生 function calling 的调用不在正文里，历史重绘时要从 tool_calls 补出卡片
+    (toolCalls || []).forEach(function (tc) {
+      var fn = tc.function || {}, args = {};
+      try { args = JSON.parse(fn.arguments || '{}'); } catch (e) {}
+      var card2 = DS.toolCard({ name: fn.name, args: args });
+      appendPart(b, card2);
+      var r2 = results && results[ti++];
+      DS.fillToolCard(card2, r2 || { ok: true, data: '（历史记录：该结果未保存）' });
+    });
+  }
+
   function renderAll() {
     msgArea.innerHTML = '';
-    if (!conv.length) {
-      msgArea.innerHTML = '<div class="es"><p>和 DeepSeek 聊聊吧～</p></div>';
+    if (!conv.filter(function (m) { return !m.hidden; }).length) {
+      msgArea.innerHTML = '<div class="es"><p>' + WELCOME + '</p></div>';
       return;
     }
-    conv.forEach(function (m) {
-      if (m.role === 'user') addUserBubble(m.content);
-      else { var b = addAiBubble(); b.querySelector('.mt').innerHTML = renderMd(m.content); b.querySelector('.mti').textContent = nowTime(); }
-    });
+    for (var i = 0; i < conv.length; i++) {
+      var m = conv[i];
+      if (m.hidden) continue;                       // 工具结果不上屏
+      if (m.role === 'user') { addUserBubble(m.content, m.images); continue; }
+      var b = addAiBubble();
+      var nxt = conv[i + 1];
+      var hist;
+      if (nxt && nxt.hidden && nxt.kind === 'tool_result') hist = resultsFromHidden(nxt.content);
+      else if (nxt && nxt.role === 'tool') {           // 原生 function calling 的历史结果
+        hist = [];
+        for (var k = i + 1; k < conv.length && conv[k].role === 'tool'; k++) {
+          try { hist.push(JSON.parse(conv[k].content)); } catch (e) { hist.push({ ok: false, error: '历史结果解析失败' }); }
+        }
+      }
+      renderAssistant(b, m.content, hist, m.tool_calls);
+      b.querySelector('.mti').textContent = m.time || nowTime();
+    }
     scrollBottom();
   }
 
   /* ---------- 设置 ---------- */
   function openSettings() {
     $('dsKey').value = cfg.key || '';
+    $('dsKeyState').textContent = hasKey()
+      ? '✅ 已保存在本机（localStorage 的 chatapp_ds_cfg），下次打开自动使用'
+      : '⚠ 还没填写 —— 填好后点保存即写入本机';
     $('dsModel').value = 'deepseek-v4-flash';
     $('dsSystem').value = cfg.system || '';
-    $('dsTemp').value = (cfg.temp != null ? cfg.temp : 1);
+    $('dsTemp').value = (cfg.temp != null ? cfg.temp : 0.7);
     $('dsMaxTokens').value = (cfg.maxTokens || 2048);
+    $('dsTools').checked = cfg.tools !== false;
+    var radios = document.getElementsByName('dsAiLevel');
+    for (var ri = 0; ri < radios.length; ri++) radios[ri].checked = (Number(radios[ri].value) === serverPrefs.ai_level);
+    refreshLevelHint();
+    renderToolList();
     $('dsSettingsModal').classList.add('active');
     setTimeout(function () { try { $('dsKey').focus(); } catch (e) {} }, 50);
   }
@@ -168,14 +510,56 @@ $v = time();
     cfg.key = $('dsKey').value.trim();
     cfg.model = 'deepseek-v4-flash';
     cfg.system = $('dsSystem').value;
-    var t = parseFloat($('dsTemp').value); cfg.temp = isNaN(t) ? 1 : Math.max(0, Math.min(2, t));
+    var t = parseFloat($('dsTemp').value); cfg.temp = isNaN(t) ? 0.7 : Math.max(0, Math.min(2, t));
     var mt = parseInt($('dsMaxTokens').value, 10); cfg.maxTokens = isNaN(mt) ? 2048 : Math.max(1, Math.min(8192, mt));
-    saveCfg(); refreshKeyWarn(); closeSettings();
+    cfg.tools = $('dsTools').checked;
+    cfg.toolPrefs = collectToolPrefs();
+    DS.setEnabled(cfg.toolPrefs);
+    saveCfg(); refreshKeyWarn(); refreshBadge(); closeSettings();
+
+    // 账号级权限：一个档位（默认 0 关闭）；选「读写」及以上需要二次确认
+    var radios = document.getElementsByName('dsAiLevel'), wantLv = serverPrefs.ai_level;
+    for (var i = 0; i < radios.length; i++) if (radios[i].checked) wantLv = Number(radios[i].value) || 0;
+    if (wantLv >= 2 && serverPrefs.ai_level < 2) {
+      if (!confirm('选择「读写」后，AI 可以在你明确要求时以你的身份给好友发消息。\n服务端限制：只能发给好友、5 分钟最多 3 条、每次调用都记审计日志。\n确定吗？')) {
+        wantLv = 1;
+      }
+    }
+    if (wantLv !== serverPrefs.ai_level) {
+      DS.setPrefs({ ai_level: wantLv }).then(function (j) {
+        if (j && j.ok) {
+          serverPrefs = { ai_level: Number((j.data && j.data.ai_level) || wantLv) };
+          DS.setContext({ aiLevel: serverPrefs.ai_level });
+          // 逐项勾选跟着档位重置，省得让人手点 20 个开关
+          cfg.toolPrefs = DS.prefsForLevel(serverPrefs.ai_level);
+          DS.setEnabled(cfg.toolPrefs);
+          saveCfg();
+          refreshBadge();
+          alert('AI 权限已设为「' + DS.levelName(serverPrefs.ai_level) + '」。');
+        } else {
+          alert('AI 权限保存失败：' + ((j && j.error) || '未知错误'));
+        }
+      }).catch(function (e) {
+        alert('AI 权限保存失败：' + ((e && e.message) || '网络错误'));
+      });
+    }
+  }
+  function refreshLevelHint() {
+    // 档位存在服务器，未登录改不了（服务端也会拒）→ 直接禁用，避免白填
+    var logged = !!(USER && USER.username);
+    var radios = document.getElementsByName('dsAiLevel');
+    for (var i = 0; i < radios.length; i++) {
+      radios[i].disabled = !logged;
+      radios[i].closest('label').style.opacity = logged ? '' : '.5';
+    }
   }
 
-  /* ---------- 发送 / 流式接收 ---------- */
+  /* ---------- 发送 / 流式接收 / 工具循环 ---------- */
   function setStreaming(on) {
-    streaming = on; sendBtn.disabled = on; typing.style.display = on ? 'block' : 'none';
+    streaming = on;
+    typing.style.display = on ? 'block' : 'none';
+    typing.textContent = 'DeepSeek 正在思考…';
+    sendBtn.textContent = on ? '停止' : '发送';
     if (on) scrollBottom();
   }
   function showError(el, msg) {
@@ -183,30 +567,80 @@ $v = time();
     (el || msgArea).appendChild(e); scrollBottom();
   }
 
-  async function send() {
-    if (streaming) return;
-    var text = input.value.trim();
-    if (!text) return;
-    if (!hasKey()) { openSettings(); return; }
+  // 系统提示词 = 人设（默认或用户自定义）+ 工具协议/清单 + 实时上下文
+  // 带图片的消息 → content 变成 [{type:'text'},{type:'image_url'}]（视觉输入）
+  async function buildMessages() {
+    var memCount = 0;
+    try { memCount = Object.keys(DS.memory.all() || {}).length; } catch (e) {}
+    var msgs = [{
+      role: 'system',
+      content: DS.buildSystemPrompt(cfg, {
+        username: USER.username || '', uid: USER.uid || 0, isAdmin: !!USER.isAdmin,
+        lang: document.documentElement.lang || navigator.language || '',
+        memCount: memCount
+      })
+    }];
+    for (var i = 0; i < conv.length; i++) {
+      var m = conv[i];
+      var imgs = [];
+      if (m.role === 'user') {
+        if (m.images && m.images.length) imgs = imgs.concat(m.images);
+        if (String(m.content || '').indexOf('[emoji:') >= 0) {
+          try { imgs = imgs.concat(await DSUI.emojiImages(m.content)); } catch (e) {}
+        }
+      }
+      if (imgs.length) {
+        var parts = [];
+        if (m.content) parts.push({ type: 'text', text: m.content });
+        imgs.slice(0, 4).forEach(function (u) { parts.push({ type: 'image_url', image_url: { url: u } }); });
+        msgs.push({ role: m.role, content: parts });
+      } else if (m.tool_calls) {                     // 原生 function calling 的历史调用
+        msgs.push({ role: 'assistant', content: m.content || '', tool_calls: m.tool_calls });
+      } else if (m.role === 'tool') {                // 原生调用的结果
+        msgs.push({ role: 'tool', tool_call_id: m.tool_call_id, content: String(m.content || '') });
+      } else {
+        msgs.push({ role: m.role, content: m.content });
+      }
+    }
+    return msgs;
+  }
 
-    input.value = ''; autoResize();
-    conv.push({ role: 'user', content: text });
-    addUserBubble(text); saveConv();
-
-    var msgs = [];
-    if (cfg.system && cfg.system.trim()) msgs.push({ role: 'system', content: cfg.system });
-    conv.forEach(function (m) { msgs.push({ role: m.role, content: m.content }); });
-
+  // 跑一轮 assistant 输出：正文流式上屏，<tool> 块被扣下来变成工具卡
+  async function streamTurn() {
     var b = addAiBubble();
-    var mtEl = b.querySelector('.mt'), reasonEl = b.querySelector('.ds-reason');
-    var acc = '', reasoning = '';
-    setStreaming(true);
+    var reasonEl = b.querySelector('.ds-reason');
+    var parser = DS.createStreamParser();
+    var acc = DS.createToolCallAccumulator();
+    var raw = '', reasoning = '', curText = null, curAcc = '', calls = [];
+    var ctrl = new AbortController();
+    aborter = ctrl;
+
+    function handle(evs) {
+      evs.forEach(function (ev) {
+        if (ev.type === 'text') {
+          if (!curText) curText = newTextBlock(b);
+          curAcc += ev.text;
+          DSUI.paintHtml(curText, DSUI.renderEmojiHtml(renderMd(DSUI.normalizeEmojiHtml(curAcc))));
+          raw += ev.text;
+        } else {
+          curText = null; curAcc = '';
+          var card = DS.toolCard(ev);
+          appendPart(b, card);
+          calls.push({ call: ev, card: card });
+          raw += '<tool>' + ev.raw + '</tool>';
+        }
+      });
+      scrollBottom();
+    }
 
     try {
+      var schemas = (cfg.tools === false) ? [] : DS.toolSchemas();
+      var reqBody = { key: cfg.key, model: cfg.model, messages: await buildMessages(), temperature: cfg.temp, max_tokens: cfg.maxTokens };
+      if (schemas.length) reqBody.tools = schemas;      // 原生 function calling（模型就不会自己乱写标签了）
       var res = await fetch('api.php', {
-        method: 'POST', credentials: 'same-origin',
+        method: 'POST', credentials: 'same-origin', signal: ctrl.signal,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: cfg.key, model: cfg.model, messages: msgs, temperature: cfg.temp, max_tokens: cfg.maxTokens })
+        body: JSON.stringify(reqBody)
       });
       if (!res.ok && res.headers.get('content-type') && res.headers.get('content-type').indexOf('event-stream') === -1) {
         throw new Error('HTTP ' + res.status);
@@ -232,25 +666,115 @@ $v = time();
           if (delta.reasoning_content) {
             reasoning += delta.reasoning_content;
             reasonEl.style.display = '';
-            reasonEl.textContent = reasoning;
+            // 思维链里可能夹着模型自创的调用标记（DSML / use_tool）→ 清掉再显示，不要当乱码吐给用户
+            reasonEl.textContent = DS.stripProtocol(reasoning);
           }
-          if (delta.content) {
-            acc += delta.content;
-            mtEl.innerHTML = renderMd(acc);
-            scrollBottom();
-          }
+          if (delta.tool_calls) acc.feed(delta.tool_calls);   // 原生 function calling
+          if (delta.content) handle(parser.feed(delta.content));
         }
       }
+      handle(parser.end());
+      // 原生调用排在最后：卡片按顺序追加到气泡里
+      acc.end().forEach(function (call) {
+        var c2 = DS.toolCard(call);
+        appendPart(b, c2);
+        calls.push({ call: call, card: c2 });
+      });
     } catch (e) {
-      var b2 = b.querySelector('.mb');
-      if (acc) { mtEl.innerHTML = renderMd(acc); }
-      else { b.remove(); }
-      showError(msgArea, (e && e.message) ? e.message : '请求失败');
+      // 「停止」触发的中断：保留已生成的部分，不当作错误
+      if (!(e && (e.name === 'AbortError' || ctrl.signal.aborted))) throw e;
     } finally {
-      setStreaming(false);
+      try { handle(parser.end()); } catch (e2) {}
+      Array.prototype.forEach.call(b.querySelectorAll('.mt'), function (el) {
+        if (!el.textContent.trim() && !el.querySelector('img')) el.remove();
+      });
       b.querySelector('.mti').textContent = nowTime();
-      if (acc) { conv.push({ role: 'assistant', content: acc }); saveConv(); }
+      if (aborter === ctrl) aborter = null;
     }
+    return { raw: raw, calls: calls, aborted: ctrl.signal.aborted, bubble: b };
+  }
+
+  // agent 循环：模型调用工具 → 执行 → 回灌结果 → 模型继续（最多 5 轮）
+  async function agentLoop() {
+    var MAX_ROUNDS = 5, used = 0;
+    for (;;) {
+      setStreaming(true);
+      var out;
+      try {
+        out = await streamTurn();
+      } catch (e) {
+        setStreaming(false);
+        showError(msgArea, (e && e.message) ? e.message : '请求失败');
+        return;
+      }
+      setStreaming(false);
+
+      if (out.raw.trim() || out.calls.length) {
+        var ent = { role: 'assistant', content: out.raw, time: nowTime() };
+        var nats = out.calls.filter(function (c) { return c.call.native && c.call.id; });
+        if (nats.length) {                               // 原生调用要入历史，下一轮才能对上 tool_call_id
+          ent.tool_calls = nats.map(function (c) {
+            return { id: c.call.id, type: 'function', function: { name: c.call.name, arguments: JSON.stringify(c.call.args || {}) } };
+          });
+        }
+        conv.push(ent);
+        saveConv();
+        out.nativeIds = nats.map(function (c) { return c.call.id; });
+      }      if (out.aborted || !out.calls.length) return;
+      if (used >= MAX_ROUNDS - 1) {
+        addStatus(out.bubble, '已达到单轮工具调用上限（' + MAX_ROUNDS + ' 轮），先停在这里');
+        return;
+      }
+      used++;
+
+      var st = addStatus(out.bubble, '正在执行 ' + out.calls.length + ' 个工具…');
+      var rows;
+      if (cfg.tools === false) {
+        rows = out.calls.map(function (c) {
+          return { name: c.call.name, args: c.call.args, result: { ok: false, error: '用户已关闭工具，请直接用已有信息回答' } };
+        });
+      } else {
+        rows = await DS.executeAll(out.calls.map(function (c) { return c.call; }));
+      }
+      var okCount = 0;
+      rows.forEach(function (row, i) {
+        DS.fillToolCard(out.calls[i].card, row.result);
+        if (row.result.ok) okCount++;
+      });
+      st.textContent = '工具返回 ' + okCount + '/' + rows.length + ' 成功';
+      scrollBottom();
+
+      // 结果回灌：原生调用 → role:tool 消息（带 tool_call_id）；文本协议的调用 → 隐藏 user 消息
+      var textRows = [], nativeRows = [];
+      out.calls.forEach(function (c, i) {
+        if (c.call.native && c.call.id) nativeRows.push({ call: c.call, row: rows[i] });
+        else textRows.push(rows[i]);
+      });
+      nativeRows.forEach(function (x) {
+        conv.push({ role: 'tool', tool_call_id: x.call.id, content: JSON.stringify(x.row.result), hidden: true, time: nowTime() });
+      });
+      if (textRows.length) {
+        conv.push({ role: 'user', content: DS.resultMessage(textRows), hidden: true, kind: 'tool_result' });
+      }
+      saveConv();
+    }
+  }
+
+  async function send() {
+    if (streaming) { if (aborter) aborter.abort(); return; }   // 生成中再点 = 停止
+    var att = DSUI.getAttachment();
+    var text = input.value.trim();
+    if (!text && !att) return;
+    if (!hasKey()) { openSettings(); return; }
+
+    input.value = ''; autoResize();
+    var entry = { role: 'user', content: text, time: nowTime() };
+    if (att) entry.images = [att.url];
+    conv.push(entry);
+    addUserBubble(entry.content, entry.images);
+    DSUI.setAttachment(null);
+    saveConv();
+    await agentLoop();
   }
 
   /* ---------- 输入框 ---------- */
@@ -264,8 +788,37 @@ $v = time();
   $('dsKeyWarnLink').addEventListener('click', openSettings);
   $('dsSettingsCancel').addEventListener('click', closeSettings);
   $('dsSettingsSave').addEventListener('click', saveSettings);
+  $('dsLoadDefault').addEventListener('click', function () {
+    $('dsSystem').value = DS.persona();
+  });
+  $('dsKeyClear').addEventListener('click', function () {
+    if (!confirm('清除本机保存的 API Key？清除后需要重新填写才能使用。')) return;
+    cfg.key = '';
+    $('dsKey').value = '';
+    saveCfg();
+    refreshKeyWarn();
+    $('dsKeyState').textContent = '⚠ 已清除，请重新填写';
+  });
+  $('dsToolsDefault').addEventListener('click', function () {
+    cfg.toolPrefs = DS.defaultEnabledMap();
+    DS.setEnabled(cfg.toolPrefs);
+    renderToolList();
+  });
+  $('dsToolsAll').addEventListener('click', function () {
+    var m = {};
+    DS.TOOLS.forEach(function (t) { m[t.name] = !DS.unavailableReason(t); });
+    DS.setEnabled(m);
+    renderToolList();
+  });
+  $('dsToolsNone').addEventListener('click', function () {
+    var m = {};
+    DS.TOOLS.forEach(function (t) { m[t.name] = false; });
+    DS.setEnabled(m);
+    renderToolList();
+  });
   $('dsClearBtn').addEventListener('click', function () {
-    if (!confirm('清空当前对话记录？')) return;
+    if (!confirm('清空当前对话记录？（本地记忆不受影响）')) return;
+    if (aborter) aborter.abort();
     conv = []; saveConv(); renderAll();
   });
   sendBtn.addEventListener('click', send);
@@ -274,7 +827,11 @@ $v = time();
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   });
 
-  load(); refreshKeyWarn(); renderAll(); autoResize();
+  load(); refreshKeyWarn(); refreshBadge(); renderAll(); autoResize();
+  // 表情库异步到达：到了就把历史重渲染一遍，让 /斜眼笑 这类代码变成表情图
+  if (window.DSUI && DSUI.onEmojiListReady) DSUI.onEmojiListReady(function () { if (!streaming) renderAll(); });
+  loadServerPrefs();   // 登录态 / 管理员身份 / 账号级权限（服务端为准）
+  try { DSUI.init(); } catch (e) { console.error('[ds] ui init failed', e); }
 })();
 </script>
 </body>
