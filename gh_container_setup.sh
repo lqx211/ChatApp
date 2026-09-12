@@ -119,7 +119,11 @@ fi
 
 echo "Setup server."
 # 清空站点内容（保留 /var/www/html 目录本身，避免删除运行脚本的 cwd）
-sudo find /var/www/html -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null
+# 注意：必须先把目录建出来。如果 /var/www 被整体挪走过（比如 mv /var/www /var/www.old），
+# 那 /var/www/html 就不存在 —— 老版本这里直接 find，find 返回 1，配合 set -e 会让脚本
+# 在 "Setup server." 之后**静默退出**（stderr 又被 2>/dev/null 吞了，看起来就像卡死）。
+sudo mkdir -p /var/www/html
+sudo find /var/www/html -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true
 # 完整复制仓库（含 .git，供 Upgrade System 使用；用 ROOT_DIR 绝对源，避免相对路径递归自身）
 sudo cp -R "$ROOT_DIR"/. /var/www/html/
 # 运行用户写权限（Upgrade System 的 git checkout / 上传需要；容器测试环境）
