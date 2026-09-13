@@ -507,20 +507,9 @@ switch ($action) {
         if (chatapp_get_role($myUid) !== 'root') {
             echo json_encode(['success' => false, 'error' => 'Access denied']); exit;
         }
-        $newCfg = ['local' => '', 'private' => '', 'public' => ''];
-        foreach (array_keys($newCfg) as $k) {
-            $v = trim($_POST[$k] ?? '');
-            if ($v !== '' && !preg_match('#^(ws://|wss://)?[a-zA-Z0-9.\-\[\]:]+(:\d+)?(/\S*)?$#', $v)) {
-                echo json_encode(['success' => false, 'error' => 'Invalid WebSocket address: ' . $k]); exit;
-            }
-            $newCfg[$k] = $v;
-        }
-        $wssCfg = __DIR__ . '/../config/wss_server.php';
-        $phpBody = "<?php\n/** ChatApp · WebSocket 通讯模式（可在 WebSocket Settings 修改）：local/private/public */\nreturn " . var_export($newCfg, true) . ";\n";
-        if (@file_put_contents($wssCfg, $phpBody) === false) {
-            echo json_encode(['success' => false, 'error' => 'Write failed (permission?)']); exit;
-        }
-        echo json_encode(['success' => true] + $newCfg);
+        $err = chatapp_wss_save($_POST);
+        if ($err !== null) { echo json_encode(['success' => false, 'error' => $err]); exit; }
+        echo json_encode(['success' => true] + chatapp_wss_config());
         break;
 
     case 'oobe_rerun':

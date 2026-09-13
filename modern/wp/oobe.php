@@ -36,6 +36,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
     $action = $_POST['action'] ?? '';
 
+    if ($action === 'set_wss') {
+        // OOBE 里也能直接改 WebSocket 地址（仅服主；与 WebSocket Settings 同一个写入函数）
+        $err = chatapp_wss_save($_POST);
+        if ($err !== null) { echo json_encode(['success' => false, 'error' => $err]); exit; }
+        $fresh = chatapp_wss_config();
+        $out = [];
+        foreach (['local', 'private', 'public'] as $k) {
+            $v = $fresh[$k] !== '' ? $fresh[$k] : $__wssDefaults[$k];
+            $out[$k] = chatapp_wss_url($v);
+        }
+        echo json_encode(['success' => true, 'raw' => $fresh, 'url' => $out]); exit;
+    }
+
     if ($action === 'set_language') {
         $lang = trim($_POST['lang'] ?? '');
         if (!in_array($lang, ['en', 'zh', 'zh_egg', 'wyw', 'raw'], true)) { echo json_encode(['success' => false, 'error' => 'bad lang']); exit; }
@@ -234,6 +247,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 var LANG = <?php echo json_encode($currentLang); ?>;
 var ME_DISPLAY = <?php echo json_encode((string)($me['display_name'] ?? '')); ?>;
 var ME_WSS = <?php echo json_encode($__wssOut); ?>;
+var ME_WSS_RAW = <?php
+    $__rawOut = [];
+    foreach (['local', 'private', 'public'] as $__k) {
+        $__rawOut[$__k] = $__wss[$__k] !== '' ? $__wss[$__k] : $__wssDefaults[$__k];
+    }
+    echo json_encode($__rawOut, JSON_UNESCAPED_SLASHES);
+?>;
+
+/* 与后端 chatapp_wss_url() 同一套规则：空→空；带协议→原样；host:port→ws(s)://；裸域名→wss:// */
+function meWssUrl(v){
+    v = (v || '').trim();
+    if (!v) return '';
+    if (v.indexOf('://') !== -1) return v;
+    if (/^[a-zA-Z0-9.\-\[\]:]+:\d+$/.test(v)) return (location.protocol === 'https:' ? 'wss://' : 'ws://') + v;
+    return 'wss://' + v;
+}
+function meWssFieldChanged(k){
+    var inp = $('in_'+k);
+    var out = $('pv_'+k);
+    if (!inp || !out) return;
+    var u = meWssUrl(inp.value);
+    out.textContent = u || '—';
+    ME_WSS[k] = u;   // 后续测试直接用输入框里的值
+    setWSStatus(k, '');
+}
+/* 把三个地址存回 config/wss_server.php（服主；和 WebSocket Settings 同一个写入函数） */
+function saveWssFromOobe(){
+    var fd = new FormData();
+    fd.append('action', 'set_wss');
+    ['local','private','public'].forEach(function(k){
+        var inp = $('in_'+k);
+        fd.append(k, inp ? inp.value.trim() : '');
+    });
+    return fetch(location.pathname, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(r){ return r.json(); });
+}
 function L(e, z) { return LANG === 'en' ? e : z; }
 
 var STEP = -1;         // -1 splash, 0 lang, 1 tour, 2 security, 3 done
@@ -408,7 +457,8 @@ function stepWS(){
     ['private', L('Private','私网')],
     ['public',  L('Public','公网')]
   ];
-  var h = '<div class="hint" style="margin-bottom:14px">'+L('We will test each server below. Continue sends a ping and waits for a pong reply.','将依次测试下面的服务器。点击「继续」发送 ping 并等待 pong 回包。')+'</div>';
+  var h = '<div class="hint" style="margin-bottom:14px">'+L('We will test each server below. Continue sends a ping and waits for a pong reply.','将依次测试下面的服务器。点击「继续」发送 ping 并等待 pong 回包。')
+        + '<br>' + L('These addresses are editable: type host:port (e.g. 192.168.1.10:9090) or a full wss://domain. They are saved to config/wss_server.php.','这三个地址可以直接改：填 host:端口（如 192.168.1.10:9090）或完整的 wss://域名，保存会写进 config/wss_server.php。') + '</div>';
   h += '<div class="wsnote">'+
        '<b>'+L('Reminder:','提示：')+'</b> '+L('the WebSocket server must be running, or the tests below will fail. Start it once:','WebSocket 服务器必须已启动，否则下方测试会失败。请先启动一次：')+
        '<br><code>cd wss &amp;&amp; ./start.sh -d</code>'+
@@ -419,12 +469,15 @@ function stepWS(){
     var m = modes[i];
     h += '<div class="wsline">'+
          '<span class="wstag">'+m[1]+'</span>'+
-         '<div class="uinput" id="u_'+m[0]+'"><input type="text" readonly value="'+ME_WSS[m[0]]+'"></div>'+
-         '</div>';
+         '<div class="uinput" id="u_'+m[0]+'">'+
+           '<input type="text" id="in_'+m[0]+'" value="'+String(ME_WSS_RAW[m[0]]||'').replace(/"/g,'&quot;')+'" placeholder="host:port 或 wss://…" oninput="meWssFieldChanged(\''+m[0]+'\')">'+
+         '</div>'+
+         '</div>'+
+         '<div class="hint" id="pvwrap_'+m[0]+'" style="margin:-12px 0 14px 66px">→ <span id="pv_'+m[0]+'">'+ME_WSS[m[0]]+'</span></div>';
   }
   h += '<div class="actions">'+
        '<button class="linkbtn" onclick="skipWS()">'+L('Skip','跳过')+'</button>'+
-       '<button class="btn primary" id="wsBtn" onclick="runWSTests()">'+L('Continue & Test','继续并测试')+'</button>'+
+       '<button class="btn primary" id="wsBtn" onclick="runWSTests()">'+L('Save & Continue & Test','保存并继续测试')+'</button>'+
        '</div>';
   body(h);
 }
@@ -451,15 +504,30 @@ function wssTestUrl(url){
 }
 function runWSTests(){
   var btn = $('wsBtn');
-  if (btn){ btn.disabled = true; btn.textContent = L('Testing…','测试中…'); }
+  if (btn){ btn.disabled = true; btn.textContent = L('Saving…','保存中…'); }
   var old = $('wsHint'); if (old) old.remove();
-  var order = ['local','private','public'];
-  (function next(i){
-    if (i >= order.length){ stepWSDone(); return; }
-    var k = order[i];
-    setWSStatus(k, 'testing');
-    wssTestUrl(ME_WSS[k]).then(function(ok){ setWSStatus(k, ok ? 'pass' : 'fail'); next(i+1); });
-  })(0);
+  // 先把输入框里的地址存下来，再用它们测试
+  saveWssFromOobe().then(function(d){
+    if (!d || !d.success){
+      if (btn){ btn.disabled = false; btn.textContent = L('Save & Continue & Test','保存并继续测试'); }
+      var hint = document.createElement('div');
+      hint.className = 'hint'; hint.id = 'wsHint'; hint.style.color = '#e08080';
+      hint.textContent = L('Save failed: ','保存失败：') + ((d && d.error) || 'unknown') + L(' (permission? try again as root)','（权限问题？用 root 访问再试）');
+      var acts = document.querySelector('#cardBody .actions');
+      if (acts) acts.parentNode.insertBefore(hint, acts); else document.body.appendChild(hint);
+      return;
+    }
+    if (btn) btn.textContent = L('Testing…','测试中…');
+    var order = ['local','private','public'];
+    (function next(i){
+      if (i >= order.length){ stepWSDone(); return; }
+      var k = order[i];
+      setWSStatus(k, 'testing');
+      wssTestUrl(ME_WSS[k]).then(function(ok){ setWSStatus(k, ok ? 'pass' : 'fail'); next(i+1); });
+    })(0);
+  }).catch(function(){
+    if (btn){ btn.disabled = false; btn.textContent = L('Save & Continue & Test','保存并继续测试'); }
+  });
 }
 function stepWSDone(){
   var anyFail = document.querySelector('.wsline .uinput.fail') !== null;

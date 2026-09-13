@@ -381,6 +381,29 @@ function chatapp_wss_url(?string $v): string {
     return 'wss://' . $v;
 }
 
+/**
+ * 校验并写入 config/wss_server.php（WebSocket Settings 面板 / OOBE 公用）。
+ * 返回 null = 成功；返回字符串 = 错误信息（不抛异常，方便两边直接回 JSON）。
+ */
+function chatapp_wss_save(array $in): ?string {
+    $newCfg = ['local' => '', 'private' => '', 'public' => ''];
+    foreach (array_keys($newCfg) as $k) {
+        $v = trim((string)($in[$k] ?? ''));
+        if ($v !== '' && !preg_match('#^(ws://|wss://)?[a-zA-Z0-9.\-\[\]:]+(:\d+)?(/\S*)?$#', $v)) {
+            return 'Invalid WebSocket address: ' . $k;
+        }
+        $newCfg[$k] = $v;
+    }
+    $file = __DIR__ . '/../config/wss_server.php';
+    $body = "<?php\n/** ChatApp · WebSocket 通讯模式（可在 WebSocket Settings 修改）：local/private/public */\nreturn " . var_export($newCfg, true) . ";\n";
+    if (@file_put_contents($file, $body) === false) return 'Write failed (permission?)';
+    // opcache 默认 2 秒才复检一次时间戳 —— 不刷掉的话，同一个请求里紧接着 include
+    // 这份配置会拿到旧值（回给前端的 JSON 就不是刚存的那份）
+    if (function_exists('opcache_invalidate')) @opcache_invalidate($file, true);
+    clearstatcache(true, $file);
+    return null;
+}
+
 function chatapp_is_mobile_ua(): bool {
     $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
     return (bool)preg_match('/iPhone|iPod|iPad|Android|Mobile|Mobi|Opera Mini|IEMobile|Windows Phone/i', $ua);
