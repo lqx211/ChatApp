@@ -716,7 +716,9 @@ img[src*="data/res/svg/"],img[src*="data/res/cil/"],img[src*="data/res/brand/"]{
 .ca-ask{background:#262626;border:1px solid #3f3f3f;border-radius:8px;padding:10px 12px;
   min-width:220px;max-width:340px;margin-top:4px;transition:border-color .15s,opacity .15s}
 .ca-ask.done-ok{border-color:#3a6a3a}
-.ca-ask.done-no{border-color:#6a3a3a;opacity:.85}
+.ca-ask.done-no{border-color:#6a3a3a;background:#241a1a}
+/* 失败卡里的警示框：卡片收成一行后它依然可见（settled 只隐藏 purpose/args）*/
+.ca-ask .ca-ask-fail{margin:6px 0 2px;font-size:.74em;white-space:pre-wrap}
 .ca-ask .ca-ask-scope{font-size:.86em;color:#8a8a8a;font-weight:400;margin-left:4px}
 .ca-ask .ca-ask-purpose{color:#b8b8b8;font-size:.74em;line-height:1.5;margin:2px 0 8px}
 .ca-ask .ca-ask-args{font-size:.72em;color:#9aa7b3;border-top:1px solid #333;padding-top:7px}

@@ -1556,24 +1556,32 @@
     var t = TOOL_MAP[n];
     if (!t) {
       return Promise.resolve({
-        ok: false,
-        error: '不存在名为 "' + name + '" 的工具',
-        available: activeTools().map(function (x) { return x.name; })
+        ok: false, code: 'not_found',
+        error: '不存在名为 "' + name + '" 的工具'
       });
     }
     var reason = unavailableReason(t);
-    if (reason) return Promise.resolve({ ok: false, error: n + ' 暂时不可用：' + reason });
+    if (reason) return Promise.resolve({ ok: false, code: 'unavailable', error: n + ' 暂时不可用：' + reason });
     if (!isOn(t)) {
-      return Promise.resolve({ ok: false, error: '用户已把工具 "' + n + '" 关闭了；不要重试，如确实需要请让用户在设置里打开' });
+      return Promise.resolve({ ok: false, code: 'off', error: '工具 "' + n + '" 处于「未开启」状态（用户在设置里把它关掉了）；不要重试，可提示用户去「设置 → 工具」打开' });
     }
 
     var gate = isSensitive(t) ? askPermission(n, args || {}, t) : Promise.resolve(null);
     return gate.then(function (verdict) {
       if (verdict === 'denied') {
-        return { ok: false, denied: true, error: '用户拒绝了这次「' + n + '」调用，它没有执行。不要重试、不要换成别的工具绕过，用一句话说明你想做什么并等用户改主意。' };
+        return { ok: false, denied: true, code: 'denied', error: '用户拒绝了这次「' + n + '」调用，它没有执行。不要重试、不要换成别的工具绕过，用一句话说明你想做什么并等用户改主意。' };
       }
       if (verdict === 'error') {
-        return { ok: false, denied: true, error: '确认框出错了，这次「' + n + '」没有执行。可以告诉用户重试。' };
+        return { ok: false, denied: true, code: 'denied', error: '确认框出错了，这次「' + n + '」没有执行。可以告诉用户重试。' };
+      }
+      /* 执行前二次检查：用户可能在确认卡等待期间改了设置（关掉工具 / 档位变了）。
+         只在发起时查一次的话，关了还照样执行 —— 必须重新验。 */
+      if (!isOn(t)) {
+        return { ok: false, code: 'off', error: '工具 "' + n + '" 在刚才被关掉了，处于「未开启」状态，这次没有执行' };
+      }
+      var reason2 = unavailableReason(t);
+      if (reason2) {
+        return { ok: false, code: 'unavailable', error: n + ' 暂时不可用：' + reason2 };
       }
       var t0 = Date.now();
       var p = t.server ? serverRun(n, args || {}) : Promise.resolve().then(function () { return t.run(args || {}); });
@@ -1593,7 +1601,7 @@
           return finishRun(data, t0);
         });
       }).catch(function (e) {
-        return { ok: false, error: (e && e.message) ? e.message : '执行失败', _ms: Date.now() - t0 };
+        return { ok: false, code: 'error', error: (e && e.message) ? e.message : '执行失败', _ms: Date.now() - t0 };
       });
     });
   }
@@ -1631,7 +1639,9 @@
       '.ds-tool{margin:4px 0;border:1px solid #3a3a3a;border-left:3px solid #5a7a9a;background:#1f2429;border-radius:5px;',
       '  padding:6px 9px;font-size:.74em;line-height:1.5;color:#9fb4c7;max-width:100%;overflow:hidden}',
       '.ds-tool[data-state="run"]{border-left-color:#c8a35a}',
-      '.ds-tool[data-state="err"]{border-left-color:#a05252;color:#d99}',
+      '.ds-tool[data-state="err"]{border-color:#6a3a3a;border-left-color:#a05252;background:#241a1a}',
+      '.ds-tool .ds-t-fail{margin-top:4px;padding:5px 8px;background:#33221f;border:1px solid #6a3a3a;border-radius:4px;color:#e7b7a8;font-size:.74em;line-height:1.55;white-space:pre-wrap;word-break:break-word}',
+      '.ds-tool .ds-t-warn{margin-top:4px;padding:5px 8px;background:#2f2a1c;border:1px solid #6a5a2a;border-radius:4px;color:#e0d3a8;font-size:.74em;line-height:1.55;white-space:pre-wrap;word-break:break-word}',
       '.ds-tool .ds-t-name{font-weight:600;color:#8fc7ff}',
       '.ds-tool .ds-t-args{color:#7d8794;word-break:break-all}',
       '.ds-tool .ds-t-out{margin-top:3px;color:#b9c7d4;word-break:break-word;white-space:pre-wrap}',
@@ -1673,9 +1683,50 @@
       out.textContent = clampStr(s, 300);
       el.querySelector('.ds-t-raw').textContent = JSON.stringify(res.data, null, 1) +
         '\n// 耗时 ' + ((res.data && res.data._ms) != null ? res.data._ms : '?') + 'ms';
+      /* 自查类结果里写着「这个工具用不了 / 被关了」——也要给用户一个可见的提示框，
+         而不是只趴在 JSON 里（用户看不到 JSON）。 */
+      var warn = '';
+      var d = res.data;
+      if (d && typeof d === 'object') {
+        if (d.usable === false) {
+          warn = '⚠ 这个工具当前用不了：' + (d.status || d.why || '不可用') +
+            ((d.name && d.status && /被用户关掉|关掉/.test(String(d.status))) ? '\n👉 去「设置 → 工具」勾选即可打开。' : '');
+        } else if (Array.isArray(d.not_usable) && d.not_usable.length) {
+          warn = '⚠ 有 ' + d.not_usable.length + ' 个工具你当前用不了（权限/登录/被关闭）。';
+        } else if (d.usable_count != null && d.total != null && Number(d.usable_count) < Number(d.total)) {
+          warn = '⚠ 当前可用 ' + d.usable_count + '/' + d.total + ' 个工具；用不了的可在「设置 → 工具」里看原因。';
+        }
+      }
+      var wbox = el.querySelector('.ds-t-warn');
+      if (warn && !wbox) {
+        wbox = document.createElement('div');
+        wbox.className = 'ds-t-warn';
+        el.insertBefore(wbox, el.querySelector('.ds-t-raw'));
+      }
+      if (wbox) wbox.textContent = warn;
+      if (wbox && !warn) wbox.remove();
     } else {
-      out.textContent = '✗ ' + (res.error || '执行失败');
+      /* 失败视图：把原因写成一个明显可见的「失败框」（不用展开 Json 就能看到） */
+      var label = res.denied ? '已拒绝，未执行'
+                : res.code === 'off' ? '未开启'
+                : res.code === 'unavailable' ? '不可用'
+                : res.code === 'not_found' ? '工具不存在或未开启'
+                : (res.error && /权限|档位|仅站主|管理员|root/.test(String(res.error))) ? '权限不足'
+                : '调用失败';
+      out.textContent = '✗ ' + label + '：' + (res.error || '未知原因');
       out.classList.add('err');
+      var box = el.querySelector('.ds-t-fail');
+      if (!box) {
+        box = document.createElement('div');
+        box.className = 'ds-t-fail';
+        el.insertBefore(box, el.querySelector('.ds-t-raw'));
+      }
+      box.textContent = '⚠ 这次工具调用没有执行成功'
+        + (res.code === 'off' ? '（未开启：工具在设置里被关掉了）'
+          : res.code === 'unavailable' ? '（不可用）'
+          : res.code === 'not_found' ? '（工具未开启或不存在）' : '')
+        + '：' + (res.error || '未知原因')
+        + (res.code === 'off' ? '\n👉 到「设置 → 工具」里把它打开再试。' : '');
       el.querySelector('.ds-t-raw').textContent = JSON.stringify(res, null, 1) +
         '\n// 耗时 ' + (res._ms != null ? res._ms : '?') + 'ms';
     }

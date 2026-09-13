@@ -969,9 +969,26 @@ $v = time();
           st.textContent = '✓ 已执行（' + ms + '）';
           st.className = 'ca-ask-state ok';
         } else {
-          st.textContent = '✗ 失败：' + ((r && r.error) || '未知错误');
-          st.className = 'ca-ask-state no';
+          var box = card.querySelector('.ca-ask-fail');
+          if (!box) {
+            box = document.createElement('div');
+            box.className = 'ca-ask-danger ca-ask-fail';
+            var btns = card.querySelector('.ca-ask-btns');
+            if (btns) card.insertBefore(box, btns); else card.appendChild(box);
+          }
           card.classList.add('done-no');
+          var flabel = (r && r.code === 'off') ? '未开启'
+                     : (r && r.code === 'unavailable') ? '不可用'
+                     : (r && r.code === 'not_found') ? '工具不存在或未开启'
+                     : (r && r.error && /权限|档位|仅站主|管理员|root/.test(String(r.error))) ? '权限不足'
+                     : '失败';
+          st.textContent = '✗ ' + flabel + ((r && r.error) ? '：' + r.error : '');
+          st.className = 'ca-ask-state no';
+          box.textContent = '⚠ 这次工具调用没有执行成功'
+            + ((r && r.code === 'off') ? '（未开启：工具在设置里被关掉了）'
+              : (r && r.code === 'unavailable') ? '（不可用）' : '')
+            + ((r && r.error) ? '：' + r.error : '')
+            + ((r && r.code === 'off') ? '\n👉 到「设置 → 工具」里把它打开再试。' : '');
         }
       }
       card.classList.add('settled');
