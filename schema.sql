@@ -437,3 +437,13 @@ FOR EACH ROW
 SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'login_logs deletion is forbidden';
 $$
 DELIMITER ;
+-- ---------------------------------------------------------------------------
+-- app_settings：应用级开关（kv）。目前用于 ai_ticket_enabled（工单系统开关，
+-- root 通过 AI 工具 ca_ticket 控制）；读不到键时调用方取默认值。
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `app_settings` (
+  `k` varchar(64) NOT NULL,
+  `v` text DEFAULT NULL,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`k`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -404,6 +404,32 @@ function chatapp_wss_save(array $in): ?string {
     return null;
 }
 
+/**
+ * 应用级开关（kv 表 app_settings）——给「不需要重启就能切」的全局设置用。
+ * 目前：ai_ticket_enabled（工单系统开关，root 用 AI 工具 ca_ticket 控制）。
+ * 读不到（表不存在/未设置）时返回 $def，绝不抛异常。
+ */
+function chatapp_app_get(string $k, ?string $def = null): ?string {
+    try {
+        $st = db()->prepare('SELECT v FROM app_settings WHERE k = ?');
+        $st->execute([$k]);
+        $v = $st->fetchColumn();
+        return ($v === false) ? $def : (string)$v;
+    } catch (\Throwable $e) {
+        return $def;
+    }
+}
+
+function chatapp_app_set(string $k, ?string $v): bool {
+    try {
+        db()->prepare('INSERT INTO app_settings (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v), updated_at = NOW()')
+            ->execute([mb_substr($k, 0, 64), $v]);
+        return true;
+    } catch (\Throwable $e) {
+        return false;
+    }
+}
+
 function chatapp_is_mobile_ua(): bool {
     $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
     return (bool)preg_match('/iPhone|iPod|iPad|Android|Mobile|Mobi|Opera Mini|IEMobile|Windows Phone/i', $ua);

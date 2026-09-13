@@ -28,6 +28,7 @@ require_once __DIR__ . '/../../api/group_actions.php';     // 群操作（与网
 require_once __DIR__ . '/../../api/report_actions.php';    // 举报（与网页同一份）
 require_once __DIR__ . '/../../api/space_read.php';        // 空间读取层（隐私过滤与空间页同一份）
 require_once __DIR__ . '/http_fetch.php';                  // AI 的 HTTP 请求器（带 SSRF 防护 + 内容清洗）
+require_once __DIR__ . '/tools_admin.php';                 // 管理类工具（root：数据库/用户管理/WSS/工单管理；admin：日志；user：设置/资料）
 require_once __DIR__ . '/../../config/lvconfig.php';
 require_once __DIR__ . '/../../maintenance.php';
 
@@ -117,6 +118,7 @@ if ($action === 'prefs') {
         'username' => $myUsername,
         'uid' => $myUid,
         'is_admin' => $isAdmin,
+        'is_root' => ($role === 'root'),
         'role' => $role,
         'ai_level' => $aiLevel,
         'ai_level_name' => $AI_LEVEL_NAMES[$aiLevel],
@@ -243,6 +245,79 @@ $TOOL_DEFS = [
         'limit' => ['type' => 'int', 'min' => 1, 'max' => 40, 'default' => 12],
     ], 'fn' => 'ai_tool_emoji'],
     'ca_admin_stats' => ['scope' => 'admin', 'min_level' => 3, 'args' => [], 'fn' => 'ai_tool_admin_stats'],
+
+    /* ---------------- 本批新增（root 专属 / admin / user 通用） ----------------
+       root = chatapp_get_role()==='root'（只可能是 UID 10000 且用户名 admin）；
+       每个处理器里还会再查一次身份，不依赖这里的标记。 */
+    /* 读数据库（root）——只读：SELECT/SHOW/DESC/EXPLAIN，禁多语句/写文件/锁表/睡眠 */
+    'ca_db' => ['scope' => 'admin', 'root' => true, 'min_level' => 3, 'args' => [
+        'sql' => ['type' => 'str', 'min' => 4, 'max' => 4000],
+        'limit' => ['type' => 'int', 'min' => 1, 'max' => 300, 'default' => 50],
+    ], 'fn' => 'ai_tool_db'],
+    /* 工单：所有人可提交（必须合理理由）；root 可列表/详情/回复/改状态/总开关/计数 */
+    'ca_ticket' => ['scope' => 'self', 'min_level' => 2, 'args' => [
+        'method' => ['type' => 'enum', 'values' => ['submit', 'list', 'detail', 'respond', 'update_status', 'switch', 'count'], 'default' => 'list'],
+        'type' => ['type' => 'enum', 'values' => ['bug', 'recommendation', 'account_issue'], 'default' => 'bug'],
+        'subject' => ['type' => 'str', 'min' => 0, 'max' => 500],
+        'reason' => ['type' => 'str', 'min' => 0, 'max' => 5000],
+        'priority' => ['type' => 'enum', 'values' => ['low', 'normal', 'high', 'urgent'], 'default' => 'normal'],
+        'id' => ['type' => 'int', 'min' => 0, 'max' => 2147483647, 'default' => 0],
+        'message' => ['type' => 'str', 'min' => 0, 'max' => 5000],
+        'status' => ['type' => 'enum', 'values' => ['none', 'open', 'in_progress', 'resolved', 'closed'], 'default' => 'none'],
+        'on' => ['type' => 'enum', 'values' => ['on', 'off'], 'default' => 'on'],
+        'limit' => ['type' => 'int', 'min' => 1, 'max' => 30, 'default' => 10],
+        'q' => ['type' => 'str', 'min' => 0, 'max' => 64],
+    ], 'fn' => 'ai_tool_ticket'],
+    /* 用户管理（root）——method 风格，镜像网页 All Users 面板的每个动作 */
+    'ca_usermgmt' => ['scope' => 'admin', 'root' => true, 'min_level' => 3, 'args' => [
+        'method' => ['type' => 'enum', 'values' => ['list', 'detail', 'roles', 'add_user', 'add_placeholder', 'toggle', 'delete', 'delete_permanently', 'change_password', 'change_username', 'change_display_name', 'toggle_dnd', 'change_status', 'unlock', 'set_restrict_reason', 'adjust_level', 'adjust_exp', 'reset_exp', 'expire_tokens', 'clear_duress', 'set_role'], 'default' => 'list'],
+        'username' => ['type' => 'str', 'min' => 0, 'max' => 64],
+        'new_username' => ['type' => 'str', 'min' => 0, 'max' => 20],
+        'new_password' => ['type' => 'str', 'min' => 0, 'max' => 72],
+        'display_name' => ['type' => 'str', 'min' => 0, 'max' => 256],
+        'status' => ['type' => 'enum', 'values' => ['none', 'enabled', 'disabled', 'restricted', 'placeholder'], 'default' => 'none'],
+        'role' => ['type' => 'enum', 'values' => ['none', 'admin', 'user'], 'default' => 'none'],
+        'reason' => ['type' => 'str', 'min' => 0, 'max' => 1000],
+        'level' => ['type' => 'int', 'min' => 0, 'max' => 100, 'default' => 0],
+        'exp' => ['type' => 'int', 'min' => 0, 'max' => 2147483647, 'default' => 0],
+        'language' => ['type' => 'enum', 'values' => ['en', 'zh', 'zh_egg', 'wyw', 'raw'], 'default' => 'en'],
+        'q' => ['type' => 'str', 'min' => 0, 'max' => 64],
+        'page' => ['type' => 'int', 'min' => 1, 'max' => 10000, 'default' => 1],
+        'sort' => ['type' => 'enum', 'values' => ['user_id', 'username', 'enabled', 'last_login', 'created_at'], 'default' => 'user_id'],
+        'dir' => ['type' => 'enum', 'values' => ['asc', 'desc'], 'default' => 'asc'],
+        'regex' => ['type' => 'int', 'min' => 0, 'max' => 1, 'default' => 0],
+        'deleted' => ['type' => 'int', 'min' => 0, 'max' => 1, 'default' => 0],
+    ], 'fn' => 'ai_tool_usermgmt'],
+    /* WebSocket 配置（root）——和网页 WebSocket Settings 面板同一份配置 */
+    'ca_wss' => ['scope' => 'admin', 'root' => true, 'min_level' => 3, 'args' => [
+        'method' => ['type' => 'enum', 'values' => ['get', 'set'], 'default' => 'get'],
+        'local' => ['type' => 'str', 'min' => 0, 'max' => 300],
+        'private' => ['type' => 'str', 'min' => 0, 'max' => 300],
+        'public' => ['type' => 'str', 'min' => 0, 'max' => 300],
+    ], 'fn' => 'ai_tool_wss'],
+    /* 个人资料管理（user+）——列出/撤回自己发出去的图片视频文件 */
+    'ca_profile_data' => ['scope' => 'write', 'min_level' => 2, 'write_quota' => 10, 'args' => [
+        'method' => ['type' => 'enum', 'values' => ['list', 'revoke'], 'default' => 'list'],
+        'type' => ['type' => 'enum', 'values' => ['all', 'photo', 'video', 'file'], 'default' => 'all'],
+        'limit' => ['type' => 'int', 'min' => 1, 'max' => 100, 'default' => 30],
+        'id' => ['type' => 'int', 'min' => 0, 'max' => 2147483647, 'default' => 0],
+    ], 'fn' => 'ai_tool_profile_data'],
+    /* 日志（admin+；security 类仅 root） */
+    'ca_logs' => ['scope' => 'admin', 'min_level' => 1, 'args' => [
+        'kind' => ['type' => 'enum', 'values' => ['admin', 'login', 'exp', 'security'], 'default' => 'admin'],
+        'q' => ['type' => 'str', 'min' => 0, 'max' => 64],
+        'page' => ['type' => 'int', 'min' => 1, 'max' => 10000, 'default' => 1],
+        'limit' => ['type' => 'int', 'min' => 1, 'max' => 50, 'default' => 15],
+    ], 'fn' => 'ai_tool_logs'],
+    /* 设置（user+；不含 Account & Safety） */
+    'ca_settings' => ['scope' => 'write', 'min_level' => 2, 'write_quota' => 20, 'args' => [
+        'method' => ['type' => 'enum', 'values' => ['get', 'set', 'blocks', 'block', 'unblock'], 'default' => 'get'],
+        'key' => ['type' => 'str', 'min' => 0, 'max' => 40],
+        'value' => ['type' => 'str', 'min' => 0, 'max' => 500],
+        'user' => ['type' => 'str', 'min' => 0, 'max' => 64],
+    ], 'fn' => 'ai_tool_settings'],
+    /* 版本信息（user+，公开） */
+    'ca_about' => ['scope' => 'public', 'min_level' => 0, 'args' => [], 'fn' => 'ai_tool_about'],
 ];
 /* 旧名字（历史对话里可能还在用）→ 新名字 */
 $TOOL_ALIAS = [
@@ -272,6 +347,11 @@ if ((int)$st->fetchColumn() >= 40) {
 if ($def['scope'] === 'admin' && !$isAdmin) {
     ai_log($pdo, $myUid, $myUsername, $tool, false, 0, ['deny' => 'not_admin', 'args' => $argsSummary]);
     ai_err('只有站主/管理员可以使用这个工具');
+}
+/* root 专属（数据库/用户管理/WSS/工单管理）：UID 10000 且用户名 admin 以外的账号一律拒绝 */
+if (!empty($def['root']) && $role !== 'root') {
+    ai_log($pdo, $myUid, $myUsername, $tool, false, 0, ['deny' => 'not_root', 'args' => $argsSummary]);
+    ai_err('这个工具仅站主（root，UID 10000）可用');
 }
 $need = (int)($def['min_level'] ?? 0);
 if ($aiLevel < $need) {

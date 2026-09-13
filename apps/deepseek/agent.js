@@ -323,7 +323,7 @@
 
   /* ================= 运行时状态：可用性 + 用户勾选 =================
      前端开关只能「收窄」可用工具；服务端会再判一次，绝不依赖这里。 */
-  var ctx = { loggedIn: false, isAdmin: false, aiLevel: 0 };
+  var ctx = { loggedIn: false, isAdmin: false, isRoot: false, aiLevel: 0 };
   var enabled = {};   // {toolName: bool}；页面从 localStorage 恢复
   /* 账号级 AI 权限档位（服务端 users.ai_level 为准，这里只是 UI 提示） */
   var LEVEL_NAMES = ['关闭', '仅读', '读写', '允许所有'];
@@ -336,7 +336,10 @@
     ca_send_dm: 2, ca_group_create: 2, ca_group_join: 2, ca_contact_add: 2,
     ca_contact_remove: 2, ca_pin: 2, ca_special_care: 2, ca_report_user: 2,
     ca_http: 2, ca_js: 2,
-    ca_admin_stats: 3
+    ca_profile_data: 2, ca_settings: 2, ca_ticket: 2,
+    ca_logs: 1,
+    ca_about: 0,
+    ca_admin_stats: 3, ca_db: 3, ca_usermgmt: 3, ca_wss: 3
   };
   function levelName(v) { v = Number(v) || 0; return LEVEL_NAMES[v < 0 ? 0 : (v > 3 ? 3 : v)]; }
   function minLevelOf(t) { return (t && TOOL_MIN_LEVEL[t.name] != null) ? TOOL_MIN_LEVEL[t.name] : 0; }
@@ -354,6 +357,7 @@
     c = c || {};
     if (c.loggedIn != null) ctx.loggedIn = !!c.loggedIn;
     if (c.isAdmin != null) ctx.isAdmin = !!c.isAdmin;
+    if (c.isRoot != null) ctx.isRoot = !!c.isRoot;
     if (c.aiLevel != null) ctx.aiLevel = Math.max(0, Math.min(3, Number(c.aiLevel) || 0));
     else if (c.prefs) {   // 兼容旧字段
       var lv = 0;
@@ -372,6 +376,7 @@
   function unavailableReason(t) {
     if (t.needsLogin && !ctx.loggedIn) return '需要先登录 ChatApp';
     if (t.scope === 'admin' && !ctx.isAdmin) return '仅站主/管理员可用';
+    if (t.root && !ctx.isRoot) return '仅站主（root，UID 10000）可用';
     var need = minLevelOf(t);
     if (need && ctx.aiLevel < need) return '需要 AI 权限「' + levelName(need) + '」（当前：' + levelName(ctx.aiLevel) + '）';
     return null;
@@ -716,6 +721,81 @@
       params: {}
     },
     {
+      name: 'ca_db', group: 'root', scope: 'admin', server: true, root: true, defaultOn: false, needsLogin: true, danger: true,
+      desc: '【仅站主 root】直接查数据库（只读）：SELECT / SHOW / DESCRIBE / EXPLAIN。禁多语句、写文件（OUTFILE/DUMPFILE）、锁表、SLEEP/BENCHMARK。没写 LIMIT 会自动加（默认 50 行，最多 300）。表结构不清楚就先 SHOW TABLES / DESCRIBE 表名。',
+      params: { sql: '要执行的只读 SQL（单条）', limit: '最多返回多少行，默认 50，最多 300' }
+    },
+    {
+      name: 'ca_usermgmt', group: 'root', scope: 'admin', server: true, root: true, defaultOn: false, needsLogin: true, danger: true,
+      desc: '【仅站主 root】用户管理（与网页 All Users 面板同一套规则）：method=list 列表 / detail 详情 / roles 角色表 / add_user 新建 / add_placeholder 占位号 / toggle 启用禁用 / change_password / change_username / change_display_name / change_status（enabled·disabled·restricted·placeholder）/ set_role（admin·user）/ toggle_dnd / unlock 解锁 / set_restrict_reason / adjust_level / adjust_exp / reset_exp / expire_tokens 踢下线 / clear_duress / delete 软删 / delete_permanently 彻底删。UID 10000 不可动（和网页一致）。',
+      params: {
+        method: '要做什么（见描述）',
+        username: '目标用户名',
+        new_username: 'change_username / add_user 用',
+        new_password: 'change_password / add_user 用',
+        display_name: 'change_display_name 用',
+        status: 'change_status 用：enabled/disabled/restricted/placeholder',
+        role: 'set_role 用：admin/user',
+        reason: 'set_restrict_reason 用',
+        level: 'adjust_level 用（1-100）',
+        exp: 'adjust_exp 用（≥0）',
+        language: 'add_user 用（en/zh/zh_egg/wyw/raw）',
+        q: 'list 搜索关键字',
+        page: 'list 翻页',
+        sort: 'list 排序：user_id/username/enabled/last_login/created_at',
+        dir: 'list 方向 asc/desc',
+        regex: 'list 用正则匹配（1/0）',
+        deleted: 'list 看已删除的（1/0）'
+      }
+    },
+    {
+      name: 'ca_wss', group: 'root', scope: 'admin', server: true, root: true, defaultOn: false, needsLogin: true,
+      desc: '【仅站主 root】读/改 WebSocket 配置（local / private / public 三个地址，就是网页 WebSocket Settings 面板那份）。method=get 看当前；method=set 只给要改的字段（没给的保持原值），写回 config/wss_server.php，前端刷新后生效。',
+      params: { method: 'get / set', local: 'set 时：本地地址，如 127.0.0.1:9090', private: 'set 时：私网地址', public: 'set 时：公网地址，如 wss://wss.lqx211.com' }
+    },
+    {
+      name: 'ca_ticket', group: 'write', scope: 'self', server: true, defaultOn: true, needsLogin: true,
+      desc: '工单：method=submit 提交（所有人；必须给 subject + 至少 10 字的合理 reason）；站主（root）额外支持：list 列出全部（q 搜索/status 筛选）、detail 详情、respond 回复、update_status 改状态与优先级（status 给 none = 不改）、switch 开/关工单系统（on=on/off）、count 计数。切到 resolved 会自动给提交者发 EXP（只发一次）。自己的事看 ca_tickets（只读）。',
+      params: {
+        method: 'submit/list/detail/respond/update_status/switch/count',
+        type: 'submit 用：bug / recommendation / account_issue',
+        subject: 'submit 用：标题',
+        reason: 'submit 用：详细理由（≥10 字）',
+        priority: 'submit / update_status 用：low/normal/high/urgent',
+        id: 'detail/respond/update_status 用：工单号',
+        message: 'respond 用：回复内容',
+        status: 'list 筛选用 open/closed/all；update_status 用 none/open/in_progress/resolved/closed',
+        on: 'switch 用：on / off',
+        limit: 'list 用：条数',
+        q: 'list 用：关键字（主题/工单号）'
+      }
+    },
+    {
+      name: 'ca_logs', group: 'admin', scope: 'admin', server: true, defaultOn: false, needsLogin: true,
+      desc: '看日志（站主/管理员）：kind=admin（管理操作日志）/login（登录日志）/exp（经验值日志）/security（安全日志，仅站主）；支持 q 关键字搜索与 page 翻页。',
+      params: { kind: 'admin / login / exp / security', q: '搜索关键字', page: '页码，默认 1', limit: '每页条数，默认 15，最多 50' }
+    },
+    {
+      name: 'ca_settings', group: 'write', scope: 'write', server: true, defaultOn: true, needsLogin: true,
+      desc: '读/改我自己的设置（不含 Account & Safety：密码/注销/二重密码必须本人去网页改）。method=get 看全部；method=set + key/value 改一项；method=blocks/block/unblock 管理黑名单。可改：display_name、custom_title（签名）、gender、gender_privacy、birthday、space_ears、sig_privacy、sig_no_friend、sig_hidden_text、language、timezone、data_saver、local_cache_enabled、auto_focus_input、emoji_panel_mode、emoji_chat_mode、notif_system、notif_banner、dnd（勿扰）、typing_visible、stranger_invite_group、stranger_like、anyone_add_friend、searchable、searchable_by_uid、send_read_receipt、view_read_receipt。',
+      params: {
+        method: 'get / set / blocks / block / unblock',
+        key: 'set 用：设置名（如 dnd、language、timezone、notif_system…）',
+        value: 'set 用：新值（开关用 on/off；语言用 en/zh/zh_egg/wyw/raw；时区 ±HH:MM；生日 YYYY-MM-DD）',
+        user: 'block/unblock 用：要拉黑的用户名或 UID'
+      }
+    },
+    {
+      name: 'ca_profile_data', group: 'write', scope: 'write', server: true, defaultOn: true, needsLogin: true,
+      desc: '个人资料管理：列出/撤回我自己发出去的图片、视频、文件（聊消息里的附件）。method=list 看清单（type=all/photo/video/file）；method=revoke + id 撤回某条（对所有人不可见；用 list 拿到的 id）。',
+      params: { method: 'list / revoke', type: 'list 用：all/photo/video/file', limit: 'list 用：最多几条', id: 'revoke 用：要撤回的消息 ID' }
+    },
+    {
+      name: 'ca_about', group: 'mine', scope: 'public', server: true, defaultOn: true,
+      desc: 'ChatApp 版本信息（版本号 / 构建日期 / PHP 版本 / 工单系统开关状态）——「设置 → 关于 ChatApp」同一份数据。',
+      params: {}
+    },
+    {
       name: 'remember', group: 'local', scope: 'local', defaultOn: true,
       desc: '把一小段信息记到本地（只存在我自己的浏览器里，服务器看不到），以后可以用 recall 取回',
       params: { key: '标题/键，如 "生日提醒"', value: '内容，最多 500 字' },
@@ -850,7 +930,7 @@
     }
     if (c.username) lines.push('- 当前登录用户：' + c.username + (c.uid ? '（UID ' + c.uid + '）' : ''));
     else lines.push('- 当前未登录：要使用 ca_* 系列工具需要先登录 ChatApp');
-    if (c.isAdmin) lines.push('- 账号身份：站主/管理员（可使用 ca_admin_stats）');
+    if (c.isAdmin) lines.push('- 账号身份：站主/管理员（可用 ca_admin_stats、ca_logs；root 额外可用 ca_db / ca_usermgmt / ca_wss / ca_ticket 管理）');
     if (c.lang) lines.push('- 界面语言：' + c.lang);
     if (c.memCount) lines.push('- 本地记忆：' + c.memCount + ' 条（可用 recall 查看）');
     return lines.join('\n');

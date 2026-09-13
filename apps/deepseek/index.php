@@ -346,8 +346,8 @@ $v = time();
     return DS.prefs().then(function (j) {
       if (j && j.ok && j.data) {
         serverPrefs = { ai_level: Math.max(0, Math.min(3, Number(j.data.ai_level) || 0)) };
-        if (j.data.username) USER = { username: j.data.username, uid: j.data.uid, isAdmin: !!j.data.is_admin };
-        DS.setContext({ loggedIn: true, isAdmin: !!j.data.is_admin, aiLevel: serverPrefs.ai_level });
+        if (j.data.username) USER = { username: j.data.username, uid: j.data.uid, isAdmin: !!j.data.is_admin, isRoot: !!j.data.is_root };
+        DS.setContext({ loggedIn: true, isAdmin: !!j.data.is_admin, isRoot: !!j.data.is_root, aiLevel: serverPrefs.ai_level });
       }
       refreshBadge();
     }).catch(function () {
@@ -357,7 +357,7 @@ $v = time();
   }
 
   /* ---------- 工具逐项选择 ---------- */
-  var GROUP_TITLE = { local: '本地工具（不出浏览器，不需要登录）', mine: '我的 ChatApp 数据（服务端只读）', write: '会改动数据的操作（默认关闭）', admin: '管理员工具' };
+  var GROUP_TITLE = { local: '本地工具（不出浏览器，不需要登录）', mine: '我的 ChatApp 数据（服务端只读）', write: '会改动数据的操作（默认关闭）', admin: '管理员工具', root: '站主工具（仅 root，UID 10000）' };
   function renderToolList() {
     var box = $('dsToolList');
     if (!box) return;
