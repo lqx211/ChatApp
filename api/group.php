@@ -5,6 +5,7 @@
 
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/chat_actions.php';   // chatapp_save_attachment / 级别限制
+require_once __DIR__ . '/group_actions.php';  // 建群/加入/置顶统一层（网页 + AI 工具共用）
 
 chatapp_session_start();
 isset($_SESSION['username']) or die(json_encode(['success' => false]));
@@ -24,15 +25,7 @@ $myUidStmt->execute([$me]);
 $myUid = (int)($myUidStmt->fetchColumn() ?: 0);
 if ($myUid <= 0) { echo json_encode(['success' => false]); exit; }
 
-function gen_group_id(PDO $pdo): int {
-    for ($i = 0; $i < 20; $i++) {
-        $id = random_int(1000000, 150000000);
-        if (!$pdo->query("SELECT 1 FROM `groups` WHERE group_id=$id")->fetch()) {
-            return $id;
-        }
-    }
-    throw new Exception('Failed to generate unique group ID');
-}
+/* gen_group_id() 已搬到 api/group_actions.php（统一操作层，AI 工具 ca_group_create 也用同一份） */
 
 /**
  * 群消息加工：计算 attachment_url / attachment_name / attachment_size / is_deleted /
@@ -94,66 +87,23 @@ function chatapp_group_proc_messages(PDO $pdo, array $msgs): array {
 switch ($action) {
 
     case 'create':
-        $name = trim(mb_substr($_POST['name'] ?? '', 0, 50));
-        if (empty($name)) { echo json_encode(['success' => false]); exit; }
-
-        // Level-gated owned-groups limit (jh.md Lv Limits: max_groups)
-        $maxGroups = level_limits(user_level($pdo, $myUid))['max_groups'];
-        $ownedCount = (int)$pdo->query("SELECT COUNT(*) FROM `groups` WHERE owner_id=$myUid")->fetchColumn();
-        if ($ownedCount >= $maxGroups) {
-            echo json_encode([
-                'success' => false,
-                'error' => 'Group limit reached',
-                'max_groups' => $maxGroups,
-            ]);
-            exit;
-        }
-
-        $gid = gen_group_id($pdo);
-        $pdo->prepare("INSERT INTO `groups` (group_id, name, owner_id) VALUES (?, ?, ?)")->execute([$gid, $name, $myUid]);
-        $pdo->prepare("INSERT INTO group_members (group_id, user_id, role) VALUES (?, ?, 'owner')")->execute([$gid, $myUid]);
-        echo json_encode(['success' => true, 'group_id' => $gid]);
+        // 逻辑已搬到 api/group_actions.php（AI 工具 ca_group_create 走同一份）
+        echo json_encode(group_action_create($pdo, $myUid, (string)($_POST['name'] ?? '')));
         break;
 
     case 'join':
-        $gid = (int)($_POST['group_id'] ?? 0);
-        if ($gid <= 0) { echo json_encode(['success' => false]); exit; }
-        $g = $pdo->query("SELECT * FROM `groups` WHERE group_id=$gid")->fetch();
-        if (!$g || !$g['public']) { echo json_encode(['success' => false]); exit; }
-        try { $pdo->prepare("INSERT INTO group_members (group_id, user_id, role) VALUES (?, ?, 'member')")->execute([$gid, $myUid]); }
-        catch (Exception $e) { echo json_encode(['success' => false, 'error' => 'Already a member.']); exit; }
-        echo json_encode(['success' => true]);
+        // 逻辑已搬到 api/group_actions.php（公开群才直接进）
+        echo json_encode(group_action_join($pdo, $myUid, (int)($_POST['group_id'] ?? 0), 'join'));
         break;
 
     case 'request':
-        $gid = (int)($_POST['group_id'] ?? 0);
-        if ($gid <= 0) { echo json_encode(['success' => false]); exit; }
-        $g = $pdo->query("SELECT * FROM `groups` WHERE group_id=$gid")->fetch();
-        if (!$g) { echo json_encode(['success' => false]); exit; }
-        // Already a member?
-        if ($pdo->query("SELECT 1 FROM group_members WHERE group_id=$gid AND user_id=$myUid")->fetch()) {
-            echo json_encode(['success' => false, 'error' => 'Already a member.']); exit;
-        }
-        try { $pdo->prepare("INSERT INTO group_requests (group_id, user_id) VALUES (?, ?)")->execute([$gid, $myUid]); }
-        catch (Exception $e) { echo json_encode(['success' => false, 'error' => 'Already requested.']); exit; }
-        echo json_encode(['success' => true]);
+        // 逻辑已搬到 api/group_actions.php
+        echo json_encode(group_action_join($pdo, $myUid, (int)($_POST['group_id'] ?? 0), 'request'));
         break;
 
     case 'join_by_gid':
-        // Join or request by GID
-        $gid = (int)($_POST['group_id'] ?? 0);
-        if ($gid <= 0) { echo json_encode(['success' => false]); exit; }
-        $g = $pdo->query("SELECT * FROM `groups` WHERE group_id=$gid")->fetch();
-        if (!$g) { echo json_encode(['success' => false, 'error' => 'Group not found.']); exit; }
-        if ($g['public']) {
-            try { $pdo->prepare("INSERT INTO group_members (group_id, user_id, role) VALUES (?, ?, 'member')")->execute([$gid, $myUid]); }
-            catch (Exception $e) { echo json_encode(['success' => false, 'error' => 'Already a member.']); exit; }
-            echo json_encode(['success' => true, 'joined' => true]);
-        } else {
-            try { $pdo->prepare("INSERT INTO group_requests (group_id, user_id) VALUES (?, ?)")->execute([$gid, $myUid]); }
-            catch (Exception $e) { echo json_encode(['success' => false, 'error' => 'Already requested.']); exit; }
-            echo json_encode(['success' => true, 'requested' => true]);
-        }
+        // 逻辑已搬到 api/group_actions.php（公开群进、非公开群发申请）
+        echo json_encode(group_action_join($pdo, $myUid, (int)($_POST['group_id'] ?? 0), 'join_or_request'));
         break;
 
     case 'approve':
@@ -219,17 +169,8 @@ switch ($action) {
         break;
 
     case 'toggle_pin':
-        $gid = (int)($_POST['group_id'] ?? 0);
-        if ($gid <= 0) { echo json_encode(['success' => false]); exit; }
-        $st = $pdo->prepare("SELECT id FROM group_members WHERE group_id = ? AND user_id = ?");
-        $st->execute([$gid, $myUid]);
-        if ($st->fetch()) {
-            $pdo->prepare("UPDATE group_members SET pinned = 1 - pinned WHERE group_id = ? AND user_id = ?")
-                ->execute([$gid, $myUid]);
-            echo json_encode(['success' => true]);
-        } else {
-            echo json_encode(['success' => false]);
-        }
+        // 逻辑已搬到 api/group_actions.php（AI 工具 ca_pin 走同一份）
+        echo json_encode(group_action_toggle_pin($pdo, $myUid, (int)($_POST['group_id'] ?? 0)));
         break;
 
     case 'list_my':

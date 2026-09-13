@@ -865,4 +865,11 @@ return [
     'sup_showing' => '顯示 %s-%s / 共 %s',
     'role_admin' => '管理員',
     'role_root' => '站主',
+    /* AI 工具確認卡 */
+    'ai_tool_ask_title' => '工具調用申請',
+    'ai_tool_ask_args' => '參數',
+    'ai_tool_ask_ok' => '通過',
+    'ai_tool_ask_no' => '拒絕',
+    'ai_tool_ask_passed' => '已通過，正在執行…',
+    'ai_tool_ask_denied' => '已拒絕，呢次唔會執行',
 ];

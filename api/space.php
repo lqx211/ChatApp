@@ -7,6 +7,7 @@
  * toggle_like   点赞 / 取消赞
  */
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/space_read.php';   // 统一的「读空间」层（网页 + AI 工具共用）
 chatapp_require_login();
 ensure_space_feeds_table();
 ensure_space_comments_table();
@@ -308,42 +309,13 @@ switch ($action) {
         $user = trim((string)($_GET['user'] ?? $_POST['user'] ?? ''));
         $targetUid = 0;
         if ($user !== '') {
-            $s = $pdo->prepare("SELECT user_id FROM users WHERE username=?");
-            $s->execute([$user]);
-            $targetUid = (int)$s->fetchColumn();
+            $targetUid = space_find_uid($pdo, $user);
         } else {
             $targetUid = (int)($_GET['uid'] ?? $_POST['uid'] ?? $myUid);
         }
         if (!$targetUid) $targetUid = $myUid;
-        $isSelf = ($targetUid === $myUid);
-        $isFriend = $isSelf || space_is_friend($pdo, $myUid, $targetUid);
-        $stmt = $pdo->prepare("SELECT id, content, images, visibility, visible_to, likes, liked_by, created_at, edited_at FROM space_feeds WHERE user_id=? AND enabled=1 ORDER BY id DESC LIMIT 200");
-        $stmt->execute([$targetUid]);
-        $feeds = [];
-        foreach ($stmt->fetchAll() as $f) {
-            $vis = (int)$f['visibility'];
-            if (!$isSelf) {
-                if ($vis === 4) continue;                                          // 仅自己
-                if ($vis === 1 && !$isFriend) continue;                            // 好友
-                if ($vis === 2) { $vt = space_parse_ids($f['visible_to']); if (!in_array($myUid, $vt, true)) continue; } // 部分好友可见
-                if ($vis === 3) { $vt = space_parse_ids($f['visible_to']); if (in_array($myUid, $vt, true)) continue; } // 部分好友不可见
-                if ($vis === 5 && !space_me_in_flag($pdo, $targetUid, $myUid, 'pinned')) continue;   // 已置顶的朋友
-                if ($vis === 6 && !space_me_in_flag($pdo, $targetUid, $myUid, 'special')) continue;  // 特别关心朋友
-            }
-            $likedBy = space_parse_ids($f['liked_by']);
-            $feeds[] = [
-                'id' => (int)$f['id'],
-                'content' => (string)$f['content'],
-                'images' => $f['images'] ? (json_decode($f['images'], true) ?: []) : [],
-                'likes' => (int)$f['likes'],
-                'liked' => in_array($myUid, $likedBy, true),
-                'time' => space_fmt_full($f['created_at']),
-                'edited' => !empty($f['edited_at']) ? space_fmt_full($f['edited_at']) : null,
-                'visibility' => $isSelf ? $vis : null,
-                'visible_to' => ($isSelf && ($vis === 2 || $vis === 3)) ? space_parse_ids($f['visible_to']) : [],
-            ];
-        }
-        echo json_encode(['success' => true, 'feeds' => $feeds]);
+        // 隐私过滤在 space_read_feeds 里（与空间页同一套规则）
+        echo json_encode(['success' => true, 'feeds' => space_read_feeds($pdo, $myUid, $targetUid, 200)]);
         break;
 
     case 'delete':
@@ -655,25 +627,9 @@ switch ($action) {
 
     case 'list_messages':
         $toUid = (int)($_GET['to_uid'] ?? $_POST['to_uid'] ?? 0);
-        // 目标用户无效/不存在 → 留言板为空（不回落为本人）
-        if ($toUid <= 0) { echo json_encode(['success' => true, 'messages' => [], 'i_am_owner' => false]); break; }
-        $tu = $pdo->prepare("SELECT user_id FROM users WHERE user_id=?");
-        $tu->execute([$toUid]);
-        if (!(int)$tu->fetchColumn()) { echo json_encode(['success' => true, 'messages' => [], 'i_am_owner' => false]); break; }
-        $s = $pdo->prepare("SELECT id, user_id, content, created_at FROM space_messages WHERE to_uid=? AND enabled=1 ORDER BY id ASC LIMIT 500");
-        $s->execute([$toUid]);
-        $msgs = [];
-        foreach ($s->fetchAll() as $m) {
-            $msgs[] = [
-                'id' => (int)$m['id'],
-                'user_id' => (int)$m['user_id'],
-                'content' => (string)$m['content'],
-                'time' => space_fmt_time($m['created_at']),
-                'card' => space_user_card($pdo, (int)$m['user_id']),
-                'mine' => (int)$m['user_id'] === $myUid,
-            ];
-        }
-        echo json_encode(['success' => true, 'messages' => $msgs, 'i_am_owner' => $toUid === $myUid]);
+        // 目标用户无效/不存在 → 留言板为空（不回落为本人）—— 统一走 space_read_messages
+        $res = space_read_messages($pdo, $myUid, $toUid, 500);
+        echo json_encode(['success' => true, 'messages' => $res['messages'], 'i_am_owner' => $res['i_am_owner']]);
         break;
 
     case 'delete_message':
@@ -790,18 +746,4 @@ switch ($action) {
         echo json_encode(['success' => false, 'error' => 'unknown action']);
 }
 
-/** 取用户卡片（昵称/头像/用户名），静态缓存避免重复查询 */
-function space_user_card(PDO $pdo, int $uid): array {
-    static $cache = [];
-    if (isset($cache[$uid])) return $cache[$uid];
-    $s = $pdo->prepare("SELECT username, display_name, avatar FROM users WHERE user_id=?");
-    $s->execute([$uid]);
-    $r = $s->fetch();
-    $card = ['uid' => $uid, 'username' => '', 'name' => '用户' . $uid, 'avatar' => ''];
-    if ($r) {
-        $card['username'] = (string)$r['username'];
-        $card['name'] = ($r['display_name'] ?: $r['username']) ?: ('用户' . $uid);
-        $card['avatar'] = chatapp_avatar_url($r['avatar'] ?? '', (string)$r['username']);
-    }
-    return $cache[$uid] = $card;
-}
+/* space_user_card() 已搬到 api/space_read.php（统一读取层，AI 工具 ca_space 也用同一份） */

@@ -332,7 +332,9 @@
     ca_leaderboard: 0, ca_emoji: 0,
     ca_profile: 1, ca_level: 1, ca_find_user: 1, ca_conversations: 1, ca_groups: 1,
     ca_online: 1, ca_tickets: 1, ca_history: 1, ca_message: 1,
-    ca_send_dm: 2,
+    ca_space: 1, ca_search_messages: 1,
+    ca_send_dm: 2, ca_group_create: 2, ca_group_join: 2, ca_contact_add: 2,
+    ca_contact_remove: 2, ca_pin: 2, ca_special_care: 2, ca_report_user: 2,
     ca_admin_stats: 3
   };
   function levelName(v) { v = Number(v) || 0; return LEVEL_NAMES[v < 0 ? 0 : (v > 3 ? 3 : v)]; }
@@ -530,6 +532,64 @@
       desc: '在内置表情包里按关键词搜表情，返回可直接写在回复里的表情代码（如 /微笑、/流泪）；写进回复即渲染成表情图。提示词里已经给了全表，一般不用调这个 —— 只在表被截断或想确认某个意思对应哪个代码时用',
       params: { q: '关键词，如 哭、笑、猫、爱心', limit: '返回几个，默认 12，最多 40' }
     },
+    {
+      name: 'ca_space', group: 'mine', scope: 'self', server: true, defaultOn: true, needsLogin: true,
+      desc: '看某个用户的个人主页（说说 + 留言板）。**隐私过滤和服务端空间页完全同一套**：仅自己可见 / 好友可见 / 部分可见 / 部分不可见 / 置顶的朋友 / 特别关心朋友 都照旧生效，看不到的说说根本不会返回',
+      params: {
+        user: '对方用户名（完整用户名；自己的也行）',
+        kind: 'feeds（只看说说）| messages（只看留言板）| both（都要，默认）',
+        limit: '最多几条，默认 10，最多 30'
+      }
+    },
+    {
+      name: 'ca_search_messages', group: 'mine', scope: 'self', server: true, defaultOn: true, needsLogin: true,
+      desc: '在**我自己的**聊天记录里搜关键词（全局搜全部私聊，也可以限定某个人或某个群）；端到端加密的消息只能看到占位符',
+      params: {
+        q: '关键词，至少 2 个字',
+        with: '可选：只搜和这个人的私聊',
+        group: '可选：只搜这个群（群名或 GID），不能和 with 同时用',
+        limit: '最多几条，默认 10，最多 30'
+      }
+    },
+    {
+      name: 'ca_group_create', group: 'write', scope: 'write', server: true, defaultOn: false, needsLogin: true,
+      desc: '以「我」的身份建一个群（我成为群主）—— 受我的等级可拥有群数上限限制，和网页建群完全一样',
+      params: { name: '群名，最多 50 字' }
+    },
+    {
+      name: 'ca_group_join', group: 'write', scope: 'write', server: true, defaultOn: false, needsLogin: true,
+      desc: '加入一个群：公开群直接加入；非公开群会帮我发加入申请，等群主/管理员审批',
+      params: { group: '群号（GID）或群名' }
+    },
+    {
+      name: 'ca_contact_add', group: 'write', scope: 'write', server: true, defaultOn: false, needsLogin: true,
+      desc: '给某人发好友申请（对方可以拒绝；对方黑名单/关闭「允许任何人添加」/申请太频繁时会被服务端拒绝）',
+      params: { to: '对方用户名', msg: '可选：申请附言，最多 200 字' }
+    },
+    {
+      name: 'ca_contact_remove', group: 'write', scope: 'write', server: true, defaultOn: false, needsLogin: true,
+      desc: '删除一个联系人（双向解除好友关系，聊天记录不会删）',
+      params: { to: '对方用户名' }
+    },
+    {
+      name: 'ca_pin', group: 'write', scope: 'write', server: true, defaultOn: false, needsLogin: true,
+      desc: '置顶 / 取消置顶：会话（联系人）或群聊都可以',
+      params: {
+        kind: 'contact（会话置顶，默认）| group（群置顶）',
+        target: 'kind=contact 时是对方用户名；kind=group 时是群名或 GID',
+        on: 'on（置顶）| off（取消置顶）| toggle（翻转，默认）'
+      }
+    },
+    {
+      name: 'ca_special_care', group: 'write', scope: 'write', server: true, defaultOn: false, needsLogin: true,
+      desc: '特别关心开关（对方发说说时你能收到提醒）；必须是好友',
+      params: { user: '对方用户名', on: 'on | off | toggle（默认）' }
+    },
+    {
+      name: 'ca_report_user', group: 'write', scope: 'write', server: true, defaultOn: false, needsLogin: true,
+      desc: '举报某个用户（提交给管理员，可在工单里跟进；规则与网页举报一致，10 分钟最多 10 次）',
+      params: { to: '被举报的用户名', reason: '举报理由，写具体一点（最多 500 字）' }
+    },
 
     /* ---------- 会真正改动数据的操作（默认关闭 + 账号级开关 + 服务端限流） ---------- */
     {
@@ -583,6 +643,10 @@
       '## 什么时候用工具',
       '- 问到「现在几点/今天几号」→ now；任何算术、单位换算 → calc / convert，不要心算（calc 的整数是任意精度，位数再多也不怕）。',
       '- 问到用户自己的资料、等级、排行榜、好友、群、会话、工单 → 用 ca_* 工具去查，不要凭印象猜。',
+      '- 想看某人的主页（说说/留言板）用 ca_space；想在聊天记录里找东西用 ca_search_messages（全局或指定人/群）。',
+      '- **所有这些 ChatApp 工具都要用户点「通过」才会真正执行**（前端会弹一个确认卡，写清工具名/用途/参数）。',
+      '  被拒绝就当作用户不同意：一句话说清你本来想做什么，然后就停下 —— **不要重试、不要换成别的工具绕过去、不要反复申请**。',
+      '- 用户让你建群/加好友/加群/置顶/特别关心/删好友/举报时，先把「要做什么 + 对象」说清楚，再用对应工具一次做完；做完后如实报告结果（成功/失败原因）。',
       '- 要看聊天内容时用 ca_history（按对方用户名或群）或 ca_message（按消息 ID）；这两个需要用户先在设置里开启「允许 AI 读取会话摘要」，没开时会返回权限错误。',
       '- 表情代码表已经在下文「表情」一节里给全了，直接用；只有在表里找不到想要的意思时才调 ca_emoji 搜。',
       '- 用户让你「记一下」→ remember；问「我之前让你记的」→ recall。',
@@ -1069,6 +1133,35 @@
     return out;
   }
 
+  /* ==================== 敏感操作确认门禁 ====================
+     凡是碰 ChatApp 数据的工具（server: true，即全部 ca_*）执行前都要用户点头：
+     页面接上 setConfirmer(fn)（或全局 window.CA_TOOL_CONFIRM）就会弹「闪传风格」确认卡，
+     写清工具名 / 用途 / 参数，用户点通过才真的调服务端。
+
+     ⚠ 这是**体验层的刹车**（让用户看得见 AI 要干什么），不是安全边界：
+       真权限在服务端 apps/deepseek/tools.php（账号档位 / 白名单 / 限流 / 审计）。
+       客户端没接 confirmer 时保持旧行为（放行），免得老页面直接不能用。 */
+  var confirmer = null;
+  function setConfirmer(fn) { confirmer = (typeof fn === 'function') ? fn : null; }
+  function isSensitive(t) { return !!(t && t.server); }
+  function askPermission(name, args, t) {
+    var f = confirmer || ((typeof global.CA_TOOL_CONFIRM === 'function') ? global.CA_TOOL_CONFIRM : null);
+    if (!f) return Promise.resolve(null);
+    var info = {
+      name: name,
+      args: args || {},
+      title: name,
+      purpose: t.desc || '',
+      scope: t.scope || '',
+      level: minLevelOf(t),
+      levelName: levelName(minLevelOf(t)),
+      params: t.params || {}
+    };
+    return Promise.resolve(f(info)).then(function (ok) {
+      return (ok === false) ? 'denied' : null;
+    }).catch(function () { return 'error'; });
+  }
+
   /* ========================= 工具执行 ========================= */
   function execute(name, args) {
     var n = resolveName(name);
@@ -1086,15 +1179,24 @@
       return Promise.resolve({ ok: false, error: '用户已把工具 "' + n + '" 关闭了；不要重试，如确实需要请让用户在设置里打开' });
     }
 
-    var t0 = Date.now();
-    var p = t.server ? serverRun(n, args || {}) : Promise.resolve().then(function () { return t.run(args || {}); });
-    return p.then(function (data) {
-      var s = JSON.stringify(data == null ? null : data);
-      if (s && s.length > 4000) data = { truncated: true, note: '结果过长已截断，可缩小查询范围', preview: s.slice(0, 4000) };
-      if (data && typeof data === 'object' && !Array.isArray(data) && data._ms === undefined) data._ms = Date.now() - t0;
-      return { ok: true, data: data };
-    }).catch(function (e) {
-      return { ok: false, error: (e && e.message) ? e.message : '执行失败', _ms: Date.now() - t0 };
+    var gate = isSensitive(t) ? askPermission(n, args || {}, t) : Promise.resolve(null);
+    return gate.then(function (verdict) {
+      if (verdict === 'denied') {
+        return { ok: false, denied: true, error: '用户拒绝了这次「' + n + '」调用，它没有执行。不要重试、不要换成别的工具绕过，用一句话说明你想做什么并等用户改主意。' };
+      }
+      if (verdict === 'error') {
+        return { ok: false, denied: true, error: '确认框出错了，这次「' + n + '」没有执行。可以告诉用户重试。' };
+      }
+      var t0 = Date.now();
+      var p = t.server ? serverRun(n, args || {}) : Promise.resolve().then(function () { return t.run(args || {}); });
+      return p.then(function (data) {
+        var s = JSON.stringify(data == null ? null : data);
+        if (s && s.length > 4000) data = { truncated: true, note: '结果过长已截断，可缩小查询范围', preview: s.slice(0, 4000) };
+        if (data && typeof data === 'object' && !Array.isArray(data) && data._ms === undefined) data._ms = Date.now() - t0;
+        return { ok: true, data: data };
+      }).catch(function (e) {
+        return { ok: false, error: (e && e.message) ? e.message : '执行失败', _ms: Date.now() - t0 };
+      });
     });
   }
   function executeAll(calls) {
@@ -1180,6 +1282,8 @@
     resolveName: resolveName,
     setContext: setContext,
     setEnabled: setEnabled,
+    setConfirmer: setConfirmer,
+    needsConfirm: isSensitive,
     levelName: levelName,
     minLevelOf: minLevelOf,
     prefsForLevel: prefsForLevel,

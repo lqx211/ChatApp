@@ -711,6 +711,28 @@ img[src*="data/res/svg/"],img[src*="data/res/cil/"],img[src*="data/res/brand/"]{
 .flash-my-item{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #333}
 .flash-my-item:last-child{border-bottom:none}
 .flash-dl-dis{opacity:.45}
+/* ---- AI 工具调用确认卡（外壳照拄闪传 .flash-card：同一套背景/边框/圆角）----
+   apps/deepseek 的 AI 助手与聊天页里的机器人共用这套样式（markup 由 JS 生成） */
+.ca-ask{background:#262626;border:1px solid #3f3f3f;border-radius:8px;padding:10px 12px;
+  min-width:220px;max-width:340px;margin-top:4px;transition:border-color .15s,opacity .15s}
+.ca-ask.done-ok{border-color:#3a6a3a}
+.ca-ask.done-no{border-color:#6a3a3a;opacity:.85}
+.ca-ask .ca-ask-scope{font-size:.86em;color:#8a8a8a;font-weight:400;margin-left:4px}
+.ca-ask .ca-ask-purpose{color:#b8b8b8;font-size:.74em;line-height:1.5;margin:2px 0 8px}
+.ca-ask .ca-ask-args{font-size:.72em;color:#9aa7b3;border-top:1px solid #333;padding-top:7px}
+.ca-ask .ca-ask-args b{color:#8a8a8a;font-weight:600;display:block;margin-bottom:3px;font-size:.94em}
+.ca-ask .ca-ask-args .row{display:flex;gap:6px;padding:2px 0;word-break:break-all}
+.ca-ask .ca-ask-args .k{color:#8fc7ff;white-space:nowrap}
+.ca-ask .ca-ask-args .v{color:#cfd8e0}
+.ca-ask-btns{display:flex;gap:8px;margin-top:9px;align-items:center}
+.ca-ask-btns button{flex:1;border-radius:5px;font-size:.74em;padding:6px 12px;cursor:pointer;font-family:inherit}
+.ca-ask-ok{background:#2a4a2a;border:1px solid #3a6a3a;color:#cfeccf}
+.ca-ask-ok:hover{background:#2f5a2f}
+.ca-ask-no{background:#3a2626;border:1px solid #6a3a3a;color:#e8c0c0}
+.ca-ask-no:hover{background:#4a2a2a}
+.ca-ask-state{font-size:.74em;font-weight:600}
+.ca-ask-state.ok{color:#7ec87e}
+.ca-ask-state.no{color:#e08080}
 
 /* ---- EXP toast notifications (bottom-right, in-page) ---- */
 #expToasts{position:fixed;right:14px;bottom:72px;z-index:90000;display:flex;flex-direction:column;gap:8px;pointer-events:none}

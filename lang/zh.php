@@ -1019,4 +1019,11 @@ return [
     'frf_s6_relogin' => '重新登录',
     'role_admin' => '管理员',
     'role_root' => '站主',
+    /* AI 工具调用确认卡（机器人私聊里弹出的闪传风格框） */
+    'ai_tool_ask_title' => '工具调用申请',
+    'ai_tool_ask_args' => '参数',
+    'ai_tool_ask_ok' => '通过',
+    'ai_tool_ask_no' => '拒绝',
+    'ai_tool_ask_passed' => '已通过，正在执行…',
+    'ai_tool_ask_denied' => '已拒绝，这次不会执行',
 ];

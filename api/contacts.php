@@ -4,6 +4,7 @@
  */
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/contact_actions.php';   // 联系人写操作统一层（网页 + AI 工具共用）
 
 chatapp_session_start();
 if (!isset($_SESSION['username'])) {
@@ -58,125 +59,23 @@ switch ($action) {
         break;
 
     case 'send_request':
-        $toUser = trim($_POST['username'] ?? '');
-        $msg = trim(mb_substr($_POST['msg'] ?? '', 0, 200));
-        // note = 我预留给对方的备注（行 (me→them) 的 note 列），发请求时即可设置
-        $note = trim(mb_substr($_POST['note'] ?? '', 0, 500));
-        if (empty($toUser) || $toUser === $myUsername) {
-            echo json_encode(['success' => false, 'error' => 'Something went wrong.']);
-            exit;
-        }
-        $stmt = $pdo->prepare("SELECT user_id, is_bot FROM users WHERE username = ?");
-        $stmt->execute([$toUser]);
-        $toRow = $stmt->fetch() ?: null;
-        $toUid = (int)($toRow['user_id'] ?? 0);
-        if (!$toUid || (int)($toRow['is_bot'] ?? 0) === 1) {
-            echo json_encode(['success' => false, 'error' => 'Something went wrong.']);
-            exit;
-        }
-
-        // 黑名单：对方拉黑则拒绝好友申请
-        if (chatapp_is_blocked($myUid, $toUid)) {
-            echo json_encode(['success' => false, 'error' => 'blocked']);
-            exit;
-        }
-        // 对方关闭「允许任何人添加我为好友」
-        $allowStmt = $pdo->prepare('SELECT anyone_add_friend FROM users WHERE user_id = ?');
-        $allowStmt->execute([$toUid]);
-        if ((int)$allowStmt->fetchColumn() === 0) {
-            echo json_encode(['success' => false, 'error' => 'not_accepting']);
-            exit;
-        }
-        // 好友申请节流：每 10 分钟最多 20 条 pending 请求（防批量骚扰）
-        $rateStmt = $pdo->prepare("SELECT COUNT(*) FROM contacts WHERE user_from = ? AND status='pending' AND created_at > DATE_SUB(NOW(), INTERVAL 10 MINUTE)");
-        $rateStmt->execute([$myUid]);
-        if ((int)$rateStmt->fetchColumn() >= 20) {
-            echo json_encode(['success' => false, 'error' => 'Too many friend requests. Please try again later.']);
-            exit;
-        }
-
-        $st = $pdo->prepare("SELECT id, status FROM contacts WHERE (user_from = ? AND user_to = ?) OR (user_from = ? AND user_to = ?)");
-        $st->execute([$myUid, $toUid, $toUid, $myUid]);
-        $ex = $st->fetch();
-
-        if ($ex) {
-            if ($ex['status'] === 'accepted') {
-                echo json_encode(['success' => false, 'error' => 'Already friends.']);
-                exit;
-            }
-            if ($ex['status'] === 'pending') {
-                echo json_encode(['success' => false, 'error' => 'Request already pending.']);
-                exit;
-            }
-            $pdo->prepare("UPDATE contacts SET status = 'pending', msg = ?, note = ?, created_at = NOW() WHERE id = ?")->execute([$msg ?: null, $note ?: null, $ex['id']]);
-            echo json_encode(['success' => true]);
-            exit;
-        }
-
-        $pdo->prepare("INSERT INTO contacts (user_from, user_to, status, msg, note) VALUES (?, ?, 'pending', ?, ?)")->execute([$myUid, $toUid, $msg ?: null, $note ?: null]);
-        echo json_encode(['success' => true]);
+        // 逻辑已搬到 api/contact_actions.php（AI 工具 ca_contact_add 走同一份）
+        echo json_encode(contact_action_send_request(
+            $pdo, $myUid, $myUsername,
+            (string)($_POST['username'] ?? ''),
+            (string)($_POST['msg'] ?? ''),
+            (string)($_POST['note'] ?? '')
+        ));
         break;
 
     case 'respond':
-        $fromUser = trim($_POST['username'] ?? '');
-        $resp = trim($_POST['response'] ?? '');
-        if (!in_array($resp, ['accept', 'reject'])) {
-            echo json_encode(['success' => false, 'error' => 'Something went wrong.']);
-            exit;
-        }
-        $stmt = $pdo->prepare("SELECT user_id FROM users WHERE username = ?");
-        $stmt->execute([$fromUser]);
-        $fromUid = (int)($stmt->fetchColumn() ?: 0);
-        if (!$fromUid) {
-            echo json_encode(['success' => false, 'error' => 'Something went wrong.']);
-            exit;
-        }
-        $ns = $resp === 'accept' ? 'accepted' : 'rejected';
-        // 行方向语义：(A → B).note = A 对 B 的备注（见 list/change_nickname）。
-        // 待处理行是对方(them→me)发来的申请 —— 只能改状态；我的备注绝不能写进
-        // 对方的行，否则对方那边会把我给 ta 的备注当成 ta 对我的备注来显示
-        // （历史 bug：别人加我后，他那边显示我的名字 = 我接受的默认备注）。
-        $note = trim(mb_substr($_POST['note'] ?? '', 0, 500));
-        $stmt = $pdo->prepare("UPDATE contacts SET status = ? WHERE user_from = ? AND user_to = ? AND status = 'pending'");
-        $stmt->execute([$ns, $fromUid, $myUid]);
-        $ok = $stmt->rowCount() > 0;
-        if ($ok && $ns === 'accepted') {
-            // Level-gated contacts limit (jh.md Lv Limits: max_contacts).
-            // Count unique accepted friends for ME (the accepter).
-            $maxContacts = level_limits(user_level($pdo, $myUid))['max_contacts'];
-            $friendCount = (int)$pdo->query(
-                "SELECT COUNT(*) FROM (
-                    SELECT c.user_to AS uid FROM contacts c JOIN users u ON u.user_id = c.user_to
-                     WHERE c.user_from = $myUid AND c.status = 'accepted' AND u.is_bot = 0
-                    UNION
-                    SELECT c.user_from AS uid FROM contacts c JOIN users u ON u.user_id = c.user_from
-                     WHERE c.user_to = $myUid AND c.status = 'accepted' AND u.is_bot = 0
-                 ) t"
-            )->fetchColumn();
-            if ($friendCount >= $maxContacts) {
-                // Roll back the accept: revert to pending so the requester can retry later.
-                // 不要动对方的 note（那是 ta 对我的备注）
-                $pdo->prepare("UPDATE contacts SET status = 'pending' WHERE user_from = ? AND user_to = ?")
-                    ->execute([$fromUid, $myUid]);
-                echo json_encode([
-                    'success' => false,
-                    'error' => 'Contact limit reached',
-                    'max_contacts' => $maxContacts,
-                ]);
-                exit;
-            }
-            // 我的备注写到我自己的行 (me→them)；已有则更新，避免重复行
-            $rev = $pdo->prepare("SELECT id FROM contacts WHERE user_from = ? AND user_to = ?");
-            $rev->execute([$myUid, $fromUid]);
-            if ($rev->fetch()) {
-                $pdo->prepare("UPDATE contacts SET status = 'accepted', note = ? WHERE user_from = ? AND user_to = ?")
-                    ->execute([$note ?: null, $myUid, $fromUid]);
-            } else {
-                $pdo->prepare("INSERT INTO contacts (user_from, user_to, status, note) VALUES (?, ?, 'accepted', ?)")
-                    ->execute([$myUid, $fromUid, $note ?: null]);
-            }
-        }
-        echo json_encode(['success' => $ok]);
+        // 逻辑已搬到 api/contact_actions.php（行方向语义/等级上限都在里面）
+        echo json_encode(contact_action_respond(
+            $pdo, $myUid,
+            (string)($_POST['username'] ?? ''),
+            (string)($_POST['response'] ?? ''),
+            (string)($_POST['note'] ?? '')
+        ));
         break;
 
     case 'change_nickname':
@@ -207,27 +106,8 @@ switch ($action) {
 
 
     case 'toggle_pin':
-        $targetUser = trim($_POST['username'] ?? '');
-        if (empty($targetUser) || $targetUser === $myUsername) {
-            echo json_encode(['success' => false, 'error' => 'Something went wrong.']);
-            exit;
-        }
-        $stmt = $pdo->prepare("SELECT user_id FROM users WHERE username = ?");
-        $stmt->execute([$targetUser]);
-        $targetUid = (int)($stmt->fetchColumn() ?: 0);
-        if (!$targetUid) {
-            echo json_encode(['success' => false, 'error' => 'Something went wrong.']);
-            exit;
-        }
-        $st = $pdo->prepare("SELECT id FROM contacts WHERE user_from = ? AND user_to = ?");
-        $st->execute([$myUid, $targetUid]);
-        if ($st->fetch()) {
-            $pdo->prepare("UPDATE contacts SET pinned = 1 - pinned WHERE user_from = ? AND user_to = ?")
-                ->execute([$myUid, $targetUid]);
-            echo json_encode(['success' => true]);
-        } else {
-            echo json_encode(['success' => false, 'error' => 'Contact relationship not found.']);
-        }
+        // 逻辑已搬到 api/contact_actions.php（AI 工具 ca_pin 走同一份）
+        echo json_encode(contact_action_toggle_pin($pdo, $myUid, $myUsername, (string)($_POST['username'] ?? '')));
         break;
 
     case 'toggle_pin_self':
@@ -236,37 +116,8 @@ switch ($action) {
         break;
 
     case 'toggle_special':
-        // 特别关心：我把某个好友标记/取消标记为特别关心
-        $targetUser = trim($_POST['username'] ?? '');
-        if (empty($targetUser) || $targetUser === $myUsername) {
-            echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit;
-        }
-        $stmt = $pdo->prepare("SELECT user_id FROM users WHERE username = ?");
-        $stmt->execute([$targetUser]);
-        $targetUid = (int)($stmt->fetchColumn() ?: 0);
-        if (!$targetUid) {
-            echo json_encode(['success' => false, 'error' => 'Something went wrong.']); exit;
-        }
-        // 必须是好友（任一方向 accepted）
-        $rel = $pdo->prepare("SELECT id, status FROM contacts WHERE (user_from = ? AND user_to = ?) OR (user_from = ? AND user_to = ?) LIMIT 1");
-        $rel->execute([$myUid, $targetUid, $targetUid, $myUid]);
-        $ex = $rel->fetch();
-        if (!$ex || $ex['status'] !== 'accepted') {
-            echo json_encode(['success' => false, 'error' => 'Contact relationship not found.']); exit;
-        }
-        // 标记写在我→对方的那一行；没有则补建
-        $mine = $pdo->prepare("SELECT id FROM contacts WHERE user_from = ? AND user_to = ?");
-        $mine->execute([$myUid, $targetUid]);
-        if ($mine->fetch()) {
-            $pdo->prepare("UPDATE contacts SET special = 1 - special WHERE user_from = ? AND user_to = ?")
-                ->execute([$myUid, $targetUid]);
-        } else {
-            $pdo->prepare("INSERT INTO contacts (user_from, user_to, status, special) VALUES (?, ?, 'accepted', 1)")
-                ->execute([$myUid, $targetUid]);
-        }
-        $st = $pdo->prepare("SELECT special FROM contacts WHERE user_from = ? AND user_to = ?");
-        $st->execute([$myUid, $targetUid]);
-        echo json_encode(['success' => true, 'special' => (int)$st->fetchColumn()]);
+        // 逻辑已搬到 api/contact_actions.php（AI 工具 ca_special_care 走同一份）
+        echo json_encode(contact_action_toggle_special($pdo, $myUid, $myUsername, (string)($_POST['username'] ?? '')));
         break;
 
 
@@ -324,21 +175,8 @@ switch ($action) {
         break;
 
     case 'delete':
-        $targetUser = trim($_POST['username'] ?? '');
-        if (empty($targetUser) || $targetUser === $myUsername) {
-            echo json_encode(['success' => false, 'error' => 'Something went wrong.']);
-            exit;
-        }
-        $stmt = $pdo->prepare("SELECT user_id FROM users WHERE username = ?");
-        $stmt->execute([$targetUser]);
-        $targetUid = (int)($stmt->fetchColumn() ?: 0);
-        if (!$targetUid) {
-            echo json_encode(['success' => false, 'error' => 'Something went wrong.']);
-            exit;
-        }
-        $stmt = $pdo->prepare("DELETE FROM contacts WHERE (user_from = ? AND user_to = ?) OR (user_from = ? AND user_to = ?)");
-        $stmt->execute([$myUid, $targetUid, $targetUid, $myUid]);
-        echo json_encode(['success' => $stmt->rowCount() > 0]);
+        // 逻辑已搬到 api/contact_actions.php（AI 工具 ca_contact_remove 走同一份）
+        echo json_encode(contact_action_remove($pdo, $myUid, $myUsername, (string)($_POST['username'] ?? '')));
         break;
 
     case 'force_add':

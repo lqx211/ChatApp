@@ -245,57 +245,26 @@ switch ($action) {
         }
         $pdo = db();
         $myId = get_my_uid($pdo);
-        $q = trim($_GET['q'] ?? '');
-        $dm = trim($_GET['dm'] ?? '');
-        $gid = (int)($_GET['group_id'] ?? 0);
-        $page = max(1, (int)($_GET['page'] ?? 1));
-        $perPage = 20;
-        $offset = ($page - 1) * $perPage;
-
-        if (empty($q) || mb_strlen($q) < 2) {
-            echo json_encode(['success' => false, 'error' => 'Search query too short']); exit;
+        // 搜索逻辑已搬到 api/chat_actions.php（网页与 AI 工具 ca_search_messages 共用同一份）
+        $res = chat_action_search_messages($pdo, $myId, [
+            'q' => (string)($_GET['q'] ?? ''),
+            'dm' => (string)($_GET['dm'] ?? ''),
+            'group_id' => (int)($_GET['group_id'] ?? 0),
+            'page' => (int)($_GET['page'] ?? 1),
+            'per_page' => 20,
+        ]);
+        if (empty($res['success'])) {
+            echo json_encode(['success' => false, 'error' => $res['error'] ?? 'Search failed']);
+            break;
         }
-
-        $like = '%' . $q . '%';
-        if ($gid > 0) {
-            // Group chat search
-            $chk = $pdo->prepare("SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?");
-            $chk->execute([$gid, $myId]);
-            if (!$chk->fetch()) { echo json_encode(['success' => true, 'messages' => [], 'total' => 0]); exit; }
-            $where = "AND m.group_id = ?";
-            $params = [$like, $like, $gid];
-            $countParams = [$like, $gid];
-        } elseif (!empty($dm)) {
-            $dmId = get_uid_by_name($pdo, $dm);
-            if (!$dmId) { echo json_encode(['success' => true, 'messages' => [], 'total' => 0]); exit; }
-            $where = "AND ((m.sender_id = ? AND m.recipient_id = ?) OR (m.sender_id = ? AND m.recipient_id = ?))";
-            $params = [$like, $like, $myId, $dmId, $dmId, $myId];
-            $countParams = [$like, $myId, $dmId, $dmId, $myId];
-        } else {
-            $where = "AND m.group_id IS NULL AND (m.recipient_id IS NULL OR m.recipient_id = ? OR m.sender_id = ?)";
-            $params = [$like, $like, $myId, $myId];
-            $countParams = [$like, $myId, $myId];
-        }
-
-        $countSql = "SELECT COUNT(*) FROM messages m WHERE m.deleted_at IS NULL AND m.message LIKE ? $where";
-        $countStmt = $pdo->prepare($countSql);
-        $countStmt->execute($countParams);
-        $total = (int)$countStmt->fetchColumn();
-
-        $sql = "SELECT m.id, m.sender_id, su.username, su.display_name, su.avatar, su.user_id,
-                       m.recipient_id, ru.username AS recipient_name, m.read_at, m.receipt_visible,
-                       m.message, m.msg_type, m.attachment, m.time, m.datetime, m.deleted_at, m.reply_to, m.temp_upload_id
-                FROM messages m
-                LEFT JOIN users su ON su.user_id = m.sender_id
-                LEFT JOIN users ru ON ru.user_id = m.recipient_id
-                WHERE m.deleted_at IS NULL AND (m.message LIKE ? OR m.msg_type = 'md' AND m.message LIKE ?) $where
-                ORDER BY m.id DESC
-                LIMIT $perPage OFFSET $offset";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
-        $messages = $stmt->fetchAll();
-        $processed = proc(array_reverse($messages));
-        echo json_encode(['success' => true, 'messages' => $processed, 'total' => $total, 'page' => $page, 'per_page' => $perPage]);
+        // 响应格式与历史版本一致：proc() 加工过的完整消息对象
+        echo json_encode([
+            'success' => true,
+            'messages' => proc($res['rows']),
+            'total' => (int)$res['total'],
+            'page' => (int)$res['page'],
+            'per_page' => (int)$res['per_page'],
+        ]);
         break;
 
     default:

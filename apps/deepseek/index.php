@@ -110,6 +110,7 @@ $v = time();
   .ds-level-row input[type=radio]{width:auto;flex:0 0 auto;margin-top:3px;accent-color:#4caf50}
   .ds-level-row b{color:#9fd0ff;font-weight:600;white-space:nowrap;min-width:62px}
   .ds-level-row .ds-hint{margin-top:0}
+  /* ---- 工具调用确认卡的样式在 chat.css（.ca-ask*，两个页面共用）---- */
   /* ---- 聊天外壳：附件条 / 图片 / 9 点菜单 / 表情面板 / 涂鸦 ---- */
   .ds-att{display:flex;align-items:center;gap:10px;padding:8px 20px;background:rgba(42,42,42,.92);border-top:1px solid #3a3a3a}
   .ds-att img{width:54px;height:54px;object-fit:cover;border-radius:6px;border:1px solid #555}
@@ -567,6 +568,60 @@ $v = time();
     (el || msgArea).appendChild(e); scrollBottom();
   }
 
+  /* ---------- 工具确认卡（AI 想要调用 ChatApp 工具时先问一句） ----------
+     外观照抄闪传卡片（.flash-card 的皮肤），内容：工具名 / 用途 / 参数 / 通过·拒绝。
+     返回 Promise<boolean>，由 DS.setConfirmer 接入引擎；用户拒绝 → 引擎会把
+     「用户拒绝了，不要重试」回灌给模型。 */
+  var curBubble = null;   // 当前正在流式输出的气泡：确认卡插进同一个气泡，读起来才连贯
+  function argValHtml(k, v, desc) {
+    var s = (v === null || v === undefined) ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
+    var full = s.length > 200 ? s : '';
+    var show = s.length > 80 ? (s.slice(0, 80) + '…') : s;
+    return '<div class="row"><span class="k">' + esc(k) + '</span><span class="v"' +
+      (full || desc ? ' title="' + esc(full || desc) + '"' : '') + '>' + esc(show || '（空）') + '</span></div>';
+  }
+  function askToolPermission(info) {
+    var wrap = curBubble || addAiBubble();
+    var intro = newTextBlock(wrap);
+    intro.innerHTML = DSUI.renderEmojiHtml(renderMd('我要调用一个 ChatApp 工具，先请你确认：'));
+
+    var scopeTxt = info.scope === 'write' ? '会改动数据' : (info.scope === 'admin' ? '管理员专用' : '只读');
+    var keys = Object.keys(info.args || {});
+    var h = '<div class="flash-title">工具调用申请</div>'
+      + '<div class="flash-file">' + esc(info.name) + '<span class="ca-ask-scope">· ' + esc(scopeTxt) + '</span></div>'
+      + '<div class="ca-ask-purpose">' + esc(String(info.purpose || '').replace(/[*`]/g, '')) + '</div>'
+      + '<div class="ca-ask-args"><b>参数</b>'
+      + (keys.length ? keys.map(function (k) {
+          return argValHtml(k, (info.args || {})[k], (info.params || {})[k] || '');
+        }).join('') : '<span style="color:#7c7c7c">（无）</span>')
+      + '</div>'
+      + '<div class="ca-ask-btns"><button class="ca-ask-ok" type="button">✓ 通过</button>'
+      + '<button class="ca-ask-no" type="button">✗ 拒绝</button></div>';
+
+    var card = document.createElement('div');
+    card.className = 'ca-ask';
+    card.innerHTML = h;
+    appendPart(wrap, card);
+    wrap.querySelector('.mti').textContent = nowTime();
+    scrollBottom();
+
+    return new Promise(function (resolve) {
+      var done = false;
+      function finish(ok) {
+        if (done) return;
+        done = true;
+        card.classList.add(ok ? 'done-ok' : 'done-no');
+        var btns = card.querySelector('.ca-ask-btns');
+        btns.innerHTML = '<span class="ca-ask-state ' + (ok ? 'ok' : 'no') + '">'
+          + (ok ? '✓ 已通过，正在执行…' : '✗ 已拒绝，这次不会执行') + '</span>';
+        scrollBottom();
+        resolve(ok);
+      }
+      card.querySelector('.ca-ask-ok').addEventListener('click', function () { finish(true); });
+      card.querySelector('.ca-ask-no').addEventListener('click', function () { finish(false); });
+    });
+  }
+
   // 系统提示词 = 人设（默认或用户自定义）+ 工具协议/清单 + 实时上下文
   // 带图片的消息 → content 变成 [{type:'text'},{type:'image_url'}]（视觉输入）
   async function buildMessages() {
@@ -608,6 +663,7 @@ $v = time();
   // 跑一轮 assistant 输出：正文流式上屏，<tool> 块被扣下来变成工具卡
   async function streamTurn() {
     var b = addAiBubble();
+    curBubble = b;
     var reasonEl = b.querySelector('.ds-reason');
     var parser = DS.createStreamParser();
     var acc = DS.createToolCallAccumulator();
@@ -828,6 +884,7 @@ $v = time();
   });
 
   load(); refreshKeyWarn(); refreshBadge(); renderAll(); autoResize();
+  DS.setConfirmer(askToolPermission);   // 所有 ca_* 工具执行前都会先弹确认卡
   // 表情库异步到达：到了就把历史重渲染一遍，让 /斜眼笑 这类代码变成表情图
   if (window.DSUI && DSUI.onEmojiListReady) DSUI.onEmojiListReady(function () { if (!streaming) renderAll(); });
   loadServerPrefs();   // 登录态 / 管理员身份 / 账号级权限（服务端为准）

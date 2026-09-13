@@ -1294,6 +1294,77 @@ function botDeleteConfirm(u) {
     });
 }
 
+/* ---- AI 工具调用确认卡（闪传风格）----
+   机器人（BotRuntime 用浏览器生成的那种）想调用 ChatApp 工具时，先在聊天区弹一张卡：
+   工具名 / 用途 / 参数 + 通过 / 拒绝。agent.js 通过 window.CA_TOOL_CONFIRM 调这里，
+   返回 Promise<boolean>；拒绝时模型会被告知「用户拒绝了，不要重试」。
+   （卡样式在 chat.css 的 .ca-ask*，与 apps/deepseek 的 AI 助手共用同一套皮肤） */
+function caToolArgRows(args, params) {
+    var keys = Object.keys(args || {});
+    if (!keys.length) return '<span style="color:#7c7c7c">（无）</span>';
+    return keys.map(function(k) {
+        var v = args[k];
+        var s = (v === null || v === undefined) ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
+        var show = s.length > 80 ? (s.slice(0, 80) + '…') : s;
+        var tip = s.length > 80 ? s : (params && params[k] ? String(params[k]) : '');
+        return '<div class="row"><span class="k">' + eh(k) + '</span><span class="v"' +
+               (tip ? ' title="' + eh(tip) + '"' : '') + '>' + eh(show || '（空）') + '</span></div>';
+    }).join('');
+}
+
+function caToolAsk(info) {
+    return new Promise(function(resolve) {
+        var area = document.getElementById('dmMessagesArea');
+        // 没有聊天区（用户切到别的页面了）→ 视为「没确认」= 不放行，绝不偷偷执行
+        if (!area) { resolve(false); return; }
+        var es = area.querySelector('.es');
+        if (es) es.remove();
+
+        var scopeTxt = info.scope === 'write' ? '会改动数据' : (info.scope === 'admin' ? '管理员专用' : '只读');
+        var row = document.createElement('div');
+        row.className = 'mr ca-ask-row';
+        row.innerHTML = '<div class="mc"><div class="mb">' +
+            '<div class="mu">' + eh(_contactNotes[D] || D || 'AI') + '</div>' +
+            '<div class="ca-ask">' +
+                '<div class="flash-title">' + T('ai_tool_ask_title', '工具调用申请') + '</div>' +
+                '<div class="flash-file">' + eh(info.name) + '<span class="ca-ask-scope">· ' + eh(scopeTxt) + '</span></div>' +
+                '<div class="ca-ask-purpose">' + eh(String(info.purpose || '').replace(/[*`]/g, '')) + '</div>' +
+                '<div class="ca-ask-args"><b>' + T('ai_tool_ask_args', '参数') + '</b>' + caToolArgRows(info.args, info.params) + '</div>' +
+                '<div class="ca-ask-btns">' +
+                    '<button class="ca-ask-ok" type="button" onclick="caToolAskAnswer(this,1)">✓ ' + T('ai_tool_ask_ok', '通过') + '</button>' +
+                    '<button class="ca-ask-no" type="button" onclick="caToolAskAnswer(this,0)">✗ ' + T('ai_tool_ask_no', '拒绝') + '</button>' +
+                '</div>' +
+            '</div>' +
+        '</div></div>';
+        area.appendChild(row);
+        scrollChatToBottom(area);
+
+        var done = false;
+        var finish = function(ok) {
+            if (done) return;
+            done = true;
+            var card = row.querySelector('.ca-ask');
+            card.classList.add(ok ? 'done-ok' : 'done-no');
+            var btns = card.querySelector('.ca-ask-btns');
+            btns.innerHTML = '<span class="ca-ask-state ' + (ok ? 'ok' : 'no') + '">' +
+                (ok ? '✓ ' + T('ai_tool_ask_passed', '已通过，正在执行…') : '✗ ' + T('ai_tool_ask_denied', '已拒绝，这次不会执行')) +
+                '</span>';
+            scrollChatToBottom(area);
+            resolve(!!ok);
+        };
+        row._caAskFinish = finish;      // 供 onclick 调用
+    });
+}
+
+/* 卡片上的通过/拒绝按钮（内联 onclick，与老代码风格一致：全局可达） */
+function caToolAskAnswer(btn, ok) {
+    var row = btn && btn.closest ? btn.closest('.ca-ask-row') : null;
+    if (row && row._caAskFinish) row._caAskFinish(!!ok);
+}
+
+/* agent.js 会优先用它作为确认器（没有就自动放行，保持老行为） */
+window.CA_TOOL_CONFIRM = caToolAsk;
+
 /* ---- 流式渲染机器人正在输入的内容 ---- */
 var _botStreamId = null;
 

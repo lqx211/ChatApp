@@ -817,3 +817,104 @@ function chat_action_conversations(PDO $pdo, int $uid): array {
     }
     return ['success' => true, 'conversations' => $list];
 }
+
+/**
+ * 聊天记录搜索（统一层：api/chat.php?action=search_messages 与 AI 工具 ca_search_messages 共用）。
+ *
+ * 只能搜「我参与的会话」：
+ *   - $p['group_id'] > 0  → 我所在群的群聊
+ *   - $p['dm'] 非空        → 我和那个人的私聊
+ *   - 都不给               → 我的全部私聊（全局搜索）
+ *
+ * 返回**原始行**（与旧端点同列、按 id 升序），由调用方自己决定怎么加工：
+ *   - api/chat.php 走 proc() 渲染给网页（保持与历史版本完全一致的响应）
+ *   - AI 工具在 tools.php 里映射成简短字段（密文/附件只给占位符）
+ *
+ * @return array{success:bool,error?:string,rows?:array,total?:int,page?:int,per_page?:int}
+ */
+function chat_action_search_messages(PDO $pdo, int $myId, array $p): array {
+    $uid = (int)$myId;
+    if ($uid <= 0) return ['success' => false, 'error' => 'Not logged in'];
+    $q = trim((string)($p['q'] ?? ''));
+    $dm = trim((string)($p['dm'] ?? ''));
+    $gid = (int)($p['group_id'] ?? 0);
+    $page = max(1, (int)($p['page'] ?? 1));
+    $perPage = max(1, min(50, (int)($p['per_page'] ?? 20)));
+    $offset = ($page - 1) * $perPage;
+
+    if ($q === '' || mb_strlen($q) < 2) return ['success' => false, 'error' => 'Search query too short'];
+    $like = '%' . $q . '%';
+
+    if ($gid > 0) {
+        $chk = $pdo->prepare("SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?");
+        $chk->execute([$gid, $uid]);
+        if (!$chk->fetch()) return ['success' => true, 'rows' => [], 'total' => 0, 'page' => $page, 'per_page' => $perPage];
+        $where = "AND m.group_id = ?";
+        $params = [$like, $like, $gid];
+        $countParams = [$like, $gid];
+    } elseif ($dm !== '') {
+        $st = $pdo->prepare("SELECT user_id FROM users WHERE username = ?");
+        $st->execute([$dm]);
+        $partnerUid = (int)($st->fetchColumn() ?: 0);
+        if (!$partnerUid) return ['success' => true, 'rows' => [], 'total' => 0, 'page' => $page, 'per_page' => $perPage];
+        $where = "AND ((m.sender_id = ? AND m.recipient_id = ?) OR (m.sender_id = ? AND m.recipient_id = ?))";
+        $params = [$like, $like, $uid, $partnerUid, $partnerUid, $uid];
+        $countParams = [$like, $uid, $partnerUid, $partnerUid, $uid];
+    } else {
+        $where = "AND m.group_id IS NULL AND (m.recipient_id IS NULL OR m.recipient_id = ? OR m.sender_id = ?)";
+        $params = [$like, $like, $uid, $uid];
+        $countParams = [$like, $uid, $uid];
+    }
+
+    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM messages m WHERE m.deleted_at IS NULL AND m.message LIKE ? $where");
+    $countStmt->execute($countParams);
+    $total = (int)$countStmt->fetchColumn();
+
+    $sql = "SELECT m.id, m.sender_id, su.username, su.display_name, su.avatar, su.user_id,
+                   m.recipient_id, ru.username AS recipient_name, m.read_at, m.receipt_visible,
+                   m.group_id,
+                   m.message, m.msg_type, m.attachment, m.time, m.datetime, m.deleted_at, m.reply_to, m.temp_upload_id
+            FROM messages m
+            LEFT JOIN users su ON su.user_id = m.sender_id
+            LEFT JOIN users ru ON ru.user_id = m.recipient_id
+            WHERE m.deleted_at IS NULL AND (m.message LIKE ? OR m.msg_type = 'md' AND m.message LIKE ?) $where
+            ORDER BY m.id DESC
+            LIMIT $perPage OFFSET $offset";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return [
+        'success' => true,
+        'rows' => array_reverse($stmt->fetchAll()),
+        'total' => $total,
+        'page' => $page,
+        'per_page' => $perPage,
+    ];
+}
+
+/** AI 视角的搜索摘要：把原始行映射成「谁·什么时间·说了什么」（密文/附件不下发明文） */
+function chat_action_search_digest(PDO $pdo, array $rows, int $limit = 30): array {
+    $out = [];
+    $gid = 0;
+    foreach ($rows as $row) {
+        if (count($out) >= $limit) break;
+        $type = (string)($row['msg_type'] ?? '');
+        $text = (string)$row['message'];
+        if ($type === 'e2ee') $text = '[端到端加密消息：内容不可读]';
+        elseif ($text === '' && !empty($row['attachment'])) $text = '[' . ($type !== '' ? $type : '附件') . ']';
+        else $text = htmlspecialchars_decode($text, ENT_QUOTES);
+        $to = (string)($row['recipient_name'] ?? '');
+        if (!empty($row['group_id'])) {
+            $gid = (int)$row['group_id'];
+            $to = '群消息';
+        }
+        $out[] = [
+            'id' => (int)$row['id'],
+            'from' => (string)($row['display_name'] !== '' ? $row['display_name'] : $row['username']),
+            'to' => $to,
+            'type' => $type !== '' ? $type : 'text',
+            'text' => mb_substr($text, 0, 300),
+            'time' => (string)($row['datetime'] ?? ''),
+        ];
+    }
+    return $out;
+}

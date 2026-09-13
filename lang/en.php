@@ -1448,4 +1448,11 @@ return [
     'sp_vis_label_private' => 'Private',
     'sp_vis_label_pinned' => 'Pinned friends',
     'sp_vis_label_special' => 'Special friends',
+    /* AI tool-call confirmation card (flash-style box in bot DMs) */
+    'ai_tool_ask_title' => 'Tool request',
+    'ai_tool_ask_args' => 'Arguments',
+    'ai_tool_ask_ok' => 'Allow',
+    'ai_tool_ask_no' => 'Deny',
+    'ai_tool_ask_passed' => 'Allowed, running…',
+    'ai_tool_ask_denied' => 'Denied — not executed',
 ];

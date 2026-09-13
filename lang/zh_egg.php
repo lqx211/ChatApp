@@ -870,4 +870,11 @@ return [
     'sup_showing' => '显示 %s-%s / 共 %s',
     'role_admin' => '管理员',
     'role_root' => '站主',
+    /* AI 工具确认卡 */
+    'ai_tool_ask_title' => '让我用个小道具？',
+    'ai_tool_ask_args' => '参数',
+    'ai_tool_ask_ok' => '准了',
+    'ai_tool_ask_no' => '不行',
+    'ai_tool_ask_passed' => '准了，正在做…',
+    'ai_tool_ask_denied' => '不行就不做',
 ];

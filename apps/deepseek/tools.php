@@ -23,6 +23,10 @@
  */
 require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/chat_actions.php';
+require_once __DIR__ . '/../../api/contact_actions.php';   // 联系人写操作（与网页同一份）
+require_once __DIR__ . '/../../api/group_actions.php';     // 群操作（与网页同一份）
+require_once __DIR__ . '/../../api/report_actions.php';    // 举报（与网页同一份）
+require_once __DIR__ . '/../../api/space_read.php';        // 空间读取层（隐私过滤与空间页同一份）
 require_once __DIR__ . '/../../config/lvconfig.php';
 require_once __DIR__ . '/../../maintenance.php';
 
@@ -168,7 +172,7 @@ $TOOL_DEFS = [
         'status' => ['type' => 'enum', 'values' => ['open', 'closed', 'all'], 'default' => 'open'],
         'limit' => ['type' => 'int', 'min' => 1, 'max' => 30, 'default' => 10],
     ], 'fn' => 'ai_tool_tickets'],
-    'ca_send_dm' => ['scope' => 'write', 'min_level' => 2, 'args' => [
+    'ca_send_dm' => ['scope' => 'write', 'min_level' => 2, 'write_quota' => 3, 'args' => [
         'to' => ['type' => 'str', 'min' => 1, 'max' => 64],
         'text' => ['type' => 'str', 'min' => 1, 'max' => 500],
     ], 'fn' => 'ai_tool_send_dm'],
@@ -183,6 +187,46 @@ $TOOL_DEFS = [
     'ca_message' => ['scope' => 'self', 'min_level' => 1, 'args' => [
         'id' => ['type' => 'int', 'min' => 1, 'max' => 2147483647],
     ], 'fn' => 'ai_tool_message'],
+    /* 别人的个人主页（说说 / 留言板）—— 隐私过滤走 api/space_read.php，与空间页同一份规则 */
+    'ca_space' => ['scope' => 'self', 'min_level' => 1, 'args' => [
+        'user' => ['type' => 'str', 'min' => 1, 'max' => 64],
+        'kind' => ['type' => 'enum', 'values' => ['feeds', 'messages', 'both'], 'default' => 'both'],
+        'limit' => ['type' => 'int', 'min' => 1, 'max' => 30, 'default' => 10],
+    ], 'fn' => 'ai_tool_space'],
+    /* 搜我自己的聊天记录（全局 / 某人 / 某群）—— 复用 chat_action_search_messages */
+    'ca_search_messages' => ['scope' => 'self', 'min_level' => 1, 'args' => [
+        'q' => ['type' => 'str', 'min' => 2, 'max' => 64],
+        'with' => ['type' => 'str', 'min' => 0, 'max' => 64],
+        'group' => ['type' => 'str', 'min' => 0, 'max' => 64],
+        'limit' => ['type' => 'int', 'min' => 1, 'max' => 30, 'default' => 10],
+    ], 'fn' => 'ai_tool_search_messages'],
+    /* ---------------- 会真正改动数据的操作（需要「读写」档位，每个还有 5 分钟限流） ---------------- */
+    'ca_group_create' => ['scope' => 'write', 'min_level' => 2, 'args' => [
+        'name' => ['type' => 'str', 'min' => 1, 'max' => 50],
+    ], 'fn' => 'ai_tool_group_create'],
+    'ca_group_join' => ['scope' => 'write', 'min_level' => 2, 'args' => [
+        'group' => ['type' => 'str', 'min' => 1, 'max' => 64],
+    ], 'fn' => 'ai_tool_group_join'],
+    'ca_contact_add' => ['scope' => 'write', 'min_level' => 2, 'args' => [
+        'to' => ['type' => 'str', 'min' => 1, 'max' => 64],
+        'msg' => ['type' => 'str', 'min' => 0, 'max' => 200],
+    ], 'fn' => 'ai_tool_contact_add'],
+    'ca_contact_remove' => ['scope' => 'write', 'min_level' => 2, 'args' => [
+        'to' => ['type' => 'str', 'min' => 1, 'max' => 64],
+    ], 'fn' => 'ai_tool_contact_remove'],
+    'ca_pin' => ['scope' => 'write', 'min_level' => 2, 'args' => [
+        'kind' => ['type' => 'enum', 'values' => ['contact', 'group'], 'default' => 'contact'],
+        'target' => ['type' => 'str', 'min' => 1, 'max' => 64],
+        'on' => ['type' => 'enum', 'values' => ['on', 'off', 'toggle'], 'default' => 'toggle'],
+    ], 'fn' => 'ai_tool_pin'],
+    'ca_special_care' => ['scope' => 'write', 'min_level' => 2, 'args' => [
+        'user' => ['type' => 'str', 'min' => 1, 'max' => 64],
+        'on' => ['type' => 'enum', 'values' => ['on', 'off', 'toggle'], 'default' => 'toggle'],
+    ], 'fn' => 'ai_tool_special_care'],
+    'ca_report_user' => ['scope' => 'write', 'min_level' => 2, 'args' => [
+        'to' => ['type' => 'str', 'min' => 1, 'max' => 64],
+        'reason' => ['type' => 'str', 'min' => 2, 'max' => 500],
+    ], 'fn' => 'ai_tool_report_user'],
     /* 内置表情包搜索（公开数据） */
     'ca_emoji' => ['scope' => 'public', 'min_level' => 0, 'args' => [
         'q' => ['type' => 'str', 'min' => 0, 'max' => 32],
@@ -281,28 +325,40 @@ foreach ($def['args'] as $k => $spec) {
 
 /* ---------------------------- 写操作限流 ---------------------------- */
 if ($def['scope'] === 'write') {
-    $st = $pdo->prepare("SELECT COUNT(*) FROM ai_tool_logs WHERE user_id = ? AND tool = 'ca_send_dm' AND ok = 1 AND created_at > (NOW() - INTERVAL 300 SECOND)");
-    $st->execute([$myUid]);
-    if ((int)$st->fetchColumn() >= 3) {
+    // 每个写操作独立额度（默认 5 次/5 分钟；发消息保持最严的 3 条）
+    $quota = (int)($def['write_quota'] ?? 5);
+    $st = $pdo->prepare('SELECT COUNT(*) FROM ai_tool_logs WHERE user_id = ? AND tool = ? AND ok = 1 AND created_at > (NOW() - INTERVAL 300 SECOND)');
+    $st->execute([$myUid, $tool]);
+    if ((int)$st->fetchColumn() >= $quota) {
         ai_log($pdo, $myUid, $myUsername, $tool, false, 0, ['deny' => 'write_rate', 'args' => $argsSummary]);
-        ai_err('AI 发消息限流：5 分钟内最多 3 条，请稍后再试');
+        ai_err('写操作限流：5 分钟内最多 ' . $quota . ' 次，请稍后再试');
     }
 }
 
 /* ---------------------------- 执行 + 审计 ---------------------------- */
 $t0 = microtime(true);
 $ok = true;
+$errMsg = '';
 try {
     $data = call_user_func($def['fn'], $pdo, $myUid, $myUsername, $clean, $u);
 } catch (\Throwable $e) {
     $ok = false;
-    $data = ['ok' => false, 'error' => '执行失败：' . mb_substr($e->getMessage(), 0, 200)];
+    $errMsg = '执行失败：' . mb_substr($e->getMessage(), 0, 200);
+    $data = null;
 }
+/* 工具内部把「业务失败」表达成 ['ok'=>false,'error'=>...]（比如查不到人、不是好友）——
+   这里统一抬成顶层 ok:false，模型一眼能看出失败，不会被 data.ok=false 绕进去。 */
+if ($ok && is_array($data) && isset($data['ok']) && $data['ok'] === false) {
+    $ok = false;
+    $errMsg = (string)($data['error'] ?? '执行失败');
+    $data = null;
+}
+if ($ok && is_array($data) && array_key_exists('ok', $data)) unset($data['ok'], $data['error']);
 $ms = (int)round((microtime(true) - $t0) * 1000);
-ai_log($pdo, $myUid, $myUsername, $tool, $ok, $ms, $clean);
+ai_log($pdo, $myUid, $myUsername, $tool, $ok, $ms, $ok ? $clean : ['error' => $errMsg, 'args' => $argsSummary]);
 
 if ($ok) ai_out(['ok' => true, 'data' => $data, '_ms' => $ms]);
-ai_out(['ok' => false, 'error' => $data['error'] ?? '执行失败', '_ms' => $ms]);
+ai_out(['ok' => false, 'error' => $errMsg !== '' ? $errMsg : '执行失败', '_ms' => $ms]);
 
 /* ============================== 各工具实现 ============================== */
 /* 约定：只能读「$uid 自己」的数据；不接受任何"读别人"的参数。 */
@@ -632,4 +688,196 @@ function ai_tool_admin_stats(PDO $pdo): array {
         'tickets_open' => $one("SELECT COUNT(*) FROM incidents WHERE status IN ('open','in_progress')"),
         'as_of' => date('Y-m-d H:i:s'),
     ];
+}
+
+/* ==================== 别人的个人主页（说说 / 留言板） ====================
+   「读别人数据」是全站最敏感的事，所以这里**一行 SQL 都没有**：
+   全部走 api/space_read.php —— 与个人空间页同一个函数、同一套可见性过滤
+   （仅自己/好友/部分可见/部分不可见/置顶的朋友/特别关心朋友 0–6 级）。
+   过滤掉的内容 AI 根本看不到，也不会知道存在。 */
+function ai_tool_space(PDO $pdo, int $uid, string $username, array $a): array {
+    $target = trim((string)$a['user']);
+    $tuid = space_find_uid($pdo, $target);
+    if ($tuid <= 0) return ['ok' => false, 'error' => '找不到用户「' . $target . '」（用户名要写完整，或被对方注销了）'];
+    $kind = (string)($a['kind'] ?? 'both');
+    $limit = max(1, min(30, (int)($a['limit'] ?? 10)));
+    $card = space_user_card($pdo, $tuid);
+    $out = [
+        'user' => ['uid' => $tuid, 'username' => $card['username'], 'name' => $card['name']],
+        'is_self' => ($tuid === $uid),
+        'privacy' => '结果已按对方隐私设置过滤：看不到的说说不会出现在这里，也不会提示“有几条被隐藏”',
+    ];
+    if ($kind === 'feeds' || $kind === 'both') {
+        $feeds = space_read_feeds($pdo, $uid, $tuid, $limit);
+        $out['feeds'] = array_map(function ($f) {
+            return [
+                'time' => $f['time'],
+                'text' => ai_slim(preg_replace('/\s+/u', ' ', strip_tags((string)$f['content'])), 300),
+                'images' => is_array($f['images']) ? count($f['images']) : 0,
+                'likes' => (int)$f['likes'],
+                'edited' => $f['edited'],
+            ];
+        }, $feeds);
+        $out['feeds_count'] = count($out['feeds']);
+    }
+    if ($kind === 'messages' || $kind === 'both') {
+        $res = space_read_messages($pdo, $uid, $tuid, 500);
+        $msgs = array_slice($res['messages'], -1 * $limit);
+        $out['guestbook'] = array_map(function ($m) {
+            return [
+                'from' => $m['card']['name'] ?? ('用户' . $m['user_id']),
+                'mine' => !empty($m['mine']),
+                'time' => $m['time'],
+                'text' => ai_slim(strip_tags((string)$m['content']), 200),
+            ];
+        }, $msgs);
+        $out['guestbook_count'] = count($out['guestbook']);
+        $out['guestbook_note'] = '留言板是公开内容（给主人留言），按时间正序取最近几条';
+    }
+    return $out;
+}
+
+/* ==================== 搜我自己的聊天记录（全局 / 某人 / 某群） ====================
+   走 api/chat_actions.php 的 chat_action_search_messages —— 和网页搜索框同一个函数，
+   只能搜「我参与的会话」；e2ee 消息只回占位符。 */
+function ai_tool_search_messages(PDO $pdo, int $uid, string $username, array $a): array {
+    $q = trim((string)$a['q']);
+    $with = trim((string)($a['with'] ?? ''));
+    $group = trim((string)($a['group'] ?? ''));
+    $limit = max(1, min(30, (int)($a['limit'] ?? 10)));
+
+    $gid = 0;
+    if ($group !== '') {
+        $gid = group_find_gid($pdo, $group);
+        if (!$gid) return ['ok' => false, 'error' => '找不到群「' . $group . '」（可以给群名或 GID）'];
+    }
+    if ($with !== '' && $gid > 0) return ['ok' => false, 'error' => 'with 和 group 只能给一个'];
+
+    $res = chat_action_search_messages($pdo, $uid, [
+        'q' => $q, 'dm' => $with, 'group_id' => $gid, 'page' => 1, 'per_page' => $limit,
+    ]);
+    if (empty($res['success'])) return ['ok' => false, 'error' => (string)($res['error'] ?? '搜索失败')];
+
+    $scope = $gid > 0 ? ('群 ' . $group) : ($with !== '' ? ('与 ' . $with . ' 的私聊') : '我的全部私聊');
+    $rows = array_reverse($res['rows']);                 // 新→旧
+    return [
+        'query' => $q,
+        'scope' => $scope,
+        'total' => (int)$res['total'],
+        'count' => count($rows),
+        'messages' => chat_action_search_digest($pdo, $rows, $limit),
+        'note' => '只搜得到你自己参与的会话；端到端加密的消息内容 AI 读不到',
+    ];
+}
+
+/* ==================== 会改数据的操作（全部走网页同一套函数） ==================== */
+
+/** 建群：等级上限、群号生成、群主身份都跟网页建群一模一样 */
+function ai_tool_group_create(PDO $pdo, int $uid, string $username, array $a): array {
+    $name = trim((string)$a['name']);
+    $r = group_action_create($pdo, $uid, $name);
+    if (empty($r['success'])) {
+        if (($r['error'] ?? '') === 'Group limit reached') {
+            return ['ok' => false, 'error' => '你的等级最多能拥有 ' . (int)$r['max_groups'] . ' 个群，已达上限'];
+        }
+        return ['ok' => false, 'error' => '群名不能为空'];
+    }
+    return [
+        'group_id' => (int)$r['group_id'], 'name' => $r['name'], 'role' => 'owner',
+        'hint' => '群已建好，GID 是 ' . (int)$r['group_id'] . '；把 GID 告诉好友即可加入（群默认非公开，别人加入需要你审批）',
+    ];
+}
+
+/** 加入群：公开群直接进；非公开群发申请等群主/管理员批 */
+function ai_tool_group_join(PDO $pdo, int $uid, string $username, array $a): array {
+    $key = trim((string)$a['group']);
+    $gid = group_find_gid($pdo, $key);
+    if (!$gid) return ['ok' => false, 'error' => '找不到群「' . $key . '」——可以给群名或数字 GID'];
+    $st = $pdo->prepare('SELECT name, public FROM `groups` WHERE group_id = ?');
+    $st->execute([$gid]);
+    $g = $st->fetch() ?: ['name' => '', 'public' => 0];
+    $r = group_action_join($pdo, $uid, $gid, 'join_or_request');
+    if (empty($r['success'])) {
+        $e = (string)($r['error'] ?? '');
+        if ($e === 'Already a member.') return ['ok' => false, 'error' => '你已经在这个群里了'];
+        if ($e === 'Already requested.') return ['ok' => false, 'error' => '之前已经申请过，还在等群主审批'];
+        return ['ok' => false, 'error' => '加入失败：' . $e];
+    }
+    if (!empty($r['requested'])) {
+        return ['group_id' => $gid, 'name' => $g['name'], 'requested' => true, 'hint' => '这是非公开群，已替你发加入申请，等群主/管理员通过'];
+    }
+    return ['group_id' => $gid, 'name' => $g['name'], 'joined' => true, 'hint' => '已加入群聊'];
+}
+
+/** 加联系人：对方的黑名单/「允许任何人添加」/节流规则全部照旧生效 */
+function ai_tool_contact_add(PDO $pdo, int $uid, string $username, array $a): array {
+    $to = trim((string)$a['to']);
+    $msg = trim((string)($a['msg'] ?? ''));
+    $r = contact_action_send_request($pdo, $uid, $username, $to, $msg);
+    if (empty($r['success'])) {
+        $map = [
+            'blocked' => '发不出去：对方把你拉黑了',
+            'not_accepting' => '对方关闭了「允许任何人添加我为好友」，加不了',
+            'Already friends.' => '你们已经是好友了',
+            'Request already pending.' => '申请已经发过了，还在等对方通过',
+            'Too many friend requests. Please try again later.' => '好友申请太频繁了，过一会儿再试',
+        ];
+        $e = (string)($r['error'] ?? '');
+        return ['ok' => false, 'error' => $map[$e] ?? '找不到这个用户'];
+    }
+    return ['to' => $to, 'sent' => true, 'hint' => '好友申请已发出，要等对方同意才成为好友'];
+}
+
+/** 删除联系人：双向删行，和网页「删除好友」一样 */
+function ai_tool_contact_remove(PDO $pdo, int $uid, string $username, array $a): array {
+    $to = trim((string)$a['to']);
+    $r = contact_action_remove($pdo, $uid, $username, $to);
+    if (empty($r['success'])) return ['ok' => false, 'error' => '删除失败：你们不是好友，或用户名不对'];
+    return ['to' => $to, 'removed' => true, 'hint' => '已删除该联系人（聊天记录不会被删）'];
+}
+
+/** 置顶 / 取消置顶：kind=contact 是会话置顶，kind=group 是群置顶 */
+function ai_tool_pin(PDO $pdo, int $uid, string $username, array $a): array {
+    $kind = (string)($a['kind'] ?? 'contact');
+    $target = trim((string)$a['target']);
+    $on = (string)($a['on'] ?? 'toggle');
+    $flag = $on === 'on' ? 1 : ($on === 'off' ? 0 : null);
+
+    if ($kind === 'group') {
+        $gid = group_find_gid($pdo, $target);
+        if (!$gid) return ['ok' => false, 'error' => '找不到群「' . $target . '」'];
+        $r = group_action_toggle_pin($pdo, $uid, $gid, $flag);
+        if (empty($r['success'])) return ['ok' => false, 'error' => '置顶失败：你不在这个群里'];
+        return ['kind' => 'group', 'target' => $target, 'group_id' => $gid, 'pinned' => (int)$r['pinned'], 'on' => (bool)$r['pinned']];
+    }
+    $r = contact_action_toggle_pin($pdo, $uid, $username, $target, $flag);
+    if (empty($r['success'])) return ['ok' => false, 'error' => '置顶失败：你们还不是好友，或名字写错了'];
+    return ['kind' => 'contact', 'target' => $target, 'pinned' => (int)$r['pinned'], 'on' => (bool)$r['pinned']];
+}
+
+/** 特别关心开关（对方发说说时你能收到提醒的那个标记） */
+function ai_tool_special_care(PDO $pdo, int $uid, string $username, array $a): array {
+    $user = trim((string)$a['user']);
+    $on = (string)($a['on'] ?? 'toggle');
+    $flag = $on === 'on' ? 1 : ($on === 'off' ? 0 : null);
+    $r = contact_action_toggle_special($pdo, $uid, $username, $user, $flag);
+    if (empty($r['success'])) return ['ok' => false, 'error' => '设置失败：必须是好友才能设特别关心'];
+    return [
+        'user' => $user, 'special' => (int)$r['special'], 'on' => (bool)$r['special'],
+        'hint' => $r['special'] ? '已把它加入特别关心' : '已取消特别关心',
+    ];
+}
+
+/** 举报用户：进 incidents 表给管理员处理，规则与网页举报完全一致（10 分钟最多 10 次） */
+function ai_tool_report_user(PDO $pdo, int $uid, string $username, array $a): array {
+    $to = trim((string)$a['to']);
+    $reason = trim((string)$a['reason']);
+    $r = report_action_submit($pdo, $uid, $username, $to, $reason);
+    if (empty($r['success'])) {
+        $e = (string)($r['error'] ?? '');
+        if ($e === 'Invalid target.') return ['ok' => false, 'error' => '找不到被举报的用户'];
+        if ($e === 'Invalid.') return ['ok' => false, 'error' => '不能举报自己'];
+        return ['ok' => false, 'error' => $e !== '' ? $e : '举报提交失败'];
+    }
+    return ['to' => $to, 'submitted' => true, 'ticket_id' => (int)($r['ticket_id'] ?? 0), 'hint' => '举报已提交给管理员，处理结果在工单/举报列表里看'];
 }
