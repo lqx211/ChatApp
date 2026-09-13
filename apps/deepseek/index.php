@@ -81,6 +81,8 @@ $v = time();
   #dsSettingsModal .modal-box{text-align:left}
   #dsSettingsModal .ds-field{margin-bottom:12px}
   #dsSettingsModal label{display:block;font-size:.78em;color:#999;margin-bottom:4px}
+  /* 设置里的小字提示统一小一号 + 灰色（以前 .ds-hint 只在 .ds-check 里有样式，放到别处就变成正常字号，很突兀） */
+  #dsSettingsModal .ds-hint{font-size:.7em;color:#7f8c99;line-height:1.55;margin-top:5px;font-weight:400}
   #dsSettingsModal input,#dsSettingsModal select,#dsSettingsModal textarea{width:100%;box-sizing:border-box;
     background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-size:.85em;padding:8px 10px;outline:none;font-family:inherit}
   #dsSettingsModal textarea{min-height:70px;resize:vertical}
@@ -272,14 +274,17 @@ $v = time();
       <div class="ds-field"><label>最大回复长度 (max_tokens)</label><input type="number" id="dsMaxTokens" min="1" max="8192" step="1" value="2048"></div>
     </div>
     <div class="ds-row2">
-      <div class="ds-field"><label>上下文窗口 (Context Window)</label><input type="number" id="dsCtxWin" min="8000" max="2000000" step="1000" value="1000000"><div class="ds-hint" style="margin-top:4px">deepseek-v4-flash 默认 1M tokens。只用于本地估算与自动压缩（按字符粗估，非官方分词器）；用量超过它的 65% 会自动压缩对话。</div></div>
+      <div class="ds-field"><label>上下文窗口 (Context Window)</label><input type="number" id="dsCtxWin" min="8000" max="2000000" step="1000" value="1000000"><div class="ds-hint">deepseek-v4-flash 默认 1M tokens；按字符粗估（非官方分词器）</div></div>
+      <div class="ds-field"><label>自动压缩阈值 (%)</label><input type="number" id="dsCompressAt" min="1" max="100" step="1" value="5"><div class="ds-hint">上下文超过这个比例就自动压缩一次（默认 5%）；手动「压缩聊天」随时可用</div></div>
+    </div>
+    <div class="ds-row2">
       <div class="ds-field"><label>AI 读图的许可</label>
         <select id="dsImgPerm">
           <option value="">每次读取都问我</option>
           <option value="session">本会话内都允许（刷新失效）</option>
           <option value="always">全部允许（永久，记住选择）</option>
         </select>
-        <div class="ds-hint" style="margin-top:4px">只影响 AI 读取别人主页的图片（每次仍然是经过隐私过滤的图）。随时可改回「每次读取都问我」。</div>
+        <div class="ds-hint">只影响 AI 读别人主页的图片（仍然经过隐私过滤）</div>
       </div>
     </div>
     <div class="modal-actions">
@@ -297,7 +302,7 @@ $v = time();
   var USER = window.DS_USER || { username: '', uid: 0 };
   // tools=总开关；toolPrefs=逐项开关({工具名:bool}，缺省用工具的 defaultOn)
   // 账号级权限（读会话摘要 / 允许代发私聊）由服务端持有 → serverPrefs
-  var cfg = { key: '', model: 'deepseek-v4-flash', system: '', temp: 0.7, maxTokens: 2048, tools: true, toolPrefs: null };
+  var cfg = { key: '', model: 'deepseek-v4-flash', system: '', temp: 0.7, maxTokens: 2048, contextWindow: 1000000, compressAt: 5, tools: true, toolPrefs: null };
   var serverPrefs = { ai_level: 0 };
   var conv = [];            // [{role:'user'|'assistant', content, hidden?, kind?}]  hidden = 工具结果，不上屏但发给模型
   var streaming = false;
@@ -535,6 +540,7 @@ $v = time();
     $('dsTemp').value = (cfg.temp != null ? cfg.temp : 0.7);
     $('dsMaxTokens').value = (cfg.maxTokens || 2048);
     $('dsCtxWin').value = ctxWindowSize();
+    $('dsCompressAt').value = compressAtPct();
     $('dsImgPerm').value = DS.imagePermMode() || '';
     $('dsTools').checked = cfg.tools !== false;
     var radios = document.getElementsByName('dsAiLevel');
@@ -552,6 +558,7 @@ $v = time();
     var t = parseFloat($('dsTemp').value); cfg.temp = isNaN(t) ? 0.7 : Math.max(0, Math.min(2, t));
     var mt = parseInt($('dsMaxTokens').value, 10); cfg.maxTokens = isNaN(mt) ? 2048 : Math.max(1, Math.min(8192, mt));
     var cw = parseInt($('dsCtxWin').value, 10); cfg.contextWindow = isNaN(cw) ? 1000000 : Math.max(8000, Math.min(2000000, cw));
+    var ca = parseInt($('dsCompressAt').value, 10); cfg.compressAt = isNaN(ca) ? 5 : Math.max(1, Math.min(100, ca));
     DS.setImagePerm($('dsImgPerm').value || '');
     cfg.tools = $('dsTools').checked;
     cfg.toolPrefs = collectToolPrefs();
@@ -647,6 +654,8 @@ $v = time();
     return n + 1400;   // 系统提示词（人设 + 工具清单 + 表情表）的量级
   }
   function ctxWindowSize() { return Math.max(8000, Number(cfg.contextWindow) || 1000000); }
+  /* 自动压缩阈值（百分比）：默认 5% —— 上下文超过就自动压一次 */
+  function compressAtPct() { return Math.max(1, Math.min(100, Number(cfg.compressAt) || 5)); }
   function renderStats() {
     var el = $('dsStats');
     if (!el) return;
@@ -658,7 +667,7 @@ $v = time();
         ' · ' + (stats.genMs > 0 ? Math.max(1, Math.round(stats.outTok / (stats.genMs / 1000))) + ' tok/s' : '— tok/s'),
       '缓存命中 ' + ((stats.hit + stats.miss) > 0 ? Math.round(stats.hit / (stats.hit + stats.miss) * 100) + '%' : '—'),
       '输入 ' + fmtTok(stats.inTok) + ' tok · 输出 ' + fmtTok(stats.outTok) + ' tok',
-      '<span class="' + (pct >= 65 ? 'warn' : (pct >= 40 ? 'hot' : '')) + '">上下文 ' + fmtTok(used) + '/' + fmtTok(win) +
+      '<span class="' + (pct >= compressAtPct() ? 'warn' : (pct >= compressAtPct() * 0.6 ? 'hot' : '')) + '">上下文 ' + fmtTok(used) + '/' + fmtTok(win) +
         ' · ' + (pct < 10 ? pct.toFixed(1) : Math.round(pct)) + '%' + (stats.comps ? ' · 已压缩 ' + stats.comps + ' 次' : '') + '</span>'
     ];
     el.innerHTML = segs.map(function (s) {
@@ -761,10 +770,12 @@ $v = time();
     if (streaming) return false;
     if (!hasKey()) { openSettings(); return false; }
     var visible = conv.filter(function (m) { return !m.hidden; }).length;
-    if (visible < 4) {
-      if (!auto) alert('对话还很短（' + visible + ' 条），压缩没意义 —— 至少聊几句再压。');
+    /* 手动压缩不限长度（哪怕只聊了一句也能压）；只有真的没东西可压时才拒绝 */
+    if (conv.length === 0) {
+      if (!auto) alert('当前对话是空的，没东西可压缩。');
       return false;
     }
+    if (auto && visible < 2) return false;
     var beforeTok = ctxTokens(), oldCount = conv.length;
     setStreaming(true);
     typing.textContent = '正在压缩对话…（生成交接摘要，可能要十几秒）';
@@ -773,7 +784,12 @@ $v = time();
       msgs.push({ role: 'user', content: COMPRESS_ASK });
       var summary = String(await callModelOnce(msgs) || '').trim();
       if (!summary) throw new Error('模型没有返回摘要');
-      var kept = conv.slice(-2);          // 最近一轮留着，衔接更自然
+      /* 只留最近 2 条「可见」消息接着聊。以前是 conv.slice(-2)，
+         但隐藏的 tool 结果（kind:'tool'）会被留进来 —— 它前面的
+         assistant(tool_calls) 已经进了摘要，于是这条 tool 成了孤儿，
+         上游会 400（Messages with role 'tool' must be ...），
+         表现为「压缩完之后每次发消息都 502」。 */
+      var kept = conv.filter(function (m) { return !m.hidden; }).slice(-2);
       conv = [{
         role: 'user', kind: 'summary', time: nowTime(),
         content: '【对话压缩摘要 · ' + (auto ? '自动' : '手动') + '压缩，替代了之前 ' + oldCount + ' 条消息】\n\n' + summary
@@ -867,6 +883,18 @@ $v = time();
   var pendingConfirms = 0;  // 正在等用户点「通过/拒绝」的工具数（>0 时不让发新消息）
   function argValHtml(k, v, desc) {
     var s = (v === null || v === undefined) ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
+    // 代码 / 请求体这类参数：不管长短都整块显示（可滚动），挤成一行根本看不清
+    if (/^(code|script|js|body|html|css|sql|query|json)$/.test(k) || s.length > 120) {
+      return '<div class="row col"><span class="k">' + esc(k) + '</span>'
+        + '<pre class="ca-ask-code">' + esc(s) + '</pre>'
+        + (desc ? '<span class="ca-ask-desc">' + esc(String(desc).slice(0, 160)) + '</span>' : '')
+        + '</div>';
+    }
+    // why 是「AI 必须先解释这段代码干什么」的那句话 —— 必须完整显示，不许截断
+    if (k === 'why') {
+      return '<div class="row col"><span class="k">' + esc(k) + '</span>'
+        + '<span class="v">' + esc(s || '（空）') + '</span></div>';
+    }
     var full = s.length > 200 ? s : '';
     var show = s.length > 80 ? (s.slice(0, 80) + '…') : s;
     return '<div class="row"><span class="k">' + esc(k) + '</span><span class="v"' +
@@ -878,9 +906,13 @@ $v = time();
     intro.innerHTML = DSUI.renderEmojiHtml(renderMd('我要调用一个 ChatApp 工具，先请你确认：'));
 
     var scopeTxt = info.scope === 'write' ? '会改动数据' : (info.scope === 'admin' ? '管理员专用' : '只读');
+    var risky = !!info.danger || (info.args && typeof info.args.method === 'string' && /^(POST|PUT|PATCH|DELETE)$/i.test(info.args.method));
     var keys = Object.keys(info.args || {});
+    // 有 why（解释）就先显示 why —— 「agent 必须先解释这段 JS 干什么」
+    if (keys.indexOf('why') > 0) { keys.splice(keys.indexOf('why'), 1); keys.unshift('why'); }
     var h = '<div class="flash-title">工具调用申请</div>'
       + '<div class="flash-file">' + esc(info.name) + '<span class="ca-ask-scope">· ' + esc(scopeTxt) + '</span></div>'
+      + (risky ? '<div class="ca-ask-danger">⚠ 这个工具能在这个页面上执行代码/向外发数据：看清楚下面的内容再决定</div>' : '')
       + '<div class="ca-ask-purpose">' + esc(String(info.purpose || '').replace(/[*`]/g, '')) + '</div>'
       + '<div class="ca-ask-args"><b>参数</b>'
       + (keys.length ? keys.map(function (k) {
@@ -891,7 +923,7 @@ $v = time();
       + '<button class="ca-ask-no" type="button">✗ 拒绝</button></div>';
 
     var card = document.createElement('div');
-    card.className = 'ca-ask pending';
+    card.className = 'ca-ask pending' + (risky ? ' danger' : '');
     card.setAttribute('data-ask-tool', info.name);
     card.innerHTML = h;
     appendPart(wrap, card);
@@ -1200,10 +1232,10 @@ $v = time();
     if (!text && !att) return;
     if (!hasKey()) { openSettings(); return; }
 
-    // 上下文超过窗口的 65% → 先自动压缩（避免越聊越糊 / 超限）
-    var win = ctxWindowSize(), usedTok = ctxTokens();
-    if (usedTok > win * 0.65) {
-      sysNote('上下文已到 ' + Math.round(usedTok / win * 100) + '%（阈值 65%），先自动压缩…');
+    // 上下文超过阈值（默认 5%）→ 先自动压缩（避免越聊越糊 / 超限）
+    var win = ctxWindowSize(), usedTok = ctxTokens(), th = compressAtPct();
+    if (usedTok > win * (th / 100)) {
+      sysNote('上下文已到 ' + Math.round(usedTok / win * 100) + '%（阈值 ' + th + '%），先自动压缩…');
       await compressConversation(true);
     }
 

@@ -335,6 +335,7 @@
     ca_space: 1, ca_search_messages: 1,
     ca_send_dm: 2, ca_group_create: 2, ca_group_join: 2, ca_contact_add: 2,
     ca_contact_remove: 2, ca_pin: 2, ca_special_care: 2, ca_report_user: 2,
+    ca_http: 2, ca_js: 2,
     ca_admin_stats: 3
   };
   function levelName(v) { v = Number(v) || 0; return LEVEL_NAMES[v < 0 ? 0 : (v > 3 ? 3 : v)]; }
@@ -680,6 +681,25 @@
       name: 'ca_report_user', group: 'write', scope: 'write', server: true, defaultOn: false, needsLogin: true,
       desc: '举报某个用户（提交给管理员，可在工单里跟进；规则与网页举报一致，10 分钟最多 10 次）',
       params: { to: '被举报的用户名', reason: '举报理由，写具体一点（最多 500 字）' }
+    },
+    {
+      name: 'ca_http', group: 'write', scope: 'write', server: true, defaultOn: false, needsLogin: true,
+      desc: '抓网页 / 调外部接口（GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS，服务端代抓，所以不受 CORS 限制）。**内网/本机地址会被拦**（SSRF 防护）；响应里的内联 base64（图片/视频）会自动略成占位符；HTML 会被转成可读文本；响应头里的 Set-Cookie 不下发；非文本类型（图片/压缩包/pdf）只回元信息。每 5 分钟最多 30 次',
+      params: {
+        url: '完整地址，http:// 或 https:// 开头',
+        method: 'GET（默认）/ POST / PUT / PATCH / DELETE / HEAD / OPTIONS',
+        headers: '可选。JSON 对象或 "Key: Value" 多行；不能设 Cookie / Authorization / Host / Origin（防把凭据外送）',
+        body: '可选。请求体（GET/HEAD 忽略），最大 100KB'
+      }
+    },
+    {
+      name: 'ca_js', group: 'write', scope: 'local', confirm: true, danger: true, defaultOn: false,
+      desc: '**直接在这个网页里执行一段 JavaScript**（eval）。能读页面数据、改界面、调用页面上的 ChatApp 函数、跑小脚本验证想法。**必须先在 why 里说清这段脚本要干什么、为什么要它**：用户会在确认卡里看到你的说明 + 完整代码，点「通过」才会执行。脚本没有沙箱（能碰这个页面的一切，包括你本机保存的设置），所以只写真正需要的最小代码；默认超时 8 秒，同步死循环会把页面卡住（别写 while(true)）。',
+      params: {
+        why: '必填：这段脚本的用途（中文，1~3 句，写给用户看）',
+        code: '必填：JavaScript 源码。用 return 返回结果（支持 await）；console.log 与 alert/confirm/prompt 会被拦下记录后一起回给你'
+      },
+      run: function (a) { return runPageScript(String(a.code || '')); }
     },
 
     /* ---------- 会真正改动数据的操作（默认关闭 + 账号级开关 + 服务端限流） ---------- */
@@ -1243,7 +1263,8 @@
        客户端没接 confirmer 时保持旧行为（放行），免得老页面直接不能用。 */
   var confirmer = null;
   function setConfirmer(fn) { confirmer = (typeof fn === 'function') ? fn : null; }
-  function isSensitive(t) { return !!(t && t.server); }
+  /* 需要用户点头的工具：服务端工具（碰 ChatApp 数据）+ 显式标了 confirm 的（比如页面内跑 JS） */
+  function isSensitive(t) { return !!(t && (t.server || t.confirm)); }
 
   /* ---- 读图片的许可（比工具确认多两个选项：本会话 / 全部）----
      结果里的 images 只是「URL 清单」，要把图真的交给模型看必须：
@@ -1347,6 +1368,7 @@
       title: name,
       purpose: t.desc || '',
       scope: t.scope || '',
+      danger: !!t.danger,
       level: minLevelOf(t),
       levelName: levelName(minLevelOf(t)),
       params: t.params || {}
@@ -1354,6 +1376,98 @@
     return Promise.resolve(f(info)).then(function (ok) {
       return (ok === false) ? 'denied' : null;
     }).catch(function () { return 'error'; });
+  }
+
+  /* ==================== 页面内执行 JavaScript（ca_js） ====================
+     说明：没有沙箱，就是 eval 在这页里跑（用户要求的能力）。
+     我们做能做的保护：必须带 why（解释）、要用户确认（引擎门禁）、
+     拦下 alert/confirm/prompt（不然页面会弹框卡住）、收集 console、异步超时、
+     结果安全序列化 + 截断。同步死循环保护不了（会卡页面），在描述里明确警告了。 */
+  function serializeValue(v, depth) {
+    depth = depth == null ? 2 : depth;
+    try {
+      if (v === undefined) return 'undefined';
+      if (v === null) return 'null';
+      var t = typeof v;
+      if (t === 'string') return v.length > 2000 ? v.slice(0, 2000) + '…(共 ' + v.length + ' 字)' : v;
+      if (t === 'number' || t === 'boolean' || t === 'bigint') return String(v);
+      if (t === 'function') return '[function ' + (v.name || 'anonymous') + ']';
+      if (t === 'symbol') return String(v);
+      if (v instanceof Node) return '[' + v.nodeName.toLowerCase() + (v.id ? '#' + v.id : '') + ']';
+      if (v instanceof Error) return '[' + v.name + ': ' + v.message + ']';
+      if (depth <= 0) return Array.isArray(v) ? '[Array ' + v.length + ']' : '[Object]';
+      if (Array.isArray(v)) {
+        var arr = v.slice(0, 30).map(function (x) { return serializeValue(x, depth - 1); });
+        if (v.length > 30) arr.push('…共 ' + v.length + ' 项');
+        return '[' + arr.join(', ') + ']';
+      }
+      var keys = Object.keys(v).slice(0, 30), parts = [];
+      keys.forEach(function (k) { parts.push(k + ': ' + serializeValue(v[k], depth - 1)); });
+      if (Object.keys(v).length > 30) parts.push('…共 ' + Object.keys(v).length + ' 个键');
+      return '{' + parts.join(', ') + '}';
+    } catch (e) { return '[无法序列化]'; }
+  }
+
+  function runPageScript(code) {
+    var logs = [], dialogs = [], t0 = Date.now();
+    var origAlert = window.alert, origConfirm = window.confirm, origPrompt = window.prompt;
+    var methods = ['log', 'info', 'warn', 'error', 'debug'], orig = {};
+    methods.forEach(function (m) { orig[m] = console[m]; });
+    function fmtArgs(args) {
+      return Array.prototype.map.call(args, function (x) {
+        return typeof x === 'string' ? x : serializeValue(x, 1);
+      }).join(' ');
+    }
+    methods.forEach(function (m) {
+      console[m] = function () {
+        logs.push({ level: (m === 'debug' ? 'log' : m), text: fmtArgs(arguments).slice(0, 800) });
+        if (logs.length > 60) logs.shift();
+        try { orig.log.apply(console, ['[ca_js]'].concat(Array.prototype.slice.call(arguments))); } catch (e) {}
+      };
+    });
+    window.alert = function (msg) { dialogs.push({ type: 'alert', message: String(msg == null ? '' : msg) }); };
+    window.confirm = function (msg) { dialogs.push({ type: 'confirm', message: String(msg == null ? '' : msg), returned: false }); return false; };
+    window.prompt = function (msg) { dialogs.push({ type: 'prompt', message: String(msg == null ? '' : msg), returned: null }); return null; };
+
+    function restore() {
+      methods.forEach(function (m) { console[m] = orig[m]; });
+      window.alert = origAlert; window.confirm = origConfirm; window.prompt = origPrompt;
+    }
+    var out = { ms: 0 };
+    var timer = null;
+    var timeout = new Promise(function (_, rej) {
+      timer = setTimeout(function () { rej(new Error('异步执行超过 8 秒，已放弃等待（页面本身没卡，是你那段脚本没结束）')); }, 8000);
+    });
+    var runner;
+    try {
+      var fn = new Function('return (async () => {\n' + code + '\n})();');
+      runner = Promise.race([Promise.resolve(fn()), timeout]);
+    } catch (e) {
+      restore();
+      return Promise.resolve({
+        ok: false, error: '语法错误：' + ((e && e.message) || e),
+        console: logs, dialogs: dialogs, ms: Date.now() - t0,
+        hint: '脚本没执行；检查一下括号/引号是不是配对了'
+      });
+    }
+    return runner.then(function (res) {
+      out.ok = true;
+      out.result = serializeValue(res, 3);
+      if (res === undefined) out.result_tip = '脚本没有 return，什么也没返回；要拿结果请用 return';
+    }).catch(function (e) {
+      out.ok = false;
+      out.error = ((e && e.message) || String(e));
+    }).then(function () {
+      if (timer) { clearTimeout(timer); timer = null; }   // 别留悬着的定时器
+      restore();
+      if (logs.length) out.console = logs;
+      if (dialogs.length) {
+        out.dialogs = dialogs;
+        out.dialogs_note = 'alert/confirm/prompt 被拦下记录了（没弹窗、不会卡页面）：confirm 返回 false，prompt 返回 null';
+      }
+      out.ms = Date.now() - t0;
+      return out;
+    });
   }
 
   /* ========================= 工具执行 ========================= */
@@ -1502,6 +1616,8 @@
     imagePermMode: imgPermMode,
     setImagePerm: setImgPermMode,
     needsConfirm: isSensitive,
+    runPageScript: runPageScript,
+    serializeValue: serializeValue,
     levelName: levelName,
     minLevelOf: minLevelOf,
     prefsForLevel: prefsForLevel,

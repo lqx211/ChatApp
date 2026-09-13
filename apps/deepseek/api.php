@@ -25,11 +25,25 @@ header('Connection: keep-alive');
 
 function ds_err(string $msg, int $code = 400): void {
     // 用「SSE 错误帧」而不是 redirect / 空白页：fetch 侧能直接拿到人话
-    http_response_code($code);
+    // ⚠️ 5xx 会被 Cloudflare（chat.lqx211.com 前面那层）替换成它自己的
+    //   「error code: 502」错误页 —— 源站响应体直接被吞，前端只剩一个干巴巴的 502。
+    //   所以 5xx 一律降级成「HTTP 200 + SSE 错误帧」，真实 status 放在帧里，
+    //   前端照旧能弹人话（诊断详情记到 data/ai_proxy_err.log）。
+    $http = ($code >= 500) ? 200 : $code;
+    http_response_code($http);
     echo "event: error\n";
     echo 'data: ' . json_encode(['error' => $msg, 'status' => $code], JSON_UNESCAPED_UNICODE) . "\n\n";
     @flush();
     exit;
+}
+
+/* 上游失败的「黑匣子」：502 只回前端一句人话，事后没法查原因，所以把元信息 + 上游
+   报文片段记到 data/ai_proxy_err.log（data/.htaccess 已禁止直接访问 .log）。
+   只记统计/错误文本，不记对话内容；超过 512KB 轮转一份 .1。 */
+function ds_log_proxy_fail(array $info): void {
+    $f = __DIR__ . '/../../data/ai_proxy_err.log';
+    if (is_file($f) && filesize($f) > 512 * 1024) @rename($f, $f . '.1');
+    @file_put_contents($f, '[' . date('Y-m-d H:i:s') . '] ' . json_encode($info, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n", FILE_APPEND | LOCK_EX);
 }
 
 /* 登录失效的时候：不要 header('Location: login.php')。
@@ -183,6 +197,51 @@ if (!$clean) ds_err('消息为空');
 // 只保留最近 60 条，控制成本
 if (count($clean) > 60) $clean = array_slice($clean, -60);
 
+/* 工具调用配对修复（很重要）——上游对此很严格：
+   「tool 消息必须紧跟在带对应 tool_calls 的 assistant 后面」，否则整条请求 400：
+   Messages with role 'tool' must be a response to a preceding message with 'tool_calls'
+   而「压缩聊天」/历史裁剪会把成对的 assistant(tool_calls) ↔ tool 拆散（页面上隐藏的
+   tool 结果就是罪魁祸首），导致之后每次发送都失败（前端只看到 502）。
+   这里统一修好：配不上对的 tool 消息直接丢；assistant 后面没有工具回复的，
+   把 tool_calls 摘掉（只保留文字），保证发出去的负载永远合法。 */
+$fixed = [];
+$n = count($clean);
+for ($i = 0; $i < $n; $i++) {
+    $m = $clean[$i];
+    $role = (string)($m['role'] ?? '');
+    if ($role === 'assistant' && !empty($m['tool_calls'])) {
+        $ids = [];
+        foreach ($m['tool_calls'] as $tc) $ids[] = (string)($tc['id'] ?? '');
+        $got = [];
+        $j = $i + 1;
+        while ($j < $n && (string)($clean[$j]['role'] ?? '') === 'tool') {
+            $got[] = (string)($clean[$j]['tool_call_id'] ?? '');
+            $j++;
+        }
+        $matched = array_values(array_intersect($ids, $got));
+        if (!$matched) {
+            // 没有任何工具回复 → 摘掉 tool_calls，只剩文字（没文字就整条丢）
+            unset($m['tool_calls']);
+            if (trim((string)($m['content'] ?? '')) !== '') $fixed[] = $m;
+            continue;
+        }
+        // 只保留有回复的那些 tool_calls
+        $m['tool_calls'] = array_values(array_filter($m['tool_calls'], function ($tc) use ($matched) {
+            return in_array((string)($tc['id'] ?? ''), $matched, true);
+        }));
+        $fixed[] = $m;
+        for ($k = $i + 1; $k < $j; $k++) {
+            if (in_array((string)($clean[$k]['tool_call_id'] ?? ''), $ids, true)) $fixed[] = $clean[$k];
+        }
+        $i = $j - 1;
+        continue;
+    }
+    if ($role === 'tool') continue;   // 孤立 / 前面不是 assistant(tool_calls) 的 tool 结果 → 丢
+    $fixed[] = $m;
+}
+$clean = $fixed;
+if (!$clean) ds_err('消息为空');
+
 $payload = ['model' => $model, 'messages' => $clean, 'stream' => true];
 // 让上游在最后一个 SSE 块里带上 usage（prompt/completion + 缓存命中数）——
 // 前端的状态栏（轮数/步数/tok/tok 缓存命中率）靠它；原样透传，本代理不落库。
@@ -209,6 +268,7 @@ if (!empty($in['max_tokens']) && is_numeric($in['max_tokens'])) {
 
 $httpStatus = 0;
 $errBody = '';
+$t0 = microtime(true);
 
 $ch = curl_init('https://api.deepseek.com/chat/completions');
 curl_setopt_array($ch, [
@@ -244,14 +304,38 @@ $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
 if ($ok === false) {
+    ds_log_proxy_fail([
+        'kind' => 'curl', 'user' => (string)($_SESSION['username'] ?? '?'),
+        'ua' => substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 60),
+        'err' => $curlErr ?: 'unknown',
+        'elapsed' => round(microtime(true) - $t0, 1),
+        'msgs' => count($clean), 'payload_bytes' => strlen(json_encode($clean, JSON_UNESCAPED_UNICODE)),
+        'tools' => count($payload['tools'] ?? []), 'max_tokens' => $payload['max_tokens'] ?? null,
+    ]);
     ds_err('连接 DeepSeek 失败：' . ($curlErr ?: 'unknown'), 502);
 }
 if ($code !== 200 && $httpStatus !== 200) {
     $status = $code ?: $httpStatus;
+    ds_log_proxy_fail([
+        'kind' => 'upstream', 'user' => (string)($_SESSION['username'] ?? '?'),
+        'ua' => substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 60),
+        'status' => $status, 'body' => substr($errBody, 0, 400),
+        'elapsed' => round(microtime(true) - $t0, 1),
+        'msgs' => count($clean), 'payload_bytes' => strlen(json_encode($clean, JSON_UNESCAPED_UNICODE)),
+        'tools' => count($payload['tools'] ?? []), 'max_tokens' => $payload['max_tokens'] ?? null,
+    ]);
     $msg = 'DeepSeek 返回 ' . $status;
     $j = json_decode($errBody, true);
     if (is_array($j) && isset($j['error']['message'])) $msg = (string)$j['error']['message'];
     elseif (is_array($j) && isset($j['error']) && is_string($j['error'])) $msg = $j['error'];
+    // 几个常见上游报错 → 说人话（并给出处理建议）
+    if (stripos($msg, "preceding message with 'tool_calls'") !== false) {
+        $msg = '对话历史里有一条工具结果找不到对应的工具调用（压缩/裁剪历史时脱节了）——重发一次就没事了';
+    } elseif (stripos($msg, 'maximum context length') !== false || stripos($msg, 'context_length_exceeded') !== false) {
+        $msg = '上下文超过了模型上限（' . $msg . '）——用 9 点菜单里的「压缩聊天」或者新开一个对话';
+    } elseif (stripos($msg, 'rate limit') !== false) {
+        $msg = '被上游限流了（' . $msg . '）——等几秒再重发';
+    }
     if ($status === 401) $msg = 'API Key 无效或已过期（' . $msg . '）';
     elseif ($status === 402) $msg = 'DeepSeek 余额不足（' . $msg . '）';
     elseif ($status === 429) $msg = '请求过于频繁，请稍后重试（' . $msg . '）';

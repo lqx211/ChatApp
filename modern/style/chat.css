@@ -1305,3 +1305,14 @@ input[type="date"]:focus {
 .opt-mem-x { cursor: pointer; color: #7d8794; font-size: .9em; flex: 0 0 auto; }
 .opt-mem-x:hover { color: #e08080; }
 .opt-mem-add { margin-top: 6px; }
+
+/* 长参数（JS 代码 / 请求体）整块可滚动显示，别挤成一行 */
+.ca-ask .row.col{display:block}
+.ca-ask-code{margin:4px 0 2px;padding:6px 8px;background:#161a1e;border:1px solid #2f3439;border-radius:4px;
+  color:#c8d4e0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.95em;line-height:1.45;
+  white-space:pre-wrap;word-break:break-word;max-height:190px;overflow:auto}
+.ca-ask-desc{display:block;color:#7d8794;font-size:.94em;margin-bottom:2px}
+/* 危险操作（页面内跑 JS / 向外部发数据）：红边 + 一行警告 */
+.ca-ask.danger{border-color:#7a4a4a}
+.ca-ask-danger{margin:4px 0 6px;padding:5px 8px;background:#33221f;border:1px solid #6a3a3a;border-radius:4px;
+  color:#e7b7a8;font-size:.72em;line-height:1.5}
