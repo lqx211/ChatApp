@@ -624,11 +624,12 @@
     },
     {
       name: 'ca_space', group: 'mine', scope: 'self', server: true, defaultOn: true, needsLogin: true,
-      desc: '看某个用户的个人主页（说说 + 留言板）。**隐私过滤和服务端空间页完全同一套**：仅自己可见 / 好友可见 / 部分可见 / 部分不可见 / 置顶的朋友 / 特别关心朋友 都照旧生效，看不到的说说根本不会返回',
+      desc: '看某个用户的个人主页（说说 + 留言板）。**隐私过滤和服务端空间页完全同一套**：仅自己可见 / 好友可见 / 部分可见 / 部分不可见 / 置顶的朋友 / 特别关心朋友 都照旧生效，看不到的说说根本不会返回。with_images=1 时可以把他主页说说里的图片也拿给你看（前端会先问用户「是否允许读图」）',
       params: {
         user: '对方用户名（完整用户名；自己的也行）',
         kind: 'feeds（只看说说）| messages（只看留言板）| both（都要，默认）',
-        limit: '最多几条，默认 10，最多 30'
+        limit: '最多几条，默认 10，最多 30',
+        with_images: '0/1，默认 0。1 = 连图片一起拿（最多 6 张，实际上会先弹确认问用户同不同意，同意后你才看得到）'
       }
     },
     {
@@ -1243,6 +1244,100 @@
   var confirmer = null;
   function setConfirmer(fn) { confirmer = (typeof fn === 'function') ? fn : null; }
   function isSensitive(t) { return !!(t && t.server); }
+
+  /* ---- 读图片的许可（比工具确认多两个选项：本会话 / 全部）----
+     结果里的 images 只是「URL 清单」，要把图真的交给模型看必须：
+       1) 用户点同意（一次 / 本会话 / 永远，或者跳过）
+       2) 客户端把图抓下来转成 data URL（api/file.php 会再验一次可见性）
+     永久允许存在 localStorage（chatapp_ds_img_perm），设置里可以改回来。 */
+  var IMG_PERM_KEY = 'chatapp_ds_img_perm';   // '' | 'always'
+  var imgSessionOk = false;                   // 本会话允许（刷新页面就失效）
+  var imageConsent = null;
+  function setImageConsent(fn) { imageConsent = (typeof fn === 'function') ? fn : null; }
+  function imgPermMode() { try { return localStorage.getItem(IMG_PERM_KEY) || (imgSessionOk ? 'session' : ''); } catch (e) { return imgSessionOk ? 'session' : ''; } }
+  /* m: 'always'（永久）| 'session'（本会话，刷新失效）| ''（每次问） */
+  function setImgPermMode(m) {
+    try {
+      if (m === 'always') localStorage.setItem(IMG_PERM_KEY, m);
+      else localStorage.removeItem(IMG_PERM_KEY);
+    } catch (e) {}
+    imgSessionOk = (m === 'session');
+  }
+  /* 回来：'once' | 'session' | 'always' | 'skip' */
+  function askImageRead(info) {
+    if (imgPermMode() === 'always') return Promise.resolve('always');
+    if (imgSessionOk) return Promise.resolve('session');
+    var f = imageConsent || ((typeof global.CA_IMAGE_CONSENT === 'function') ? global.CA_IMAGE_CONSENT : null);
+    if (!f) return Promise.resolve('once');       // 老页面：保持旧行为（直接读）
+    return Promise.resolve(f(info)).then(function (v) {
+      v = String(v || '');
+      if (v === 'always') { setImgPermMode('always'); return 'always'; }
+      if (v === 'session') { imgSessionOk = true; return 'session'; }
+      if (v === 'skip' || v === 'deny') return 'skip';
+      return 'once';
+    }).catch(function () { return 'skip'; });
+  }
+
+  /* 图片 → data URL（模型只能看 data:image/*，代理也会把外链拦掉） */
+  function imgToDataUrl(url, maxSide) {
+    return fetch(url, { credentials: 'same-origin' }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var ct = (r.headers.get('content-type') || '').toLowerCase();
+      if (ct.indexOf('image/') !== 0) throw new Error('不是图片');
+      return r.blob();
+    }).then(function (blob) {
+      if (blob.size > 6 * 1024 * 1024) throw new Error('图片过大');
+      var objUrl = URL.createObjectURL(blob);
+      var done = function (out) { try { URL.revokeObjectURL(objUrl); } catch (e) {} return out; };
+      return new Promise(function (res, rej) {
+        var img = new Image();
+        img.onload = function () {
+          try {
+            var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+            var max = maxSide || 1024;
+            var scale = Math.min(1, max / Math.max(w, h));
+            var c = document.createElement('canvas');
+            c.width = Math.max(1, Math.round(w * scale));
+            c.height = Math.max(1, Math.round(h * scale));
+            c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+            res(done(c.toDataURL('image/jpeg', 0.82)));
+          } catch (e) { rej(e); }
+        };
+        img.onerror = function () { rej(new Error('图片解码失败')); };
+        img.src = objUrl;
+      });
+    }).catch(function (e) { throw new Error((e && e.message) || '读取失败'); });
+  }
+  /**
+   * 把一个工具结果里的 images 变成模型能看的图（带用户许可）。
+   * @returns Promise<{vision: string[], skipped?: string, failed?: string[], mode?: string}>
+   */
+  function materializeImages(list, meta) {
+    var urls = [];
+    (list || []).forEach(function (it) {
+      var u = (typeof it === 'string') ? it : (it && it.url);
+      if (u) urls.push({ url: u, from: (it && it.from) || (meta && meta.from) || '', time: (it && it.time) || '' });
+    });
+    urls = urls.slice(0, 4);                        // 代理侧每条消息最多 4 张，这里先卡死
+    if (!urls.length) return Promise.resolve({ vision: [] });
+    return askImageRead({ count: urls.length, items: urls, tool: (meta && meta.tool) || '', from: (meta && meta.from) || '' })
+      .then(function (mode) {
+        if (mode === 'skip') return { vision: [], skipped: '用户跳过了这次图片读取' };
+        var ok = [], bad = [];
+        return urls.reduce(function (p, it) {
+          return p.then(function () {
+            return imgToDataUrl(it.url).then(function (d) { ok.push(d); })
+              .catch(function () { bad.push(it.url); });
+          });
+        }, Promise.resolve()).then(function () {
+          return {
+            vision: ok, mode: mode,
+            failed: bad.length ? bad.map(function (u) { return u.replace(/^.*\//, ''); }) : []
+          };
+        });
+      });
+  }
+
   function askPermission(name, args, t) {
     var f = confirmer || ((typeof global.CA_TOOL_CONFIRM === 'function') ? global.CA_TOOL_CONFIRM : null);
     if (!f) return Promise.resolve(null);
@@ -1289,14 +1384,35 @@
       var t0 = Date.now();
       var p = t.server ? serverRun(n, args || {}) : Promise.resolve().then(function () { return t.run(args || {}); });
       return p.then(function (data) {
-        var s = JSON.stringify(data == null ? null : data);
-        if (s && s.length > 4000) data = { truncated: true, note: '结果过长已截断，可缩小查询范围', preview: s.slice(0, 4000) };
-        if (data && typeof data === 'object' && !Array.isArray(data) && data._ms === undefined) data._ms = Date.now() - t0;
-        return { ok: true, data: data };
+        // 工具结果里带 images（目前只有 ca_space）→ 先问用户能不能读图，再抓成 data URL
+        var imgs = null;
+        if (data && typeof data === 'object' && !Array.isArray(data) && Array.isArray(data.images) && data.images.length) {
+          imgs = data.images;
+        }
+        if (!imgs) return finishRun(data, t0);
+        return materializeImages(imgs, { tool: n, from: (data.user && data.user.name) || '' }).then(function (r) {
+          data.images_read = r.vision.length;
+          if (r.skipped) data.images_skipped = r.skipped;
+          else if (!r.vision.length) data.images_skipped = '图片没读成（可能对方设了权限、或图已失效）';
+          if (r.failed && r.failed.length) data.images_failed = r.failed;
+          if (r.vision.length) data._vision = r.vision;      // 调用方负责把它当作图片输入，并从 JSON 里剔除
+          return finishRun(data, t0);
+        });
       }).catch(function (e) {
         return { ok: false, error: (e && e.message) ? e.message : '执行失败', _ms: Date.now() - t0 };
       });
     });
+  }
+
+  /* 收尾：截断过长结果 + 补 _ms */
+  function finishRun(data, t0) {
+    var s = JSON.stringify(data == null ? null : data);
+    var hasVision = !!(data && typeof data === 'object' && data._vision);
+    if (!hasVision && s && s.length > 4000) {
+      data = { truncated: true, note: '结果过长已截断，可缩小查询范围', preview: s.slice(0, 4000) };
+    }
+    if (data && typeof data === 'object' && !Array.isArray(data) && data._ms === undefined) data._ms = Date.now() - t0;
+    return { ok: true, data: data };
   }
   function executeAll(calls) {
     return Promise.all(calls.map(function (c) {
@@ -1382,6 +1498,9 @@
     setContext: setContext,
     setEnabled: setEnabled,
     setConfirmer: setConfirmer,
+    setImageConsent: setImageConsent,
+    imagePermMode: imgPermMode,
+    setImagePerm: setImgPermMode,
     needsConfirm: isSensitive,
     levelName: levelName,
     minLevelOf: minLevelOf,

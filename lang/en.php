@@ -1455,4 +1455,7 @@ return [
     'ai_tool_ask_no' => 'Deny',
     'ai_tool_ask_passed' => 'Allowed, running…',
     'ai_tool_ask_denied' => 'Denied — not executed',
+    'ai_tool_ask_ok_running' => 'Allowed, running…',
+    'ai_tool_ask_done' => 'Done',
+    'ai_tool_ask_failed' => 'Failed',
 ];

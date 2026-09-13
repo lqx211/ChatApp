@@ -1026,4 +1026,7 @@ return [
     'ai_tool_ask_no' => '拒绝',
     'ai_tool_ask_passed' => '已通过，正在执行…',
     'ai_tool_ask_denied' => '已拒绝，这次不会执行',
+    'ai_tool_ask_ok_running' => '已通过，执行中…',
+    'ai_tool_ask_done' => '已执行',
+    'ai_tool_ask_failed' => '执行失败',
 ];

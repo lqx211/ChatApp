@@ -877,4 +877,7 @@ return [
     'ai_tool_ask_no' => '不行',
     'ai_tool_ask_passed' => '准了，正在做…',
     'ai_tool_ask_denied' => '不行就不做',
+    'ai_tool_ask_ok_running' => '准了，做着呢…',
+    'ai_tool_ask_done' => '做好了',
+    'ai_tool_ask_failed' => '搞砸了',
 ];

@@ -9,7 +9,7 @@
  * 响应：text/event-stream（原样转发 DeepSeek 的 data: 行）
  */
 require_once __DIR__ . '/../../api/config.php';
-chatapp_require_login();
+chatapp_session_start();
 require_once __DIR__ . '/../../maintenance.php';
 
 // 关掉一切缓冲，保证边收边发
@@ -24,12 +24,19 @@ header('X-Accel-Buffering: no');
 header('Connection: keep-alive');
 
 function ds_err(string $msg, int $code = 400): void {
+    // 用「SSE 错误帧」而不是 redirect / 空白页：fetch 侧能直接拿到人话
     http_response_code($code);
     echo "event: error\n";
-    echo 'data: ' . json_encode(['error' => $msg], JSON_UNESCAPED_UNICODE) . "\n\n";
+    echo 'data: ' . json_encode(['error' => $msg, 'status' => $code], JSON_UNESCAPED_UNICODE) . "\n\n";
     @flush();
     exit;
 }
+
+/* 登录失效的时候：不要 header('Location: login.php')。
+   那个 302 会被 fetch 跟着跑到 login.php，而相对路径在 /apps/deepseek/ 下会变成
+   /apps/deepseek/login.php（不存在）→ 前端只能看到没头没脑的「HTTP 404」。
+   这里直接回一帧 SSE 错误，前端就能说「登录已失效，刷新重新登录」。 */
+if (!isset($_SESSION['username'])) ds_err('登录状态已失效（要么没登录，要么会话过期了）——刷新页面重新登录就行', 401);
 
 /* JSON Schema 修正：PHP 把 json_decode(..., true) 的 {} 变成 []，再 encode 就成了 []，
    DeepSeek 会报 “[] is not of type object”。按字段名把该是对象的位置改回对象。 */
@@ -177,6 +184,9 @@ if (!$clean) ds_err('消息为空');
 if (count($clean) > 60) $clean = array_slice($clean, -60);
 
 $payload = ['model' => $model, 'messages' => $clean, 'stream' => true];
+// 让上游在最后一个 SSE 块里带上 usage（prompt/completion + 缓存命中数）——
+// 前端的状态栏（轮数/步数/tok/tok 缓存命中率）靠它；原样透传，本代理不落库。
+$payload['stream_options'] = ['include_usage' => true];
 
 // 原生工具定义透传（只放行标准 function 形态，防奇怪负载）
 if (isset($in['tools']) && is_array($in['tools'])) {
@@ -245,7 +255,10 @@ if ($code !== 200 && $httpStatus !== 200) {
     if ($status === 401) $msg = 'API Key 无效或已过期（' . $msg . '）';
     elseif ($status === 402) $msg = 'DeepSeek 余额不足（' . $msg . '）';
     elseif ($status === 429) $msg = '请求过于频繁，请稍后重试（' . $msg . '）';
-    ds_err($msg, 502);
+    elseif ($status === 400) $msg = 'DeepSeek 拒绝了这次请求：' . $msg;
+    // 上游/网络类错误（502/504/timeout）通常是瞬时的 → 提示可以重试
+    $hint = ($status >= 500 || $status === 0) ? '（一般是瞬时的，直接重发上一条消息即可）' : '';
+    ds_err($msg . $hint, 502);
 }
 
 echo "event: done\n";

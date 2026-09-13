@@ -872,4 +872,7 @@ return [
     'ai_tool_ask_no' => '拒絕',
     'ai_tool_ask_passed' => '已通過，正在執行…',
     'ai_tool_ask_denied' => '已拒絕，呢次唔會執行',
+    'ai_tool_ask_ok_running' => '已通過，執行緊…',
+    'ai_tool_ask_done' => '搞掂了',
+    'ai_tool_ask_failed' => '搞衰了',
 ];

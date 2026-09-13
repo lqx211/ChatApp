@@ -733,6 +733,14 @@ img[src*="data/res/svg/"],img[src*="data/res/cil/"],img[src*="data/res/brand/"]{
 .ca-ask-state{font-size:.74em;font-weight:600}
 .ca-ask-state.ok{color:#7ec87e}
 .ca-ask-state.no{color:#e08080}
+/* 工具跑完之后确认卡收成一行（只留标题+结果），点一下可以再展开看参数 */
+.ca-ask.settled .ca-ask-purpose,.ca-ask.settled .ca-ask-args{display:none}
+.ca-ask.settled{cursor:pointer}
+.ca-ask.pending{border-color:#5a6a7a}
+/* 工具跑完之后确认卡收成一行（只留标题+结果），点一下可以再展开看参数 */
+.ca-ask.settled .ca-ask-purpose,.ca-ask.settled .ca-ask-args{display:none}
+.ca-ask.settled{cursor:pointer}
+.ca-ask.pending{border-color:#5a6a7a}
 
 /* ---- EXP toast notifications (bottom-right, in-page) ---- */
 #expToasts{position:fixed;right:14px;bottom:72px;z-index:90000;display:flex;flex-direction:column;gap:8px;pointer-events:none}

@@ -192,6 +192,7 @@ $TOOL_DEFS = [
         'user' => ['type' => 'str', 'min' => 1, 'max' => 64],
         'kind' => ['type' => 'enum', 'values' => ['feeds', 'messages', 'both'], 'default' => 'both'],
         'limit' => ['type' => 'int', 'min' => 1, 'max' => 30, 'default' => 10],
+        'with_images' => ['type' => 'int', 'min' => 0, 'max' => 1, 'default' => 0],
     ], 'fn' => 'ai_tool_space'],
     /* 搜我自己的聊天记录（全局 / 某人 / 某群）—— 复用 chat_action_search_messages */
     'ca_search_messages' => ['scope' => 'self', 'min_level' => 1, 'args' => [
@@ -701,12 +702,14 @@ function ai_tool_space(PDO $pdo, int $uid, string $username, array $a): array {
     if ($tuid <= 0) return ['ok' => false, 'error' => '找不到用户「' . $target . '」（用户名要写完整，或被对方注销了）'];
     $kind = (string)($a['kind'] ?? 'both');
     $limit = max(1, min(30, (int)($a['limit'] ?? 10)));
+    $withImages = ((int)($a['with_images'] ?? 0)) === 1;
     $card = space_user_card($pdo, $tuid);
     $out = [
         'user' => ['uid' => $tuid, 'username' => $card['username'], 'name' => $card['name']],
         'is_self' => ($tuid === $uid),
         'privacy' => '结果已按对方隐私设置过滤：看不到的说说不会出现在这里，也不会提示“有几条被隐藏”',
     ];
+    $feedsForImages = [];
     if ($kind === 'feeds' || $kind === 'both') {
         $feeds = space_read_feeds($pdo, $uid, $tuid, $limit);
         $out['feeds'] = array_map(function ($f) {
@@ -719,6 +722,27 @@ function ai_tool_space(PDO $pdo, int $uid, string $username, array $a): array {
             ];
         }, $feeds);
         $out['feeds_count'] = count($out['feeds']);
+        $feedsForImages = $feeds;
+    }
+    /* 图片：同样只取「已经过隐私过滤」的那些说说里的图，且只允许站内两种路径形态。
+       真正的字节下载走 api/file.php（它会再查一次空间可见性），所以即使 AI 拿到 URL
+       也拿不到没权限看的图。前端还会上一次「是否允许读图」的确认。 */
+    if ($withImages) {
+        if ($kind === 'messages') $feedsForImages = space_read_feeds($pdo, $uid, $tuid, 30);
+        $imgs = [];
+        foreach ($feedsForImages as $f) {
+            foreach ((array)($f['images'] ?? []) as $u) {
+                $url = ai_space_img_url((string)$u, $tuid);
+                if ($url === null) continue;
+                $imgs[] = ['url' => $url, 'from' => $card['name'], 'time' => $f['time'], 'post_id' => (int)$f['id']];
+                if (count($imgs) >= 6) break 2;
+            }
+        }
+        $out['images'] = $imgs;
+        $out['images_count'] = count($imgs);
+        $out['images_note'] = $imgs
+            ? '这些 URL 已经过隐私过滤；每个 URL 下载时 api/file.php 会再验一次可见性。前端会先问用户是否允许读图，允许后图片才会真的交给我看。'
+            : '（能看到的说说里没有配图，或者对方把图那几条设置成你看不到的可见性了）';
     }
     if ($kind === 'messages' || $kind === 'both') {
         $res = space_read_messages($pdo, $uid, $tuid, 500);
@@ -735,6 +759,22 @@ function ai_tool_space(PDO $pdo, int $uid, string $username, array $a): array {
         $out['guestbook_note'] = '留言板是公开内容（给主人留言），按时间正序取最近几条';
     }
     return $out;
+}
+
+/**
+ * 说说里的图片地址 → 站内根相对 URL（只允许空间图片与内置资源两种形态，其它一律丢弃）。
+ * 入库时存的是 ../../api/file.php?u=<uid>&f=space/<file> 或 ../../data/res/...
+ */
+function ai_space_img_url(string $raw, int $ownerUid): ?string {
+    $u = trim($raw);
+    if ($u === '') return null;
+    if (preg_match('#^\.\./\.\./api/file\.php\?u=' . $ownerUid . '&f=space/[A-Za-z0-9_.\-]+$#', $u)) {
+        return '/' . substr($u, 6);                       // 去掉 ../../ → /api/file.php?...
+    }
+    if (preg_match('#^\.\./\.\./data/res/[A-Za-z0-9_./\-]+$#', $u)) {
+        return '/' . substr($u, 6);
+    }
+    return null;
 }
 
 /* ==================== 搜我自己的聊天记录（全局 / 某人 / 某群） ====================

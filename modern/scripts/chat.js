@@ -1325,7 +1325,7 @@ function caToolAsk(info) {
         row.className = 'mr ca-ask-row';
         row.innerHTML = '<div class="mc"><div class="mb">' +
             '<div class="mu">' + eh(_contactNotes[D] || D || 'AI') + '</div>' +
-            '<div class="ca-ask">' +
+            '<div class="ca-ask pending">' +
                 '<div class="flash-title">' + T('ai_tool_ask_title', '工具调用申请') + '</div>' +
                 '<div class="flash-file">' + eh(info.name) + '<span class="ca-ask-scope">· ' + eh(scopeTxt) + '</span></div>' +
                 '<div class="ca-ask-purpose">' + eh(String(info.purpose || '').replace(/[*`]/g, '')) + '</div>' +
@@ -1344,16 +1344,40 @@ function caToolAsk(info) {
             if (done) return;
             done = true;
             var card = row.querySelector('.ca-ask');
+            card.classList.remove('pending');
             card.classList.add(ok ? 'done-ok' : 'done-no');
             var btns = card.querySelector('.ca-ask-btns');
             btns.innerHTML = '<span class="ca-ask-state ' + (ok ? 'ok' : 'no') + '">' +
-                (ok ? '✓ ' + T('ai_tool_ask_passed', '已通过，正在执行…') : '✗ ' + T('ai_tool_ask_denied', '已拒绝，这次不会执行')) +
+                (ok ? '✓ ' + T('ai_tool_ask_ok_running', '已通过，执行中…') : '✗ ' + T('ai_tool_ask_denied', '已拒绝，这次不会执行')) +
                 '</span>';
             scrollChatToBottom(area);
             resolve(!!ok);
         };
         row._caAskFinish = finish;      // 供 onclick 调用
     });
+}
+
+/* 工具跑完之后把卡片收成一行（跟 apps/deepseek 的确认卡一致；由 bot_runtime 的 onTool 回调驱动） */
+function caToolAskSettle(call, result) {
+    var area = document.getElementById('dmMessagesArea');
+    if (!area) return;
+    var cards = area.querySelectorAll('.ca-ask-row');
+    for (var i = cards.length - 1; i >= 0; i--) {
+        var card = cards[i].querySelector('.ca-ask');
+        if (!card || card.classList.contains('settled')) continue;
+        var st = card.querySelector('.ca-ask-state');
+        if (st) {
+            if (result && result.denied) { st.textContent = '✗ ' + T('ai_tool_ask_denied', '已拒绝，这次不会执行'); st.className = 'ca-ask-state no'; }
+            else if (result && result.ok) { st.textContent = '✓ ' + T('ai_tool_ask_done', '已执行') + '（' + ((result.data && result.data._ms) != null ? result.data._ms + 'ms' : '完成') + '）'; st.className = 'ca-ask-state ok'; }
+            else { st.textContent = '✗ ' + T('ai_tool_ask_failed', '失败') + '：' + ((result && result.error) || '未知错误'); st.className = 'ca-ask-state no'; card.classList.add('done-no'); }
+        }
+        card.classList.add('settled');
+        if (!card._caToggle) {
+            card._caToggle = true;
+            card.addEventListener('click', function () { card.classList.toggle('settled'); });
+        }
+        return;
+    }
 }
 
 /* 卡片上的通过/拒绝按钮（内联 onclick，与老代码风格一致：全局可达） */
@@ -1412,7 +1436,7 @@ function botReply(user) {
             }
         },
         onText: function(t) { botStreamPaint(u, t); },
-        onTool: function() {},
+        onTool: function(call, result) { caToolAskSettle(call, result); },
         onDone: function() {
             botStreamClear();
             if (tEl) tEl.style.display = 'none';
@@ -4393,14 +4417,20 @@ async function pm() {
                         unreadCounts[m.username]++;
                     }
                 }
-                if (!firstPoll && m.username !== U && !m.is_deleted && !seenMsgIds['notif_' + m.id] && m.id > L) {
+                // 通知只给“确实未读、且不在当前打开会话里”的消息：
+                //  - !m.read_at：已读旧消息（例：L 落后被拉回）绝不弹，与 WSS 推送路径一致
+                //  - 当前会话不弹：用户正看着这个会话（与 WSS 推送路径一致）
+                var inOpenDm = !!(D && m.recipient && m.username === D && m.recipient === U);
+                if (!firstPoll && m.username !== U && !m.is_deleted && !m.read_at && !inOpenDm && !seenMsgIds['notif_' + m.id] && m.id > L) {
                     seenMsgIds['notif_' + m.id] = 1;
                     notifyNewMessage(m);
                 }
                 if (m.id) _unreadSeen[m.id] = 1;
             }
         }
-        L = d.latest_id;
+        // 游标只前进：带 dm 参数的 fetch 只覆盖当前会话，latest_id 可能小于全局 L；
+        // 失败响应（latest_id=0）更不能把游标拉回 0。
+        if (d.latest_id > L) L = d.latest_id;
         updateUnreads();
     } catch (e) {}
 }
@@ -4513,7 +4543,9 @@ async function initialLoad() {
             d = await r.json();
         if (d.success && d.messages.length > 0) {
             for (var i = 0; i < d.messages.length; i++) addAnnouncement(d.messages[i]);
-            L = d.latest_id;
+            // 游标只前进不回退：all 返回的是全局最新 id（不能拿公告频道旧 id 把 L 拉小，
+            // 否则 WSS 断线时 pm() 会反复拉回旧消息）
+            if (d.latest_id > L) L = d.latest_id;
         }
         _loaded = true;
         loadBg();
@@ -5827,8 +5859,25 @@ function builtinEmojiRegex() {
 /* 已渲染好的 HTML → 只对「文本节点」做表情替换（markdown 渲染完再上表情：
    否则 renderMd 的转义会把 <img> 当文本显示） */
 function renderEmojiHtml(html) {
-    return String(html == null ? '' : html).replace(/(<[^>]*>)|([^<]+)/g, function (m, tag, text) {
-        return tag ? tag : renderEmoji(text);
+    var s = String(html == null ? '' : html);
+    /* 模型常把表情代码写在反引号里（`/打招呼`）→ markdown 会变成 <code>/打招呼</code>。
+       如果直接替换里面的文本，<img> 就留在 <code> 里，看起来像被反引号框住（很丑）。
+       这里把「整个 code 就是一个表情代码」的情况先拆掉，再走正常渲染。 */
+    s = s.replace(/<code(?:\s[^>]*)?>([^<>]{1,24})<\/code>/gi, function (m, inner) {
+        var t = inner.trim();
+        if (t.charAt(0) !== '/') return m;
+        var e = builtinEmojiRegex().map || {};
+        return e[t] ? t : m;      // 整个 code 就是一个表情代码 → 只留代码（外层 code 丢掉）
+    });
+    /* 剩余部分：只对普通文本节点做替换，code/pre 里的文本一律不碰 */
+    var depth = 0;
+    return s.replace(/(<[^>]*>)|([^<]+)/g, function (m, tag, text) {
+        if (tag) {
+            if (/^<(code|pre)(\s|>|$)/i.test(tag) && !/\/>$/.test(tag)) depth++;
+            else if (/^<\/(code|pre)\s*>/i.test(tag)) depth = Math.max(0, depth - 1);
+            return tag;
+        }
+        return depth > 0 ? text : renderEmoji(text);
     });
 }
 

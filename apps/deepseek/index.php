@@ -111,6 +111,14 @@ $v = time();
   .ds-level-row b{color:#9fd0ff;font-weight:600;white-space:nowrap;min-width:62px}
   .ds-level-row .ds-hint{margin-top:0}
   /* ---- 工具调用确认卡的样式在 chat.css（.ca-ask*，两个页面共用）---- */
+  /* ---- 输入框上方的运行状态栏（轮/步/耗时/token/缓存/上下文）---- */
+  .ds-stats{display:flex;flex-wrap:wrap;align-items:center;gap:4px 7px;padding:3px 20px 0;
+    font-size:.68em;color:#7b8794;font-variant-numeric:tabular-nums;line-height:1.6}
+  .ds-stats .seg{white-space:nowrap}
+  .ds-stats .sep{color:#46505a}
+  .ds-stats .hot{color:#9ec48a}
+  .ds-stats .warn{color:#d0a45a}
+  .ds-stats:empty{display:none}
   /* ---- 聊天外壳：附件条 / 图片 / 9 点菜单 / 表情面板 / 涂鸦 ---- */
   .ds-att{display:flex;align-items:center;gap:10px;padding:8px 20px;background:rgba(42,42,42,.92);border-top:1px solid #3a3a3a}
   .ds-att img{width:54px;height:54px;object-fit:cover;border-radius:6px;border:1px solid #555}
@@ -158,6 +166,7 @@ $v = time();
   <div class="ma" id="aiMessages"><div class="es"><p>我是内置的 AI 助手，会自己调用工具把事办完：<br>算数、换算单位、看时间 · 查你的等级/资料/好友/群/会话/工单 · 帮你记点小事。<br>比如问我「现在几点」「帮我算 (3+5)*2」「我几级了」。想让我听你的？点右上角「设置」。</p></div></div>
   <div class="typing-indicator" id="aiTyping">DeepSeek 正在输入…</div>
   <div class="ds-att" id="dsAttachChip" style="display:none"></div>
+  <div class="ds-stats" id="dsStats"></div>
   <div class="cia">
     <textarea id="aiInput" rows="1" placeholder="输入消息…（Enter 发送，Shift+Enter 换行）" style="resize:none;overflow-y:auto;line-height:1.4;max-height:20em"></textarea>
     <input type="file" id="dmMediaFile" multiple accept="image/*" style="display:none">
@@ -167,11 +176,12 @@ $v = time();
   </div>
 </div>
 
-<!-- 9 点菜单（结构与 chat.php 的 #dmNineMenu 完全一致；按需求只保留：表情 / 图片 / 涂鸦） -->
+<!-- 9 点菜单（结构与 chat.php 的 #dmNineMenu 完全一致） -->
 <div class="nine-menu" id="dmNineMenu" style="display:none">
   <div class="nine-cell" onclick="nineEmoji()"><img src="../../data/res/svg/expression_24.svg" alt=""><span>表情</span></div>
   <div class="nine-cell" onclick="nineUpload()"><img src="../../data/res/svg/folder_16.svg" alt=""><span>图片</span></div>
   <div class="nine-cell" onclick="ninePen()"><img src="../../data/res/svg/brush_24.svg" alt=""><span>涂鸦</span></div>
+  <div class="nine-cell" onclick="nineCompress()"><img src="../../data/res/svg/ai_summary_24.svg" alt=""><span>压缩聊天</span></div>
 </div>
 
 <!-- 表情选择器（markup 与 chat.php 的 #emojiPopup 一致，CSS 直接用 chat.css） -->
@@ -259,7 +269,18 @@ $v = time();
     </div>
     <div class="ds-row2">
       <div class="ds-field"><label>温度 (0~2)</label><input type="number" id="dsTemp" min="0" max="2" step="0.1" value="1"></div>
-      <div class="ds-field"><label>最大回复长度</label><input type="number" id="dsMaxTokens" min="1" max="8192" step="1" value="2048"></div>
+      <div class="ds-field"><label>最大回复长度 (max_tokens)</label><input type="number" id="dsMaxTokens" min="1" max="8192" step="1" value="2048"></div>
+    </div>
+    <div class="ds-row2">
+      <div class="ds-field"><label>上下文窗口 (Context Window)</label><input type="number" id="dsCtxWin" min="8000" max="2000000" step="1000" value="1000000"><div class="ds-hint" style="margin-top:4px">deepseek-v4-flash 默认 1M tokens。只用于本地估算与自动压缩（按字符粗估，非官方分词器）；用量超过它的 65% 会自动压缩对话。</div></div>
+      <div class="ds-field"><label>AI 读图的许可</label>
+        <select id="dsImgPerm">
+          <option value="">每次读取都问我</option>
+          <option value="session">本会话内都允许（刷新失效）</option>
+          <option value="always">全部允许（永久，记住选择）</option>
+        </select>
+        <div class="ds-hint" style="margin-top:4px">只影响 AI 读取别人主页的图片（每次仍然是经过隐私过滤的图）。随时可改回「每次读取都问我」。</div>
+      </div>
     </div>
     <div class="modal-actions">
       <button class="bsm" id="dsSettingsCancel" type="button">取消</button>
@@ -471,6 +492,21 @@ $v = time();
     for (var i = 0; i < conv.length; i++) {
       var m = conv[i];
       if (m.hidden) continue;                       // 工具结果不上屏
+      if (m.kind === 'summary') {                   // 压缩后的交接摘要：单独一张卡（不是用户发言）
+        var sb = addAiBubble();
+        var sc = document.createElement('div');
+        sc.className = 'ca-ask';
+        sc.style.maxWidth = 'min(560px,86vw)';
+        sc.innerHTML = '<div class="flash-title">对话压缩摘要</div>' +
+          '<div class="ca-ask-purpose">这份摘要替代了之前的对话记录，后续回答都基于它继续。</div>';
+        var body = document.createElement('div');
+        body.style.cssText = 'font-size:.8em;line-height:1.55;white-space:pre-wrap;word-break:break-word;color:#cfd8e0;max-height:340px;overflow:auto';
+        body.textContent = String(m.content).replace(/^【[^】]*】\s*/, '');
+        sc.appendChild(body);
+        appendPart(sb, sc);
+        sb.querySelector('.mti').textContent = m.time || nowTime();
+        continue;
+      }
       if (m.role === 'user') { addUserBubble(m.content, m.images); continue; }
       var b = addAiBubble();
       var nxt = conv[i + 1];
@@ -498,6 +534,8 @@ $v = time();
     $('dsSystem').value = cfg.system || '';
     $('dsTemp').value = (cfg.temp != null ? cfg.temp : 0.7);
     $('dsMaxTokens').value = (cfg.maxTokens || 2048);
+    $('dsCtxWin').value = ctxWindowSize();
+    $('dsImgPerm').value = DS.imagePermMode() || '';
     $('dsTools').checked = cfg.tools !== false;
     var radios = document.getElementsByName('dsAiLevel');
     for (var ri = 0; ri < radios.length; ri++) radios[ri].checked = (Number(radios[ri].value) === serverPrefs.ai_level);
@@ -513,10 +551,12 @@ $v = time();
     cfg.system = $('dsSystem').value;
     var t = parseFloat($('dsTemp').value); cfg.temp = isNaN(t) ? 0.7 : Math.max(0, Math.min(2, t));
     var mt = parseInt($('dsMaxTokens').value, 10); cfg.maxTokens = isNaN(mt) ? 2048 : Math.max(1, Math.min(8192, mt));
+    var cw = parseInt($('dsCtxWin').value, 10); cfg.contextWindow = isNaN(cw) ? 1000000 : Math.max(8000, Math.min(2000000, cw));
+    DS.setImagePerm($('dsImgPerm').value || '');
     cfg.tools = $('dsTools').checked;
     cfg.toolPrefs = collectToolPrefs();
     DS.setEnabled(cfg.toolPrefs);
-    saveCfg(); refreshKeyWarn(); refreshBadge(); closeSettings();
+    saveCfg(); refreshKeyWarn(); refreshBadge(); renderStats(); closeSettings();
 
     // 账号级权限：一个档位（默认 0 关闭）；选「读写」及以上需要二次确认
     var radios = document.getElementsByName('dsAiLevel'), wantLv = serverPrefs.ai_level;
@@ -555,6 +595,257 @@ $v = time();
     }
   }
 
+  /* ================= 运行状态栏（输入框上方那行） =================
+     轮 / 步 · LLM 与工具耗时 · 首 token · tok/s · 缓存命中 · 输入输出 · 上下文占用
+     数据来源：轮次与步数自己数；时长用 Date.now() 量；token 与缓存命中取上游
+     最后一个 SSE 块里的 usage（api.php 已加 stream_options.include_usage）。 */
+  var LS_STATS = 'chatapp_ds_stats';
+  var stats = { rounds: 0, steps: 0, llmMs: 0, toolMs: 0, ttftSum: 0, ttftN: 0, genMs: 0, inTok: 0, outTok: 0, hit: 0, miss: 0, comps: 0 };
+  (function loadStats() {
+    try {
+      var v = JSON.parse(localStorage.getItem(LS_STATS) || '{}');
+      if (v && typeof v === 'object') Object.keys(stats).forEach(function (k) { if (typeof v[k] === 'number' && isFinite(v[k])) stats[k] = v[k]; });
+    } catch (e) {}
+  })();
+  function saveStats() { try { localStorage.setItem(LS_STATS, JSON.stringify(stats)); } catch (e) {} }
+  function resetStats() { Object.keys(stats).forEach(function (k) { stats[k] = 0; }); saveStats(); renderStats(); }
+  function fmtTok(n) {
+    n = Number(n) || 0;
+    if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+    return String(Math.round(n));
+  }
+  function fmtDur(ms) {
+    var s = Math.max(0, Number(ms) || 0) / 1000;
+    if (s < 60) return (s < 10 ? s.toFixed(1) : String(Math.round(s))) + '秒';
+    var m = Math.floor(s / 60), ss = Math.round(s % 60);
+    if (m < 60) return m + '分' + ss + '秒';
+    return Math.floor(m / 60) + '小时' + (m % 60) + '分';
+  }
+  function fmtDurLong(ms) {
+    var s = Math.max(0, Number(ms) || 0) / 1000;
+    var m = Math.floor(s / 60);
+    return m + '分' + Math.round(s % 60) + '秒';
+  }
+  /* token 估算：中日韩字符 ≈ 1 token，其它 ≈ 3.5 字符/token（不是官方分词器，只用于本地显示与自动压缩判断） */
+  function estTokens(text) {
+    var s = String(text == null ? '' : text), cjk = 0, other = 0;
+    for (var i = 0; i < s.length; i++) { if (s.charCodeAt(i) >= 0x2E80) cjk++; else other++; }
+    return Math.ceil(cjk + other / 3.5);
+  }
+  function ctxTokens() {
+    var n = 0;
+    for (var i = 0; i < conv.length; i++) {
+      var m = conv[i];
+      if (Array.isArray(m.content)) {
+        m.content.forEach(function (p) {
+          n += (p && p.type === 'image_url') ? 900 : estTokens(p && p.text);
+        });
+      } else n += estTokens(m.content);
+      if (m.tool_calls) n += estTokens(JSON.stringify(m.tool_calls));
+    }
+    return n + 1400;   // 系统提示词（人设 + 工具清单 + 表情表）的量级
+  }
+  function ctxWindowSize() { return Math.max(8000, Number(cfg.contextWindow) || 1000000); }
+  function renderStats() {
+    var el = $('dsStats');
+    if (!el) return;
+    var win = ctxWindowSize(), used = ctxTokens(), pct = used / win * 100;
+    var segs = [
+      stats.rounds + ' 轮 · ' + stats.steps + ' 步',
+      'LLM ' + fmtDurLong(stats.llmMs) + ' · 工具调用 ' + fmtDurLong(stats.toolMs),
+      '首 token 平均 ' + (stats.ttftN ? (stats.ttftSum / stats.ttftN / 1000).toFixed(1) + '秒' : '—') +
+        ' · ' + (stats.genMs > 0 ? Math.max(1, Math.round(stats.outTok / (stats.genMs / 1000))) + ' tok/s' : '— tok/s'),
+      '缓存命中 ' + ((stats.hit + stats.miss) > 0 ? Math.round(stats.hit / (stats.hit + stats.miss) * 100) + '%' : '—'),
+      '输入 ' + fmtTok(stats.inTok) + ' tok · 输出 ' + fmtTok(stats.outTok) + ' tok',
+      '<span class="' + (pct >= 65 ? 'warn' : (pct >= 40 ? 'hot' : '')) + '">上下文 ' + fmtTok(used) + '/' + fmtTok(win) +
+        ' · ' + (pct < 10 ? pct.toFixed(1) : Math.round(pct)) + '%' + (stats.comps ? ' · 已压缩 ' + stats.comps + ' 次' : '') + '</span>'
+    ];
+    el.innerHTML = segs.map(function (s) {
+      return '<span class="seg">' + s + '</span>';
+    }).join('<span class="sep">|</span>');
+    fitStats();
+  }
+  /* 状态栏排不下就整条隱藏（窄窗口 / 手机上不占地方、不折行） */
+  function fitStats() {
+    var el = $('dsStats');
+    if (!el) return;
+    el.style.display = '';
+    if (!el.textContent.trim()) { el.style.display = 'none'; return; }
+    // 折行 => 一行放不下 => 直接藏起来（需求：自动检测空间，不够就别显示）
+    var oneLine = parseFloat(getComputedStyle(el).lineHeight) || 16;
+    if (el.scrollHeight > oneLine * 1.6 || el.scrollWidth > el.clientWidth + 1) el.style.display = 'none';
+  }
+  function sysNote(text) {
+    var el = document.createElement('div');
+    el.className = 'ds-status';
+    el.style.padding = '2px 20px';
+    el.textContent = text;
+    msgArea.appendChild(el);
+    scrollBottom();
+    return el;
+  }
+
+  /* 「HTTP 502」这种错误本身没信息量，尽量把真正的原因翻出来
+     （响应体可能是：代理的 SSE 错误帧 / 登录页 HTML / 网关错误页） */
+  function describeHttpError(status, body) {
+    var s = String(body || '');
+    var m = /"error"\s*:\s*"((?:[^"\\]|\\.){1,200})"/.exec(s);
+    if (m) return m[1].replace(/\\n/g, ' ');              // 代理自己的 SSE/JSON 错误帧
+    if (/login\.php|name="password"|请登录|重新登录/i.test(s)) return '登录状态已失效（服务端回的是登录页）——刷新页面重新登录就行';
+    if (status === 502 || status === 504) return '服务端网关错误（HTTP ' + status + '）：可能是 API Key 失效 / 余额不足 / 上游限流 / 服务刚重启；直接重发上一条消息一般就好';
+    if (status === 401 || status === 403) return '没权限或登录已失效（HTTP ' + status + '）——刷新页面重新登录';
+    if (status === 404) return '接口 404：通常是登录失效后被跳转到了不存在的 login.php ——刷新页面重新登录';
+    if (status >= 500) return '服务端错误（HTTP ' + status + '）——稍后重发试试';
+    var t = s.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    return 'HTTP ' + status + (t ? '：' + t.slice(0, 120) : '');
+  }
+
+  /* ================= 上下文压缩 =================
+     思路（照需求）：给模型发一条「你是系统」的指令，让它输出一份详尽的交接摘要
+     ——用户目前在干嘛、要 AI 干什么、已确认的结论、待办、重要参数——然后用这份
+     摘要替换掉之前的历史。手动入口在 9 点菜单「压缩聊天」；上下文超过窗口 65%
+     时也会自动压缩一次。 */
+  var COMPRESS_ASK = [
+    '【系统消息 · 这不是用户说的话，请勿回答上面的内容、也不要调用任何工具】',
+    '现在执行一次「上下文压缩」：把这段对话（直到本条消息为止）整理成一份**详尽**的交接摘要，',
+    '供压缩后的你（同一个助手）无缝继续为用户工作。宁可啰嗦也不要漏掉信息。必须包含：',
+    '1) 用户是谁、目前在做什么、处境与目标；',
+    '2) 用户要你（AI）干什么：当前任务、已经做到哪一步、下一步该做什么；',
+    '3) 已经确认的事实、结论、决定、偏好、禁忌，以及用户明确纠正过你的地方；',
+    '4) 未解决的问题、待确认的事项、悬而未决的分歧；',
+    '5) 所有重要参数 / ID / 用户名 / 路径 / 代码片段 / 链接 / 数字，原样保留不要改写；',
+    '6) 最近几轮的关键原文要点，尤其是用户最后一句话的意图。',
+    '',
+    '直接输出摘要正文，用小标题分节；不要客套话（别写「好的」「以下是摘要」），不要调用工具。'
+  ].join('\n');
+
+  // 只取正文的一次性调用（不画到气泡上，给压缩用）
+  async function callModelOnce(msgs, maxTokens) {
+    var res = await fetch('api.php', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: cfg.key, model: cfg.model, messages: msgs, temperature: 0.3, max_tokens: maxTokens || 4096 })
+    });
+    var ct = res.headers.get('content-type') || '';
+    if (!res.ok && ct.indexOf('event-stream') < 0) {
+      var peek = '';
+      try { peek = (await res.text()).slice(0, 200); } catch (e3) {}
+      throw new Error(describeHttpError(res.status, peek));
+    }
+    var reader = res.body.getReader(), dec = new TextDecoder(), buf = '', curEvent = '', text = '';
+    for (;;) {
+      var r = await reader.read();
+      if (r.done) break;
+      buf += dec.decode(r.value, { stream: true });
+      var idx;
+      while ((idx = buf.indexOf('\n')) >= 0) {
+        var line = buf.slice(0, idx); buf = buf.slice(idx + 1);
+        line = line.replace(/\r$/, '');
+        if (line === '') { curEvent = ''; continue; }
+        if (line.indexOf('event:') === 0) { curEvent = line.slice(6).trim(); continue; }
+        if (line.indexOf('data:') !== 0) continue;
+        var payload = line.slice(5).trim();
+        if (payload === '[DONE]') continue;
+        var j;
+        try { j = JSON.parse(payload); } catch (e) { continue; }
+        if (curEvent === 'error' || (j && j.error)) throw new Error((j && j.error) || '模型出错');
+        var d = (j.choices && j.choices[0] && j.choices[0].delta) || {};
+        if (d.content) text += d.content;
+      }
+    }
+    return text;
+  }
+
+  async function compressConversation(auto) {
+    if (streaming) return false;
+    if (!hasKey()) { openSettings(); return false; }
+    var visible = conv.filter(function (m) { return !m.hidden; }).length;
+    if (visible < 4) {
+      if (!auto) alert('对话还很短（' + visible + ' 条），压缩没意义 —— 至少聊几句再压。');
+      return false;
+    }
+    var beforeTok = ctxTokens(), oldCount = conv.length;
+    setStreaming(true);
+    typing.textContent = '正在压缩对话…（生成交接摘要，可能要十几秒）';
+    try {
+      var msgs = await buildMessages();
+      msgs.push({ role: 'user', content: COMPRESS_ASK });
+      var summary = String(await callModelOnce(msgs) || '').trim();
+      if (!summary) throw new Error('模型没有返回摘要');
+      var kept = conv.slice(-2);          // 最近一轮留着，衔接更自然
+      conv = [{
+        role: 'user', kind: 'summary', time: nowTime(),
+        content: '【对话压缩摘要 · ' + (auto ? '自动' : '手动') + '压缩，替代了之前 ' + oldCount + ' 条消息】\n\n' + summary
+      }].concat(kept);
+      stats.comps++;
+      saveConv(); saveStats(); renderAll(); renderStats();
+      sysNote('已压缩：' + oldCount + ' 条 → ' + conv.length + ' 条（摘要 ' + summary.length + ' 字；上下文约 ' +
+        fmtTok(beforeTok) + ' → ' + fmtTok(ctxTokens()) + ' tok）');
+      return true;
+    } catch (e) {
+      showError(msgArea, '压缩失败：' + ((e && e.message) || '未知错误'));
+      return false;
+    } finally {
+      setStreaming(false);
+    }
+  }
+
+  /* 9 点菜单入口（菜单是 ui.js 画的，这里给个全局函数） */
+  function nineCompress() {
+    if (typeof window.closeDmNineMenu === 'function') window.closeDmNineMenu();
+    compressConversation(false);
+  }
+  window.nineCompress = nineCompress;
+
+  /* ---------- AI 读图许可（比工具确认多两个选项） ----------
+     全部允许（永久记忆）/ 本会话允许 / 允许 / 跳过。只在 AI 要读别人主页图片时出现。 */
+  function askImageReadCard(info) {
+    var wrap = curBubble || addAiBubble();
+    var intro = newTextBlock(wrap);
+    intro.innerHTML = DSUI.renderEmojiHtml(renderMd('我想看看这 ' + (info.count || 0) + ' 张图片' + (info.from ? '（来自 ' + esc(info.from) + ' 的主页）' : '') + '，你同意吗？'));
+
+    var items = (info.items || []).slice(0, 6);
+    var h = '<div class="flash-title">读取图片</div>'
+      + '<div class="flash-file">' + (info.count || items.length) + ' 张<span class="ca-ask-scope">· ' + esc(info.tool || '') + '</span></div>'
+      + '<div class="ca-ask-purpose">图片已经过对方隐私设置过滤；你同意后我才会读取，且只用于这次回答。</div>'
+      + '<div class="ca-ask-args"><b>要读的图片</b>'
+      + items.map(function (it, i) {
+          var name = String(it.url || '').split('/').pop();
+          return '<div class="row"><span class="k">#' + (i + 1) + '</span><span class="v">' + esc((it.time ? it.time + ' · ' : '') + name) + '</span></div>';
+        }).join('')
+      + '</div>'
+      + '<div class="ca-ask-btns four">'
+        + '<button class="ca-ask-ok" type="button" data-v="always">全部允许</button>'
+        + '<button class="ca-ask-ok" type="button" data-v="session">本会话允许</button>'
+        + '<button class="ca-ask-ok" type="button" data-v="once">允许</button>'
+        + '<button class="ca-ask-no" type="button" data-v="skip">跳过</button>'
+      + '</div>';
+
+    var card = document.createElement('div');
+    card.className = 'ca-ask';
+    card.innerHTML = h;
+    appendPart(wrap, card);
+    wrap.querySelector('.mti').textContent = nowTime();
+    scrollBottom();
+
+    return new Promise(function (resolve) {
+      var done = false;
+      var labels = { always: '✓ 已全部允许（永久，可在设置里改）', session: '✓ 本会话内允许', once: '✓ 本次允许', skip: '✗ 已跳过，这次不读图' };
+      Array.prototype.forEach.call(card.querySelectorAll('.ca-ask-btns button'), function (btn) {
+        btn.addEventListener('click', function () {
+          if (done) return;
+          done = true;
+          var v = btn.getAttribute('data-v');
+          card.classList.add(v === 'skip' ? 'done-no' : 'done-ok');
+          card.querySelector('.ca-ask-btns').innerHTML = '<span class="ca-ask-state ' + (v === 'skip' ? 'no' : 'ok') + '">' + labels[v] + '</span>';
+          scrollBottom();
+          resolve(v);
+        });
+      });
+    });
+  }
+
   /* ---------- 发送 / 流式接收 / 工具循环 ---------- */
   function setStreaming(on) {
     streaming = on;
@@ -573,6 +864,7 @@ $v = time();
      返回 Promise<boolean>，由 DS.setConfirmer 接入引擎；用户拒绝 → 引擎会把
      「用户拒绝了，不要重试」回灌给模型。 */
   var curBubble = null;   // 当前正在流式输出的气泡：确认卡插进同一个气泡，读起来才连贯
+  var pendingConfirms = 0;  // 正在等用户点「通过/拒绝」的工具数（>0 时不让发新消息）
   function argValHtml(k, v, desc) {
     var s = (v === null || v === undefined) ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
     var full = s.length > 200 ? s : '';
@@ -599,26 +891,63 @@ $v = time();
       + '<button class="ca-ask-no" type="button">✗ 拒绝</button></div>';
 
     var card = document.createElement('div');
-    card.className = 'ca-ask';
+    card.className = 'ca-ask pending';
+    card.setAttribute('data-ask-tool', info.name);
     card.innerHTML = h;
     appendPart(wrap, card);
     wrap.querySelector('.mti').textContent = nowTime();
     scrollBottom();
+    pendingConfirms++;
 
     return new Promise(function (resolve) {
       var done = false;
       function finish(ok) {
         if (done) return;
         done = true;
+        pendingConfirms = Math.max(0, pendingConfirms - 1);
+        card.classList.remove('pending');
         card.classList.add(ok ? 'done-ok' : 'done-no');
         var btns = card.querySelector('.ca-ask-btns');
         btns.innerHTML = '<span class="ca-ask-state ' + (ok ? 'ok' : 'no') + '">'
-          + (ok ? '✓ 已通过，正在执行…' : '✗ 已拒绝，这次不会执行') + '</span>';
+          + (ok ? '✓ 已通过，执行中…' : '✗ 已拒绝，这次不会执行') + '</span>';
         scrollBottom();
         resolve(ok);
       }
       card.querySelector('.ca-ask-ok').addEventListener('click', function () { finish(true); });
       card.querySelector('.ca-ask-no').addEventListener('click', function () { finish(false); });
+    });
+  }
+
+  /* 工具真的跑完之后，把确认卡上的「执行中…」换成最终结果，并收成一行（不然看着像卡死了） */
+  function settleAskCards(bubble, calls, rows) {
+    if (!bubble) return;
+    var cards = [].slice.call(bubble.querySelectorAll('.ca-ask[data-ask-tool]'));
+    var idx = 0;
+    calls.forEach(function (c, i) {
+      var t = DS.tool(c.call && c.call.name);
+      if (!t || !DS.needsConfirm(t)) return;      // 本地工具没有确认卡，跳过
+      var card = cards[idx++];
+      if (!card) return;
+      var st = card.querySelector('.ca-ask-state');
+      var r = rows && rows[i] && rows[i].result;
+      if (st) {
+        if (r && r.denied) { st.textContent = '✗ 已拒绝，未执行'; st.className = 'ca-ask-state no'; }
+        else if (r && r.ok) {
+          var ms = (r.data && r.data._ms != null) ? r.data._ms + 'ms' : '完成';
+          st.textContent = '✓ 已执行（' + ms + '）';
+          st.className = 'ca-ask-state ok';
+        } else {
+          st.textContent = '✗ 失败：' + ((r && r.error) || '未知错误');
+          st.className = 'ca-ask-state no';
+          card.classList.add('done-no');
+        }
+      }
+      card.classList.add('settled');
+      card.title = '点一下可以展开/收起参数';
+      if (!card._askToggle) {
+        card._askToggle = true;
+        card.addEventListener('click', function () { card.classList.toggle('settled'); });
+      }
     });
   }
 
@@ -670,6 +999,7 @@ $v = time();
     var raw = '', reasoning = '', curText = null, curAcc = '', calls = [];
     var ctrl = new AbortController();
     aborter = ctrl;
+    var reqT0 = Date.now(), firstTokAt = 0, useUsage = null;   // 状态栏用
 
     function handle(evs) {
       evs.forEach(function (ev) {
@@ -699,7 +1029,10 @@ $v = time();
         body: JSON.stringify(reqBody)
       });
       if (!res.ok && res.headers.get('content-type') && res.headers.get('content-type').indexOf('event-stream') === -1) {
-        throw new Error('HTTP ' + res.status);
+        // 非 SSE 的错误响应（网关 502 / 登录失效的登录页 / 反代错误页）→ 尽量把原因说清楚
+        var peek = '';
+        try { peek = (await res.text()).slice(0, 200); } catch (e2) {}
+        throw new Error(describeHttpError(res.status, peek));
       }
       var reader = res.body.getReader(), dec = new TextDecoder(), buf = '', curEvent = '';
       while (true) {
@@ -718,6 +1051,7 @@ $v = time();
           var j;
           try { j = JSON.parse(payload); } catch (e) { continue; }
           if (curEvent === 'error' || j.error) throw new Error(j.error || 'DeepSeek 出错');
+          if (j.usage) useUsage = j.usage;                  // 上游最后一个块带的用量（含缓存命中）
           var delta = (j.choices && j.choices[0] && j.choices[0].delta) || {};
           if (delta.reasoning_content) {
             reasoning += delta.reasoning_content;
@@ -726,7 +1060,10 @@ $v = time();
             reasonEl.textContent = DS.stripProtocol(reasoning);
           }
           if (delta.tool_calls) acc.feed(delta.tool_calls);   // 原生 function calling
-          if (delta.content) handle(parser.feed(delta.content));
+          if (delta.content) {
+            if (!firstTokAt) firstTokAt = Date.now();         // 首个正文 token 的延迟
+            handle(parser.feed(delta.content));
+          }
         }
       }
       handle(parser.end());
@@ -746,6 +1083,21 @@ $v = time();
       });
       b.querySelector('.mti').textContent = nowTime();
       if (aborter === ctrl) aborter = null;
+      // ---- 状态栏统计 ----
+      var now = Date.now();
+      stats.llmMs += now - reqT0;
+      if (firstTokAt) {
+        stats.ttftSum += firstTokAt - reqT0;
+        stats.ttftN++;
+        stats.genMs += now - firstTokAt;
+      }
+      if (useUsage) {
+        stats.inTok += Number(useUsage.prompt_tokens || 0);
+        stats.outTok += Number(useUsage.completion_tokens || 0);
+        stats.hit += Number(useUsage.prompt_cache_hit_tokens || useUsage.prompt_cache_hit || 0);
+        stats.miss += Number(useUsage.prompt_cache_miss_tokens || useUsage.prompt_cache_miss || 0);
+      }
+      saveStats(); renderStats();
     }
     return { raw: raw, calls: calls, aborted: ctrl.signal.aborted, bubble: b };
   }
@@ -766,6 +1118,7 @@ $v = time();
       setStreaming(false);
 
       if (out.raw.trim() || out.calls.length) {
+        stats.rounds++;
         var ent = { role: 'assistant', content: out.raw, time: nowTime() };
         var nats = out.calls.filter(function (c) { return c.call.native && c.call.id; });
         if (nats.length) {                               // 原生调用要入历史，下一轮才能对上 tool_call_id
@@ -797,6 +1150,19 @@ $v = time();
         DS.fillToolCard(out.calls[i].card, row.result);
         if (row.result.ok) okCount++;
       });
+      settleAskCards(out.bubble, out.calls, rows);   // 确认卡上的「执行中…」→ 最终结果
+      stats.steps += rows.length;
+      rows.forEach(function (row) { stats.toolMs += Number((row.result && row.result._ms) || 0); });
+      // 工具读回来的图片（ca_space）：交给模型看，但绝不能把 base64 写进历史 JSON
+      var visionRows = [];
+      rows.forEach(function (row) {
+        var d = row.result && row.result.data;
+        if (d && Array.isArray(d._vision) && d._vision.length) {
+          visionRows.push({ images: d._vision.slice(0, 4), from: (d.user && d.user.name) || '' });
+          delete d._vision;
+        }
+      });
+      saveStats(); renderStats();
       st.textContent = '工具返回 ' + okCount + '/' + rows.length + ' 成功';
       scrollBottom();
 
@@ -812,16 +1178,34 @@ $v = time();
       if (textRows.length) {
         conv.push({ role: 'user', content: DS.resultMessage(textRows), hidden: true, kind: 'tool_result' });
       }
+      // 图片以「用户消息 + image_url」的形式喂给模型（工具消息不能带图）
+      visionRows.forEach(function (v) {
+        var parts = [{ type: 'text', text: '（这是你刚读取的图片' + (v.from ? '，来自 ' + v.from + ' 的主页' : '') + '，已经过用户同意）' }];
+        v.images.forEach(function (u) { parts.push({ type: 'image_url', image_url: { url: u } }); });
+        conv.push({ role: 'user', content: parts, hidden: true, kind: 'vision', time: nowTime() });
+      });
       saveConv();
     }
   }
 
   async function send() {
     if (streaming) { if (aborter) aborter.abort(); return; }   // 生成中再点 = 停止
+    // 还有工具在等用户确认时不让发新消息：否则会开两个循环，卡成一团
+    if (pendingConfirms > 0) {
+      sysNote('还有 ' + pendingConfirms + ' 个工具调用在等你确认 —— 点卡片上的「通过」或「拒绝」再继续。');
+      return;
+    }
     var att = DSUI.getAttachment();
     var text = input.value.trim();
     if (!text && !att) return;
     if (!hasKey()) { openSettings(); return; }
+
+    // 上下文超过窗口的 65% → 先自动压缩（避免越聊越糊 / 超限）
+    var win = ctxWindowSize(), usedTok = ctxTokens();
+    if (usedTok > win * 0.65) {
+      sysNote('上下文已到 ' + Math.round(usedTok / win * 100) + '%（阈值 65%），先自动压缩…');
+      await compressConversation(true);
+    }
 
     input.value = ''; autoResize();
     var entry = { role: 'user', content: text, time: nowTime() };
@@ -873,9 +1257,9 @@ $v = time();
     renderToolList();
   });
   $('dsClearBtn').addEventListener('click', function () {
-    if (!confirm('清空当前对话记录？（本地记忆不受影响）')) return;
+    if (!confirm('清空当前对话记录与运行统计？（本地记忆不受影响）')) return;
     if (aborter) aborter.abort();
-    conv = []; saveConv(); renderAll();
+    conv = []; saveConv(); renderAll(); resetStats();
   });
   sendBtn.addEventListener('click', send);
   input.addEventListener('input', autoResize);
@@ -883,8 +1267,10 @@ $v = time();
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   });
 
-  load(); refreshKeyWarn(); refreshBadge(); renderAll(); autoResize();
-  DS.setConfirmer(askToolPermission);   // 所有 ca_* 工具执行前都会先弹确认卡
+  load(); refreshKeyWarn(); refreshBadge(); renderAll(); autoResize(); renderStats();
+  window.addEventListener('resize', fitStats);   // 窗口变窄时状态栏自动隐藏
+  DS.setConfirmer(askToolPermission);      // 所有 ca_* 工具执行前先弹确认卡
+  DS.setImageConsent(askImageReadCard);    // 读图片时弹「全部允许 / 本会话 / 允许 / 跳过」
   // 表情库异步到达：到了就把历史重渲染一遍，让 /斜眼笑 这类代码变成表情图
   if (window.DSUI && DSUI.onEmojiListReady) DSUI.onEmojiListReady(function () { if (!streaming) renderAll(); });
   loadServerPrefs();   // 登录态 / 管理员身份 / 账号级权限（服务端为准）

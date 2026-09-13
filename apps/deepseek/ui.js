@@ -497,10 +497,27 @@
   }
 
   /* 已渲染好的 HTML → 只对「文本节点」做表情替换（不碰标签属性里的内容）
-     renderMd 会先转义 HTML，所以表情必须在这之后再上屏（否则 <img> 会被当成文本） */
+     renderMd 会先转义 HTML，所以表情必须在这之后再上屏（否则 <img> 会被当成文本）
+     两个坑：
+       1) 模型把代码写在反引号里（`/打招呼`）→ markdown 变 <code>/打招呼</code>，
+          直接换文本节点的话 <img> 会留在 <code> 里，看起来像被反引号框住（很丑）；
+       2) 正文里的代码块（``` 围栏 / 行内代码）里的 /xxx 根本不该替换成表情。 */
   function renderEmojiHtml(html) {
-    return String(html == null ? '' : html).replace(/(<[^>]*>)|([^<]+)/g, function (m, tag, text) {
-      return tag ? tag : renderEmoji(text);
+    var s = String(html == null ? '' : html);
+    s = s.replace(/<code(?:\s[^>]*)?>([^<>]{1,24})<\/code>/gi, function (m, inner) {
+      var t = inner.trim();
+      if (t.charAt(0) !== '/') return m;
+      var e = builtinEmojiRegex().map || {};
+      return e[t] ? t : m;      // 整个 code 就是一个表情代码 → 只留代码（外层 code 丢掉）
+    });
+    var depth = 0;                // 0 = 正常；>0 = 在 <code>/<pre> 里，文字不替换
+    return s.replace(/(<[^>]*>)|([^<]+)/g, function (m, tag, text) {
+      if (tag) {
+        if (/^<(code|pre)(\s|>|$)/i.test(tag) && !/\/>$/.test(tag)) depth++;
+        else if (/^<\/(code|pre)\s*>/i.test(tag)) depth = Math.max(0, depth - 1);
+        return tag;
+      }
+      return depth > 0 ? text : renderEmoji(text);
     });
   }
 
