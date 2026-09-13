@@ -343,7 +343,10 @@
   var ALIAS = {
     get_time: 'now', my_profile: 'ca_profile', my_level: 'ca_level', leaderboard: 'ca_leaderboard',
     find_user: 'ca_find_user', my_conversations: 'ca_conversations', my_groups: 'ca_groups',
-    check_online: 'ca_online', my_tickets: 'ca_tickets'
+    check_online: 'ca_online', my_tickets: 'ca_tickets',
+    /* 自查工具的历史/口语写法 */
+    ca_tools: 'tools', list_tools: 'tools', tool_list: 'tools', tool_help: 'tools', tools_help: 'tools',
+    ca_tool_status: 'tool_status', tool_state: 'tool_status', tools_status: 'tool_status'
   };
   function resolveName(n) { n = String(n || '').trim(); return ALIAS[n] || n; }
   function setContext(c) {
@@ -392,8 +395,95 @@
   }
 
   /* ========================= 工具定义 ========================= */
-  /* run(args) → Promise<object>；抛错 = 执行失败（会以 ok:false 回灌模型） */
+  /* run(args) → Promise<object>；抛错 = 执行失败（会以 ok:false 回灌模型）
+     —— 自查类工具（tools / tool_status）只需要读前端状态，所以放最前面 */
+
+  /* 一句话用途：给工具索引用，省 token */
+  function shortPurpose(desc) {
+    var s = String(desc || '').replace(/\*\*/g, '').replace(/[`*]/g, '');
+    var m = s.split(/[。；；\n]/)[0] || s;
+    if (m.length > 72) m = m.slice(0, 72) + '…';
+    return m;
+  }
+
   var TOOLS = [
+    {
+      name: 'tools', group: 'local', scope: 'local', defaultOn: true,
+      desc: '看我现在有哪些工具、能用多少个、每个工具是干什么的；给 name 就返回那个工具的完整用法（参数怎么写、要不要弹确认卡）。**不确定自己有什么工具、该用哪个、参数叫什么时先查这里，不要凭记忆猜、更不要说「我没有这个功能」**',
+      params: {
+        name: '可选。要查完整用法的工具名（如 ca_space、calc）；不填就返回全部工具的索引（名字 + 一句话用途 + 能否用）'
+      },
+      run: function (a) {
+        var want = resolveName(String((a && a.name) || '').trim());
+        if (want) {
+          var t = TOOL_MAP[want];
+          if (!t) {
+            return Promise.resolve({
+              found: false, name: want,
+              hint: '没有叫这个名字的工具。不带参数再调一次 tools 就能看到全部工具名（也可能是我把名字记错了）',
+              all_names: TOOLS.map(function (x) { return x.name; })
+            });
+          }
+          var reason = unavailableReason(t);
+          var pnames = Object.keys(t.params || {});
+          return Promise.resolve({
+            found: true, name: t.name,
+            purpose: t.desc,
+            usable: !reason && isOn(t),
+            status: reason ? ('不可用：' + reason) : (isOn(t) ? '可用' : '被用户关掉了'),
+            scope: t.scope, need_level: minLevelOf(t), need_level_name: levelName(minLevelOf(t)),
+            params: pnames.length ? pnames.map(function (k) { return { name: k, hint: t.params[k] }; }) : '无参数',
+            how_to_call: '写成 function call：name="' + t.name + '"' + (pnames.length ? '，arguments 是 JSON 对象（键就是上面的参数名）' : '，arguments 写 {}') +
+              (t.server ? '。这是 ChatApp 工具，执行前用户会看到确认卡，被拒绝就别重试。' : '。本地工具，不弹确认卡。')
+          });
+        }
+        var avail = activeTools();
+        var blocked = TOOLS.filter(function (t) { return !isOn(t) || unavailableReason(t); });
+        return Promise.resolve({
+          total: TOOLS.length,
+          usable_count: avail.length,
+          usable: avail.map(function (t) { return { name: t.name, what: shortPurpose(t.desc), level: minLevelOf(t) }; }),
+          not_usable: blocked.map(function (t) { return { name: t.name, why: unavailableReason(t) || '用户把它关掉了' }; }),
+          hint: '要某个工具的完整参数写法，再调一次 tools 并把 name 设成它的名字（例：{"name":"ca_space"}）；用 tool_status 可以看权限档位/为什么用不了'
+        });
+      }
+    },
+    {
+      name: 'tool_status', group: 'local', scope: 'local', defaultOn: true,
+      desc: '查我的工具运行状态：账号权限档位（关闭/仅读/读写/允许所有）、登录与管理员身份、能用的工具数、每个用不了的工具到底是因为什么（没登录 / 档位不够 / 用户自己关了）、以及服务端限流与「敏感工具会弹确认卡」这些规则',
+      params: {},
+      run: function () {
+        var lv = Number(ctx.aiLevel) || 0;
+        var avail = activeTools();
+        var blocked = TOOLS.filter(function (t) { return !isOn(t) || unavailableReason(t); });
+        var byReason = {};
+        blocked.forEach(function (t) {
+          var r = unavailableReason(t) || '用户自己关掉了（可在设置里勾回来）';
+          (byReason[r] = byReason[r] || []).push(t.name);
+        });
+        var out = {
+          logged_in: !!ctx.loggedIn,
+          is_admin: !!ctx.isAdmin,
+          ai_level: lv, ai_level_name: levelName(lv),
+          usable_count: avail.length,
+          total: TOOLS.length,
+          usable_names: avail.map(function (t) { return t.name; }).join(', '),
+          blocked_by_reason: Object.keys(byReason).map(function (r) { return { reason: r, tools: byReason[r] }; }),
+          local_tools_need_no_permission: TOOLS.filter(function (t) { return t.scope === 'local'; }).map(function (t) { return t.name; })
+        };
+        out.rules = [
+          'ChatApp 工具（ca_*）会按档位放行：0 关闭 / 1 仅读 / 2 读写 / 3 允许所有；本地工具不受档位限制',
+          '每个 ca_* 调用前会弹确认卡给用户点头，用户可以拒绝（拒绝后不要重试、不要换工具绕）',
+          '服务端限流：读 40 次/分钟；写操作每个工具 5 次/5 分钟；ca_send_dm 最严：3 条/5 分钟',
+          '每次调用都有审计日志（ai_tool_logs），被拒的尝试也计进限流'
+        ];
+        out.hint = lv < 1
+          ? '现在档位是「关闭」，所以 ca_* 全用不了；告诉用户去「设置 → AI 权限」选「仅读」或更高即可'
+          : (lv < 2 ? '现在是「仅读」：只能查，不能建群/加好友/发消息这类写操作；需要写就让用户去设置里调到「读写」' : '档位够用；具体有哪些工具用 tools 查');
+        if (!ctx.loggedIn) out.hint = '当前未登录 ChatApp：所有 ca_* 都用不了，需要先让用户登录';
+        return Promise.resolve(out);
+      }
+    },
     {
       name: 'now', group: 'local', scope: 'local', defaultOn: true,
       desc: '获取当前日期时间（含星期、UTC 偏移、时间戳）',
@@ -650,6 +740,8 @@
       '- 要看聊天内容时用 ca_history（按对方用户名或群）或 ca_message（按消息 ID）；这两个需要用户先在设置里开启「允许 AI 读取会话摘要」，没开时会返回权限错误。',
       '- 表情代码表已经在下文「表情」一节里给全了，直接用；只有在表里找不到想要的意思时才调 ca_emoji 搜。',
       '- 用户让你「记一下」→ remember；问「我之前让你记的」→ recall。',
+      '- **不确定自己有哪些工具、某个功能能不能做、参数叫什么 → 先调 `tools`（不带参数看清单，带 name 看单个工具的完整用法）；怀疑是权限/开关问题 → 调 `tool_status`。**',
+      '  ChatApp 会不断加新工具，你的能力可能比你记得的多：**绝不凭记忆说「我没有这个功能」**，先查一眼再说。',
       '- 闲聊、写作、解释概念、写代码这类不需要外部信息的问题，直接回答，别硬用工具。',
       '- 一轮最多调用 3 个工具；能一次查完就别来回多次。',
       '',
@@ -721,13 +813,20 @@
     return lines.join('\n');
   }
 
-  function contextSection(c) {
+  function contextSection(c, toolsDisabled) {
     c = c || {};
     var t = new Date(), off = -t.getTimezoneOffset(), sign = off < 0 ? '-' : '+', ao = Math.abs(off);
     var lines = ['## 当前上下文',
       '- 时间：' + t.getFullYear() + '-' + pad2(t.getMonth() + 1) + '-' + pad2(t.getDate()) + ' ' +
         pad2(t.getHours()) + ':' + pad2(t.getMinutes()) + '（浏览器本地 UTC' + sign + pad2(Math.floor(ao / 60)) + ':' + pad2(ao % 60) + '）',
       '- 模型：DeepSeek V4 Flash  ·  运行环境：ChatApp「Deepseek」应用（可调用工具的 agent）'];
+    if (toolsDisabled) {
+      lines.push('- 本次会话工具已被关闭（用户设置里关了总开关）');
+    } else {
+      // 让模型「知道自己有多少工具」（它常忘了自己刚被加了新工具）
+      lines.push('- 工具：本次会话能用 ' + activeTools().length + ' / ' + TOOLS.length +
+        ' 个（清单见上面「你当前可用的工具」；用法用 tools 查，状态用 tool_status 查）');
+    }
     if (c.username) lines.push('- 当前登录用户：' + c.username + (c.uid ? '（UID ' + c.uid + '）' : ''));
     else lines.push('- 当前未登录：要使用 ca_* 系列工具需要先登录 ChatApp');
     if (c.isAdmin) lines.push('- 账号身份：站主/管理员（可使用 ca_admin_stats）');
@@ -794,7 +893,7 @@
       parts.push(protocolSection(cfg.toolList || activeTools()));
     }
     parts.push(emojiSection());
-    parts.push(contextSection(c || ctx));
+    parts.push(contextSection(c || ctx, cfg.tools === false));
     return parts.join('\n\n');
   }
 
