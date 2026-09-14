@@ -177,8 +177,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 // ==================== GET 渲染 ====================
 $__resVer = rescue_git('log -1 --format=%h -- rescue');
 if ($__resVer === '' || strpos($__resVer, 'fatal') !== false) $__resVer = '?';
-$__resBuild = date('Y-m-d H:i', (int)(@filemtime(__FILE__) ?: time()));
-$__wallpaper = rand(1, 10);
+$__resBuild = date('Y-m-d H:i:s', (int)(@filemtime(__FILE__) ?: time()));
 
 if (!$__authed):
 ?><!DOCTYPE html>
@@ -198,7 +197,7 @@ if (!$__authed):
         background-image:
             radial-gradient(rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.5) 100%),
             radial-gradient(rgba(0, 0, 0, 0) 33%, rgba(0, 0, 0, 0.3) 166%),
-            url('../modern/bg/background<?php echo $__wallpaper; ?>.jpg');
+            url('/rescue/bg.jpg');
         background-size: cover; background-position: center; background-repeat: no-repeat; background-attachment: fixed;
     }
     .auth-container {
@@ -239,7 +238,12 @@ if (!$__authed):
         font-size: 0.8em; color: #999; }
     .lang-pick select { background: #1e1e1e; border: 1px solid #444; color: #e0e0e0; font-family: inherit;
         font-size: 1em; padding: 4px 8px; outline: none; cursor: pointer; }
-    .ver-line { position: fixed; left: 16px; top: 16px; color: #555; font-size: 0.72em; font-family: monospace; }
+    .ver-line { position: fixed; left: 16px; top: 16px; color: #8fa8c8; font-size: 0.74em; font-family: monospace;
+        text-shadow: 0 0 8px rgba(120, 170, 255, 0.55), 0 0 2px rgba(160, 200, 255, 0.45); }
+    .layout-copyright { position: fixed; left: 50%; transform: translateX(-50%); bottom: 26px; text-align: center;
+        color: #777; font-size: 12px; max-width: 94vw; line-height: 1.6; }
+    .layout-copyright a { color: #6a9fd8; text-decoration: none; }
+    .layout-copyright a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -270,6 +274,7 @@ if (!$__authed):
 </div>
 <div class="lang-pick"><span><?php echo rt('lang_label'); ?></span><?php echo rescue_lang_select(''); ?></div>
 <div class="ver-line">rescue <?php echo htmlspecialchars($__resVer); ?> · build <?php echo htmlspecialchars($__resBuild); ?></div>
+<div class="layout-copyright">© <a href="/index.php">ChatApp</a> 2026-<?php echo date('Y');?> by Jaden | <a href="//github.com/lqx211/ChatApp">Source Code</a> | All rights reserved</div>
 
 <script>
 function handleLogin(e){
@@ -356,6 +361,9 @@ $__diskTxt = ($__disk === false) ? '?' : number_format($__disk / 1073741824, 2) 
   .lang-pick select:focus{border-color:#4a6a8e}
   .rescue-ver{padding:8px 12px;margin:0 8px 6px;border:1px solid #333;background:rgba(20,20,20,.6);color:#777;font-size:.7em;font-family:monospace;line-height:1.7;word-break:break-all}
   .rescue-ver b{color:#9ecbff;font-weight:600}
+  .layout-copyright{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;text-align:center;color:#777;font-size:12px;max-width:94vw;line-height:1.6;z-index:5}
+  .layout-copyright a{color:#6a9fd8;text-decoration:none}
+  .layout-copyright a:hover{text-decoration:underline}
 </style>
 </head>
 <body>
@@ -465,6 +473,7 @@ $__diskTxt = ($__disk === false) ? '?' : number_format($__disk / 1073741824, 2) 
 </div>
 
 <div class="flash" id="flash"></div>
+<div class="layout-copyright">© <a href="/index.php">ChatApp</a> 2026-<?php echo date('Y');?> by Jaden | <a href="//github.com/lqx211/ChatApp">Source Code</a> | All rights reserved</div>
 
 <script>
 var RT = <?php echo rescue_lang_js(); ?>;
