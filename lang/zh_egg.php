@@ -80,6 +80,7 @@ return [
     'msg_pow_working'       => '正在核验户口…',
     'msg_pow_registering'   => '正在上户口…',
     'btn_send'              => '派遣',
+    'btn_scroll_down'      => '回營復命',
     'btn_save'              => '保存',
     'btn_upload_photo'      => '上载相片',
     'btn_change_password'   => '改变通关口令',

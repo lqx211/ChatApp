@@ -82,6 +82,7 @@ return [
     'msg_pow_working'       => 'Logging in...',
     'msg_pow_registering'   => 'Registering...',
     'btn_send'              => 'Send',
+    'btn_scroll_down'      => 'Scroll to bottom',
     'btn_save'              => 'Save',
     'btn_upload_photo'      => 'Upload Photo',
     'btn_change_password'   => 'Change Password',

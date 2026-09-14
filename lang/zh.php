@@ -76,6 +76,7 @@ return [
     'msg_pow_working'       => '正在登录…',
     'msg_pow_registering'   => '正在注册…',
     'btn_send'              => '发送',
+    'btn_scroll_down'      => '回到底部',
     'btn_save'              => '保存',
     'btn_upload_photo'      => '上传头像',
     'btn_change_password'   => '修改密码',

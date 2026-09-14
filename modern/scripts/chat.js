@@ -10760,3 +10760,27 @@ function showClientReloadDialog() {
     ok.onclick = function() { window.location.reload(); };
     dlg.classList.add('active');
 }
+
+/* ================= 回到底部按钮（工单 #84） =================
+   私聊/群聊区滚上去看历史时，右下角冒出一个 ↓；点一下回到最新消息。
+   新消息渲染时靠 MutationObserver 自动把按钮亮起来。 */
+(function () {
+    function __initScrollDownBtn() {
+        var area = document.getElementById('dmMessagesArea');
+        var btn = document.getElementById('scrollDownBtn');
+        if (!area || !btn) return;
+        function upd() {
+            var gap = area.scrollHeight - area.scrollTop - area.clientHeight;
+            btn.classList.toggle('show', gap > 140);
+        }
+        area.addEventListener('scroll', upd, { passive: true });
+        try { new MutationObserver(upd).observe(area, { childList: true, subtree: true }); } catch (e) {}
+        btn.addEventListener('click', function () {
+            area.scrollTop = area.scrollHeight;
+            upd();
+        });
+        upd();
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', __initScrollDownBtn);
+    else __initScrollDownBtn();
+})();

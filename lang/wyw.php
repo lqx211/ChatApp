@@ -76,6 +76,7 @@ return [
     'msg_pow_working'       => '正在通關驗算…',
     'msg_pow_registering'   => '正在題名在冊…',
     'btn_send'              => '飛書傳信',
+    'btn_scroll_down'      => '下拉歸底',
     'btn_save'              => '存而勿失',
     'btn_upload_photo'      => '奉上小像',
     'btn_change_password'   => '更易密語',

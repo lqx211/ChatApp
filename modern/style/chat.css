@@ -58,7 +58,7 @@ body{font-family:'Harmony Sans','Roboto',-apple-system,BlinkMacSystemFont,'Segoe
 .sidebar-footer{padding:8px 14px;border-top:1px solid #3a3a3a}
 .sidebar-footer .ngh{padding:6px 0;font-size:.75em}
 .main-content{flex:1;display:flex;flex-direction:column;height:100vh;background:rgba(34,34,34,0.85)}
-.panel{display:none;flex-direction:column;height:100%}
+.panel{display:none;flex-direction:column;height:100%;position:relative}
 .panel.active{display:flex}
 .ch{background:rgba(42,42,42,0.85);padding:10px 20px;border-bottom:1px solid #3a3a3a;flex-shrink:0;display:flex;align-items:center}
 .ch h2{font-size:1.05em;font-weight:600;color:#c0c0c0;flex:1}
@@ -1318,3 +1318,12 @@ input[type="date"]:focus {
 .ca-ask.danger{border-color:#7a4a4a}
 .ca-ask-danger{margin:4px 0 6px;padding:5px 8px;background:#33221f;border:1px solid #6a3a3a;border-radius:4px;
   color:#e7b7a8;font-size:.72em;line-height:1.5}
+
+/* 回到底部按钮（滚上去看历史时才显示；新消息到了会自动冒出来） */
+.scroll-down{position:absolute;right:22px;bottom:96px;width:40px;height:40px;border-radius:50%;
+  background:rgba(42,47,54,.92);border:1px solid #4a525c;color:#cfd8e0;cursor:pointer;
+  display:none;align-items:center;justify-content:center;font-size:18px;line-height:1;z-index:40;
+  box-shadow:0 3px 12px rgba(0,0,0,.4);padding:0}
+.scroll-down.show{display:flex}
+.scroll-down:hover{background:rgba(58,66,76,.95);border-color:#5a626c}
+.scroll-down:active{transform:scale(.94)}
