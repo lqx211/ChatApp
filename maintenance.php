@@ -8,6 +8,13 @@
 
 require_once __DIR__ . '/maintenance/status_loader.php';
 
+// 救援面板（/rescue/）永远放行：升级/降级翻车或维护中它必须可达
+// （面板自带凭据登录门；不依赖 DB，也不依赖 maintenance/ 任何代码）。
+$__earlyPath = (string)parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+if ($__earlyPath === '/rescue' || strpos($__earlyPath, '/rescue/') === 0) {
+    return;
+}
+
 $__status = chatapp_maint_status();
 if (is_array($__status) && !empty($__status['is_maintenance'])) {
 

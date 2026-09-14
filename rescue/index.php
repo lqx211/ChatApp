@@ -1,0 +1,629 @@
+<?php
+/**
+ * ChatApp · Rescue Panel — 紧急救援面板
+ *
+ * 存在的意义：任何网页升级/降级都可能把 maintenance/ 或整站砸坏（比如降级回
+ * 远古版本）。rescue/ 自包含、零依赖（不 require api/、maintenance/ 任何代码），
+ * 且被所有网页升级/降级的 checkout 显式排除（':!rescue'）—— 它永远还在。
+ *
+ * 鉴权：维护凭据（maintenance/config.php → data/maint_config.php → env），
+ * 文件级校验，数据库挂了也能登录；两个文件都不存在时自动生成随机凭据
+ * （见 lib.php rescue_bootstrap）。数据库可达时，危险操作另须管理员密码。
+ *
+ * 功能：仪表盘（系统状态）/ 升级 / 降级 —— 三重验证同维护面板：
+ * 管理员密码（DB 可用时）+ 维护凭据 + 当前 git hash（两次输入）。
+ *
+ * ⚠️ 本面板不会被网页升级更新（故意的）。要更新救援面板，SSH 执行：
+ *    cd <项目目录> && git fetch origin main && git checkout --force origin/main -- rescue
+ */
+@ini_set('display_errors', '0');
+require_once __DIR__ . '/lib.php';
+require_once __DIR__ . '/lang.php';
+
+if (session_status() === PHP_SESSION_NONE) {
+    @session_set_cookie_params([
+        'lifetime' => 0,
+        'path'     => '/',
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    session_start();
+}
+
+// 自举：确保 maintenance/ 目录 + maintenance/config.php 存在（缺则生成随机凭据）
+$__boot = rescue_bootstrap(rescue_root());
+$__authed = !empty($_SESSION['rescue_ok']);
+
+function rc_json($arr): void {
+    header('Content-Type: application/json');
+    echo json_encode($arr, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// ==================== POST 后端 ====================
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    $action = (string)($_POST['action'] ?? '');
+
+    if ($action === 'login') {
+        $u = trim((string)($_POST['login'] ?? ''));
+        $p = (string)($_POST['password'] ?? '');
+        if (rescue_verify_creds($u, $p)) {
+            $_SESSION['rescue_ok'] = true;
+            rc_json(['success' => true]);
+        }
+        usleep(400000); // 轻微节流
+        rc_json(['success' => false, 'error' => rt('login_err')]);
+    }
+
+    if ($action === 'logout') {
+        unset($_SESSION['rescue_ok']);
+        rc_json(['success' => true]);
+    }
+
+    if (!$__authed) rc_json(['success' => false, 'error' => rt('unknown_action')]);
+
+    switch ($action) {
+        case 'get': {
+            $disk = @disk_free_space(rescue_root());
+            $cfgFiles = rescue_cred_files();
+            $present = null;
+            foreach ($cfgFiles as $f) { if (is_file($f)) { $present = $f; break; } }
+            $db = rescue_db_status();
+            rc_json([
+                'success'    => true,
+                'app_git'    => rescue_git('rev-parse HEAD'),
+                'branch'     => rescue_git('rev-parse --abbrev-ref HEAD'),
+                'db_ok'      => $db['ok'],
+                'maint_cfg'  => $present ? basename(dirname($present)) . '/' . basename($present) : '',
+                'php'        => PHP_VERSION,
+                'disk_free'  => ($disk === false ? null : (int)$disk),
+            ]);
+        }
+
+        case 'check_update': {
+            $remote = rescue_git('ls-remote origin main');
+            $remoteSha = '';
+            if (preg_match('/^([0-9a-f]{40})\s+/im', $remote, $m)) $remoteSha = strtolower($m[1]);
+            $localSha = strtolower(trim(rescue_git('rev-parse HEAD')));
+            rc_json(['success' => true, 'current' => $localSha, 'remote' => $remoteSha, 'has_update' => ($remoteSha !== '' && $remoteSha !== $localSha)]);
+        }
+
+        case 'dg_list': {
+            $out = rescue_git('log --format=%H%x09%ci%x09%s -n 60');
+            $list = [];
+            foreach (explode("\n", $out) as $line) {
+                $parts = explode("\t", $line, 3);
+                if (count($parts) < 3) continue;
+                $list[] = ['h' => trim($parts[0]), 'date' => trim($parts[1]), 'subj' => trim($parts[2])];
+            }
+            rc_json(['success' => true, 'versions' => $list]);
+        }
+
+        case 'progress': {
+            $p = [];
+            $pf = rescue_progress_path();
+            if (is_file($pf)) { $p = json_decode((string)@file_get_contents($pf), true) ?: []; }
+            $p['locked'] = is_file(rescue_lock_path());
+            rc_json(['success' => true] + $p);
+        }
+
+        case 'perform_upgrade':
+        case 'perform_downgrade': {
+            $isUp = ($action === 'perform_upgrade');
+            $pwd  = (string)($_POST['password'] ?? '');
+            $mu   = trim((string)($_POST['maint_user'] ?? ''));
+            $mp   = (string)($_POST['maint_pass'] ?? '');
+            $h1   = strtoupper(trim((string)($_POST['git_hash'] ?? '')));
+            $h2   = strtoupper(trim((string)($_POST['git_hash2'] ?? '')));
+            $tgt  = trim((string)($_POST['target'] ?? ''));
+
+            if (is_file(rescue_lock_path())) rc_json(['success' => false, 'error' => rt('err_busy')]);
+            if ($mu === '' || $mp === '' || $h1 === '' || $h2 === '') rc_json(['success' => false, 'error' => rt('all_fields_required')]);
+            if ($h1 !== $h2) rc_json(['success' => false, 'error' => rt('git_hash_mismatch')]);
+
+            // 1) git hash 必须等于当前 HEAD
+            $head = strtoupper(trim(rescue_git('rev-parse HEAD')));
+            if ($head === '' || $head !== $h1) rc_json(['success' => false, 'error' => rt('git_hash_mismatch') . ' (HEAD: ' . substr($head, 0, 10) . ')']);
+
+            // 2) 管理员密码（DB 可达才校验；不可达 → 提示并跳过，救援场景必须放行）
+            $db = rescue_db_status();
+            if ($db['ok']) {
+                if ($pwd === '') rc_json(['success' => false, 'error' => rt('err_admin_required')]);
+                $okAdmin = false;
+                try {
+                    // 用 lib 同款方式解析 DB 凭据（不执行 api/config.php）
+                    $src = (string)@file_get_contents(rescue_root() . '/api/config.php');
+                    $du = 'root'; $dp = '';
+                    if (preg_match("/define\(\s*'DB_USER'\s*,\s*'((?:[^'\\\\]|\\\\.)*)'\s*\)/", $src, $m)) $du = stripcslashes($m[1]);
+                    if (preg_match("/define\(\s*'DB_PASS'\s*,\s*'((?:[^'\\\\]|\\\\.)*)'\s*\)/", $src, $m)) $dp = stripcslashes($m[1]);
+                    $pdo = new PDO('mysql:host=' . $db['host'] . ';dbname=' . $db['name'] . ';charset=utf8mb4', $du, $dp, [PDO::ATTR_TIMEOUT => 2]);
+                    $stmt = $pdo->prepare('SELECT password FROM users WHERE user_id = 10000');
+                    $stmt->execute();
+                    $row = $stmt->fetch();
+                    $okAdmin = $row && password_verify($pwd, $row['password']);
+                } catch (\Throwable $e) { $okAdmin = false; }
+                if (!$okAdmin) rc_json(['success' => false, 'error' => rt('err_admin_wrong')]);
+            }
+
+            // 3) 维护凭据（文件级）
+            if (!rescue_verify_creds($mu, $mp)) rc_json(['success' => false, 'error' => rt('err_maint_wrong')]);
+
+            // 4) 降级：目标 commit 必须存在
+            if (!$isUp) {
+                if ($tgt === '') rc_json(['success' => false, 'error' => rt('all_fields_required')]);
+                $t = trim(rescue_git('cat-file -t ' . escapeshellarg($tgt)));
+                if ($t !== 'commit') rc_json(['success' => false, 'error' => rt('dg_load_failed') . ' (invalid target)']);
+            }
+
+            // 5) 置锁 + 启动后台 worker
+            @file_put_contents(rescue_lock_path(), json_encode(['type' => $isUp ? 'upgrade' : 'downgrade', 'started' => time()]));
+            @file_put_contents(rescue_progress_path(), json_encode(['status' => 'pending', 'type' => $isUp ? 'upgrade' : 'downgrade', 'step' => 'Starting…', 'pct' => 0, 'from' => trim($head)]));
+            $workerLog = rescue_root() . '/data/rescue_worker.log';
+            @file_put_contents($workerLog, '');
+            $cmd = 'cd ' . escapeshellarg(rescue_root())
+                 . ' && nohup ' . escapeshellarg(rescue_php_binary()) . ' ' . escapeshellarg(__DIR__ . '/worker.php')
+                 . ' ' . ($isUp ? 'upgrade' : 'downgrade ' . escapeshellarg($tgt))
+                 . ' >> ' . escapeshellarg($workerLog) . ' 2>&1 &';
+            @exec($cmd);
+            if (!is_file(rescue_progress_path())) rc_json(['success' => false, 'error' => rt('err_spawn')]);
+            rc_json(['success' => true, 'started' => true]);
+        }
+
+        default:
+            rc_json(['success' => false, 'error' => rt('unknown_action')]);
+    }
+}
+
+// ==================== GET 渲染 ====================
+$__resVer = rescue_git('log -1 --format=%h -- rescue');
+if ($__resVer === '' || strpos($__resVer, 'fatal') !== false) $__resVer = '?';
+$__resBuild = date('Y-m-d H:i', (int)(@filemtime(__FILE__) ?: time()));
+$__wallpaper = rand(1, 10);
+
+if (!$__authed):
+?><!DOCTYPE html>
+<html lang="<?php echo $GLOBALS['RESCUE_LANG'] === 'zh' ? 'zh-Hans' : 'en'; ?>">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title><?php echo rt('login_h1'); ?> — ChatApp</title><link rel="stylesheet" href="../css/global.css">
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+        color: #e0e0e0;
+        display: flex; justify-content: center; align-items: center;
+        min-height: 100vh;
+        background-color: #1a1a1a;
+        background-image:
+            radial-gradient(rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.5) 100%),
+            radial-gradient(rgba(0, 0, 0, 0) 33%, rgba(0, 0, 0, 0.3) 166%),
+            url('../modern/bg/background<?php echo $__wallpaper; ?>.jpg');
+        background-size: cover; background-position: center; background-repeat: no-repeat; background-attachment: fixed;
+    }
+    .auth-container {
+        background: rgba(42, 42, 42, 0.88);
+        -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+        border: 1px solid rgba(90, 90, 90, 0.5);
+        padding: 40px 38px; width: 400px; max-width: 92vw;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .auth-container h1 { text-align: center; font-size: 1.8em; color: #c0c0c0; margin-bottom: 6px; font-weight: 600; }
+    .auth-container p.subtitle { text-align: center; color: #777; margin-bottom: 26px; font-size: 0.9em; }
+    .maint-badge {
+        display: inline-block; margin: 0 auto 16px; padding: 4px 14px;
+        background: #4a2a1e; border: 1px solid #7a3a2a; color: #ff9a5a;
+        font-size: 0.72em; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+        text-align: center;
+    }
+    .boot-note { background: #3d2f1e; border: 1px solid #6a522a; color: #e8c07a; padding: 10px 14px; margin-bottom: 16px; font-size: 0.8em; line-height: 1.6; }
+    .error-msg { background: #3d2020; border: 1px solid #5c2a2a; color: #e06060; padding: 10px 14px; margin-bottom: 16px; font-size: 0.85em; display: none; }
+    .error-msg.show { display: block; }
+    .form-group { position: relative; margin-bottom: 20px; }
+    .form-group label { display: block; margin-bottom: 6px; color: #aaa; font-size: 0.85em; }
+    .form-group input {
+        width: 100%; padding: 11px 2px; background: transparent; border: none;
+        border-bottom: 1px solid #555; border-radius: 0; color: #e0e0e0;
+        font-size: 0.95em; outline: none; font-family: inherit;
+    }
+    .form-group input:focus { border-bottom-color: #4a9dd8; }
+    .btn-primary {
+        width: 100%; padding: 12px; background: #4a4a4a; border: 1px solid #555;
+        color: #e0e0e0; font-size: 0.95em; font-weight: 600; cursor: pointer;
+        transition: background 0.2s; font-family: inherit;
+    }
+    .btn-primary:hover { background: #5a5a5a; }
+    .foot-note { text-align: center; color: #555; font-size: 0.72em; margin-top: 14px; line-height: 1.6; }
+    .lang-pick { position: fixed; left: 16px; bottom: 16px; display: flex; align-items: center; gap: 8px;
+        background: rgba(30, 30, 30, 0.85); border: 1px solid #3a3a3a; padding: 7px 10px;
+        font-size: 0.8em; color: #999; }
+    .lang-pick select { background: #1e1e1e; border: 1px solid #444; color: #e0e0e0; font-family: inherit;
+        font-size: 1em; padding: 4px 8px; outline: none; cursor: pointer; }
+    .ver-line { position: fixed; left: 16px; top: 16px; color: #555; font-size: 0.72em; font-family: monospace; }
+</style>
+</head>
+<body>
+<div class="auth-container">
+    <div style="text-align:center"><span class="maint-badge"><?php echo rt('badge_rescue'); ?></span></div>
+    <h1><?php echo rt('login_h1'); ?></h1>
+    <p class="subtitle"><?php echo rt('login_sub'); ?></p>
+
+    <?php if (!empty($__boot['created'])): ?>
+    <div class="boot-note">⚠ <?php echo rt('boot_created'); ?></div>
+    <?php endif; ?>
+
+    <div class="error-msg" id="errorMsg"></div>
+
+    <form id="loginPanel" onsubmit="handleLogin(event)">
+        <div class="form-group">
+            <label for="loginUsername"><?php echo rt('login_user'); ?></label>
+            <input type="text" id="loginUsername" maxlength="100" required autocomplete="username">
+        </div>
+        <div class="form-group">
+            <label for="loginPassword"><?php echo rt('login_pass'); ?></label>
+            <input type="password" id="loginPassword" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn-primary" id="loginBtn"><?php echo rt('login_btn'); ?></button>
+    </form>
+
+    <p class="foot-note"><?php echo rt('login_foot'); ?></p>
+</div>
+<div class="lang-pick"><span><?php echo rt('lang_label'); ?></span><?php echo rescue_lang_select(''); ?></div>
+<div class="ver-line">rescue <?php echo htmlspecialchars($__resVer); ?> · build <?php echo htmlspecialchars($__resBuild); ?></div>
+
+<script>
+function handleLogin(e){
+    e.preventDefault();
+    var el = document.getElementById('errorMsg');
+    el.classList.remove('show');
+    var btn = document.getElementById('loginBtn');
+    btn.disabled = true;
+    var f = new URLSearchParams();
+    f.append('action', 'login');
+    f.append('login', document.getElementById('loginUsername').value.trim());
+    f.append('password', document.getElementById('loginPassword').value);
+    fetch('index.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString(), credentials: 'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            btn.disabled = false;
+            if (d.success) { location.reload(); }
+            else { el.textContent = d.error || '?'; el.classList.add('show'); }
+        })
+        .catch(function(){ btn.disabled = false; el.textContent = 'Network error'; el.classList.add('show'); });
+}
+<?php echo rescue_setlang_js(); ?>
+</script>
+</body>
+</html>
+<?php
+exit;
+endif;
+
+// ==================== 主界面（已登录） ====================
+$__db = rescue_db_status();
+$__appGit = rescue_git('rev-parse HEAD');
+$__branch = rescue_git('rev-parse --abbrev-ref HEAD');
+$__cfgFiles = rescue_cred_files();
+$__cfgPresent = '';
+foreach ($__cfgFiles as $f) { if (is_file($f)) { $__cfgPresent = str_replace(rescue_root() . '/', '', $f); break; } }
+$__disk = @disk_free_space(rescue_root());
+$__diskTxt = ($__disk === false) ? '?' : number_format($__disk / 1073741824, 2) . ' GB';
+?><!DOCTYPE html>
+<html lang="<?php echo $GLOBALS['RESCUE_LANG'] === 'zh' ? 'zh-Hans' : 'en'; ?>">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title><?php echo rt('rescue_name'); ?> — ChatApp</title>
+<link rel="stylesheet" href="../css/global.css">
+<link rel="stylesheet" href="../modern/style/chat.css?v=<?php echo time();?>">
+<style>
+  html,body{height:100%;margin:0;background:#222}
+  .portal{padding:18px 22px;overflow-y:auto;flex:1}
+  .pcard{background:rgba(42,42,42,.8);border:1px solid #3a3a3a;border-radius:0;padding:16px 18px;margin-bottom:14px}
+  .pcard h3{margin:0 0 10px;font-size:.95em;color:#d0d0d0;font-weight:600;display:flex;align-items:center;gap:8px}
+  .prow{display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px dashed #2f2f2f;font-size:.84em;color:#aaa}
+  .prow:last-child{border-bottom:none}
+  .prow .k{width:180px;color:#888;flex-shrink:0}
+  .prow .v{color:#d8d8d8;word-break:break-all}
+  .pbtn{display:inline-block;background:#2d4a6e;border:1px solid #3d5a7e;color:#e8f0fa;padding:8px 18px;border-radius:0;cursor:pointer;font-size:.85em;font-family:inherit;text-decoration:none}
+  .pbtn:hover{background:#37608a}
+  .pbtn.green{background:#2e5d43;border-color:#3a704f}
+  .pbtn.green:hover{background:#3a704f}
+  .pbtn.red{background:#6e2d2d;border-color:#8a3a3a}
+  .pbtn.red:hover{background:#8a3a3a}
+  .pbtn.gray{background:#3a3a3a;border-color:#4a4a4a;color:#bbb}
+  .pbtn:disabled{opacity:.5;cursor:not-allowed}
+  .pfield{margin-bottom:12px}
+  .pfield label{display:block;color:#999;font-size:.76em;margin-bottom:5px}
+  .pfield input[type=text],.pfield input[type=password],.pfield select{width:100%;max-width:360px;padding:8px 12px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-size:.85em;font-family:inherit;outline:none;border-radius:0}
+  .pfield input:focus,.pfield select:focus{border-color:#4a6a8e}
+  .pcheck{display:flex;align-items:center;gap:8px;color:#bbb;font-size:.84em;padding:6px 0;cursor:pointer}
+  .pcheck input{width:16px;height:16px;accent-color:#4a8a6a}
+  .ok-dot{display:inline-block;width:9px;height:9px;border-radius:0;margin-right:6px;vertical-align:1px}
+  .ok-dot.g{background:#5ec87a}.ok-dot.r{background:#e06666}
+  .note{color:#666;font-size:.72em;line-height:1.6;margin-top:6px}
+  .dcard{background:#1e1e1e;border:1px dashed #444;padding:10px 14px;margin-top:8px;font-family:monospace;font-size:.78em;color:#9ecbff;word-break:break-all}
+  .dnote{background:#3d2f1e;border:1px solid #6a522a;color:#e8c07a;padding:10px 14px;font-size:.78em;line-height:1.6;margin-bottom:12px}
+  .flash{position:fixed;top:16px;right:16px;z-index:1000;padding:10px 16px;border-radius:0;font-size:.84em;display:none}
+  .flash.ok{background:#2e5d43;color:#c8f5d8;border:1px solid #3a704f}
+  .flash.err{background:#6e2d2d;color:#ffd0d0;border:1px solid #8a3a3a}
+  .progwrap{margin-top:14px}
+  .progbar{height:8px;background:#222;border:1px solid #3a3a3a}
+  .progbar > div{height:100%;width:0;background:#3d6ea6;transition:width .3s}
+  /* 左下角：语言选择器 + 版本信息（需求：git hash 与 build time 固定在救援画面左下角） */
+  .lang-pick{display:flex;align-items:center;gap:8px;padding:8px 12px;margin:0 8px 6px;background:rgba(30,30,30,.6);border:1px solid #3a3a3a;font-size:.78em;color:#999}
+  .lang-pick span{flex-shrink:0}
+  .lang-pick select{flex:1;min-width:0;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-size:1em;font-family:inherit;padding:5px 8px;outline:none;border-radius:0;cursor:pointer}
+  .lang-pick select:focus{border-color:#4a6a8e}
+  .rescue-ver{padding:8px 12px;margin:0 8px 6px;border:1px solid #333;background:rgba(20,20,20,.6);color:#777;font-size:.7em;font-family:monospace;line-height:1.7;word-break:break-all}
+  .rescue-ver b{color:#9ecbff;font-weight:600}
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="sidebar-profile">
+    <div class="sa"></div>
+    <div class="sun"><?php echo rt('rescue_name'); ?></div>
+    <div class="sdnd rstr"><?php echo rt('badge_rescue'); ?></div>
+  </div>
+  <div class="sidebar-nav">
+    <div class="ng"><div class="ngh" onclick="showPanel('dash')" style="cursor:pointer"><span><?php echo rt('nav_dash'); ?></span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('upgrade')" style="cursor:pointer"><span><?php echo rt('nav_upgrade'); ?></span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('downgrade')" style="cursor:pointer"><span><?php echo rt('nav_downgrade'); ?></span></div></div>
+  </div>
+  <div class="sidebar-footer">
+    <div class="lang-pick"><span><?php echo rt('lang_label'); ?></span><?php echo rescue_lang_select(''); ?></div>
+    <div class="rescue-ver" title="rescue <?php echo htmlspecialchars($__resVer); ?>">
+      rescue <b><?php echo htmlspecialchars($__resVer); ?></b><br>
+      <?php echo rt('k_build'); ?>: <?php echo htmlspecialchars($__resBuild); ?><br>
+      git HEAD: <b><?php echo htmlspecialchars(substr($__appGit, 0, 10)); ?></b>
+    </div>
+    <div class="ngh" onclick="doLogout()" style="cursor:pointer"><span><?php echo rt('logout'); ?></span></div>
+  </div>
+</div>
+
+<div class="main-content">
+  <div class="panel active" id="panel-dash">
+    <div class="ch"><h2><?php echo rt('nav_dash'); ?></h2><span style="color:#666;font-size:.75em"><?php echo rt('rescue_name'); ?></span></div>
+    <div class="portal">
+      <div class="pcard">
+        <h3><?php echo rt('card_state'); ?></h3>
+        <div class="prow"><span class="k"><?php echo rt('k_app_git'); ?></span><span class="v" id="stGit" style="user-select:all"><?php echo htmlspecialchars($__appGit ?: '?'); ?></span></div>
+        <div class="prow"><span class="k"><?php echo rt('k_branch'); ?></span><span class="v" id="stBranch"><?php echo htmlspecialchars($__branch ?: '?'); ?></span></div>
+        <div class="prow"><span class="k"><?php echo rt('k_db'); ?></span><span class="v" id="stDb"><span class="ok-dot <?php echo $__db['ok'] ? 'g' : 'r'; ?>"></span><?php echo $__db['ok'] ? rt('reachable') : rt('down'); ?></span></div>
+        <div class="prow"><span class="k"><?php echo rt('k_maint_cfg'); ?></span><span class="v"><span class="ok-dot <?php echo $__cfgPresent ? 'g' : 'r'; ?>"></span><?php echo $__cfgPresent ? htmlspecialchars($__cfgPresent) : rt('k_missing'); ?></span></div>
+        <div class="prow"><span class="k"><?php echo rt('k_rescue_ver'); ?></span><span class="v" style="user-select:all"><?php echo htmlspecialchars($__resVer); ?> · build <?php echo htmlspecialchars($__resBuild); ?></span></div>
+        <div class="prow"><span class="k"><?php echo rt('k_disk'); ?></span><span class="v"><?php echo $__diskTxt; ?></span></div>
+      </div>
+      <div class="pcard">
+        <h3><?php echo rt('card_update'); ?></h3>
+        <div class="note" style="font-size:.78em;color:#999"><?php echo rt('update_note'); ?></div>
+        <div class="dcard">cd <?php echo htmlspecialchars(rescue_root()); ?> &amp;&amp; git fetch origin main &amp;&amp; git checkout --force origin/main -- rescue</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-upgrade">
+    <div class="ch"><h2><?php echo rt('nav_upgrade'); ?></h2><span style="color:#e0a040;font-size:.75em;margin-left:12px"><?php echo rt('badge_rescue'); ?></span></div>
+    <div class="portal">
+      <div class="pcard">
+        <h3><?php echo rt('up_card'); ?></h3>
+        <div class="note" style="margin:0 0 10px"><?php echo rt('up_note'); ?></div>
+        <div class="prow"><span class="k"><?php echo rt('k_current'); ?></span><span class="v" id="upCur" style="user-select:all"><?php echo htmlspecialchars(substr($__appGit, 0, 12) ?: '?'); ?></span></div>
+        <div class="prow"><span class="k"><?php echo rt('k_remote'); ?></span><span class="v" id="upRem" style="user-select:all">—</span></div>
+        <div style="margin-top:10px"><button class="pbtn gray" id="upCheckBtn" onclick="upCheck()"><?php echo rt('btn_check'); ?></button></div>
+      </div>
+      <div class="pcard">
+        <?php if (!$__db['ok']): ?>
+        <div class="dnote">⚠ <?php echo rt('admin_db_down_note'); ?></div>
+        <?php else: ?>
+        <div class="pfield"><label><?php echo rt('lbl_admin_pwd'); ?></label><input type="password" id="upPwd" autocomplete="off"></div>
+        <?php endif; ?>
+        <div class="pfield"><label><?php echo rt('lbl_m_user'); ?></label><input type="text" id="upMUser" autocomplete="off"></div>
+        <div class="pfield"><label><?php echo rt('lbl_m_pass'); ?></label><input type="password" id="upMPass" autocomplete="off"></div>
+        <div class="pfield"><label><?php echo rt('lbl_git1'); ?></label><input type="text" id="upH1" spellcheck="false" placeholder="git rev-parse HEAD"></div>
+        <div class="pfield"><label><?php echo rt('lbl_git2'); ?></label><input type="text" id="upH2" spellcheck="false"></div>
+        <label class="pcheck"><input type="checkbox" id="upRisk"> <?php echo rt('chk_risk'); ?></label>
+        <div style="margin-top:10px"><button class="pbtn green" id="upRunBtn" onclick="upRun()"><?php echo rt('btn_upgrade_now'); ?></button></div>
+        <div class="progwrap" id="upProgWrap" style="display:none">
+          <div id="upStep" style="color:#6fa8dc;font-weight:700;font-size:.84em;margin-bottom:6px"></div>
+          <div class="progbar"><div id="upBar"></div></div>
+          <div id="upPct" style="color:#888;font-size:.78em;margin-top:4px">0%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-downgrade">
+    <div class="ch"><h2><?php echo rt('nav_downgrade'); ?></h2><span style="color:#e0a040;font-size:.75em;margin-left:12px"><?php echo rt('badge_rescue'); ?></span></div>
+    <div class="portal">
+      <div class="pcard">
+        <h3><?php echo rt('dg_card'); ?></h3>
+        <div class="dnote">⚠ <?php echo rt('dg_note'); ?></div>
+        <div class="prow"><span class="k"><?php echo rt('k_current'); ?></span><span class="v" style="user-select:all"><?php echo htmlspecialchars(substr($__appGit, 0, 12) ?: '?'); ?></span></div>
+        <div class="pfield" style="margin-top:10px"><label><?php echo rt('lbl_target'); ?></label><select id="dgSel"><option value=""><?php echo rt('dg_ph_loading'); ?></option></select></div>
+      </div>
+      <div class="pcard">
+        <?php if (!$__db['ok']): ?>
+        <div class="dnote">⚠ <?php echo rt('admin_db_down_note'); ?></div>
+        <?php else: ?>
+        <div class="pfield"><label><?php echo rt('lbl_admin_pwd'); ?></label><input type="password" id="dgPwd" autocomplete="off"></div>
+        <?php endif; ?>
+        <div class="pfield"><label><?php echo rt('lbl_m_user'); ?></label><input type="text" id="dgMUser" autocomplete="off"></div>
+        <div class="pfield"><label><?php echo rt('lbl_m_pass'); ?></label><input type="password" id="dgMPass" autocomplete="off"></div>
+        <div class="pfield"><label><?php echo rt('lbl_git1'); ?></label><input type="text" id="dgH1" spellcheck="false" placeholder="git rev-parse HEAD"></div>
+        <div class="pfield"><label><?php echo rt('lbl_git2'); ?></label><input type="text" id="dgH2" spellcheck="false"></div>
+        <label class="pcheck"><input type="checkbox" id="dgRisk"> <?php echo rt('chk_dg_risk'); ?></label>
+        <div style="margin-top:10px"><button class="pbtn red" id="dgRunBtn" onclick="dgRun()"><?php echo rt('btn_downgrade_now'); ?></button></div>
+        <div class="progwrap" id="dgProgWrap" style="display:none">
+          <div id="dgStep" style="color:#e08a80;font-weight:700;font-size:.84em;margin-bottom:6px"></div>
+          <div class="progbar"><div id="dgBar"></div></div>
+          <div id="dgPct" style="color:#888;font-size:.78em;margin-top:4px">0%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flash" id="flash"></div>
+
+<script>
+var RT = <?php echo rescue_lang_js(); ?>;
+<?php echo rescue_setlang_js(); ?>
+function $(id){ return document.getElementById(id); }
+function api(action, data, cb){
+  var f = new URLSearchParams(); f.append('action', action);
+  for (var k in (data || {})) { if (data[k] !== undefined && data[k] !== null) f.append(k, data[k]); }
+  fetch('index.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString(), credentials: 'same-origin' })
+    .then(function(r){ return r.json(); }).then(cb)
+    .catch(function(){ cb({ success: false, error: RT.net_err }); });
+}
+var _flashT = null;
+function flash(msg, ok){
+  var el = $('flash');
+  el.textContent = msg;
+  el.className = 'flash ' + (ok ? 'ok' : 'err');
+  el.style.display = 'block';
+  clearTimeout(_flashT);
+  _flashT = setTimeout(function(){ el.style.display = 'none'; }, 6000);
+}
+function showPanel(name){
+  var panels = document.querySelectorAll('.panel');
+  for (var i = 0; i < panels.length; i++) panels[i].classList.remove('active');
+  var p = $('panel-' + name);
+  if (p) p.classList.add('active');
+  if (name === 'dash') refreshStatus();
+  if (name === 'downgrade' && !dgLoaded) dgLoad();
+}
+function doLogout(){ api('logout', [], function(){ location.reload(); }); }
+function refreshStatus(){
+  api('get', [], function(d){
+    if (!d.success) return;
+    if (d.app_git) { $('stGit').textContent = d.app_git; }
+    if (d.branch) { $('stBranch').textContent = d.branch; }
+  });
+}
+
+/* ---- 升级 ---- */
+function upCheck(){
+  var btn = $('upCheckBtn');
+  btn.disabled = true; btn.textContent = RT.btn_checking;
+  api('check_update', [], function(d){
+    btn.disabled = false; btn.textContent = RT.btn_check;
+    if (!d.success) return flash(d.error || RT.net_err, false);
+    if (!d.remote) return flash(RT.net_err, false);
+    $('upCur').textContent = d.current || '?';
+    $('upRem').textContent = d.remote || '?';
+    flash(d.has_update ? (RT.up_available + d.remote.slice(0, 12)) : RT.up_to_date, true);
+  });
+}
+var _upPollT = null;
+function upRun(){
+  if (!$('upRisk').checked) return flash(RT.chk_risk, false);
+  var data = {
+    maint_user: $('upMUser').value.trim(),
+    maint_pass: $('upMPass').value,
+    git_hash: $('upH1').value.trim(),
+    git_hash2: $('upH2').value.trim()
+  };
+  if ($('upPwd')) data.password = $('upPwd').value;
+  $('upRunBtn').disabled = true;
+  api('perform_upgrade', data, function(d){
+    if (!d.success) { $('upRunBtn').disabled = false; return flash(d.error || RT.up_failed_t, false); }
+    $('upProgWrap').style.display = 'block';
+    $('upStep').textContent = RT.up_started;
+    flash(RT.up_started, true);
+    upPoll();
+  });
+}
+function upPoll(){
+  api('progress', [], function(d){
+    if (d.step) $('upStep').textContent = d.step;
+    if (typeof d.pct === 'number') { $('upBar').style.width = d.pct + '%'; $('upPct').textContent = d.pct + '%'; }
+    if (d.status === 'done') {
+      $('upStep').textContent = RT.up_done + (d.msg ? ' · ' + d.msg : '');
+      $('upBar').style.width = '100%'; $('upPct').textContent = '100%';
+      flash(RT.up_complete, true);
+      setTimeout(function(){ location.reload(); }, d.msg ? 6000 : 2500);
+      return;
+    }
+    if (d.status === 'error') {
+      $('upStep').textContent = RT.up_failed_t;
+      $('upRunBtn').disabled = false;
+      flash(d.msg || RT.up_release, false);
+      return;
+    }
+    _upPollT = setTimeout(upPoll, 1200);
+  });
+}
+
+/* ---- 降级 ---- */
+var dgLoaded = false;
+function dgLoad(){
+  dgLoaded = true;
+  api('dg_list', [], function(d){
+    if (!d.success) { dgLoaded = false; return flash(d.error || RT.dg_load_failed, false); }
+    var sel = $('dgSel'); sel.innerHTML = '';
+    for (var i = 0; i < d.versions.length; i++) {
+      var v = d.versions[i];
+      var o = document.createElement('option');
+      o.value = v.h;
+      o.textContent = v.h.slice(0, 10) + ' · ' + v.date.slice(0, 16) + ' · ' + v.subj.slice(0, 60);
+      sel.appendChild(o);
+    }
+  });
+}
+var _dgPollT = null;
+function dgRun(){
+  var tgt = $('dgSel').value;
+  if (!tgt) return flash(RT.dg_load_failed, false);
+  if (!$('dgRisk').checked) return flash(RT.chk_dg_risk, false);
+  var data = {
+    target: tgt,
+    maint_user: $('dgMUser').value.trim(),
+    maint_pass: $('dgMPass').value,
+    git_hash: $('dgH1').value.trim(),
+    git_hash2: $('dgH2').value.trim()
+  };
+  if ($('dgPwd')) data.password = $('dgPwd').value;
+  $('dgRunBtn').disabled = true;
+  api('perform_downgrade', data, function(d){
+    if (!d.success) { $('dgRunBtn').disabled = false; return flash(d.error || RT.dg_failed_t, false); }
+    $('dgProgWrap').style.display = 'block';
+    $('dgStep').textContent = RT.dg_started;
+    flash(RT.dg_started, true);
+    dgPoll();
+  });
+}
+function dgPoll(){
+  api('progress', [], function(d){
+    if (d.step) $('dgStep').textContent = d.step;
+    if (typeof d.pct === 'number') { $('dgBar').style.width = d.pct + '%'; $('dgPct').textContent = d.pct + '%'; }
+    if (d.status === 'done') {
+      $('dgStep').textContent = RT.dg_done_t + (d.msg ? ' · ' + d.msg : '');
+      $('dgBar').style.width = '100%'; $('dgPct').textContent = '100%';
+      flash(RT.dg_complete, true);
+      setTimeout(function(){ location.reload(); }, d.msg ? 6000 : 2500);
+      return;
+    }
+    if (d.status === 'error') {
+      $('dgStep').textContent = RT.dg_failed_t;
+      $('dgRunBtn').disabled = false;
+      flash(d.msg || RT.dg_failed_t, false);
+      return;
+    }
+    _dgPollT = setTimeout(dgPoll, 1200);
+  });
+}
+
+/* 打开时若有正在进行的任务 → 自动接上进度轮询 */
+api('progress', [], function(d){
+  if (!d.locked) return;
+  if ((d.type || '') === 'downgrade') {
+    showPanel('downgrade'); $('dgProgWrap').style.display = 'block'; dgPoll();
+  } else {
+    showPanel('upgrade'); $('upProgWrap').style.display = 'block'; upPoll();
+  }
+});
+</script>
+</body>
+</html>

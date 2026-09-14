@@ -2,7 +2,7 @@
 /**
  * ChatApp · 升级后台 worker
  * 由 api/upgrade.php perform 触发（nohup php 后台运行）。
- * 执行 git fetch（流式解析下载进度）→ checkout（排除 config/data/bkup 与机器相关的 maintenance/config.php）→ reset → 尽力重启 WSS 服务。
+ * 执行 git fetch（流式解析下载进度）→ checkout（排除 config/data/bkup、机器相关的 maintenance/config.php 与救援面板 rescue/）→ reset → 尽力重启 WSS 服务。
  * 进度写 data/upgrade_progress.json；完成或失败都清除 data/upgrade.lock（避免卡维护）。
  * ⚠️ 本文件不 require config.php（否则会被自己的维护锁拦截），只操作文件 + git。
  */
@@ -64,9 +64,9 @@ if (is_resource($proc)) {
 
 // ---- checkout：覆盖代码；config/data/bkup 跳过；maintenance/ 照常更新 ----
 // （maintenance/config.php 是机器相关的凭据文件，显式排除；creds.php 是通用
-//   加载器，会随代码更新）
+//   加载器，会随代码更新；rescue/ = 救援面板，故意固定不随网页升级更新）
 upw_progress('running', 'Applying update…', 88);
-$coCmd = "git checkout --force origin/main -- . ':!config' ':!data' ':!bkup' ':!maintenance/config.php'";
+$coCmd = "git checkout --force origin/main -- . ':!config' ':!data' ':!bkup' ':!maintenance/config.php' ':!rescue'";
 [$co, $rc] = upw_git($coCmd, $root);
 if ($rc !== 0) {
     upw_progress('error', 'Upgrade failed', 100, mb_substr($co, 0, 300), trim($head0), null);
