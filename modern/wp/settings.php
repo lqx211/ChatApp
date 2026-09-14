@@ -95,21 +95,21 @@ $avatar      = chatapp_avatar_url($u['avatar'] ?? '', $u['username'] ?? '');
   </div>
 
   <!-- ============ 危险操作 ============ -->
-  <div class="set-group" data-search="危险 重置 恢复出厂 factory reset">Danger Zone</div>
+  <div class="set-group" data-search="危险 危险操作 重置 恢复出厂 factory reset danger zone"><?php echo t('set_danger_zone', 'Danger Zone');?></div>
   <div class="set-row" data-search="危险 重置 恢复出厂 factory reset" onclick="navTo('settings-factory.php')">
-    <span class="row-label set-danger-text">Factory Reset</span>
+    <span class="row-label set-danger-text"><?php echo t('set_factory_reset', 'Factory Reset');?></span>
     <span class="row-arrow">›</span>
   </div>
   <div class="set-row" data-search="危险 卸载 删除 uninstall remove" onclick="navTo('settings-uninstall.php')">
-    <span class="row-label set-danger-text">Uninstall ChatApp</span>
+    <span class="row-label set-danger-text"><?php echo t('set_uninstall_chatapp', 'Uninstall ChatApp');?></span>
     <span class="row-arrow">›</span>
   </div>
   <div class="set-row" data-search="危险 升级 更新 upgrade system" onclick="navTo('settings-upgrade.php')">
-    <span class="row-label set-danger-text">Upgrade System</span>
+    <span class="row-label set-danger-text"><?php echo t('set_upgrade_system', 'Upgrade System');?></span>
     <span class="row-arrow">›</span>
   </div>
   <div class="set-row" data-search="危险 降级 回退 downgrade" onclick="navTo('settings-downgrade.php')">
-    <span class="row-label set-danger-text">Downgrade System</span>
+    <span class="row-label set-danger-text"><?php echo t('set_downgrade_system', 'Downgrade System');?></span>
     <span class="row-arrow">›</span>
   </div>
 
