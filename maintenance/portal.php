@@ -103,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $st = chatapp_maint_status();
 
     if ($action === 'get') {
-        $git = trim((string)@shell_exec('git -C ' . escapeshellarg(dirname(__DIR__)) . ' rev-parse --short HEAD 2>&1'));
+        $git = trim((string)@shell_exec('git -C ' . escapeshellarg(dirname(__DIR__)) . ' rev-parse HEAD 2>&1'));
         $df = disk_free_space(dirname(__DIR__));
         echo json_encode([
             'success' => true,
@@ -246,7 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $__st = chatapp_maint_status();
-$__git = trim((string)@shell_exec('git -C ' . escapeshellarg(dirname(__DIR__)) . ' rev-parse --short HEAD 2>&1'));
+$__git = trim((string)@shell_exec('git -C ' . escapeshellarg(dirname(__DIR__)) . ' rev-parse HEAD 2>&1'));
 $__df = disk_free_space(dirname(__DIR__));
 $__dfTxt = ($__df === false) ? '?' : number_format($__df / 1073741824, 2) . ' GB';
 $__mysqlOk = chatapp_portal_mysql_ok();
@@ -332,6 +332,7 @@ $__mysqlOk = chatapp_portal_mysql_ok();
    </div>
    <div class="sidebar-footer">
     <div class="lang-pick"><span><?php echo mt('lang_label'); ?></span><?php echo maint_lang_select(''); ?></div>
+    <div class="ngh" onclick="doLogoutHome()" style="cursor:pointer"><span><?php echo mt('logout_home'); ?></span></div>
     <div class="ngh" onclick="doLogout()" style="cursor:pointer"><span><?php echo mt('logout'); ?></span></div>
    </div>
   </div>
@@ -361,7 +362,7 @@ $__mysqlOk = chatapp_portal_mysql_ok();
       <div class="pcard"><h3><?php echo mt('card_server_info'); ?></h3>
        <div class="prow"><span class="k">PHP</span><span class="v"><?php echo htmlspecialchars(PHP_VERSION); ?></span></div>
        <div class="prow"><span class="k">MySQL</span><span class="v"><span class="ok-dot <?php echo $__mysqlOk ? 'g' : 'r'; ?>"></span><?php echo mt($__mysqlOk ? 'reachable' : 'down'); ?></span></div>
-       <div class="prow"><span class="k"><?php echo mt('k_git'); ?></span><span class="v"><?php echo htmlspecialchars($__git ?: '?'); ?></span></div>
+       <div class="prow"><span class="k"><?php echo mt('k_git'); ?></span><span class="v" style="word-break:break-all;user-select:all"><?php echo htmlspecialchars($__git ?: '?'); ?></span></div>
        <div class="prow"><span class="k"><?php echo mt('k_disk'); ?></span><span class="v"><?php echo htmlspecialchars($__dfTxt); ?></span></div>
        <div class="prow"><span class="k"><?php echo mt('k_time'); ?></span><span class="v"><?php echo date('Y-m-d H:i:s'); ?></span></div>
       </div>
@@ -638,6 +639,9 @@ function saveCreds(){
 }
 function doLogout(){
   api('logout', [], function(){ location.href = 'index.php'; });
+}
+function doLogoutHome(){
+  api('logout', [], function(){ location.href = '/index.php'; });
 }
 
 /* ================= 账号锁定管理 ================= */
