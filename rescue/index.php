@@ -121,6 +121,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             rc_json(['success' => true, 'versions' => $list]);
         }
 
+        case 'adjacent': {
+            // prev = HEAD 的父提交（降一级）；next = main 线上紧贴 HEAD 的下一提交（升一级）
+            $prev = trim(rescue_git('rev-parse --verify HEAD^'));
+            if (!preg_match('/^[0-9a-f]{40}$/i', $prev)) $prev = '';
+            $next = '';
+            $rev = rescue_git('rev-list --first-parent --reverse HEAD..origin/main');
+            if ($rev !== '' && strpos($rev, 'fatal') === false) {
+                $lines = preg_split('/\r?\n/', trim($rev));
+                if ($lines && preg_match('/^[0-9a-f]{40}$/i', $lines[0])) $next = $lines[0];
+            }
+            rc_json(['success' => true, 'prev' => $prev, 'next' => $next]);
+        }
+
         case 'progress': {
             $p = [];
             $pf = rescue_progress_path();
@@ -129,9 +142,27 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             rc_json(['success' => true] + $p);
         }
 
+        case 'repair_scan': {
+            // 列出与 HEAD 不一致的跟踪文件（内部文件被改 / 被删 / 损坏）
+            $out = rescue_git("-c core.quotepath=false status --porcelain -- . ':!config' ':!data' ':!bkup' ':!maintenance/config.php' ':!rescue'");
+            if (strpos($out, 'fatal:') !== false) rc_json(['success' => false, 'error' => substr($out, 0, 200)]);
+            $files = [];
+            foreach (preg_split('/\r?\n/', $out) as $line) {
+                if ($line === '') continue;
+                $code = trim(substr($line, 0, 2));
+                $path = ltrim(substr($line, 2));
+                if ($path === '' || $path[0] === '"') $path = trim($path, '"'); // quotepath 关闭后仍兜底
+                if ($path === '') continue;
+                $files[] = ['code' => $code, 'path' => $path];
+            }
+            rc_json(['success' => true, 'files' => $files]);
+        }
+
         case 'perform_upgrade':
-        case 'perform_downgrade': {
+        case 'perform_downgrade':
+        case 'perform_repair': {
             $isUp = ($action === 'perform_upgrade');
+            $isRepair = ($action === 'perform_repair');
             $pwd  = (string)($_POST['password'] ?? '');
             $mu   = trim((string)($_POST['maint_user'] ?? ''));
             $mp   = (string)($_POST['maint_pass'] ?? '');
@@ -168,21 +199,38 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             // 3) 维护凭据（文件级）
             if (!rescue_verify_creds($mu, $mp)) rc_json(['success' => false, 'error' => rt('err_maint_wrong')]);
 
-            // 4) 降级：目标 commit 必须存在
-            if (!$isUp) {
+            // 4) 目标 commit 校验：repair 无目标；降级必填；升级可选（空 = 最新 main）
+            if ($isRepair) {
+                // 修复：目标固定为当前 HEAD
+            } elseif (!$isUp) {
                 if ($tgt === '') rc_json(['success' => false, 'error' => rt('all_fields_required')]);
                 $t = trim(rescue_git('cat-file -t ' . escapeshellarg($tgt)));
                 if ($t !== 'commit') rc_json(['success' => false, 'error' => rt('dg_load_failed') . ' (invalid target)']);
+            } elseif ($tgt !== '') {
+                $t = trim(rescue_git('cat-file -t ' . escapeshellarg($tgt)));
+                if ($t !== 'commit') {
+                    // 本地还没有这个对象？可能是远端最新——允许它，worker fetch 后即可用
+                    $remote = rescue_git('ls-remote origin main');
+                    $remoteSha = '';
+                    if (preg_match('/^([0-9a-f]{40})\s+/im', $remote, $m)) $remoteSha = strtolower($m[1]);
+                    if ($remoteSha === '' || $remoteSha !== strtolower($tgt)) {
+                        rc_json(['success' => false, 'error' => rt('dg_load_failed') . ' (invalid target)']);
+                    }
+                }
             }
 
             // 5) 置锁 + 启动后台 worker
-            @file_put_contents(rescue_lock_path(), json_encode(['type' => $isUp ? 'upgrade' : 'downgrade', 'started' => time()]));
-            @file_put_contents(rescue_progress_path(), json_encode(['status' => 'pending', 'type' => $isUp ? 'upgrade' : 'downgrade', 'step' => 'Starting…', 'pct' => 0, 'from' => trim($head)]));
+            $modetype = $isRepair ? 'repair' : ($isUp ? 'upgrade' : 'downgrade');
+            $workerArgs = $modetype;
+            if ($isUp && $tgt !== '') $workerArgs .= ' ' . escapeshellarg($tgt);
+            if (!$isUp && !$isRepair) $workerArgs .= ' ' . escapeshellarg($tgt);
+            @file_put_contents(rescue_lock_path(), json_encode(['type' => $modetype, 'started' => time()]));
+            @file_put_contents(rescue_progress_path(), json_encode(['status' => 'pending', 'type' => $modetype, 'step' => 'Starting…', 'pct' => 0, 'from' => trim($head)]));
             $workerLog = rescue_root() . '/data/rescue_worker.log';
             @file_put_contents($workerLog, '');
             $cmd = 'cd ' . escapeshellarg(rescue_root())
                  . ' && nohup ' . escapeshellarg(rescue_php_binary()) . ' ' . escapeshellarg(__DIR__ . '/worker.php')
-                 . ' ' . ($isUp ? 'upgrade' : 'downgrade ' . escapeshellarg($tgt))
+                 . ' ' . $workerArgs
                  . ' >> ' . escapeshellarg($workerLog) . ' 2>&1 &';
             @exec($cmd);
             if (!is_file(rescue_progress_path())) rc_json(['success' => false, 'error' => rt('err_spawn')]);
@@ -205,7 +253,7 @@ if (!$__authed):
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title><?php echo rt('login_h1'); ?> — ChatApp</title><link rel="stylesheet" href="../css/global.css">
+<title><?php echo rt('login_h1'); ?> — ChatApp</title><link rel="stylesheet" href="css/global.css">
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -341,8 +389,8 @@ $__diskTxt = ($__disk === false) ? '?' : number_format($__disk / 1073741824, 2) 
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title><?php echo rt('rescue_name'); ?> — ChatApp</title>
-<link rel="stylesheet" href="../css/global.css">
-<link rel="stylesheet" href="../modern/style/chat.css?v=<?php echo time();?>">
+<link rel="stylesheet" href="css/global.css?v=<?php echo time();?>">
+<link rel="stylesheet" href="css/chat.css?v=<?php echo time();?>">
 <style>
   html,body{height:100%;margin:0;background:#222}
   .portal{padding:18px 22px;overflow-y:auto;flex:1}
@@ -365,11 +413,15 @@ $__diskTxt = ($__disk === false) ? '?' : number_format($__disk / 1073741824, 2) 
   .pfield input[type=text],.pfield input[type=password],.pfield select{width:100%;max-width:360px;padding:8px 12px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-size:.85em;font-family:inherit;outline:none;border-radius:0}
   .pfield input:focus,.pfield select:focus{border-color:#4a6a8e}
   /* 降级：可搜索版本下拉 */
-  .dg-list{position:absolute;top:100%;left:0;width:100%;max-width:360px;max-height:340px;overflow-y:auto;background:#161616;border:1px solid #444;z-index:50;font-size:.8em;font-family:monospace}
+  .dg-list{position:absolute;top:100%;left:0;width:100%;max-width:620px;max-height:60vh;overflow-y:auto;background:#161616;border:1px solid #444;z-index:50;font-size:.8em;font-family:monospace}
   .dg-item{padding:7px 12px;cursor:pointer;border-bottom:1px solid #242424;color:#bbb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .dg-item:hover{background:#2a3a4e;color:#fff}
+  .dg-item:hover{background:#2a3a4e;color:#fff;white-space:normal;word-break:break-all}
   .dg-item.sel{background:#2e4a6e;color:#fff}
   .dg-empty{padding:10px 12px;color:#777}
+  /* repair：问题文件列表 */
+  .rp-row{display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-bottom:1px dashed #2f2f2f;font-size:.78em;font-family:monospace}
+  .rp-tag{flex-shrink:0;padding:1px 8px;border:1px solid #8a3a3a;color:#ff9a9a;min-width:56px;text-align:center}
+  .rp-path{color:#c8c8c8;word-break:break-all}
   .pcheck{display:flex;align-items:center;gap:8px;color:#bbb;font-size:.84em;padding:6px 0;cursor:pointer}
   .pcheck input{width:16px;height:16px;accent-color:#4a8a6a}
   .ok-dot{display:inline-block;width:9px;height:9px;border-radius:0;margin-right:6px;vertical-align:1px}
@@ -406,6 +458,7 @@ $__diskTxt = ($__disk === false) ? '?' : number_format($__disk / 1073741824, 2) 
     <div class="ng"><div class="ngh" onclick="showPanel('dash')" style="cursor:pointer"><span><?php echo rt('nav_dash'); ?></span></div></div>
     <div class="ng"><div class="ngh" onclick="showPanel('upgrade')" style="cursor:pointer"><span><?php echo rt('nav_upgrade'); ?></span></div></div>
     <div class="ng"><div class="ngh" onclick="showPanel('downgrade')" style="cursor:pointer"><span><?php echo rt('nav_downgrade'); ?></span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('repair')" style="cursor:pointer"><span><?php echo rt('nav_repair'); ?></span></div></div>
   </div>
   <div class="sidebar-footer">
     <div class="lang-pick"><span><?php echo rt('lang_label'); ?></span><?php echo rescue_lang_select(''); ?></div>
@@ -448,6 +501,16 @@ $__diskTxt = ($__disk === false) ? '?' : number_format($__disk / 1073741824, 2) 
         <div class="prow"><span class="k"><?php echo rt('k_current'); ?></span><span class="v" id="upCur" style="user-select:all"><?php echo htmlspecialchars(substr($__appGit, 0, 12) ?: '?'); ?></span></div>
         <div class="prow"><span class="k"><?php echo rt('k_remote'); ?></span><span class="v" id="upRem" style="user-select:all">—</span></div>
         <div style="margin-top:10px"><button class="pbtn gray" id="upCheckBtn" onclick="upCheck()"><?php echo rt('btn_check'); ?></button></div>
+        <div class="pfield" style="margin-top:14px;position:relative">
+          <label><?php echo rt('lbl_target_optional'); ?></label>
+          <input type="text" id="upSearch" placeholder="<?php echo rt('dg_search_ph'); ?>" autocomplete="off" oninput="upOnInput()" onfocus="upOnFocus()">
+          <div class="dg-list" id="upList" style="display:none"></div>
+        </div>
+        <div class="note" id="upSelInfo" style="display:none"></div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="pbtn gray" onclick="upPickLatest()"><?php echo rt('btn_latest'); ?></button>
+          <button class="pbtn gray" onclick="upPickNext()"><?php echo rt('btn_next_ver'); ?></button>
+        </div>
       </div>
       <div class="pcard">
         <?php if (!$__adminGate['ok']): ?>
@@ -483,6 +546,7 @@ $__diskTxt = ($__disk === false) ? '?' : number_format($__disk / 1073741824, 2) 
           <div class="dg-list" id="dgList" style="display:none"></div>
         </div>
         <div class="note" id="dgSelInfo" style="display:none"></div>
+        <div style="margin-top:8px"><button class="pbtn gray" onclick="dgPickPrev()"><?php echo rt('btn_prev_ver'); ?></button></div>
       </div>
       <div class="pcard">
         <?php if (!$__adminGate['ok']): ?>
@@ -500,6 +564,37 @@ $__diskTxt = ($__disk === false) ? '?' : number_format($__disk / 1073741824, 2) 
           <div id="dgStep" style="color:#e08a80;font-weight:700;font-size:.84em;margin-bottom:6px"></div>
           <div class="progbar"><div id="dgBar"></div></div>
           <div id="dgPct" style="color:#888;font-size:.78em;margin-top:4px">0%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-repair">
+    <div class="ch"><h2><?php echo rt('nav_repair'); ?></h2><span style="color:#e0a040;font-size:.75em;margin-left:12px"><?php echo rt('badge_rescue'); ?></span></div>
+    <div class="portal">
+      <div class="pcard">
+        <h3><?php echo rt('repair_card'); ?></h3>
+        <div class="note" style="margin:0 0 10px"><?php echo rt('repair_note'); ?></div>
+        <button class="pbtn gray" id="rpScanBtn" onclick="rpScan()"><?php echo rt('btn_scan'); ?></button>
+        <div id="rpResult" style="margin-top:12px"></div>
+      </div>
+      <div class="pcard">
+        <div class="prow"><span class="k"><?php echo rt('k_current'); ?></span><span class="v" style="user-select:all"><?php echo htmlspecialchars(substr($__appGit, 0, 12) ?: '?'); ?></span></div>
+        <?php if (!$__adminGate['ok']): ?>
+        <div class="dnote" style="margin-top:10px">⚠ <?php echo rt($__adminNoteKey); ?></div>
+        <?php else: ?>
+        <div class="pfield" style="margin-top:10px"><label><?php echo rt('lbl_admin_pwd'); ?></label><input type="password" id="rpPwd" autocomplete="off"></div>
+        <?php endif; ?>
+        <div class="pfield"><label><?php echo rt('lbl_m_user'); ?></label><input type="text" id="rpMUser" autocomplete="off"></div>
+        <div class="pfield"><label><?php echo rt('lbl_m_pass'); ?></label><input type="password" id="rpMPass" autocomplete="off"></div>
+        <div class="pfield"><label><?php echo rt('lbl_git1'); ?></label><input type="text" id="rpH1" spellcheck="false" placeholder="git rev-parse HEAD"></div>
+        <div class="pfield"><label><?php echo rt('lbl_git2'); ?></label><input type="text" id="rpH2" spellcheck="false"></div>
+        <label class="pcheck"><input type="checkbox" id="rpRisk"> <?php echo rt('chk_repair_risk'); ?></label>
+        <div style="margin-top:10px"><button class="pbtn green" id="rpRunBtn" onclick="rpRun()"><?php echo rt('btn_repair_now'); ?></button></div>
+        <div class="progwrap" id="rpProgWrap" style="display:none">
+          <div id="rpStep" style="color:#6fa8dc;font-weight:700;font-size:.84em;margin-bottom:6px"></div>
+          <div class="progbar"><div id="rpBar"></div></div>
+          <div id="rpPct" style="color:#888;font-size:.78em;margin-top:4px">0%</div>
         </div>
       </div>
     </div>
@@ -535,7 +630,8 @@ function showPanel(name){
   var p = $('panel-' + name);
   if (p) p.classList.add('active');
   if (name === 'dash') refreshStatus();
-  if (name === 'downgrade' && !dgLoaded) dgLoad();
+  if (name === 'upgrade' && !upk.loaded) upk.load();
+  if (name === 'downgrade' && !dgk.loaded) dgk.load();
 }
 function doLogout(){ api('logout', [], function(){ location.reload(); }); }
 function refreshStatus(){
@@ -568,6 +664,7 @@ function upRun(){
     git_hash: $('upH1').value.trim(),
     git_hash2: $('upH2').value.trim()
   };
+  if (upk.target) data.target = upk.target;
   if ($('upPwd')) data.password = $('upPwd').value;
   $('upRunBtn').disabled = true;
   api('perform_upgrade', data, function(d){
@@ -599,69 +696,92 @@ function upPoll(){
   });
 }
 
-/* ---- 降级：可搜索版本下拉（默认 250 条；搜索不限条数） ---- */
-var dgLoaded = false, dgTarget = '', dgTimer = null;
-function dgFetch(q){
-  api('dg_list', q ? { q: q } : [], function(d){
-    if (!d.success) { dgLoaded = false; return flash(d.error || RT.dg_load_failed, false); }
-    dgRender(d.versions);
-  });
-}
-function dgLoad(){ dgLoaded = true; dgFetch(''); }
-function dgRender(list){
-  var el = $('dgList');
-  el.innerHTML = '';
-  if (!list.length) {
-    var e = document.createElement('div');
-    e.className = 'dg-empty';
-    e.textContent = RT.dg_none;
-    el.appendChild(e);
-  } else {
-    for (var i = 0; i < list.length; i++) {
-      (function(v){
-        var it = document.createElement('div');
-        it.className = 'dg-item' + (v.h === dgTarget ? ' sel' : '');
-        it.textContent = v.h.slice(0, 10) + ' · ' + v.date.slice(0, 16) + ' · ' + v.subj.slice(0, 70);
-        it.title = v.h + '\n' + v.date + '\n' + v.subj;
-        it.addEventListener('mousedown', function(ev){ ev.preventDefault(); dgPick(v); });
-        el.appendChild(it);
-      })(list[i]);
+/* ---- 可搜索版本下拉（升级/降级共用工厂；默认 250 条，搜索不限条数） ---- */
+function mkPicker(prefix){
+  var P = { loaded: false, target: '', timer: null };
+  P.fetch = function(q){
+    api('dg_list', q ? { q: q } : [], function(d){
+      if (!d.success) { P.loaded = false; return flash(d.error || RT.dg_load_failed, false); }
+      P.render(d.versions);
+    });
+  };
+  P.load = function(){ P.loaded = true; P.fetch(''); };
+  P.render = function(list){
+    var el = $(prefix + 'List');
+    el.innerHTML = '';
+    if (!list.length) {
+      var e = document.createElement('div');
+      e.className = 'dg-empty';
+      e.textContent = RT.dg_none;
+      el.appendChild(e);
+    } else {
+      for (var i = 0; i < list.length; i++) {
+        (function(v){
+          var it = document.createElement('div');
+          it.className = 'dg-item' + (v.h === P.target ? ' sel' : '');
+          it.textContent = v.h.slice(0, 10) + ' · ' + v.date.slice(0, 16) + ' · ' + v.subj;
+          it.title = v.h + '\n' + v.date + '\n' + v.subj;
+          it.addEventListener('mousedown', function(ev){ ev.preventDefault(); P.pick(v); });
+          el.appendChild(it);
+        })(list[i]);
+      }
     }
-  }
-  el.style.display = 'block';
+    el.style.display = 'block';
+  };
+  P.pick = function(v){
+    P.target = v.h;
+    $(prefix + 'Search').value = v.h.slice(0, 10) + ' · ' + v.date.slice(0, 16) + ' · ' + v.subj;
+    $(prefix + 'List').style.display = 'none';
+    var info = $(prefix + 'SelInfo');
+    if (info) {
+      info.style.display = 'block';
+      info.innerHTML = RT.dg_picked + ': <b style="color:#9ecbff;user-select:all">' + v.h + '</b>';
+    }
+  };
+  P.onInput = function(){
+    P.target = ''; // 改动了搜索词 → 必须重新选一项
+    clearTimeout(P.timer);
+    var q = $(prefix + 'Search').value.trim();
+    P.timer = setTimeout(function(){ P.fetch(q); }, 250);
+  };
+  P.onFocus = function(){
+    if (!P.loaded) { P.load(); return; }
+    var el = $(prefix + 'List');
+    if (el && !el.innerHTML) { P.fetch(''); return; }
+    el.style.display = 'block';
+  };
+  P.pickByHash = function(h){
+    if (!h) return;
+    api('dg_list', { q: h.slice(0, 12) }, function(d){
+      if (!d.success || !d.versions || !d.versions.length) return flash(RT.net_err, false);
+      var pick = d.versions[0];
+      for (var i = 0; i < d.versions.length; i++) { if (d.versions[i].h === h) { pick = d.versions[i]; break; } }
+      P.pick(pick);
+    });
+  };
+  return P;
 }
-function dgPick(v){
-  dgTarget = v.h;
-  $('dgSearch').value = v.h.slice(0, 10) + ' · ' + v.date.slice(0, 16) + ' · ' + v.subj.slice(0, 60);
-  $('dgList').style.display = 'none';
-  var info = $('dgSelInfo');
-  info.style.display = 'block';
-  info.innerHTML = RT.dg_picked + ': <b style="color:#9ecbff;user-select:all">' + v.h + '</b>';
-}
-function dgOnInput(){
-  dgTarget = ''; // 改动了搜索词 → 必须重新选一项
-  clearTimeout(dgTimer);
-  var q = $('dgSearch').value.trim();
-  dgTimer = setTimeout(function(){ dgFetch(q); }, 250);
-}
-function dgOnFocus(){
-  if (!dgLoaded) { dgLoad(); return; }
-  var el = $('dgList');
-  if (el && !el.innerHTML) { dgFetch(''); return; }
-  el.style.display = 'block';
-}
+var upk = mkPicker('up');
+var dgk = mkPicker('dg');
+function upOnInput(){ upk.onInput(); }
+function upOnFocus(){ upk.onFocus(); }
+function dgOnInput(){ dgk.onInput(); }
+function dgOnFocus(){ dgk.onFocus(); }
 document.addEventListener('mousedown', function(ev){
-  var el = $('dgList');
-  if (!el || el.style.display === 'none') return;
-  if (ev.target === $('dgSearch') || (el && el.contains(ev.target))) return;
-  el.style.display = 'none';
+  var pairs = [['upSearch', 'upList'], ['dgSearch', 'dgList']];
+  for (var i = 0; i < pairs.length; i++) {
+    var el = $(pairs[i][1]);
+    if (!el || el.style.display === 'none') continue;
+    if (ev.target === $(pairs[i][0]) || el.contains(ev.target)) continue;
+    el.style.display = 'none';
+  }
 });
 var _dgPollT = null;
 function dgRun(){
-  if (!dgTarget) return flash(RT.dg_pick_first, false);
+  if (!dgk.target) return flash(RT.dg_pick_first, false);
   if (!$('dgRisk').checked) return flash(RT.chk_dg_risk, false);
   var data = {
-    target: dgTarget,
+    target: dgk.target,
     maint_user: $('dgMUser').value.trim(),
     maint_pass: $('dgMPass').value,
     git_hash: $('dgH1').value.trim(),
@@ -698,11 +818,118 @@ function dgPoll(){
   });
 }
 
+/* ---- 升级快捷：最新版 / 升一级 ---- */
+function upPickLatest(){
+  api('check_update', [], function(d){
+    if (!d.success || !d.remote) return flash(RT.net_err, false);
+    $('upCur').textContent = d.current || '?';
+    $('upRem').textContent = d.remote || '?';
+    if (d.remote === d.current) return flash(RT.up_to_date, true);
+    upk.pickByHash(d.remote);
+  });
+}
+function upPickNext(){
+  api('adjacent', [], function(d){
+    if (!d.success) return flash(RT.net_err, false);
+    if (!d.next) return flash(RT.up_no_next, true);
+    upk.pickByHash(d.next);
+  });
+}
+/* ---- 降级快捷：降一级 ---- */
+function dgPickPrev(){
+  api('adjacent', [], function(d){
+    if (!d.success) return flash(RT.net_err, false);
+    if (!d.prev) return flash(RT.dg_no_prev, true);
+    dgk.pickByHash(d.prev);
+  });
+}
+
+/* ---- 修复（Repair）：把跟踪文件恢复到当前 HEAD 版本 ---- */
+var _rpPollT = null;
+function rpScan(){
+  var btn = $('rpScanBtn');
+  btn.disabled = true; btn.textContent = RT.btn_checking;
+  api('repair_scan', [], function(d){
+    btn.disabled = false; btn.textContent = RT.btn_scan;
+    if (!d.success) return flash(d.error || RT.net_err, false);
+    var el = $('rpResult');
+    el.innerHTML = '';
+    if (!d.files.length) {
+      var ok = document.createElement('div');
+      ok.className = 'note';
+      ok.style.color = '#7ddb9a';
+      ok.textContent = RT.repair_none;
+      el.appendChild(ok);
+      return;
+    }
+    var head = document.createElement('div');
+    head.className = 'note';
+    head.textContent = RT.repair_found.replace('%s', d.files.length);
+    el.appendChild(head);
+    var stMap = { 'M': RT.st_m, 'D': RT.st_d, 'R': RT.st_r, 'C': RT.st_c, 'A': RT.st_a, 'U': RT.st_u, '??': RT.st_n };
+    for (var i = 0; i < d.files.length; i++) {
+      var f = d.files[i];
+      var row = document.createElement('div');
+      row.className = 'rp-row';
+      var tag = document.createElement('span');
+      tag.className = 'rp-tag';
+      tag.textContent = stMap[f.code] || f.code;
+      var pth = document.createElement('span');
+      pth.className = 'rp-path';
+      pth.textContent = f.path;
+      row.appendChild(tag); row.appendChild(pth);
+      el.appendChild(row);
+    }
+  });
+}
+function rpRun(){
+  if (!$('rpRisk').checked) return flash(RT.chk_repair_risk, false);
+  var data = {
+    maint_user: $('rpMUser').value.trim(),
+    maint_pass: $('rpMPass').value,
+    git_hash: $('rpH1').value.trim(),
+    git_hash2: $('rpH2').value.trim()
+  };
+  if ($('rpPwd')) data.password = $('rpPwd').value;
+  $('rpRunBtn').disabled = true;
+  api('perform_repair', data, function(d){
+    if (!d.success) { $('rpRunBtn').disabled = false; return flash(d.error || RT.repair_failed, false); }
+    $('rpProgWrap').style.display = 'block';
+    $('rpStep').textContent = RT.repair_started;
+    flash(RT.repair_started, true);
+    rpPoll();
+  });
+}
+function rpPoll(){
+  api('progress', [], function(d){
+    if (d.step) $('rpStep').textContent = d.step;
+    if (typeof d.pct === 'number') { $('rpBar').style.width = d.pct + '%'; $('rpPct').textContent = d.pct + '%'; }
+    if (d.status === 'done') {
+      $('rpStep').textContent = RT.repair_done + (d.msg ? ' · ' + d.msg : '');
+      $('rpBar').style.width = '100%'; $('rpPct').textContent = '100%';
+      flash(RT.repair_done, true);
+      $('rpRunBtn').disabled = false;
+      setTimeout(rpScan, 800); // 修完自动再检查一遍
+      return;
+    }
+    if (d.status === 'error') {
+      $('rpStep').textContent = RT.repair_failed;
+      $('rpRunBtn').disabled = false;
+      flash(d.msg || RT.repair_failed, false);
+      return;
+    }
+    _rpPollT = setTimeout(rpPoll, 1200);
+  });
+}
+
 /* 打开时若有正在进行的任务 → 自动接上进度轮询 */
 api('progress', [], function(d){
   if (!d.locked) return;
-  if ((d.type || '') === 'downgrade') {
+  var t = d.type || 'upgrade';
+  if (t === 'downgrade') {
     showPanel('downgrade'); $('dgProgWrap').style.display = 'block'; dgPoll();
+  } else if (t === 'repair') {
+    showPanel('repair'); $('rpProgWrap').style.display = 'block'; rpPoll();
   } else {
     showPanel('upgrade'); $('upProgWrap').style.display = 'block'; upPoll();
   }

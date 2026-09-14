@@ -2,8 +2,9 @@
 /**
  * ChatApp · Rescue Panel 后台 worker（自包含，不依赖 api/ 与 maintenance/ 代码）
  *
- * 用法: php worker.php upgrade
+ * 用法: php worker.php upgrade [commit]   （不带 commit = 拉最新 origin/main）
  *       php worker.php downgrade <commit>
+ *       php worker.php repair             （把跟踪文件恢复到当前 HEAD，版本不变）
  *
  * 由 rescue/index.php spawn（nohup php worker.php ... &）。
  * 步骤：git fetch（流式进度）→ checkout（排除 config/data/bkup/maintenance/config.php
@@ -39,8 +40,8 @@ function rc_fail(string $step, string $detail, ?string $from, ?string $to = null
     exit;
 }
 
-if (!in_array($mode, ['upgrade', 'downgrade'], true)) {
-    rc_fail('Bad mode', 'usage: worker.php upgrade|downgrade [commit]', null);
+if (!in_array($mode, ['upgrade', 'downgrade', 'repair'], true)) {
+    rc_fail('Bad mode', 'usage: worker.php upgrade [commit]|downgrade <commit>|repair', null);
 }
 
 [$head0] = rc_shell('git rev-parse HEAD');
@@ -49,6 +50,17 @@ if ($head0 === '') rc_fail('Git unavailable', 'git rev-parse failed (not a git r
 
 // 排除项：config/data/bkup 保留；maintenance 只护 config.php；rescue 永不改动
 $EXCLUDES = "':!config' ':!data' ':!bkup' ':!maintenance/config.php' ':!rescue'";
+
+// ---- repair：把跟踪文件恢复到当前 HEAD（不 fetch、不换版本） ----
+if ($mode === 'repair') {
+    rc_progress('running', 'Repairing files…', 30, '', $head0);
+    [$co, $rc] = rc_shell("git checkout --force HEAD -- . $EXCLUDES");
+    if ($rc !== 0) rc_fail('Repair failed', substr($co, 0, 300), $head0);
+    rc_progress('done', 'Repair complete', 100, '', $head0, $head0);
+    @unlink($lock);
+    echo "DONE repair\n";
+    exit;
+}
 
 if ($mode === 'upgrade') {
     rc_progress('running', 'Fetching update…', 3, '', $head0);
@@ -73,9 +85,11 @@ if ($mode === 'upgrade') {
     }
 
     rc_progress('running', 'Applying update…', 88, '', $head0);
-    [$co, $rc] = rc_shell("git checkout --force origin/main -- . $EXCLUDES");
-    if ($rc !== 0) rc_fail('Upgrade failed', mb_substr($co, 0, 300), $head0);
-    rc_shell('git reset --soft origin/main');
+    // 升级目标：默认 origin/main（最新）；也可指定具体 commit（界面“指定目标版本”）
+    $coRef = ($target !== '') ? escapeshellarg($target) : 'origin/main';
+    [$co, $rc] = rc_shell("git checkout --force $coRef -- . $EXCLUDES");
+    if ($rc !== 0) rc_fail('Upgrade failed', substr($co, 0, 300), $head0);
+    rc_shell('git reset --soft ' . $coRef);
     [$head1] = rc_shell('git rev-parse HEAD');
     $head1 = trim($head1);
 
@@ -95,7 +109,7 @@ if (trim($t) !== 'commit') rc_fail('Downgrade failed', 'Target commit not found:
 
 rc_progress('running', 'Applying downgrade…', 60, '', $head0, trim($target));
 [$co, $rc] = rc_shell("git checkout --force " . escapeshellarg($target) . " -- . $EXCLUDES");
-if ($rc !== 0) rc_fail('Downgrade failed', mb_substr($co, 0, 300), $head0, trim($target));
+if ($rc !== 0) rc_fail('Downgrade failed', substr($co, 0, 300), $head0, trim($target));
 rc_shell('git reset --soft ' . escapeshellarg($target));
 [$head1] = rc_shell('git rev-parse HEAD');
 $head1 = trim($head1);
