@@ -89,12 +89,34 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         }
 
         case 'dg_list': {
-            $out = rescue_git('log --format=%H%x09%ci%x09%s -n 60');
+            $q = trim((string)($_POST['q'] ?? ''));
+            if ($q === '') {
+                // 默认列表：至少 250 条
+                $out = rescue_git('log --format=%H%x09%ci%x09%s -n 250');
+            } else {
+                // 搜索：不限条数（--grep 只返回命中；-F 纯文本、-i 忽略大小写）
+                $out = rescue_git('log --format=%H%x09%ci%x09%s -i -F --grep=' . escapeshellarg($q));
+            }
             $list = [];
+            $seen = [];
             foreach (explode("\n", $out) as $line) {
                 $parts = explode("\t", $line, 3);
                 if (count($parts) < 3) continue;
-                $list[] = ['h' => trim($parts[0]), 'date' => trim($parts[1]), 'subj' => trim($parts[2])];
+                $h = trim($parts[0]);
+                $seen[$h] = true;
+                $list[] = ['h' => $h, 'date' => trim($parts[1]), 'subj' => trim($parts[2])];
+            }
+            // 搜索词像 hash 前缀 → 把该 commit 本身插到最前（--grep 搜不到 hash）
+            if ($q !== '' && preg_match('/^[0-9a-f]{4,40}$/i', $q)) {
+                $full = strtolower($q);
+                $t = trim(rescue_git('cat-file -t ' . escapeshellarg($full)));
+                if ($t === 'commit') {
+                    [$one] = [rescue_git('log --format=%H%x09%ci%x09%s -n 1 ' . escapeshellarg($full))];
+                    $parts = explode("\t", $one, 3);
+                    if (count($parts) >= 3 && !isset($seen[trim($parts[0])])) {
+                        array_unshift($list, ['h' => trim($parts[0]), 'date' => trim($parts[1]), 'subj' => trim($parts[2])]);
+                    }
+                }
             }
             rc_json(['success' => true, 'versions' => $list]);
         }
@@ -342,6 +364,12 @@ $__diskTxt = ($__disk === false) ? '?' : number_format($__disk / 1073741824, 2) 
   .pfield label{display:block;color:#999;font-size:.76em;margin-bottom:5px}
   .pfield input[type=text],.pfield input[type=password],.pfield select{width:100%;max-width:360px;padding:8px 12px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-size:.85em;font-family:inherit;outline:none;border-radius:0}
   .pfield input:focus,.pfield select:focus{border-color:#4a6a8e}
+  /* 降级：可搜索版本下拉 */
+  .dg-list{position:absolute;top:100%;left:0;width:100%;max-width:360px;max-height:340px;overflow-y:auto;background:#161616;border:1px solid #444;z-index:50;font-size:.8em;font-family:monospace}
+  .dg-item{padding:7px 12px;cursor:pointer;border-bottom:1px solid #242424;color:#bbb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dg-item:hover{background:#2a3a4e;color:#fff}
+  .dg-item.sel{background:#2e4a6e;color:#fff}
+  .dg-empty{padding:10px 12px;color:#777}
   .pcheck{display:flex;align-items:center;gap:8px;color:#bbb;font-size:.84em;padding:6px 0;cursor:pointer}
   .pcheck input{width:16px;height:16px;accent-color:#4a8a6a}
   .ok-dot{display:inline-block;width:9px;height:9px;border-radius:0;margin-right:6px;vertical-align:1px}
@@ -449,7 +477,12 @@ $__diskTxt = ($__disk === false) ? '?' : number_format($__disk / 1073741824, 2) 
         <h3><?php echo rt('dg_card'); ?></h3>
         <div class="dnote">⚠ <?php echo rt('dg_note'); ?></div>
         <div class="prow"><span class="k"><?php echo rt('k_current'); ?></span><span class="v" style="user-select:all"><?php echo htmlspecialchars(substr($__appGit, 0, 12) ?: '?'); ?></span></div>
-        <div class="pfield" style="margin-top:10px"><label><?php echo rt('lbl_target'); ?></label><select id="dgSel"><option value=""><?php echo rt('dg_ph_loading'); ?></option></select></div>
+        <div class="pfield" style="margin-top:10px;position:relative">
+          <label><?php echo rt('lbl_target'); ?></label>
+          <input type="text" id="dgSearch" placeholder="<?php echo rt('dg_search_ph'); ?>" autocomplete="off" oninput="dgOnInput()" onfocus="dgOnFocus()">
+          <div class="dg-list" id="dgList" style="display:none"></div>
+        </div>
+        <div class="note" id="dgSelInfo" style="display:none"></div>
       </div>
       <div class="pcard">
         <?php if (!$__adminGate['ok']): ?>
@@ -566,29 +599,69 @@ function upPoll(){
   });
 }
 
-/* ---- 降级 ---- */
-var dgLoaded = false;
-function dgLoad(){
-  dgLoaded = true;
-  api('dg_list', [], function(d){
+/* ---- 降级：可搜索版本下拉（默认 250 条；搜索不限条数） ---- */
+var dgLoaded = false, dgTarget = '', dgTimer = null;
+function dgFetch(q){
+  api('dg_list', q ? { q: q } : [], function(d){
     if (!d.success) { dgLoaded = false; return flash(d.error || RT.dg_load_failed, false); }
-    var sel = $('dgSel'); sel.innerHTML = '';
-    for (var i = 0; i < d.versions.length; i++) {
-      var v = d.versions[i];
-      var o = document.createElement('option');
-      o.value = v.h;
-      o.textContent = v.h.slice(0, 10) + ' · ' + v.date.slice(0, 16) + ' · ' + v.subj.slice(0, 60);
-      sel.appendChild(o);
-    }
+    dgRender(d.versions);
   });
 }
+function dgLoad(){ dgLoaded = true; dgFetch(''); }
+function dgRender(list){
+  var el = $('dgList');
+  el.innerHTML = '';
+  if (!list.length) {
+    var e = document.createElement('div');
+    e.className = 'dg-empty';
+    e.textContent = RT.dg_none;
+    el.appendChild(e);
+  } else {
+    for (var i = 0; i < list.length; i++) {
+      (function(v){
+        var it = document.createElement('div');
+        it.className = 'dg-item' + (v.h === dgTarget ? ' sel' : '');
+        it.textContent = v.h.slice(0, 10) + ' · ' + v.date.slice(0, 16) + ' · ' + v.subj.slice(0, 70);
+        it.title = v.h + '\n' + v.date + '\n' + v.subj;
+        it.addEventListener('mousedown', function(ev){ ev.preventDefault(); dgPick(v); });
+        el.appendChild(it);
+      })(list[i]);
+    }
+  }
+  el.style.display = 'block';
+}
+function dgPick(v){
+  dgTarget = v.h;
+  $('dgSearch').value = v.h.slice(0, 10) + ' · ' + v.date.slice(0, 16) + ' · ' + v.subj.slice(0, 60);
+  $('dgList').style.display = 'none';
+  var info = $('dgSelInfo');
+  info.style.display = 'block';
+  info.innerHTML = RT.dg_picked + ': <b style="color:#9ecbff;user-select:all">' + v.h + '</b>';
+}
+function dgOnInput(){
+  dgTarget = ''; // 改动了搜索词 → 必须重新选一项
+  clearTimeout(dgTimer);
+  var q = $('dgSearch').value.trim();
+  dgTimer = setTimeout(function(){ dgFetch(q); }, 250);
+}
+function dgOnFocus(){
+  if (!dgLoaded) { dgLoad(); return; }
+  var el = $('dgList');
+  if (el && !el.innerHTML) { dgFetch(''); return; }
+  el.style.display = 'block';
+}
+document.addEventListener('mousedown', function(ev){
+  var el = $('dgList');
+  if (!el || el.style.display === 'none') return;
+  if (ev.target === $('dgSearch') || (el && el.contains(ev.target))) return;
+  el.style.display = 'none';
+});
 var _dgPollT = null;
 function dgRun(){
-  var tgt = $('dgSel').value;
-  if (!tgt) return flash(RT.dg_load_failed, false);
+  if (!dgTarget) return flash(RT.dg_pick_first, false);
   if (!$('dgRisk').checked) return flash(RT.chk_dg_risk, false);
   var data = {
-    target: tgt,
+    target: dgTarget,
     maint_user: $('dgMUser').value.trim(),
     maint_pass: $('dgMPass').value,
     git_hash: $('dgH1').value.trim(),
