@@ -2,7 +2,7 @@
 /**
  * ChatApp · Downgrade System（降级，极度危险）
  * list   : 列出当前仓库全部 git 历史（可选版本）
- * perform: 三重验证 + 选目标 commit → git checkout 回退代码（排除 config/data/bkup/maintenance）
+ * perform: 三重验证 + 选目标 commit → git checkout 回退代码（排除 config/data/bkup 与 maintenance/config.php）
  * 注：实际操作基本不可逆（回退后数据库结构/功能可能与旧代码不兼容）。
  */
 require_once __DIR__ . '/config.php';
@@ -76,8 +76,8 @@ switch ($action) {
         $lock = $root . '/data/upgrade.lock';
         @file_put_contents($lock, json_encode(['type' => 'downgrade', 'started' => time(), 'by' => $_SESSION['username']]));
 
-        // 回退代码（排除 config/data/bkup/maintenance，保留配置与数据）
-        $coCmd = 'git checkout --force ' . escapeshellarg($target) . ' -- . \':!config\' \':!data\' \':!bkup\' \':!maintenance\'';
+        // 回退代码（config/data/bkup 保留；maintenance/ 也会回退，除了机器相关的 config.php）
+        $coCmd = 'git checkout --force ' . escapeshellarg($target) . ' -- . \':!config\' \':!data\' \':!bkup\' \':!maintenance/config.php\'';
         [$co, $rc] = dg_git($coCmd, $root);
         if ($rc !== 0) {
             @unlink($lock);

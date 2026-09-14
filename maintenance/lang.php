@@ -167,7 +167,7 @@ $MAINT_MT = [
         'links_note' => 'Danger operations (Upgrade / Downgrade / Factory Reset / Uninstall) are handled directly in this portal via the sidebar.',
         /* 升级 */
         'up_card' => 'Upgrade ChatApp',
-        'up_note' => 'Pulls from github.com/lqx211/ChatApp and overwrites code. config/ data/ maintenance/ are kept. Uncommitted changes will be overwritten.',
+        'up_note' => 'Pulls from github.com/lqx211/ChatApp and overwrites code. config/ and data/ are kept, and maintenance credentials are preserved. Uncommitted changes will be overwritten.',
         'k_branch' => 'Branch',
         'k_current' => 'Current',
         'k_remote' => 'Remote',
@@ -374,7 +374,7 @@ $MAINT_MT = [
         'links_note' => '危险操作（升级 / 降级 / 重置出厂 / 卸载）直接在左侧边栏对应面板里执行。',
         /* 升级 */
         'up_card' => '升级 ChatApp',
-        'up_note' => '从 github.com/lqx211/ChatApp 拉取并覆盖代码；config/ data/ maintenance/ 会保留。未提交的改动会被覆盖。',
+        'up_note' => '从 github.com/lqx211/ChatApp 拉取并覆盖代码；config/、data/ 会保留，维护凭据不会丢（maintenance/ 下的代码会正常更新）。未提交的改动会被覆盖。',
         'k_branch' => '分支',
         'k_current' => '当前',
         'k_remote' => '远程',

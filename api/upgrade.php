@@ -2,7 +2,7 @@
 /**
  * ChatApp · Upgrade System
  * check  : 检测本地与远程 git 版本差异
- * perform: 三重验证后从 origin 拉取并覆盖代码（排除 config/data/maintenance）
+ * perform: 三重验证后从 origin 拉取并覆盖代码（排除 config/data/bkup；维护凭据保留）
  */
 require_once __DIR__ . '/config.php';
 
