@@ -110,6 +110,8 @@ $RESCUE_MT = [
         'btn_next_ver'  => 'Next version',
         'btn_prev_ver'  => 'Previous version',
         'up_no_next'    => 'Already at the newest locally-fetched commit',
+        'up_none'       => 'No upgrade targets — already at the latest version',
+        'up_target_old' => 'That version is the current one or older — use the Downgrade panel instead (or Repair for the current version).',
         'dg_no_prev'    => 'Already at the very first commit',
         /* 修复 */
         'repair_card'   => 'Repair Internal Files',
@@ -224,6 +226,8 @@ $RESCUE_MT = [
         'btn_next_ver'  => '升一级',
         'btn_prev_ver'  => '降一级',
         'up_no_next'    => '已经是最新的了（本地已取到的最前沿）',
+        'up_none'       => '没有可升级的目标 —— 已经是最新版本',
+        'up_target_old' => '该版本不比当前新 —— 回到旧版请用降级面板（想修复当前版本用修复面板）。',
         'dg_no_prev'    => '已经是最早的提交了',
         /* 修复 */
         'repair_card'   => '修复内部文件',

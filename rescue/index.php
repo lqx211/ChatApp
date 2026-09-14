@@ -121,6 +121,26 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             rc_json(['success' => true, 'versions' => $list]);
         }
 
+        case 'up_list': {
+            // 升级目标列表：只列「比当前新」的提交（origin/main 上 HEAD 之后的）。
+            // 先 quiet fetch 拉新引用（带低速超时，断网/卡网 15s 内放弃）——失败就
+            // 退回本地记录的 origin/main。
+            $q = trim((string)($_POST['q'] ?? ''));
+            rescue_git('-c http.lowSpeedLimit=1000 -c http.lowSpeedTime=15 fetch --quiet origin main');
+            if ($q === '') {
+                $out = rescue_git('log --first-parent --format=%H%x09%ci%x09%s -n 250 origin/main ^HEAD');
+            } else {
+                $out = rescue_git('log --first-parent --format=%H%x09%ci%x09%s -i -F --grep=' . escapeshellarg($q) . ' origin/main ^HEAD');
+            }
+            $list = [];
+            foreach (explode("\n", $out) as $line) {
+                $parts = explode("\t", $line, 3);
+                if (count($parts) < 3) continue;
+                $list[] = ['h' => trim($parts[0]), 'date' => trim($parts[1]), 'subj' => trim($parts[2])];
+            }
+            rc_json(['success' => true, 'versions' => $list]);
+        }
+
         case 'adjacent': {
             // prev = HEAD 的父提交（降一级）；next = main 线上紧贴 HEAD 的下一提交（升一级）
             $prev = trim(rescue_git('rev-parse --verify HEAD^'));
@@ -223,6 +243,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                     if ($remoteSha === '' || $remoteSha !== strtolower($tgt)) {
                         rc_json(['success' => false, 'error' => rt('dg_load_failed') . ' (invalid target)']);
                     }
+                } else {
+                    // 升级目标必须「比当前新」：是当前或其祖先 → 那是降级/修复的活
+                    $outA = []; $rcA = -1;
+                    @exec('git -C ' . escapeshellarg(rescue_root()) . ' merge-base --is-ancestor ' . escapeshellarg($tgt) . ' HEAD 2>&1', $outA, $rcA);
+                    if ($rcA === 0) rc_json(['success' => false, 'error' => rt('up_target_old')]);
                 }
             }
 
@@ -704,10 +729,13 @@ function upPoll(){
 }
 
 /* ---- 可搜索版本下拉（升级/降级共用工厂；默认 250 条，搜索不限条数） ---- */
-function mkPicker(prefix){
-  var P = { loaded: false, target: '', timer: null };
+function mkPicker(prefix, opts){
+  opts = opts || {};
+  var P = { loaded: false, target: '', timer: null,
+            listAction: opts.listAction || 'dg_list',
+            emptyText: opts.emptyText || RT.dg_none };
   P.fetch = function(q){
-    api('dg_list', q ? { q: q } : [], function(d){
+    api(P.listAction, q ? { q: q } : [], function(d){
       if (!d.success) { P.loaded = false; return flash(d.error || RT.dg_load_failed, false); }
       P.render(d.versions);
     });
@@ -719,7 +747,7 @@ function mkPicker(prefix){
     if (!list.length) {
       var e = document.createElement('div');
       e.className = 'dg-empty';
-      e.textContent = RT.dg_none;
+      e.textContent = P.emptyText;
       el.appendChild(e);
     } else {
       for (var i = 0; i < list.length; i++) {
@@ -759,7 +787,7 @@ function mkPicker(prefix){
   };
   P.pickByHash = function(h){
     if (!h) return;
-    api('dg_list', { q: h.slice(0, 12) }, function(d){
+    api(P.listAction, { q: h.slice(0, 12) }, function(d){
       if (!d.success || !d.versions || !d.versions.length) return flash(RT.net_err, false);
       var pick = d.versions[0];
       for (var i = 0; i < d.versions.length; i++) { if (d.versions[i].h === h) { pick = d.versions[i]; break; } }
@@ -768,7 +796,7 @@ function mkPicker(prefix){
   };
   return P;
 }
-var upk = mkPicker('up');
+var upk = mkPicker('up', { listAction: 'up_list', emptyText: RT.up_none });
 var dgk = mkPicker('dg');
 function upOnInput(){ upk.onInput(); }
 function upOnFocus(){ upk.onFocus(); }
