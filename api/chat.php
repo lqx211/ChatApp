@@ -155,7 +155,10 @@ switch ($action) {
                 $stmt = $pdo->prepare("$sel WHERE m.id > ? AND ((m.sender_id=? AND m.recipient_id=?) OR (m.sender_id=? AND m.recipient_id=?)) ORDER BY m.id ASC");
                 $stmt->execute([$after, $myUid, $dmUid, $dmUid, $myUid]);
             } else {
-                $stmt = $pdo->prepare("$sel WHERE m.id > ? AND m.recipient_id IS NULL ORDER BY m.id ASC");
+                // 兜底：dm 传了但用户名解析不到（如对方已被删）→ 当公告页拉。
+                // ⚠️ 必须加 group_id IS NULL：群消息的 recipient_id 也是 NULL，
+                // 不加会把群聊内容泄到公告里（工单 #76）。
+                $stmt = $pdo->prepare("$sel WHERE m.id > ? AND m.recipient_id IS NULL AND m.group_id IS NULL ORDER BY m.id ASC");
                 $stmt->execute([$after]);
             }
         } else {
@@ -212,11 +215,14 @@ switch ($action) {
                 // Announcements panel (no dm partner): page over announcements
                 // ONLY. Mixing DMs into this feed buries old announcements once
                 // enough private messages accumulate, so users can't see them.
+                // ⚠️ 群消息的 recipient_id 也是 NULL（见 api/group.php 的 INSERT）——
+                // 不加 group_id IS NULL 的话，任何人发的群消息都会漏进所有人的
+                // 「布告全球」面板（工单 #76，还是隐私泄露）。
                 if ($before > 0) {
-                    $stmt = $pdo->prepare("$sel WHERE m.id < ? AND m.recipient_id IS NULL ORDER BY m.id DESC LIMIT ?");
+                    $stmt = $pdo->prepare("$sel WHERE m.id < ? AND m.recipient_id IS NULL AND m.group_id IS NULL ORDER BY m.id DESC LIMIT ?");
                     $stmt->execute([$before, $limit]);
                 } else {
-                    $stmt = $pdo->prepare("$sel WHERE m.recipient_id IS NULL ORDER BY m.id DESC LIMIT ?");
+                    $stmt = $pdo->prepare("$sel WHERE m.recipient_id IS NULL AND m.group_id IS NULL ORDER BY m.id DESC LIMIT ?");
                     $stmt->execute([$limit]);
                 }
             }
@@ -229,12 +235,16 @@ switch ($action) {
                     $cntStmt = $pdo->prepare("SELECT COUNT(*) FROM messages WHERE id < ? AND ((sender_id=? AND recipient_id=?) OR (sender_id=? AND recipient_id=?))");
                     $cntStmt->execute([$oldestId, $myId, $dmId, $dmId, $myId]);
                 } else {
-                    $cntStmt = $pdo->prepare("SELECT COUNT(*) FROM messages WHERE id < ? AND recipient_id IS NULL");
+                    $cntStmt = $pdo->prepare("SELECT COUNT(*) FROM messages WHERE id < ? AND recipient_id IS NULL AND group_id IS NULL");
                     $cntStmt->execute([$oldestId]);
                 }
                 $hasMore = ((int)$cntStmt->fetchColumn()) > 0;
             }
             $latestId = !empty($messages) ? end($messages)['id'] : ($after ?: 0);
+            // latest_id 语义 = 全局（非群）最新消息 id：客户端拿它校准 HTTP 轮询游标 L。
+            // 若传“公告频道最后一条的 id”，L 会落后于全库（旧私聊消息被反复拉回/误弹通知）。
+            $globalLatest = (int)$pdo->query("SELECT MAX(id) FROM messages WHERE group_id IS NULL")->fetchColumn();
+            if ($globalLatest > $latestId) $latestId = $globalLatest;
             echo json_encode(['success'=>true,'messages'=>$processed,'latest_id'=>$latestId,'has_more'=>$hasMore,'oldest_id'=>$oldestId]);
         }
         break;
