@@ -552,6 +552,25 @@ function db_add_column_if_missing(string $table, string $column, string $definit
 }
 
 /**
+ * 把列默认值纠正为期望值（仅当不一致时才 ALTER；$expected 是 SQL 字面量如 '0'，
+ * 调用方自控，不接受用户输入）。用于历史库：老版本建列时默认值可能和现在不一致
+ * （如 space_ears 老库默认 1，正确应为注册默认关闭 = 0）。
+ */
+function db_fix_column_default(string $table, string $column, string $expected): void {
+    $table = preg_replace('/[^a-zA-Z_]/', '', $table);
+    $column = preg_replace('/[^a-zA-Z_]/', '', $column);
+    try {
+        $stmt = db()->prepare('SELECT COLUMN_DEFAULT FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
+        $stmt->execute([$table, $column]);
+        $cur = $stmt->fetchColumn();
+        if ($cur === false || $cur === null) return; // 列不存在 → 交给 db_add_column_if_missing
+        if ((string)$cur !== $expected) {
+            db()->exec("ALTER TABLE `$table` ALTER COLUMN `$column` SET DEFAULT " . $expected);
+        }
+    } catch (\Throwable $e) { /* 尽力而为：无权限/竞态都不影响功能 */ }
+}
+
+/**
  * 机器人联系人（bots）需要的 users 列：幂等 + 每请求只查一次。
  * is_bot / bot_owner_uid / bot_persona —— 见 plan/bot-contacts.md。
  * bot_kind / bot_target_uid / bot_profile / bot_stats —— 伪人，见 plan/pseudo-human.md。
@@ -1288,6 +1307,8 @@ function init_db(): void {
     db_add_column_if_missing('users', 'pin_self', "TINYINT(1) NOT NULL DEFAULT 1");
     // ---- 个人空间：电脑版耳朵挂件开关（默认关，用户在 editinfo 手动开启） ----
     db_add_column_if_missing('users', 'space_ears', "TINYINT(1) NOT NULL DEFAULT 0");
+    // 历史库的列默认值可能是 1（老版本建的列）——注册默认关闭，自愈成 0
+    db_fix_column_default('users', 'space_ears', '0');
     db_add_column_if_missing('users', 'send_read_receipt', "TINYINT(1) NOT NULL DEFAULT 1");
     db_add_column_if_missing('users', 'view_read_receipt', "TINYINT(1) NOT NULL DEFAULT 1");
     // ---- 已读回执：消息级快照 messages.receipt_visible（NULL/1=显示，0=隐藏；发出后不再变） ----

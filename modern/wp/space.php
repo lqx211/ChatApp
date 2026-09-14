@@ -67,7 +67,7 @@ $pdo = db();
 ensure_space_albums_table();
 ensure_space_album_photos_table();
 ensure_space_visits_table();
-db_add_column_if_missing('users', 'space_ears', "TINYINT(1) NOT NULL DEFAULT 1");
+db_add_column_if_missing('users', 'space_ears', "TINYINT(1) NOT NULL DEFAULT 0");
 if ($hasViewUid) {
     $stmt = $pdo->prepare("SELECT username, display_name, user_id, avatar, custom_title, gender, gender_privacy, birthday, profile_bg_image, profile_bg_updated_at, level, exp, likes, created_at, dnd, enabled, placeholder, space_ears, restricted, role, deleted_at FROM users WHERE user_id = ?");
     $stmt->execute([$viewUid]);

@@ -12,7 +12,7 @@ $genderPrivacy = (int)($currentUser['gender_privacy'] ?? 0);
 $privacyLabels = [0 => t('e_privacy_all'), 1 => t('e_privacy_friends'), 2 => t('e_privacy_none')];
 $birthday = $currentUser['birthday'] ?? '';
 $location = $currentUser['location'] ?? '';
-$spaceEars = (int)($currentUser['space_ears'] ?? 1);
+$spaceEars = (int)($currentUser['space_ears'] ?? 0);
 
 function val($v, $placeholder = null) {
     if ($placeholder === null) $placeholder = t('e_not_set');
