@@ -11,8 +11,12 @@
  */
 
 /** 分析用的 system 提示词 */
-function bot_analyze_system(string $tName): string {
+function bot_analyze_system(string $tName, string $meName = ''): string {
+    $meTip = $meName !== ''
+        ? "记录里「{$tName}:」开头的每一行都是被分析的人（本人）说的；「我（{$meName}）:」开头的是和 ta 聊天的对方说的——**只分析「{$tName}」，不要把对方的话当成 ta 的**。\n"
+        : '';
     return "你是人物分析师。分析下面这段真实聊天记录里的「{$tName}」，输出**严格 JSON**（不要 markdown 围栏、不要前言后语、不要注释）。\n"
+        . $meTip
         . "字段：\n"
         . '{"summary":"一句话概括", "habits":["语言/行为习惯，5-12 条，要具体"], '
         . '"style":{"laugh":"笑声写法","address":"怎么称呼对方","punctuation":"标点习惯"}, '
@@ -118,7 +122,9 @@ function bot_json_call(callable $call, string $system, string $user, bool $strea
         if ($stream) sse_note(($empty ? '模型这次没吐出内容' : '输出像被截断了') . ($fin ? "（finish_reason={$fin}）" : '') . '，重问一次…');
         try {
             $raw2 = trim((string)$call(
-                $system . "\n\n【重要】只输出 JSON 对象本身：不要长篇分析，不要省略结尾，确保括号闭合。",
+                $system . "\n\n【重要】只输出 JSON 对象本身：不要长篇分析，不要省略结尾，确保括号闭合。"
+                    . "\n上一次输出" . ($empty ? '是空的' : '被长度限制截断了（finish_reason=length）')
+                    . "，这次务必**精简**：habits 最多 6 条、每条不超过 40 字；facts/emoji_meanings/taboos 各不超过 6 条；不要写思考过程或解释。",
                 $user,
                 false
             ));
@@ -286,8 +292,8 @@ function bot_profile_merge(array $prof, array $patch, int $depth = 0): array {
  *        $repair=true 表示这是修复轮：流式场景下别再往同一个 SSE 流里推原文
  * @return array{profile:?array, raw:string, repaired:bool, reason:?string}
  */
-function bot_analyze_run(callable $call, string $tName, array $stats, string $dialog, bool $stream = false): array {
-    $r = bot_json_call($call, bot_analyze_system($tName), bot_analyze_user($stats, $dialog), $stream);
+function bot_analyze_run(callable $call, string $tName, array $stats, string $dialog, bool $stream = false, string $meName = ''): array {
+    $r = bot_json_call($call, bot_analyze_system($tName, $meName), bot_analyze_user($stats, $dialog), $stream);
     return ['profile' => $r['data'], 'raw' => $r['raw'], 'repaired' => $r['repaired'], 'reason' => $r['reason']];
 }
 

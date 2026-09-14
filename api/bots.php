@@ -221,16 +221,21 @@ switch ($action) {
         }
 
         // LLM 调用：流式时把原文实时推给前端；修复轮不再推送（避免两段混在一起）
-        $call = function (string $sys, string $usr, bool $repair = false) use ($key, $arg, $wantStream) {
+        // 重试时自动抬预算：第一次 3000 不够（模型把 token 花在「思考」上会空输出，
+        // finish_reason=length）重问还是 3000 的话等于白试 —— 第二次给 7000 + 要求精简。
+        $callN = 0;
+        $call = function (string $sys, string $usr, bool $repair = false) use ($key, $arg, $wantStream, &$callN) {
             $relay = ($wantStream && !$repair) ? function () {} : null;
+            $callN++;
+            $mt = ($repair || $callN <= 1) ? 3000 : 7000;
             return bot_ds_call($key, (string)$arg('model'), [
                 ['role' => 'system', 'content' => $sys],
                 ['role' => 'user', 'content' => $usr],
-            ], ['temperature' => 0.3, 'max_tokens' => 3000, 'json' => true], $relay);
+            ], ['temperature' => 0.3, 'max_tokens' => $mt, 'json' => true], $relay);
         };
 
         try {
-            $res = bot_analyze_run($call, $tName, $stats, $dialog, $wantStream);
+            $res = bot_analyze_run($call, $tName, $stats, $dialog, $wantStream, $me);
         } catch (\Throwable $e) {
             if ($wantStream) {
                 echo "event: error\n";
@@ -1098,7 +1103,9 @@ function bot_sample_dialog(PDO $pdo, int $meUid, int $targetUid, string $tName, 
     $lines = [];
     $len = 0;
     foreach ($rows as $r) {
-        $who = ((int)$r['sender_id'] === $targetUid) ? $tName : $meName;
+        /* 标注铁律：目标那侧直接用名字；本人这侧写「我（名字）」——
+           两边都用光标名字容易让模型把「你」和「他」混成一个（工单 #86）。 */
+        $who = ((int)$r['sender_id'] === $targetUid) ? $tName : ('我（' . $meName . '）');
         $txt = trim((string)$r['message']);
         if ($txt === '' || in_array((string)$r['msg_type'], ['e2ee', 'temp', 'doodle', 'chatlog'], true)) continue;
         if (mb_strlen($txt) > 300) $txt = mb_substr($txt, 0, 300) . '…';
