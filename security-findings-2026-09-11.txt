@@ -1,0 +1,299 @@
+================================================================================
+ChatApp 安全审计报告 / Security Audit Findings
+Date: 2026-09-11
+Scope: api/* (32 endpoints), wss/wss_server.php, modern/ (chat.js, m.js, wp pages),
+       maintenance/ portal, tablet/ legacy app, filedown/, root files & scripts.
+Method: line-by-line static analysis + live HTTP verification
+        (localhost:8080 AND production https://chat.lqx211.com).
+================================================================================
+
+SUMMARY / 结论
+  CRITICAL : 5   (live-exploited on production, immediate action needed)
+  HIGH     : 6   (stored XSS family + cross-conversation message leak + forged evidence)
+  MEDIUM   : 10
+  LOW      : 9
+  Note     : No SQL injection found. No .php RCE write path found (MIME allowlist works).
+  IMPORTANT: The repository is publicly clonable and the DB dump is downloadable
+             RIGHT NOW on production -> treat as an active data breach.
+
+--------------------------------------------------------------------------------
+CRITICAL / 严重 (immediate action, mostly ops/deployment)
+--------------------------------------------------------------------------------
+
+[C1] Full database backup downloadable anonymously
+  Severity : CRITICAL (data breach)
+  Location : /ca-bkup-260802205538.sql (web root, 781 KB)
+             Origin: api/factory_reset.php writes "ca-db-bkup-*.sql" into $root
+                     (the docroot) after mysqldump.
+  Evidence : GET https://chat.lqx211.com/ca-bkup-260802205538.sql
+             -> 200 application/x-sql, 781,958 bytes. Contains INSERT INTO users
+             (bcrypt hashes), INSERT INTO messages (all DMs in plaintext),
+             contacts, login_logs, etc.
+  Fix      : (1) delete the file everywhere (prod + local + any mirror)
+             (2) change factory_reset.php backup path to outside docroot
+                 e.g. /var/backups/chatapp/ca-db-bkup-<ts>.sql
+             (3) Apache-wide deny for *.sql (see P0 config snippet below)
+
+[C2] .git fully exposed and clonable (source + full history)
+  Severity : CRITICAL
+  Location : /.git/ in docroot
+  Evidence : .git/HEAD 200; .git/logs/HEAD 200 (71 KB of commit metadata);
+             .git/objects/info/packs 200;
+             .git/info/refs?service=git-upload-pack 200 with ref advertisement
+             => smart HTTP works, anyone can `git clone https://host/.git`.
+  Risk     : any secret ever committed (keys, passwords, internal notes) leaks;
+             full source/history aids further attacks.
+  Fix      : (1) move .git out of docroot on the server
+                 (git --git-dir=/srv/chatapp.git --work-tree=/var/www/html)
+                 or Apache: LocationMatch ^/\.git -> Require all denied
+             (2) rotate every credential that ever appeared in the repo
+             (3) deploy with rsync excluding .git, *.sql, *.log, _*
+
+[C3] data/ directory served directly -> bypasses ALL PHP authorization
+  Severity : CRITICAL
+  Location : data/ (data/.htaccess exists but is NOT enforced by Apache,
+             AllowOverride is off on this host)
+  Evidence : GET /data/ticket/<file>.png -> 200 image/png (support screenshots,
+             designed admin-only via file.php);
+             /data/sc/<hash> -> 200 (flash-transfer files, bypasses temp.php
+             owner/recipient checks); /data/bgi/<uid>.private.png -> 200.
+  Risk     : tickets, attachments, private backgrounds, flash files readable
+             without auth if the filename is known/guessed.
+  Fix      : in Apache config (vhost or chatapp-security.conf):
+               <Directory /var/www/html/data>
+                   Require all denied
+               </Directory>
+               <Directory /var/www/html/data/res>
+                   Require all granted     # icons/emoji/wallpapers used inline
+               </Directory>
+             (PHP file access is unaffected; avatar.php/file.php keep working.)
+             Verify AllowOverride / conf-enabled state on every deploy target.
+
+[C4] _inspect_msg.php executes unauthenticated and prints DM content
+  Severity : CRITICAL (information disclosure)
+  Location : /_inspect_msg.php (no login check, only requires config.php)
+  Evidence : anonymous GET returned real message bodies:
+             "id=4041 sender=10155 bytes=4526 ... 开头80: ..."
+  Also     : _test_longmsg.php performs unauthenticated DB writes (creates temp
+             users + messages; self-cleans at the end, but aborted requests can
+             leave rows). _test_time_migration.php same class.
+             _spacing_test.html / _shot_code.png also in docroot.
+  Fix      : delete these dev files from the deployment; if kept locally add
+             a guard: if (PHP_SAPI!=='cli' && ...) { http_response_code(404); exit; }
+             and exclude _* from deploys (only .gitignore ignores them today,
+             the files are still ON DISK in production).
+
+[C5] tablet/ legacy login bypasses all modern login protections
+  Severity : CRITICAL (auth)
+  Location : tablet/login.php (live: GET -> 200)
+  Problems : - no PoW, no failed-attempt counter, no account lockout
+               => unlimited brute force against any account, bypassing the
+                  hardening in api/auth.php
+             - registration allows passwords >= 4 chars (weak + spam accounts)
+             - reveals "account disabled" -> user enumeration
+             - tablet/chat.php contains dead code: global
+               "DELETE FROM messages ... OFFSET 500" (would wipe history beyond
+               500 rows for EVERYONE if the INSERT before it ever stops throwing)
+  Fix      : retire tablet/ (RedirectMatch 404 ^/tablet); if it must live,
+             reuse chatapp_verify_pow() + failed_attempts/locked_until +
+             chatapp_validate_password() and delete the destructive statement.
+
+--------------------------------------------------------------------------------
+HIGH / 高危 (code fixes)
+--------------------------------------------------------------------------------
+
+Common root cause: eh() in modern/scripts/chat.js (line 742) escapes only
+& < > -- NOT quotes -- but is used inside HTML attributes everywhere; plus the
+server stores some fields verbatim while the client injects them raw into
+innerHTML.
+
+[H1] Stored XSS via reply quote (one message -> full account takeover)
+  Location : server stores msg_type=e2ee VERBATIM, no format validation:
+               api/chat_actions.php:268 (isE2ee), :343-345 (raw store)
+             reply preview built from raw DB text:
+               api/chat.php proc():320, attached at :399
+               wss/wss_server.php ws_resolve_replies() (same logic)
+             client injects raw:
+               chat.js:3019 (buildDmMsgRow) and :3396 (addAnnouncement)
+               "... <strong>"+eh(display_name)+"</strong>: "+m.reply_data.message
+             reply_to is NOT validated in chat_action_send (any message id OK).
+  Exploit  : 1) send to victim (friend): msg_type=e2ee message=<img src=x onerror=...>
+             2) send a second message with reply_to=<id of (1)>, any text
+             3) victim's client renders the reply quote raw -> XSS
+             (steals session/CSRF token, sends messages as victim, calls APIs)
+  Fix      : - escape reply_data.message on the client (after fixing eh())
+             - validate reply_to server-side: referenced message must have the
+               sender as participant
+             - validate e2ee envelope server-side (must json_decode to expected
+               base64 fields, else reject)
+
+[H2] eh() not quote-safe -> attribute-injection XSS (several sites)
+  Locations:
+    chat.js:991  contacts list: data-original="' + eh(c.note||c.display_name||c.username) + '"
+                 display_name is free-form (api/settings.php change_display_name
+                 only mb_substr(...,0,256)) -> attacker sets nickname to
+                 `" onmouseover="alert(document.cookie)` -> victim hovers the
+                 contact entry -> XSS
+    chat.js:2528 file preview button: data-name="' + eh(fname) + '"
+                 attacker sends a file named e.g.
+                 `a.py" onmouseover="..." x.py` (must end with a code extension
+                 so the preview button renders) -> receiver hovers "preview" -> XSS
+    chat.js:5172 public emoji panel: title="' + eh(e.display_name||...) + '"
+  Fix      : make eh() escape quotes:
+               .replace(/"/g,'&quot;').replace(/'/g,'&#39;')
+             and route all attribute usages through ehAttr() (or just alias
+             ehAttr = eh afterwards). Prefer data-* + addEventListener over
+             inline onclick with interpolated strings.
+
+[H3] Stored XSS via personal-space feed images (affects every space visitor)
+  Location : api/space.php:36-40 (post) and :98-101 (update) accept any string
+             starting with '[' as `images` JSON, no URL validation.
+             modern/wp/space.php renders raw into <img src>:
+               :991 (feed stream)  :2033 (album cover)  :2059 (album photos)
+               :1453 (post preview)
+  Exploit  : POST images=["x" onerror="alert(1)"] with visibility=public
+             -> anyone opening the space / friends feed executes it.
+  Fix      : server-side: validate each entry against an allowlist
+             (internal file.php URLs or data/res/*), else 400;
+             client-side: esc() into attributes.
+
+[H4] E2EE decrypted plaintext rendered unescaped
+  Location : chat.js:3059 addDmE2ee() -> m.message = res.plaintext ->
+             buildDmMsgRow -> msgContent = renderEmoji(m.message)
+             (normal messages are htmlspecialchars'd server-side; e2ee bypasses it)
+  Exploit  : a peer (with keys established) encrypts `<img src=x onerror=...>`;
+             victim decrypts and renders it raw -> XSS.
+  Fix      : escape the decrypted plaintext before renderEmoji (or render it as
+             text; keep renderMd path for isMarkdown which escapes first).
+
+[H5] IDOR: reply_to leaks 80 chars of ANY message (cross-conversation)
+  Location : chat.php proc() reply resolution (no participant filter),
+             group.php chapp_group_proc_messages(), wss ws_resolve_replies().
+  Exploit  : send a message with reply_to=<arbitrary id>, then fetch; the
+             response includes reply_data.message = first 80 chars of that
+             message. ID space is sequential -> mass scraping of private chats.
+  Fix      : validate/own-scope reply targets on both write and read paths.
+
+[H6] Report "decrypted evidence" can be forged (framing users)
+  Location : api/report.php submit: `decrypted` map is stored into msg_crypt_temp
+             after only checking that the message ids EXIST; no check that the
+             reporter is a participant. api/incident.php detail shows it to
+             admins as trusted plaintext evidence.
+  Fix      : require reporter to be sender/recipient of every referenced message;
+             store as text, escape on admin rendering.
+
+--------------------------------------------------------------------------------
+MEDIUM / 中危
+--------------------------------------------------------------------------------
+
+[M1]  PoW bypassed by adding confirm=1 to any login POST
+      api/auth.php:151 -- "confirm=1" skips PoW for ALL attempts (meant only
+      for the restricted-account continue flow). Fix: only allow when the
+      account is restricted AND a PoW-passed marker exists in session.
+
+[M2]  Maintenance token accepted via ?token= and is a deterministic hourly HMAC
+      api/config.php:259, maintenance.php:29-36, maintenance/portal.php:31-37.
+      Leak via history/Referer/logs -> replay for up to ~1h; token is treated
+      as 'root' by chatapp_portal_admin_role() (upgrade/downgrade/uninstall/
+      factory_reset still require the 3-part verification, portal actions do not).
+      Fix: cookie-only; random server-side token with TTL; don't equate it to root.
+
+[M3]  Flash-transfer uploads have NO size cap (limits commented out)
+      api/temp.php upload, wss/wss_server.php ws_flash_up_*.
+      Any user can fill the disk. Fix: enforce size + per-user quota.
+
+[M4]  api/e2ee.php: notify_status can inject sys_e2ee messages to ANY user
+      (no friend/block check); get_bundle lets anyone exhaust another user's
+      one-time prekeys (no rate limit) -> E2EE setup DoS.
+
+[M5]  restricted accounts are only limited client-side (no server enforcement),
+      except a check on the RECIPIENT in chat_action_send.
+
+[M6]  api/file.php:246 -- orphan files (not referenced by any message) are
+      readable by any logged-in user ("URL is the secret").
+
+[M7]  WSS: 8MB frames, byte-by-byte unmask loop, single-threaded, no connection/
+      message rate limiting -> CPU/memory DoS from one authenticated client.
+
+[M8]  api/group.php info/search expose private groups (name/owner/member count/
+      announcement) to any logged-in user.
+
+[M9]  Dev leftovers & dangerous settings pages: _test_*.php reachable;
+      modern/wp/settings-{upgrade,downgrade,factory,uninstall}.php only require
+      login (APIs enforce 3-part verification, page itself is open).
+
+[M10] apps/proxy = arbitrary URL fetch (SSRF): PROXY_ALLOWED_HOSTS empty;
+      internal/loopback/metadata reachable by any registered user.
+
+--------------------------------------------------------------------------------
+LOW / 低危 & hardening
+--------------------------------------------------------------------------------
+
+[L1] api/status.php check returns restricted/enabled flags for arbitrary usernames.
+[L2] chatapp_csrf_verify() accepts $_GET['csrf'] (token in URLs/logs).
+[L3] chatapp_log() interpolates table/column names into SQL (literals today).
+[L4] api/space.php has no chatapp_read_actions() POST-gating (same-site cookie
+     saves it today; make it explicit).
+[L5] api/level.php sign/upgrade callable via GET (self-only, harmless).
+[L6] Unescaped avatar URLs in some innerHTML (users.php/space.php) -- defense in
+     depth; avatars are server-controlled today.
+[L7] No CSP; adding one is the cheapest post-XSS mitigation.
+[L8] .gitignore hides backups/_* but does not remove them from disk or deploys.
+[L9] tablet login "account disabled" -> user enumeration.
+
+[U1] (to confirm, not yet verified) Flash-transfer card stuck at
+     "Uploading... / The other side is uploading / Expires in --:--:--"
+     observed in UI while a WSS chunked-upload test exited code 1.
+     Suspect: temp_status push/rendering not updating; to be debugged.
+
+--------------------------------------------------------------------------------
+WHAT IS GOOD (keep it!)
+--------------------------------------------------------------------------------
+- No SQL injection found (prepared statements everywhere; int casts on
+  interpolated query parts; admin db_query is root+CSRF+read-only allowlist).
+- Passwords: bcrypt, strength policy (len/sequences/keyboard/weak list), duress
+  password with silent account destruction.
+- Sessions: session_regenerate_id on login/register, HttpOnly+SameSite=Lax,
+  per-request revalidation (enabled/placeholder/deleted/token_reset).
+- Files: file.php realpath containment + CRLF-stripped download names;
+  attachment MIME->extension allowlist (previously data:text/php RCE, fixed);
+  images validated by getimagesizefromstring/GD re-encode (avatars, emoji,
+  wallpapers, tickets, space uploads).
+- Permissions: role_defs + has_permission with root protections for uid 10000,
+  audit logs with delete-blocking triggers, 3-part verification for
+  upgrade/downgrade/uninstall/factory reset.
+- Mobile m.js / space pages: consistent quote-safe escaping.
+
+--------------------------------------------------------------------------------
+P0 CHECKLIST (do TODAY, ops only)
+--------------------------------------------------------------------------------
+1) Delete ca-bkup-*.sql everywhere; move factory_reset backup path out of docroot.
+2) Apache deny list (adjust paths):
+     <LocationMatch "^/(\.git|bkup|ws_test|tests|lab)(/|$)">   Require all denied
+     <LocationMatch "\.(sql|log|md|sh|tar\.gz|bak|zip)$">      Require all denied
+     <LocationMatch "^/_[^/]+$">                               Require all denied
+     RedirectMatch 404 ^/tablet
+     <Directory /var/www/html/data>  Require all denied
+     <Directory /var/www/html/data/res> Require all granted
+3) Delete _inspect_msg.php, _test_*.php, _spacing_test.html, _shot_code.png
+   from production; add rsync excludes (.git, *.sql, *.log, _*, bkup/).
+4) Rotate: admin password, maintenance portal password (secret auto-regenerates),
+   any API keys that were ever committed. Assume DM content was breached.
+5) Re-test: curl -sI https://chat.lqx211.com/ca-bkup-260802205538.sql  (want 403)
+           curl -sI https://chat.lqx211.com/.git/HEAD                    (want 403)
+           curl -sI https://chat.lqx211.com/data/ticket/<known>.png      (want 403)
+
+P1 CHECKLIST (code, this week)
+6) eh() quote-escaping + ehAttr everywhere (H2 sites + grep `="' + eh(` )
+7) reply_to validation + e2ee envelope validation + client escaping (H1/H5)
+   + decrypted plaintext escaping (H4)
+8) space images URL allowlist server-side + client escaping (H3)
+9) report evidence participant validation (H6)
+
+P2 CHECKLIST
+10) M1 (PoW confirm bypass), M2 (portal token), M3 (upload caps), M5
+    (restricted server-side), M4, M6, M7, M8, then L1-L9.
+
+================================================================================
+END OF REPORT
+================================================================================
