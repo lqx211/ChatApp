@@ -2,7 +2,7 @@
 /**
  * ChatApp · 升级后台 worker
  * 由 api/upgrade.php perform 触发（nohup php 后台运行）。
- * 执行 git fetch（流式解析下载进度）→ checkout（排除 config/data/bkup 与机器相关的 maintenance/config.php）→ reset。
+ * 执行 git fetch（流式解析下载进度）→ checkout（排除 config/data/bkup 与机器相关的 maintenance/config.php）→ reset → 尽力重启 WSS 服务。
  * 进度写 data/upgrade_progress.json；完成或失败都清除 data/upgrade.lock（避免卡维护）。
  * ⚠️ 本文件不 require config.php（否则会被自己的维护锁拦截），只操作文件 + git。
  */
@@ -22,6 +22,22 @@ function upw_git(string $cmd, string $root): array {
     $out = []; $ret = -1;
     exec('cd ' . escapeshellarg($root) . ' && ' . $cmd . ' 2>&1', $out, $ret);
     return [implode("\n", $out), $ret];
+}
+
+/**
+ * 尽力重启 WSS 常驻进程（systemd → start.sh）。
+ * 升级只更新磁盘文件；已在跑的 WSS 进程仍执行内存里的旧代码（常驻进程不热更新），
+ * 不重启就会出现「网页是新版、WSS 行为是旧版」的诡异问题（如发消息失败）。
+ * 没有权限就跳过，由进度消息提醒手工重启。
+ */
+function upw_wss_restart(string $root): string {
+    foreach (['sudo -n systemctl restart chatapp-wss', 'systemctl restart chatapp-wss'] as $c) {
+        [$o, $rc] = upw_git($c, $root);
+        if ($rc === 0) return 'WSS restarted';
+    }
+    [$o, $rc] = upw_git('bash ' . escapeshellarg($root . '/wss/start.sh') . ' restart', $root);
+    if ($rc === 0) return 'WSS restarted (start.sh)';
+    return 'WSS not restarted - run: sudo systemctl restart chatapp-wss';
 }
 
 [$head0] = upw_git('git rev-parse HEAD', $root);
@@ -61,6 +77,9 @@ if ($rc !== 0) {
 upw_git('git reset --soft origin/main', $root);
 [$head1] = upw_git('git rev-parse HEAD', $root);
 
-upw_progress('done', 'Upgrade complete', 100, '', trim($head0), trim($head1));
+// ---- 重启 WSS（尽力而为），并把它作为完成消息带上 ----
+$wssMsg = upw_wss_restart($root);
+
+upw_progress('done', 'Upgrade complete', 100, $wssMsg, trim($head0), trim($head1));
 @unlink($lock); // 解除维护，全员恢复
 echo "DONE " . trim($head0) . " -> " . trim($head1) . "\n";

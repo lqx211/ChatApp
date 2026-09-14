@@ -746,7 +746,7 @@ function upgradePoll(){
     if (!d.success){ setTimeout(upgradePoll, 1500); return; }
     if (d.step) $('upStep').textContent = d.step;
     if (typeof d.pct === 'number'){ $('upBar').style.width = d.pct + '%'; $('upPct').textContent = d.pct + '%'; }
-    if (d.status === 'done'){ $('upStep').textContent = MT.up_step_done; $('upBar').style.width = '100%'; $('upPct').textContent = '100%'; flash(MT.up_complete, true); setTimeout(function(){ location.reload(); }, 2500); return; }
+    if (d.status === 'done'){ $('upStep').textContent = MT.up_step_done + (d.msg ? ' · ' + d.msg : ''); $('upBar').style.width = '100%'; $('upPct').textContent = '100%'; flash(MT.up_complete, true); setTimeout(function(){ location.reload(); }, d.msg ? 6000 : 2500); return; }
     if (d.status === 'error'){ $('upStep').textContent = MT.up_step_failed; $('upCheckBtn').style.display = 'block'; flash(MT.up_released, false); return; }
     setTimeout(upgradePoll, 1000);
   }).catch(function(){ setTimeout(upgradePoll, 2000); });

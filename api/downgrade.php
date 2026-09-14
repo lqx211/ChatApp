@@ -85,9 +85,20 @@ switch ($action) {
         }
         dg_git('git reset --soft ' . escapeshellarg($target), $root);
         [$newHead] = dg_git('git rev-parse HEAD', $root);
+        // 同升级：WSS 是常驻进程，不会热更新 —— 尽力重启（systemd → start.sh），
+        // 否则回退后 WSS 还在跑旧版本代码。失败只提示，不阻断。
+        $__wss = '';
+        foreach (['sudo -n systemctl restart chatapp-wss', 'systemctl restart chatapp-wss'] as $__c) {
+            [$__o, $__rc] = dg_git($__c, $root);
+            if ($__rc === 0) { $__wss = 'WSS restarted'; break; }
+        }
+        if ($__wss === '') {
+            [$__o2, $__rc2] = dg_git('bash ' . escapeshellarg($root . '/wss/start.sh') . ' restart', $root);
+            if ($__rc2 === 0) $__wss = 'WSS restarted (start.sh)';
+        }
         @unlink($lock);
         if (function_exists('chatapp_log_admin')) chatapp_log_admin('downgrade', null, null, ['from' => trim($head), 'to' => trim($target)]);
-        echo json_encode(['success' => true, 'from' => trim($head), 'to' => trim($newHead)]);
+        echo json_encode(['success' => true, 'from' => trim($head), 'to' => trim($newHead), 'wss' => $__wss]);
         break;
 
     default:

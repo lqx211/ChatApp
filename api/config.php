@@ -3,6 +3,11 @@
  * ChatApp - Configuration
  */
 
+// ---- 加固服务器兼容：部分主机（SELinux / seccomp / noexec 内存策略）不给
+// PCRE 分配可执行内存 → 每次 preg_* 都刷 “Allocation of JIT memory failed” 警告。
+// JIT 只是加速用，缺了不影响功能；这里主动关掉以保持日志干净。 ----
+@ini_set('pcre.jit', '0');
+
 // ---- 全局 PHP 错误处理：任何致命/语法错误 → 显示友好 500 页，不暴露原始错误 ----
 if (!defined('CHATAPP_ERR_HANDLER')) {
     define('CHATAPP_ERR_HANDLER', 1);

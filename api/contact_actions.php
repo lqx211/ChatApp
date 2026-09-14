@@ -12,6 +12,10 @@
  */
 require_once __DIR__ . '/config.php';
 
+// 机器人列自愈（幂等，每请求只查一次）：旧库升级后可能缺 is_bot 等列，
+// 本文件与下游查询会在缺列时直接 500 —— 先确保列存在再继续。
+chatapp_ensure_bot_columns();
+
 /** 用户名 → uid（排除软删除账号；不存在返回 0） */
 function contact_find_uid(PDO $pdo, string $username): int {
     $username = trim($username);
