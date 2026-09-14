@@ -40,32 +40,32 @@ $avatar      = chatapp_avatar_url($u['avatar'] ?? '', $u['username'] ?? '');
 
   <!-- ============ 账号与安全 ============ -->
   <div class="set-group" data-search="账号与安全"><?php echo t('set_account_safety', 'Account & Safety');?></div>
-  <div class="set-row" data-search="账号与安全" onclick="navTo('settings-account.php')">
+    <div class="set-row" data-search="账号与安全 account security" onclick="navTo('settings-account.php')">
     <span class="row-label"><?php echo t('set_account_safety', 'Account & Safety');?></span>
     <span class="row-arrow">›</span>
   </div>
 
   <!-- ============ 功能 ============ -->
   <div class="set-group" data-search="功能 消息通知 通用"><?php echo t('set_features', 'Features');?></div>
-  <div class="set-row" data-search="消息通知" onclick="navTo('settings-notif.php')">
+    <div class="set-row" data-search="消息通知 notifications" onclick="navTo('settings-notif.php')">
     <span class="row-label"><?php echo t('set_notifications', 'Notifications');?></span>
     <span class="row-arrow">›</span>
   </div>
-  <div class="set-row" data-search="通用" onclick="navTo('settings-general.php')">
+    <div class="set-row" data-search="通用 general" onclick="navTo('settings-general.php')">
     <span class="row-label"><?php echo t('set_general', 'General');?></span>
     <span class="row-arrow">›</span>
   </div>
 
   <!-- ============ 隐私 ============ -->
   <div class="set-group" data-search="隐私"><?php echo t('set_privacy', 'Privacy');?></div>
-  <div class="set-row" data-search="隐私" onclick="navTo('settings-privacy.php')">
+    <div class="set-row" data-search="隐私 privacy" onclick="navTo('settings-privacy.php')">
     <span class="row-label"><?php echo t('title_privacy_settings', 'Privacy Settings');?></span>
     <span class="row-arrow">›</span>
   </div>
 
   <!-- ============ 个人资料 ============ -->
   <div class="set-group" data-search="个人资料"><?php echo t('set_profile', 'Profile');?></div>
-  <div class="set-row" data-search="个人资料" onclick="navTo('editinfo.php?from=settings')">
+    <div class="set-row" data-search="个人资料 profile" onclick="navTo('editinfo.php?from=settings')">
     <span class="row-label"><?php echo t('set_edit_profile', 'Edit Profile');?></span>
     <span class="row-value" style="display:flex;align-items:center;justify-content:flex-end;gap:6px">
       <span><?php echo $displayName;?></span>
@@ -78,18 +78,18 @@ $avatar      = chatapp_avatar_url($u['avatar'] ?? '', $u['username'] ?? '');
 
   <!-- ============ 个性装扮 ============ -->
   <div class="set-group" data-search="个性装扮"><?php echo t('set_appearance', 'Appearance');?></div>
-  <div class="set-row" data-search="聊天壁纸 壁纸" onclick="navTo('settings-wallpaper.php')">
+    <div class="set-row" data-search="聊天壁纸 壁纸 wallpaper" onclick="navTo('settings-wallpaper.php')">
     <span class="row-label"><?php echo t('set_chat_wallpaper', 'Chat Wallpaper');?></span>
     <span class="row-arrow">›</span>
   </div>
-  <div class="set-row" data-search="个人主页封面 封面" onclick="navTo('settings-wallpaper.php?tab=profile')">
+    <div class="set-row" data-search="个人主页封面 封面 cover" onclick="navTo('settings-wallpaper.php?tab=profile')">
     <span class="row-label"><?php echo t('set_profile_cover', 'Profile Cover');?></span>
     <span class="row-arrow">›</span>
   </div>
 
   <!-- ============ 关于 ============ -->
   <div class="set-group" data-search="关于"><?php echo t('set_about', 'About');?></div>
-  <div class="set-row" data-search="关于" onclick="navTo('settings-about.php')">
+    <div class="set-row" data-search="关于 about" onclick="navTo('settings-about.php')">
     <span class="row-label"><?php echo t('set_about_chatapp', 'About ChatApp');?></span>
     <span class="row-arrow">›</span>
   </div>

@@ -43,7 +43,7 @@
         var that = new Date(d.getFullYear(), d.getMonth(), d.getDate());
         var diffDays = Math.round((today - that) / 86400000);
         if (diffDays === 0) return p(d.getHours()) + ':' + p(d.getMinutes());
-        if (diffDays === 1) return '昨天';
+        if (diffDays === 1) return t('mob_yesterday', '昨天');
         if (d.getFullYear() === now.getFullYear()) return (d.getMonth() + 1) + '/' + d.getDate();
         return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate();
     }
@@ -195,7 +195,7 @@
     function convLastText(c) {
         if (c.last_type === 'file') return '[' + (c.attachment_name || t('m_file')) + ']';
         if (c.last_type === 'temp') return '[' + t('m_flash') + ']';
-        if (c.last_type === 'image') return '[图片]';
+        if (c.last_type === 'image') return t('mob_image', '[图片]');
         return c.last_message || '';
     }
     function loadConversations() {
@@ -358,7 +358,7 @@
             var av = g.avatar_url
                 ? '<img class="li-avatar" src="' + esc(g.avatar_url) + '" alt="">'
                 : '<div class="li-avatar li-group-av">' + letterAvatar(g.name) + '</div>';
-            var roleTxt = g.role === 'owner' ? ' <span style="color:#c0a020;font-size:.7em">[群主]</span>' : (g.role === 'admin' ? ' <span style="color:#6fb3e8;font-size:.7em">[管理员]</span>' : '');
+            var roleTxt = g.role === 'owner' ? ' <span style="color:#c0a020;font-size:.7em">' + t('mob_owner', '[群主]') + '</span>' : (g.role === 'admin' ? ' <span style="color:#6fb3e8;font-size:.7em">' + t('mob_admin', '[管理员]') + '</span>' : '');
             html += '<div class="li" data-gid="' + g.group_id + '" data-name="' + esc(g.name) + '">'
                 + av
                 + '<div class="li-main"><div class="li-name">' + esc(g.name) + roleTxt + '</div></div>'

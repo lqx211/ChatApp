@@ -58,7 +58,7 @@ function openBotOptimizer() {
     _optUser = u;
     var modal = document.getElementById('botOptModal');
     if (!modal) return;
-    document.getElementById('botOptTitle').textContent = '🧠 人格优化器 · ' + (_bots[u].display_name || u);
+    document.getElementById('botOptTitle').textContent = '🧠 ' + T('popt_title', '人格优化器') + ' · ' + (_bots[u].display_name || u);
     modal.classList.add('active');
     optRender();
     // 拉一次最新人格（顺带把顶部摘要和窗口标题写准）
@@ -84,12 +84,12 @@ function optRefreshInfo(u) {
             _botInfo[u].target_uid = d.bot.target_uid;
             if (u === _optUser) {
                 var title = document.getElementById('botOptTitle');
-                if (title) title.textContent = '🧠 人格优化器 · ' + (d.bot.display_name || u);
+                if (title) title.textContent = '🧠 ' + T('popt_title', '人格优化器') + ' · ' + (d.bot.display_name || u);
                 var sub = document.getElementById('botOptSub');
                 var p = d.bot.profile;
                 if (sub) sub.textContent = p
-                    ? ('人格模型：' + ((p.habits || []).length) + ' 条习惯 · 表情 ' + ((p.emoji_meanings || []).length) + ' 个' + (p.samples ? ' · ' + p.samples + ' 条样本' : ''))
-                    : '还没有人格模型 —— 先去私聊窗口里让它分析一次（或点「重新分析」）';
+                    ? (T('popt_model_stats', '人格模型：%s 条习惯 · 表情 %s 个').replace('%s', (p.habits || []).length).replace('%s', (p.emoji_meanings || []).length) + (p.samples ? T('popt_samples', ' · %s 条样本').replace('%s', p.samples) : ''))
+                    : T('popt_no_model', '还没有人格模型 —— 先去私聊窗口里让它分析一次（或点「重新分析」）');
             }
         }
     }).catch(function () {});
@@ -120,10 +120,7 @@ function optRender() {
     if (!box) return;
     var list = optLoad(_optUser);
     if (!list.length) {
-        box.innerHTML = '<div class="opt-empty">这里对话的是<strong>优化器</strong>（不是伪人本人）。<br>'
-            + '它能看图学习、帮你补全人格模型，改动都会先给你看 diff 再应用。<br><br>'
-            + '可以问它：「这个人说话最明显的特征是什么？」<br>'
-            + '或者点下面的「表情包待补全」——把 ta 常用的表情含义告诉它。</div>';
+        box.innerHTML = '<div class="opt-empty">' + T('popt_empty', '这里对话的是<strong>优化器</strong>（不是伪人本人）。<br>它能看图学习、帮你补全人格模型，改动都会先给你看 diff 再应用。<br><br>可以问它：「这个人说话最明显的特征是什么？」<br>或者点下面的「表情包待补全」——把 ta 常用的表情含义告诉它。') + '</div>';
         return;
     }
     var html = list.map(function (e) {
@@ -139,7 +136,7 @@ function optRender() {
         if (e.type === 'note') return '<div class="opt-note">' + eh(e.text) + '</div>';
         if (e.type === 'think') {
             return '<div class="opt-note think"><div class="opt-think-head" onclick="this.parentNode.classList.toggle(\'open\')">'
-                + '🧠 思考过程（' + ((e.text || '').length) + ' 字）<span class="opt-cnt">点开看</span></div>'
+                + T('popt_think_head', '🧠 思考过程（%s 字）').replace('%s', (e.text || '').length) + '<span class="opt-cnt">' + T('popt_click_open', '点开看') + '</span></div>'
                 + '<div class="opt-think-body">'
                 + (e.text ? '<div class="opt-think-live">' + eh(e.text) + '</div>' : '')
                 + (e.json ? '<pre class="opt-raw">' + eh(e.json) + '</pre>' : '')
@@ -160,16 +157,16 @@ function optRender() {
 function optStickerHtml(code) {
     if (!code) return '';
     if (/^[a-f0-9]{32}$/.test(code)) {   // 自定义贴图
-        return '<img src="../../api/emoji.php?action=img&hash=' + code + '" class="chat-emoji" alt="贴图">';
+        return '<img src="../../api/emoji.php?action=img&hash=' + code + '" class="chat-emoji" alt="' + T('popt_sticker_alt', '贴图') + '">';
     }
     return renderEmojiHtml(renderMd(code));
 }
 
 function optQCardHtml(e) {
-    if (e.state === 'skipped') return '<div class="opt-card done"><div class="opt-q">已跳过' + (e.code ? ' ' + eh(e.code) : '') + '</div></div>';
-    if (e.state === 'sent') return '<div class="opt-card done ok"><div class="opt-q">已记录 ' + (e.code || '') + '：' + eh(e.answer || '') + '</div></div>';
+    if (e.state === 'skipped') return '<div class="opt-card done"><div class="opt-q">' + T('popt_q_skipped', '已跳过%s').replace('%s', e.code ? ' ' + eh(e.code) : '') + '</div></div>';
+    if (e.state === 'sent') return '<div class="opt-card done ok"><div class="opt-q">' + T('popt_q_recorded', '已记录 %s：%s').replace('%s', (e.code || '')).replace('%s', eh(e.answer || '')) + '</div></div>';
     var head = e.code
-        ? '<div class="opt-q">' + optStickerHtml(e.code) + (e.count ? ' <span class="opt-cnt">用了 ' + e.count + ' 次</span>' : '') + '</div>'
+        ? '<div class="opt-q">' + optStickerHtml(e.code) + (e.count ? ' <span class="opt-cnt">' + T('popt_q_used', '用了 %s 次').replace('%s', e.count) + '</span>' : '') + '</div>'
         : '';
     var ex = (e.examples && e.examples.length)
         ? '<div class="opt-ex">' + e.examples.map(function (s) { return '「' + eh(s) + '」'; }).join('<br>') + '</div>' : '';
@@ -177,11 +174,11 @@ function optQCardHtml(e) {
         + head
         + '<div class="opt-qt">' + eh(e.text || '') + '</div>'
         + ex
-        + '<textarea class="opt-in" rows="2" placeholder="' + (e.code ? '比如：无语但不想撕破脸' : '尽量说具体一点') + '">' + eh(e.answer || '') + '</textarea>'
+        + '<textarea class="opt-in" rows="2" placeholder="' + (e.code ? T('popt_ph_sticker', '比如：无语但不想撕破脸') : T('popt_ph_plain', '尽量说具体一点')) + '">' + eh(e.answer || '') + '</textarea>'
         + '<div class="opt-acts">'
-        + '<button class="opt-btn gray" onclick="optSkip(\'' + e.id + '\')">跳过</button>'
-        + '<button class="opt-btn guess" onclick="optGuess(\'' + e.id + '\')" title="让 AI 根据聊天上下文先猜一个，你再改">🤖 AI 猜</button>'
-        + '<button class="opt-btn green" onclick="optSubmit(\'' + e.id + '\')">提交</button>'
+        + '<button class="opt-btn gray" onclick="optSkip(\'' + e.id + '\')">' + T('popt_skip', '跳过') + '</button>'
+        + '<button class="opt-btn guess" onclick="optGuess(\'' + e.id + '\')" title="' + T('popt_guess_tip', '让 AI 根据聊天上下文先猜一个，你再改') + '">' + T('popt_guess', '🤖 AI 猜') + '</button>'
+        + '<button class="opt-btn green" onclick="optSubmit(\'' + e.id + '\')">' + T('popt_submit', '提交') + '</button>'
         + '</div></div>';
 }
 
@@ -191,28 +188,28 @@ function optGuess(id) {
     if (!card || card.dataset.busy === '1') return;
     var cfg = {};
     try { cfg = JSON.parse(localStorage.getItem('chatapp_ds_cfg') || '{}') || {}; } catch (e) { cfg = {}; }
-    if (!cfg.key) { xalert('AI 猜也要用你的 DeepSeek API Key（在 /apps/deepseek/ 设置里填）。'); return; }
+    if (!cfg.key) { xalert(T('popt_guess_need_key', 'AI 猜也要用你的 DeepSeek API Key（在 /apps/deepseek/ 设置里填）。')); return; }
     var list = optLoad(_optUser);
     var e = null;
     for (var i = 0; i < list.length; i++) if (list[i].id === id) e = list[i];
     if (!e) return;
     card.dataset.busy = '1';
     var btn = card.querySelector('.opt-btn.guess');
-    if (btn) { btn.disabled = true; btn.textContent = '🤖 猜…'; }
+    if (btn) { btn.disabled = true; btn.textContent = T('popt_guessing', '🤖 猜…'); }
     botApi({ action: 'emoji_guess', username: _optUser, key: cfg.key, model: cfg.model || 'deepseek-v4-flash',
              code: e.code || '', examples: JSON.stringify(e.examples || []) }).then(function (d) {
         card.dataset.busy = '';
-        if (btn) { btn.disabled = false; btn.textContent = '🤖 AI 猜'; }
-        if (!d || !d.success) { xalert('猜不出来：' + ((d && d.error) || '未知错误')); return; }
+        if (btn) { btn.disabled = false; btn.textContent = T('popt_guess', '🤖 AI 猜'); }
+        if (!d || !d.success) { xalert(T('popt_guess_fail', '猜不出来：%s').replace('%s', (d && d.error) || T('bot_unknown_err', '未知错误'))); return; }
         var ta = card.querySelector('.opt-in');
         if (ta) { ta.value = d.guess; ta.focus(); }
         var hint = card.querySelector('.opt-hint');
         if (!hint) { hint = document.createElement('div'); hint.className = 'opt-ex opt-hint'; card.insertBefore(hint, card.querySelector('.opt-acts')); }
-        hint.textContent = '🤖 AI 猜的（可信度 ' + (d.confidence != null ? d.confidence : '?') + '）—— 改完再点提交';
+        hint.textContent = T('popt_guess_hint', '🤖 AI 猜的（可信度 %s）—— 改完再点提交').replace('%s', d.confidence != null ? d.confidence : '?');
     }).catch(function (err) {
         card.dataset.busy = '';
-        if (btn) { btn.disabled = false; btn.textContent = '🤖 AI 猜'; }
-        xalert('猜不出来：' + ((err && err.message) || '网络错误'));
+        if (btn) { btn.disabled = false; btn.textContent = T('popt_guess', '🤖 AI 猜'); }
+        xalert(T('popt_guess_fail', '猜不出来：%s').replace('%s', (err && err.message) || T('bot_net_err', '网络错误')));
     });
 }
 
@@ -223,18 +220,18 @@ function optSkip(id) {
 function optSubmit(id) {
     var card = document.querySelector('.opt-card[data-qid="' + id + '"]');
     var val = card ? (card.querySelector('.opt-in').value || '').trim() : '';
-    if (!val) { xalert('先写点内容再提交吧（或者点「跳过」）'); return; }
+    if (!val) { xalert(T('popt_write_first', '先写点内容再提交吧（或者点「跳过」）')); return; }
     var list = optLoad(_optUser);
     var e = null;
     for (var i = 0; i < list.length; i++) if (list[i].id === id) e = list[i];
     if (!e) return;
     var patch = e.code ? { emoji_meanings: [{ code: e.code, meaning: val }] } : { habits: [val] };
     botApi({ action: 'optimize_apply', username: _optUser, patch: JSON.stringify(patch) }).then(function (d) {
-        if (!d || !d.success) { xalert('保存失败：' + ((d && d.error) || '未知错误')); return; }
+        if (!d || !d.success) { xalert(T('popt_save_fail', '保存失败：%s').replace('%s', (d && d.error) || T('bot_unknown_err', '未知错误'))); return; }
         optUpdate(id, { state: 'sent', answer: val });
-        optAdd({ type: 'done', text: e.code ? ('已写入表情含义：' + e.code + ' = ' + val) : ('已加入习惯：' + val) });
+        optAdd({ type: 'done', text: e.code ? T('popt_saved_emoji', '已写入表情含义：%s = %s').replace('%s', e.code).replace('%s', val) : T('popt_saved_habit', '已加入习惯：%s').replace('%s', val) });
         optRefreshInfo(_optUser);
-    }).catch(function (err) { xalert('保存失败：' + ((err && err.message) || '网络错误')); });
+    }).catch(function (err) { xalert(T('popt_save_fail', '保存失败：%s').replace('%s', (err && err.message) || T('bot_net_err', '网络错误'))); });
 }
 
 /* ---- 改动确认卡：diff + 灰色「忽略」/ 绿色「应用」 ---- */
@@ -250,8 +247,8 @@ function optDiffLines(patch, profile) {
             for (i = 0; i < cur.length; i++) if (cur[i] && cur[i].code) old[cur[i].code] = cur[i].meaning || '';
             for (i = 0; i < v.length; i++) {
                 var code = (v[i] && v[i].code) || '', mean = (v[i] && v[i].meaning) || '';
-                if (old[code] !== undefined) out.push({ op: old[code] === mean ? '=' : '~', text: code + '：' + (old[code] ? old[code] + ' → ' : '') + mean });
-                else out.push({ op: '+', text: code + '：' + mean });
+                if (old[code] !== undefined) out.push({ op: old[code] === mean ? '=' : '~', text: code + T('bot_colon', '：') + (old[code] ? old[code] + ' → ' : '') + mean });
+                else out.push({ op: '+', text: code + T('bot_colon', '：') + mean });
             }
         } else if (Array.isArray(v)) {
             var have = Array.isArray(prof[k]) ? prof[k].map(function (x) { return typeof x === 'string' ? x : (x && x.text) || ''; }) : [];
@@ -262,29 +259,29 @@ function optDiffLines(patch, profile) {
         } else if (v && typeof v === 'object') {
             for (var kk in v) {
                 var oldV = (prof[k] || {})[kk];
-                out.push({ op: (oldV === undefined ? '+' : (String(oldV) === String(v[kk]) ? '=' : '~')), text: k + '.' + kk + '：' + (oldV !== undefined && String(oldV) !== String(v[kk]) ? String(oldV) + ' → ' : '') + String(v[kk]) });
+                out.push({ op: (oldV === undefined ? '+' : (String(oldV) === String(v[kk]) ? '=' : '~')), text: k + '.' + kk + T('bot_colon', '：') + (oldV !== undefined && String(oldV) !== String(v[kk]) ? String(oldV) + ' → ' : '') + String(v[kk]) });
             }
         } else {
-            out.push({ op: prof[k] === undefined ? '+' : '~', text: k + '：' + (prof[k] !== undefined && String(prof[k]) !== String(v) ? String(prof[k]) + ' → ' : '') + String(v) });
+            out.push({ op: prof[k] === undefined ? '+' : '~', text: k + T('bot_colon', '：') + (prof[k] !== undefined && String(prof[k]) !== String(v) ? String(prof[k]) + ' → ' : '') + String(v) });
         }
     }
     return out;
 }
 
 function optDiffCardHtml(e) {
-    if (e.state === 'applied') return '<div class="opt-card done ok"><div class="opt-q">已应用改动</div>' + optDiffBodyHtml(e.lines) + '</div>';
-    if (e.state === 'ignored') return '<div class="opt-card done"><div class="opt-q">已忽略这组改动</div></div>';
+    if (e.state === 'applied') return '<div class="opt-card done ok"><div class="opt-q">' + T('popt_applied', '已应用改动') + '</div>' + optDiffBodyHtml(e.lines) + '</div>';
+    if (e.state === 'ignored') return '<div class="opt-card done"><div class="opt-q">' + T('popt_ignored', '已忽略这组改动') + '</div></div>';
     return '<div class="opt-card" data-qid="' + e.id + '">'
-        + '<div class="opt-q">建议改动' + (e.why ? '<span class="opt-cnt">' + eh(e.why) + '</span>' : '') + '</div>'
+        + '<div class="opt-q">' + T('popt_suggest', '建议改动%s').replace('%s', e.why ? '<span class="opt-cnt">' + eh(e.why) + '</span>' : '') + '</div>'
         + optDiffBodyHtml(e.lines)
         + '<div class="opt-acts">'
-        + '<button class="opt-btn gray" onclick="optIgnore(\'' + e.id + '\')">忽略</button>'
-        + '<button class="opt-btn green" onclick="optApply(\'' + e.id + '\')">应用</button>'
+        + '<button class="opt-btn gray" onclick="optIgnore(\'' + e.id + '\')">' + T('popt_ignore', '忽略') + '</button>'
+        + '<button class="opt-btn green" onclick="optApply(\'' + e.id + '\')">' + T('popt_apply', '应用') + '</button>'
         + '</div></div>';
 }
 
 function optDiffBodyHtml(lines) {
-    if (!lines || !lines.length) return '<div class="opt-ex">（没有实际变化）</div>';
+    if (!lines || !lines.length) return '<div class="opt-ex">' + T('popt_no_change', '（没有实际变化）') + '</div>';
     var map = { '+': ['add', '＋'], '~': ['chg', '～'], '=': ['same', '＝'] };
     return '<div class="opt-diff">' + lines.map(function (l) {
         var m = map[l.op] || map['+'];
@@ -298,63 +295,63 @@ function optIgnore(id) { optUpdate(id, { state: 'ignored' }); }
 function optShowMemories() {
     if (!_optUser) return;
     botApi({ action: 'memory', username: _optUser }).then(function (d) {
-        if (!d || !d.success) { xalert('读取失败：' + ((d && d.error) || '未知错误')); return; }
+        if (!d || !d.success) { xalert(T('popt_load_fail', '读取失败：%s').replace('%s', (d && d.error) || T('bot_unknown_err', '未知错误'))); return; }
         var list = optLoad(_optUser);
         var facts = d.facts || [];
         var runtime = ((d.state && d.state.memories) || []).map(function (m) { return (m && m.text) || m; });
         var id = optAdd({
             type: 'mem', facts: facts, runtime: runtime,
             mood: (d.state && d.state.mood) || '',
-            text: '🧷 记忆点'
+            text: T('popt_mem_title', '🧷 记忆点')
         });
-    }).catch(function (e) { xalert('读取失败：' + ((e && e.message) || '网络错误')); });
+    }).catch(function (e) { xalert(T('popt_load_fail', '读取失败：%s').replace('%s', (e && e.message) || T('bot_net_err', '网络错误'))); });
 }
 
 function optMemCardHtml(e) {
     var facts = e.facts || [];
     var runtime = (e.runtime || []).filter(function (t) { return !!t; });
-    var h = '<div class="opt-q">🧷 ta 的记忆点' + (e.mood ? '<span class="opt-cnt">当前心情：' + eh(e.mood) + '</span>' : '') + '</div>';
-    h += '<div class="opt-ex">写在这儿的事实会写进人格（bot_profile.facts），伪人聊天时会自然用到。</div>';
+    var h = '<div class="opt-q">' + T('popt_mem_card', '🧷 ta 的记忆点') + (e.mood ? '<span class="opt-cnt">' + T('popt_mem_mood', '当前心情：%s').replace('%s', eh(e.mood)) + '</span>' : '') + '</div>';
+    h += '<div class="opt-ex">' + T('popt_mem_desc', '写在这儿的事实会写进人格（bot_profile.facts），伪人聊天时会自然用到。') + '</div>';
     if (facts.length) {
         h += '<div class="opt-mem">' + facts.map(function (f, i) {
-            return '<div class="opt-mem-row"><span class="opt-mem-x" onclick="optMemDel(' + i + ')" title="删除">✕</span>' + eh(f.text) + (f.at ? '<span class="opt-cnt">' + eh(f.at) + '</span>' : '') + '</div>';
+            return '<div class="opt-mem-row"><span class="opt-mem-x" onclick="optMemDel(' + i + ')" title="' + T('popt_mem_del', '删除') + '">✕</span>' + eh(f.text) + (f.at ? '<span class="opt-cnt">' + eh(f.at) + '</span>' : '') + '</div>';
         }).join('') + '</div>';
     } else {
-        h += '<div class="opt-ex">（还没有，先写一条吧）</div>';
+        h += '<div class="opt-ex">' + T('popt_mem_empty', '（还没有，先写一条吧）') + '</div>';
     }
     if (runtime.length) {
-        h += '<div class="opt-ex" style="margin-top:6px">伪人自己攒的（只读，存 bot_state）：<br>'
+        h += '<div class="opt-ex" style="margin-top:6px">' + T('popt_mem_runtime', '伪人自己攒的（只读，存 bot_state）：') + '<br>'
            + runtime.slice(-8).map(function (t) { return '「' + eh(t) + '」'; }).join('<br>') + '</div>';
     }
-    h += '<textarea class="opt-in opt-mem-add" rows="1" placeholder="比如：养了只猫叫团子 / 生日 3 月 8 号 / 讨厌被叫全名"></textarea>'
-       + '<div class="opt-acts"><button class="opt-btn green" onclick="optMemAdd()">＋ 记住这条</button></div>';
+    h += '<textarea class="opt-in opt-mem-add" rows="1" placeholder="' + T('popt_mem_ph', '比如：养了只猫叫团子 / 生日 3 月 8 号 / 讨厌被叫全名') + '"></textarea>'
+       + '<div class="opt-acts"><button class="opt-btn green" onclick="optMemAdd()">' + T('popt_mem_add', '＋ 记住这条') + '</button></div>';
     return '<div class="opt-card" data-mem="1">' + h + '</div>';
 }
 
 function optMemAdd() {
     var box = document.querySelector('#botOptChat .opt-card[data-mem] textarea.opt-mem-add');
     var val = box ? (box.value || '').trim() : '';
-    if (!val) { xalert('写点什么再记吧'); return; }
+    if (!val) { xalert(T('popt_mem_write', '写点什么再记吧')); return; }
     botApi({ action: 'memory', username: _optUser, op: 'add', text: val }).then(function (d) {
-        if (!d || !d.success) { xalert('保存失败：' + ((d && d.error) || '未知错误')); return; }
+        if (!d || !d.success) { xalert(T('popt_save_fail', '保存失败：%s').replace('%s', (d && d.error) || T('bot_unknown_err', '未知错误'))); return; }
         // 把那张卡刷新成最新列表
         var list = optLoad(_optUser);
         for (var i = list.length - 1; i >= 0; i--) if (list[i].type === 'mem') { list.splice(i, 1); break; }
         optSave(_optUser, list);
-        optAdd({ type: 'done', text: '已记住：' + val });
+        optAdd({ type: 'done', text: T('popt_mem_saved', '已记住：%s').replace('%s', val) });
         optShowMemories();
         optRefreshInfo(_optUser);
-    }).catch(function (e) { xalert('保存失败：' + ((e && e.message) || '网络错误')); });
+    }).catch(function (e) { xalert(T('popt_save_fail', '保存失败：%s').replace('%s', (e && e.message) || T('bot_net_err', '网络错误'))); });
 }
 
 function optMemDel(i) {
     botApi({ action: 'memory', username: _optUser, op: 'del', index: i }).then(function (d) {
-        if (!d || !d.success) { xalert('删除失败：' + ((d && d.error) || '未知错误')); return; }
+        if (!d || !d.success) { xalert(T('popt_del_fail', '删除失败：%s').replace('%s', (d && d.error) || T('bot_unknown_err', '未知错误'))); return; }
         var list = optLoad(_optUser);
         for (var k = list.length - 1; k >= 0; k--) if (list[k].type === 'mem') { list.splice(k, 1); break; }
         optSave(_optUser, list);
         optShowMemories();
-    }).catch(function (e) { xalert('删除失败：' + ((e && e.message) || '网络错误')); });
+    }).catch(function (e) { xalert(T('popt_del_fail', '删除失败：%s').replace('%s', (e && e.message) || T('bot_net_err', '网络错误'))); });
 }
 
 function optApply(id) {
@@ -363,18 +360,18 @@ function optApply(id) {
     for (var i = 0; i < list.length; i++) if (list[i].id === id) e = list[i];
     if (!e || !e.patch) return;
     botApi({ action: 'optimize_apply', username: _optUser, patch: JSON.stringify(e.patch) }).then(function (d) {
-        if (!d || !d.success) { xalert('应用失败：' + ((d && d.error) || '未知错误')); return; }
+        if (!d || !d.success) { xalert(T('popt_apply_fail', '应用失败：%s').replace('%s', (d && d.error) || T('bot_unknown_err', '未知错误'))); return; }
         optUpdate(id, { state: 'applied' });
-        optAdd({ type: 'done', text: '人格已更新（' + e.lines.filter(function (l) { return l.op === '+'; }).length + ' 项新增，' + e.lines.filter(function (l) { return l.op === '~'; }).length + ' 项修改）' });
+        optAdd({ type: 'done', text: T('popt_updated', '人格已更新（%s 项新增，%s 项修改）').replace('%s', e.lines.filter(function (l) { return l.op === '+'; }).length).replace('%s', e.lines.filter(function (l) { return l.op === '~'; }).length) });
         optRefreshInfo(_optUser);
-    }).catch(function (err) { xalert('应用失败：' + ((err && err.message) || '网络错误')); });
+    }).catch(function (err) { xalert(T('popt_apply_fail', '应用失败：%s').replace('%s', (err && err.message) || T('bot_net_err', '网络错误'))); });
 }
 
 /* ---- 表情包待补全：确定性生成卡片（不花 token） ---- */
 function optLoadEmojiQuestions(silent) {
     if (!_optUser) return;
     botApi({ action: 'emoji_questions', username: _optUser }).then(function (d) {
-        if (!d || !d.success) { if (!silent) xalert('读取失败：' + ((d && d.error) || '')); return; }
+        if (!d || !d.success) { if (!silent) xalert(T('popt_load_fail', '读取失败：%s').replace('%s', (d && d.error) || '')); return; }
         var qs = d.questions || [];
         var list = optLoad(_optUser);
         var known = {};
@@ -384,13 +381,13 @@ function optLoadEmojiQuestions(silent) {
             if (known[q.code]) return;
             optAdd({
                 type: 'q', code: q.code, count: q.count, examples: q.examples || [],
-                text: 'ta 发 ' + q.code + ' 的时候，一般是想表达什么？'
+                text: T('popt_emoji_ask', 'ta 发 %s 的时候，一般是想表达什么？').replace('%s', q.code)
             });
             added++;
         });
-        if (!added && !silent) optAdd({ type: 'note', text: 'ta 常用的表情都已经有人格含义了 ✅' });
-        else if (!added) optAdd({ type: 'note', text: 'ta 常用的表情含义都补完了 ✅' });
-    }).catch(function (err) { if (!silent) xalert('读取失败：' + ((err && err.message) || '网络错误')); });
+        if (!added && !silent) optAdd({ type: 'note', text: T('popt_emoji_done', 'ta 常用的表情都已经有人格含义了 ✅') });
+        else if (!added) optAdd({ type: 'note', text: T('popt_emoji_done2', 'ta 常用的表情含义都补完了 ✅') });
+    }).catch(function (err) { if (!silent) xalert(T('popt_load_fail', '读取失败：%s').replace('%s', (err && err.message) || T('bot_net_err', '网络错误'))); });
 }
 
 /* ---- 发消息给优化器 ---- */
@@ -401,11 +398,11 @@ function optSend() {
     if (!msg) return;
     var cfg = {};
     try { cfg = JSON.parse(localStorage.getItem('chatapp_ds_cfg') || '{}') || {}; } catch (e) { cfg = {}; }
-    if (!cfg.key) { xalert('优化器和伪人一样，用的是你自己的 DeepSeek API Key —— 先去 /apps/deepseek/ 设置里填一下。'); return; }
+    if (!cfg.key) { xalert(T('popt_need_key', '优化器和伪人一样，用的是你自己的 DeepSeek API Key —— 先去 /apps/deepseek/ 设置里填一下。')); return; }
 
     ta.value = '';
     optAdd({ type: 'user', text: msg });
-    var noteId = optAdd({ type: 'note', text: '优化器正在读人格模型与聊天样本…' });
+    var noteId = optAdd({ type: 'note', text: T('popt_reading', '优化器正在读人格模型与聊天样本…') });
     _optBusy = true;
 
     // 实时区：直接改这个 note 节点的 DOM（不走 localStorage，不然每个字都写一次）
@@ -431,14 +428,14 @@ function optSend() {
         action: 'optimize', username: _optUser, key: cfg.key, model: cfg.model || 'deepseek-v4-flash',
         stream: 1, message: msg, history: JSON.stringify(hist)
     }, function (name, j) {
-        if (name === 'note') { paintLive(j.text || '优化器正在读人格模型与聊天样本…'); return; }
-        if (name === 'stage') { paintLive(j.note || '重问一次…'); return; }
-        if (name === 'think') { live.think += (j.delta || ''); paintLive('🧠 优化器在想… ' + live.think.length + ' 字'); return; }
-        if (name === 'json') { live.json += (j.delta || ''); paintLive('🧠 优化器在想… ' + live.think.length + ' 字'); return; }
+        if (name === 'note') { paintLive(j.text || T('popt_reading', '优化器正在读人格模型与聊天样本…')); return; }
+        if (name === 'stage') { paintLive(j.note || T('popt_reask', '重问一次…')); return; }
+        if (name === 'think') { live.think += (j.delta || ''); paintLive(T('popt_thinking', '🧠 优化器在想… %s 字').replace('%s', live.think.length)); return; }
+        if (name === 'json') { live.json += (j.delta || ''); paintLive(T('popt_thinking', '🧠 优化器在想… %s 字').replace('%s', live.think.length)); return; }
         if (name === 'error' || (j && j.error)) {
             _optBusy = false;
-            optUpdate(noteId, { type: 'err', text: '优化器出错：' + (j.error || '未知错误'),
-                raw: (j.raw || live.json || '') + (live.think ? "\n\n[思考过程]\n" + live.think : '') });
+            optUpdate(noteId, { type: 'err', text: T('popt_err', '优化器出错：%s').replace('%s', j.error || T('bot_unknown_err', '未知错误')),
+                raw: (j.raw || live.json || '') + (live.think ? "\n\n" + T('popt_think_tag', '[思考过程]') + "\n" + live.think : '') });
             return false;
         }
         if (name === 'done') {
@@ -447,7 +444,7 @@ function optSend() {
             for (var i = list.length - 1; i >= 0; i--) if (list[i].id === noteId) { list.splice(i, 1); break; }
             optSave(_optUser, list);
             if (live.think || live.json) optAdd({ type: 'think', text: live.think, json: live.json });
-            if (j.reply) optAdd({ type: 'bot', text: j.reply, what: j.why || (j.repaired ? '（重问过一轮才拿到 JSON）' : '') });
+            if (j.reply) optAdd({ type: 'bot', text: j.reply, what: j.why || (j.repaired ? T('popt_repaired', '（重问过一轮才拿到 JSON）') : '') });
             (j.questions || []).forEach(function (q) {
                 optAdd({ type: 'q', code: q.code || '', field: q.field || 'habit', text: q.text || '' });
             });
@@ -455,13 +452,13 @@ function optSend() {
                 var lines = optDiffLines(j.patch, _botInfo[_optUser] && _botInfo[_optUser].profile);
                 var changed = lines.filter(function (l) { return l.op !== '='; });
                 if (changed.length) optAdd({ type: 'diff', patch: j.patch, lines: changed, why: j.why || '' });
-                else optAdd({ type: 'note', text: '优化器建议的内容和现有人格一致，不需要改。' });
+                else optAdd({ type: 'note', text: T('popt_same', '优化器建议的内容和现有人格一致，不需要改。') });
             }
             return false;
         }
     }).catch(function (err) {
         _optBusy = false;
-        optUpdate(noteId, { type: 'err', text: '优化器出错：' + ((err && err.message) || '网络错误'), raw: live.json || '' });
+        optUpdate(noteId, { type: 'err', text: T('popt_err', '优化器出错：%s').replace('%s', (err && err.message) || T('bot_net_err', '网络错误')), raw: live.json || '' });
     });
 }
 
@@ -472,7 +469,7 @@ function optInputKey(e) {
 /* 「让优化器体检」：把人格模型发过去，让它找问题/给建议 */
 function optAskCheck() {
     var info = _botInfo[_optUser] || {};
-    if (!info.profile) { xalert('还没有人格模型 —— 先在私聊窗口里让它分析一次（或点「重新分析」）。'); return; }
+    if (!info.profile) { xalert(T('popt_no_model', '还没有人格模型 —— 先去私聊窗口里让它分析一次（或点「重新分析」）')); return; }
     var p = info.profile;
     var empty = [];
     if (!p.summary) empty.push('summary');
@@ -481,8 +478,7 @@ function optAskCheck() {
     if (!(p.emoji_meanings || []).length) empty.push('emoji_meanings');
     if (!(p.taboos || []).length) empty.push('taboos');
     var inp = document.getElementById('botOptInput');
-    inp.value = '帮我体检一下这套人格模型：哪里太笼统、哪里可能不准？'
-        + (empty.length ? '（这几个字段现在还是空的或很粗糙：' + empty.join('、') + '，你直接提个修改建议）' : '')
-        + ' 需要改的话直接给 patch。';
+    inp.value = T('popt_check_instr', '帮我体检一下这套人格模型：哪里太笼统、哪里可能不准？%s 需要改的话直接给 patch。')
+        .replace('%s', empty.length ? T('popt_check_empty', '（这几个字段现在还是空的或很粗糙：%s，你直接提个修改建议）').replace('%s', empty.join(T('bot_list_sep', '、'))) : '');
     optSend();
 }

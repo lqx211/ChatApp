@@ -470,7 +470,7 @@ function stepWS(){
     h += '<div class="wsline">'+
          '<span class="wstag">'+m[1]+'</span>'+
          '<div class="uinput" id="u_'+m[0]+'">'+
-           '<input type="text" id="in_'+m[0]+'" value="'+String(ME_WSS_RAW[m[0]]||'').replace(/"/g,'&quot;')+'" placeholder="host:port 或 wss://…" oninput="meWssFieldChanged(\''+m[0]+'\')">'+
+           '<input type="text" id="in_'+m[0]+'" value="'+String(ME_WSS_RAW[m[0]]||'').replace(/"/g,'&quot;')+'" placeholder="'+L('host:port or wss://…','host:port 或 wss://…')+'" oninput="meWssFieldChanged(\''+m[0]+'\')">'+
          '</div>'+
          '</div>'+
          '<div class="hint" id="pvwrap_'+m[0]+'" style="margin:-12px 0 14px 66px">→ <span id="pv_'+m[0]+'">'+ME_WSS[m[0]]+'</span></div>';

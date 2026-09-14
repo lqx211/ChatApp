@@ -9,12 +9,15 @@ $dataSaver   = (int)($u['data_saver'] ?? 0);
 $localCache  = (int)($u['local_cache_enabled'] ?? 0);
 $restricted  = (int)($u['restricted'] ?? 0);
 
+// 括号随界面语言：英文界面用半角，中文界面用全角（提前定义，$langMap 要用）
+$__curLang = $_SESSION['preferred_language'] ?? 'en';
+$__cjkParen = in_array($__curLang, ['zh', 'zh_egg'], true);
 $langMap = [
-    'en' => 'English（英语）',
+    'en' => $__cjkParen ? 'English（英语）' : 'English',
     'zh' => '中文',
     'zh_egg' => '中文·彩蛋',
     'wyw' => '文言文',
-    'raw' => 'Raw（原始）',
+    'raw' => $__cjkParen ? 'Raw（原始）' : 'Raw',
 ];
 $curLang = $u['preferred_language'] ?? 'en';
 
@@ -34,8 +37,6 @@ $tzPresetNames = [
     '-08:00' => t('tzname_m08', '洛杉矶（美西）'),
 ];
 // 括号随界面语言：英文界面用半角，中文界面用全角
-$__curLang = $_SESSION['preferred_language'] ?? 'en';
-$__cjkParen = in_array($__curLang, ['zh', 'zh_egg'], true);
 $__lp = $__cjkParen ? '（' : '(';
 $__rp = $__cjkParen ? '）' : ')';
 ?>
@@ -111,11 +112,11 @@ $__rp = $__cjkParen ? '）' : ')';
     <span class="picker-title"><?php echo t('set_language', 'Language');?></span>
     <span style="width:28px"></span>
   </div>
-  <div class="picker-option" data-lang="en">English（英语）</div>
+  <div class="picker-option" data-lang="en">English<?php echo $__cjkParen ? '（英语）' : '';?></div>
   <div class="picker-option" data-lang="zh">中文</div>
   <div class="picker-option" data-lang="zh_egg">中文·彩蛋</div>
   <div class="picker-option" data-lang="wyw">文言文</div>
-  <div class="picker-option" data-lang="raw">Raw（原始）</div>
+  <div class="picker-option" data-lang="raw">Raw<?php echo $__cjkParen ? '（原始）' : '';?></div>
 </div>
 
 <!-- ================= 时区选择（底部弹层） ================= -->
@@ -194,7 +195,7 @@ function closeLangPicker() {
 }
 function selectLang(lang) {
     CUR_LANG = lang;
-    var names = { 'en':'English（英语）', 'zh':'中文', 'zh_egg':'中文·彩蛋', 'wyw':'文言文', 'raw':'Raw（原始）' };
+    var names = { 'en':'English<?php echo $__cjkParen ? '（英语）' : '';?>', 'zh':'中文', 'zh_egg':'中文·彩蛋', 'wyw':'文言文', 'raw':'Raw<?php echo $__cjkParen ? '（原始）' : '';?>' };
     document.getElementById('langVal').textContent = names[lang] || lang;
     api('change_language', { language: lang }).then(function(d) {
         if (d.success) {

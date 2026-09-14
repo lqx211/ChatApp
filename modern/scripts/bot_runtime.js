@@ -33,6 +33,10 @@
     if (typeof global.xalert === 'function') { global.xalert(msg); return; }
     alert(msg);
   }
+  /* 文案翻译：chat.js 的 T() 在同页全局可用；没加载时退回中文默认值 */
+  function TT(key, fallback) {
+    return (typeof global.T === 'function') ? global.T(key, fallback) : fallback;
+  }
   function loadAgent() {
     if (agentLoaded && global.DSAgent) return Promise.resolve(global.DSAgent);
     if (agentLoading) return agentLoading;
@@ -40,12 +44,12 @@
       var s = document.createElement('script');
       s.src = AGENT_URL;
       s.onload = function () {
-        if (!global.DSAgent) { rej(new Error('agent.js 加载后没有 DSAgent')); return; }
+        if (!global.DSAgent) { rej(new Error(TT('botrt_agent_missing', 'agent.js 加载后没有 DSAgent'))); return; }
         global.DSAgent.setApiBase('/apps/deepseek/');
         agentLoaded = true;
         res(global.DSAgent);
       };
-      s.onerror = function () { rej(new Error('agent.js 加载失败')); };
+      s.onerror = function () { rej(new Error(TT('botrt_agent_fail', 'agent.js 加载失败'))); };
       document.head.appendChild(s);
     });
     return agentLoading;
@@ -134,7 +138,7 @@
             if (payload === '[DONE]') continue;
             var j = null;
             try { j = JSON.parse(payload); } catch (e) { continue; }
-            if (curEvent === 'error' || (j && j.error)) throw new Error((j && j.error) || 'DeepSeek 出错');
+            if (curEvent === 'error' || (j && j.error)) throw new Error((j && j.error) || TT('botrt_ds_err', 'DeepSeek 出错'));
             var delta = (j.choices && j.choices[0] && j.choices[0].delta) || {};
             if (delta.tool_calls) acc.feed(delta.tool_calls);
             if (delta.content) {
@@ -167,7 +171,7 @@
     opts = opts || {};
     var c = cfg();
     if (!c.key) {
-      say('这个机器人还没配好「大脑」🤖\n\n请先在 DeepSeek 聊天页（/apps/deepseek/）的设置里填入你自己的 DeepSeek API Key —— 机器人用的是你自己的 Key，服务端不保存。填好后回来再发一次就行。');
+      say(TT('botrt_need_key', '这个机器人还没配好「大脑」🤖\n\n请先在 DeepSeek 聊天页（/apps/deepseek/）的设置里填入你自己的 DeepSeek API Key —— 机器人用的是你自己的 Key，服务端不保存。填好后回来再发一次就行。'));
       return Promise.resolve(false);
     }
     if (busy[username]) return Promise.resolve(false);
@@ -181,7 +185,7 @@
       return fetch(BOTS_URL + '?action=get&username=' + encodeURIComponent(username), { credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
         .then(function (d) {
-          if (!d || !d.success) throw new Error((d && d.error) || '机器人不存在');
+          if (!d || !d.success) throw new Error((d && d.error) || TT('botrt_not_found', '机器人不存在'));
           return d.bot;
         });
     }).then(function (bot) {
@@ -246,18 +250,18 @@
       return oneTurn();
     }).then(function (out) {
       var finalText = String((out && out.text) || '').trim();
-      if (!finalText) throw new Error('模型没有返回内容');
+      if (!finalText) throw new Error(TT('botrt_empty_reply', '模型没有返回内容'));
       return post(BOTS_URL + '?action=reply', { action: 'reply', username: username, text: finalText, md: 1 })
         .then(function (d) {
-          if (!d || !d.success) throw new Error((d && d.error) || '入库失败');
+          if (!d || !d.success) throw new Error((d && d.error) || TT('botrt_store_fail', '入库失败'));
           busy[username] = false;
           if (opts.onDone) opts.onDone(d);
           return true;
         });
     }).catch(function (e) {
       busy[username] = false;
-      var msg = (e && e.message) || '生成失败';
-      if (opts.onError) opts.onError(msg); else say('机器人回复失败：' + msg);
+      var msg = (e && e.message) || TT('botrt_gen_fail', '生成失败');
+      if (opts.onError) opts.onError(msg); else say(TT('botrt_reply_fail', '机器人回复失败：%s').replace('%s', msg));
       return false;
     });
   }

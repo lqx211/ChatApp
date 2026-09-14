@@ -602,7 +602,7 @@ function toggleVoiceRec() {
 }
 function startVoiceRec() {
     if (S) return;
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { xalert('此浏览器不支持录音'); return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { xalert(T('mic_unsupported', '此浏览器不支持录音')); return; }
     navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
         var rec;
         try { rec = _voiceMime ? new MediaRecorder(stream, { mimeType: _voiceMime }) : new MediaRecorder(stream); }
@@ -629,7 +629,7 @@ function startVoiceRec() {
         updateVoiceRecUI();
         _voiceTimerInt = setInterval(_voiceTick, 500);
         _voiceTick();
-    }).catch(function () { xalert('无法访问麦克风，请检查权限'); });
+    }).catch(function () { xalert(T('mic_denied', '无法访问麦克风，请检查权限')); });
 }
 function stopVoiceRec() { if (_voiceRec) _voiceRec.rec.stop(); }
 function cancelVoiceRec() { if (_voiceRec) { _voiceRec.discard = true; _voiceRec.rec.stop(); } }
@@ -1010,7 +1010,7 @@ function loadContacts() {
                     _botInfo[c.username] = bi;
                     _bots[c.username] = 1;
                 }
-                var nm = eh(c.note || c.display_name || c.username) + (Number(c.is_bot) === 1 ? '<span class="bot-badge" title="AI 机器人">🤖</span>' : '');
+                var nm = eh(c.note || c.display_name || c.username) + (Number(c.is_bot) === 1 ? '<span class="bot-badge" title="' + T('bot_badge_title', 'AI 机器人') + '">🤖</span>' : '');
                 // ca 直接内联 onclick（Edge 兼容）：点头像打开个人资料，stopPropagation 避免触发 openDm
                 h += '<div class="csi' + (_pinned[c.username] ? ' pinned' : '') + (Number(c.is_bot) === 1 ? ' is-bot' : '') + '" data-cuser="' + c.username + '" onclick="openDm(\'' + c.username + '\')"><div class="ca" onclick="event.stopPropagation();event.preventDefault();openMyProfile(\'' + c.username + '\')">' + a + '</div><div class="cn" data-original="' + eh(c.note || c.display_name || c.username) + '">' + nm + '</div></div>';
             }
@@ -1096,17 +1096,17 @@ function loadBotTargets() {
         var list = (d && d.targets) || [];
         sel.innerHTML = '';
         if (!list.length) {
-            sel.innerHTML = '<option value="">（还没有可学的对象：和某人聊过 10 条以上才出现）</option>';
+            sel.innerHTML = '<option value="">' + T('bot_targets_empty', '（还没有可学的对象：和某人聊过 10 条以上才出现）') + '</option>';
         } else {
             list.forEach(function(t) {
                 var o = document.createElement('option');
                 o.value = t.username;
-                o.textContent = (t.display_name || t.username) + '（' + t.messages + ' 条）';
+                o.textContent = (t.display_name || t.username) + T('bot_target_msgs', '（%s 条）').replace('%s', t.messages);
                 sel.appendChild(o);
             });
         }
         sel.dataset.loaded = '1';
-    }).catch(function() { sel.innerHTML = '<option value="">加载失败</option>'; });
+    }).catch(function() { sel.innerHTML = '<option value="">' + T('bot_load_fail', '加载失败') + '</option>'; });
 }
 
 /* 切换「普通 / 伪人」表单形态 */
@@ -1120,7 +1120,7 @@ function onBotKindChange() {
     if (tw) tw.style.display = isPseudo ? 'none' : '';
     if (pw) pw.style.display = isPseudo ? 'none' : '';
     var n = document.getElementById('botNameInput');
-    if (n) n.placeholder = isPseudo ? '留空 = 用 ta 的名字 + “·伪”' : '给它起个名字，如 翻译官';
+    if (n) n.placeholder = isPseudo ? T('bot_name_ph_pseudo', '留空 = 用 ta 的名字 + “·伪”') : T('bot_name_ph', '给它起个名字，如 翻译官');
     if (isPseudo) loadBotTargets();
 }
 
@@ -1143,14 +1143,14 @@ function createBot() {
     var isPseudo = !!(pseudo && pseudo.checked);
     var tgt = document.getElementById('botTargetSelect');
     var target = tgt ? String(tgt.value || '') : '';
-    var name = (n && n.value.trim()) || (isPseudo ? '' : 'AI 助手');
-    if (isPseudo && !target) { xalert('先选一个学习对象'); return; }
+    var name = (n && n.value.trim()) || (isPseudo ? '' : T('bot_default_name', 'AI 助手'));
+    if (isPseudo && !target) { xalert(T('bot_pick_target_first', '先选一个学习对象')); return; }
     var body = { action: 'create', name: name, kind: isPseudo ? 'pseudo' : 'normal', target: target,
                  persona: isPseudo ? '' : ((p && p.value.trim()) || '') };
-    if (btn) { btn.disabled = true; btn.textContent = '创建中…'; }
+    if (btn) { btn.disabled = true; btn.textContent = T('bot_creating', '创建中…'); }
     botApi(body).then(function(d) {
-        if (btn) { btn.disabled = false; btn.textContent = '创建'; }
-        if (!d || !d.success) { xalert((d && d.error) || '创建失败'); return; }
+        if (btn) { btn.disabled = false; btn.textContent = T('bot_create', '创建'); }
+        if (!d || !d.success) { xalert((d && d.error) || T('bot_create_fail', '创建失败')); return; }
         if (n) n.value = '';
         if (p) p.value = '';
         var sel = document.getElementById('botTemplate');
@@ -1166,16 +1166,16 @@ function createBot() {
         setTimeout(function() {
             if (!BotRuntime) return;
             if (!BotRuntime.hasKey()) {
-                xalert('机器人建好了 🤖\n\n还差一步：去 DeepSeek 聊天页（/apps/deepseek/）的设置里填你自己的 API Key，机器人才能说话。');
+                xalert(T('bot_created_no_key', '机器人建好了 🤖\n\n还差一步：去 DeepSeek 聊天页（/apps/deepseek/）的设置里填你自己的 API Key，机器人才能说话。'));
             } else if ((d.bot.kind || '') === 'pseudo') {
-                xalert('伪人「' + (d.bot.display_name || d.bot.username) + '」已建好，正在读聊天记录学它说话…');
+                xalert(T('bot_pseudo_created', '伪人「%s」已建好，正在读聊天记录学它说话…').replace('%s', d.bot.display_name || d.bot.username));
             } else {
-                xalert('机器人「' + (d.bot.display_name || d.bot.username) + '」已加到联系人。直接发消息就行，它会用自己的身份回你。');
+                xalert(T('bot_created_ok', '机器人「%s」已加到联系人。直接发消息就行，它会用自己的身份回你。').replace('%s', d.bot.display_name || d.bot.username));
             }
         }, 300);
     }).catch(function() {
-        if (btn) { btn.disabled = false; btn.textContent = '创建'; }
-        xalert('创建失败，请稍后再试');
+        if (btn) { btn.disabled = false; btn.textContent = T('bot_create', '创建'); }
+        xalert(T('bot_create_fail_retry', '创建失败，请稍后再试'));
     });
 }
 
@@ -1186,7 +1186,7 @@ function openBotSettings() {
     var t = D;
     if (!t || !_bots[t]) return;
     botApi({ action: 'get', username: t }).then(function(d) {
-        if (!d || !d.success) { xalert((d && d.error) || '读取失败'); return; }
+        if (!d || !d.success) { xalert((d && d.error) || T('bot_read_fail', '读取失败')); return; }
         var box = document.getElementById('botSettingsModal');
         if (!box) {
             box = document.createElement('div');
@@ -1194,22 +1194,22 @@ function openBotSettings() {
             box.className = 'modal-overlay';
             box.setAttribute('onclick', "botModalBackdrop(event,'botSettingsModal')");
             box.innerHTML = '<div class="modal-box ds-bot-modal">'
-                + '<h3>🤖 机器人设置</h3>'
-                + '<label class="ds-bot-label" for="botSetName">名字</label>'
+                + '<h3>🤖 ' + T('bot_settings', '机器人设置') + '</h3>'
+                + '<label class="ds-bot-label" for="botSetName">' + T('bot_name_label', '名字') + '</label>'
                 + '<input type="text" id="botSetName" class="ds-bot-input" maxlength="24">'
-                + '<label class="ds-bot-label" for="botSetPersona">人设（提示词）</label>'
+                + '<label class="ds-bot-label" for="botSetPersona">' + T('bot_persona_label', '人设（提示词）') + '</label>'
                 + '<textarea id="botSetPersona" class="ds-bot-input ds-bot-textarea"></textarea>'
-                + '<p class="ds-bot-note">机器人回复用的是<strong>你自己的 DeepSeek API Key</strong>（在 /apps/deepseek/ 的设置里填），服务端不保存你的 Key。<br>删除机器人 = 连它和你的全部聊天记录一起删除，不可恢复。</p>'
+                + '<p class="ds-bot-note">' + T('bot_settings_note', '机器人回复用的是<strong>你自己的 DeepSeek API Key</strong>（在 /apps/deepseek/ 的设置里填），服务端不保存你的 Key。<br>删除机器人 = 连它和你的全部聊天记录一起删除，不可恢复。') + '</p>'
                 + '<div id="botPseudoExtra" style="display:none">'
                 + '<pre id="botProfileSummary" class="ds-bot-profile"></pre>'
                 + '<div style="display:flex;gap:8px">'
-                + '<button class="bsm" type="button" onclick="closeBotSettings(); pseudoAnalyze(document.getElementById(\'botSettingsModal\').dataset.user, true)">重新分析人格</button>'
-                + '<button class="bsm" type="button" onclick="pseudoShowPrompt()">看提示词</button>'
+                + '<button class="bsm" type="button" onclick="closeBotSettings(); pseudoAnalyze(document.getElementById(\'botSettingsModal\').dataset.user, true)">' + T('bot_reanalyze', '重新分析人格') + '</button>'
+                + '<button class="bsm" type="button" onclick="pseudoShowPrompt()">' + T('bot_view_prompt', '看提示词') + '</button>'
                 + '</div></div>'
                 + '<div class="ds-bot-actions">'
-                + '<button class="bsm ds-bot-danger" type="button" onclick="deleteBotContact()">删除机器人</button>'
-                + '<button class="bsm" type="button" onclick="closeBotSettings()">取消</button>'
-                + '<button class="bsm ds-bot-primary" type="button" onclick="saveBotSettings()">保存</button>'
+                + '<button class="bsm ds-bot-danger" type="button" onclick="deleteBotContact()">' + T('bot_delete', '删除机器人') + '</button>'
+                + '<button class="bsm" type="button" onclick="closeBotSettings()">' + T('btn_cancel', '取消') + '</button>'
+                + '<button class="bsm ds-bot-primary" type="button" onclick="saveBotSettings()">' + T('btn_save', '保存') + '</button>'
                 + '</div>'
                 + '</div>';
             document.body.appendChild(box);
@@ -1226,10 +1226,10 @@ function openBotSettings() {
                 var sum = document.getElementById('botProfileSummary');
                 if (sum) {
                     var bits = [];
-                    bits.push('类型：伪人' + (d.bot.has_profile ? '（已学会，' + ((prof.samples) || 0) + ' 条样本）' : '（还没分析）'));
-                    if (prof.summary) bits.push('画像：' + prof.summary);
-                    if (prof.habits && prof.habits.length) bits.push('习惯：' + prof.habits.slice(0, 3).join('；'));
-                    if (prof.emoji_meanings && prof.emoji_meanings.length) bits.push('表情包含义：' + prof.emoji_meanings.length + ' 条');
+                    bits.push(T('bot_type_pseudo', '类型：伪人') + (d.bot.has_profile ? T('bot_learned', '（已学会，%s 条样本）').replace('%s', (prof.samples) || 0) : T('bot_not_analyzed', '（还没分析）')));
+                    if (prof.summary) bits.push(T('bot_profile_prefix', '画像：%s').replace('%s', prof.summary));
+                    if (prof.habits && prof.habits.length) bits.push(T('bot_habits_prefix', '习惯：%s').replace('%s', prof.habits.slice(0, 3).join(T('bot_habits_sep', '；'))));
+                    if (prof.emoji_meanings && prof.emoji_meanings.length) bits.push(T('bot_emoji_n', '表情包含义：%s 条').replace('%s', prof.emoji_meanings.length));
                     sum.textContent = bits.join('\n');
                 }
             }
@@ -1252,11 +1252,11 @@ function saveBotSettings() {
         name: document.getElementById('botSetName').value.trim(),
         persona: document.getElementById('botSetPersona').value
     }).then(function(d) {
-        if (!d || !d.success) { xalert((d && d.error) || '保存失败'); return; }
+        if (!d || !d.success) { xalert((d && d.error) || T('bot_save_fail', '保存失败')); return; }
         closeBotSettings();
         loadContacts();
-        xalert('已保存');
-    }).catch(function() { xalert('保存失败'); });
+        xalert(T('bot_saved', '已保存'));
+    }).catch(function() { xalert(T('bot_save_fail', '保存失败')); });
 }
 
 function deleteBotContact() {
@@ -1272,14 +1272,14 @@ function pseudoShowPrompt() {
     var u = box && box.dataset.user;
     if (!u) return;
     botApi({ action: 'preview', username: u }).then(function(d) {
-        if (!d || !d.success) { xalert((d && d.error) || '读取失败'); return; }
+        if (!d || !d.success) { xalert((d && d.error) || T('bot_read_fail', '读取失败')); return; }
         var w = window.open('', '_blank');
         if (w) {
-            w.document.write('<title>伪人提示词</title><pre style="white-space:pre-wrap;font:13px/1.6 ui-monospace,Menlo,monospace;padding:16px;background:#1e1e1e;color:#ddd">'
+            w.document.write('<title>' + T('bot_prompt_title', '伪人提示词') + '</title><pre style="white-space:pre-wrap;font:13px/1.6 ui-monospace,Menlo,monospace;padding:16px;background:#1e1e1e;color:#ddd">'
                 + String(d.prompt).replace(/[&<>]/g, function(c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]; }) + '</pre>');
             w.document.close();
         } else {
-            xalert('提示词已生成（弹窗被拦截）：' + String(d.prompt).slice(0, 300) + '…');
+            xalert(T('bot_prompt_blocked', '提示词已生成（弹窗被拦截）：') + String(d.prompt).slice(0, 300) + '…');
         }
     });
 }
@@ -1287,16 +1287,16 @@ function pseudoShowPrompt() {
 function botDeleteConfirm(u) {
     if (!u) return;
     var nm = _contactNotes[u] || u;
-    xconfirm('删除机器人「' + nm + '」？\n\n它和你的全部聊天记录会一起被删除，不可恢复。').then(function(ok) {
+    xconfirm(T('bot_delete_confirm', '删除机器人「%s」？\n\n它和你的全部聊天记录会一起被删除，不可恢复。').replace('%s', nm)).then(function(ok) {
         if (!ok) return;
         botApi({ action: 'delete', username: u }).then(function(d) {
-            if (!d || !d.success) { xalert((d && d.error) || '删除失败'); return; }
+            if (!d || !d.success) { xalert((d && d.error) || T('bot_delete_fail', '删除失败')); return; }
             closeBotSettings();
             delete _bots[u];
             delete _contactNotes[u];
             if (D === u) { D = null; switchPanel('announcements'); }
             loadContacts();
-        }).catch(function() { xalert('删除失败'); });
+        }).catch(function() { xalert(T('bot_delete_fail', '删除失败')); });
     });
 }
 
@@ -1307,14 +1307,14 @@ function botDeleteConfirm(u) {
    （卡样式在 chat.css 的 .ca-ask*，与 apps/deepseek 的 AI 助手共用同一套皮肤） */
 function caToolArgRows(args, params) {
     var keys = Object.keys(args || {});
-    if (!keys.length) return '<span style="color:#7c7c7c">（无）</span>';
+    if (!keys.length) return '<span style="color:#7c7c7c">' + T('bot_tool_none', '（无）') + '</span>';
     return keys.map(function(k) {
         var v = args[k];
         var s = (v === null || v === undefined) ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
         var show = s.length > 80 ? (s.slice(0, 80) + '…') : s;
         var tip = s.length > 80 ? s : (params && params[k] ? String(params[k]) : '');
         return '<div class="row"><span class="k">' + eh(k) + '</span><span class="v"' +
-               (tip ? ' title="' + eh(tip) + '"' : '') + '>' + eh(show || '（空）') + '</span></div>';
+               (tip ? ' title="' + eh(tip) + '"' : '') + '>' + eh(show || T('bot_tool_empty', '（空）')) + '</span></div>';
     }).join('');
 }
 
@@ -1326,7 +1326,7 @@ function caToolAsk(info) {
         var es = area.querySelector('.es');
         if (es) es.remove();
 
-        var scopeTxt = info.scope === 'write' ? '会改动数据' : (info.scope === 'admin' ? '管理员专用' : '只读');
+        var scopeTxt = info.scope === 'write' ? T('bot_tool_scope_write', '会改动数据') : (info.scope === 'admin' ? T('bot_tool_scope_admin', '管理员专用') : T('bot_tool_scope_read', '只读'));
         var row = document.createElement('div');
         row.className = 'mr ca-ask-row';
         row.innerHTML = '<div class="mc"><div class="mb">' +
@@ -1438,7 +1438,7 @@ function botReply(user) {
         onStart: function() {
             if (tEl && D === u) {
                 tEl.style.display = 'block';
-                tEl.textContent = (_contactNotes[u] || u) + ' 正在思考…';
+                tEl.textContent = T('bot_thinking_now', '%s 正在思考…').replace('%s', _contactNotes[u] || u);
             }
         },
         onText: function(t) { botStreamPaint(u, t); },
@@ -1452,7 +1452,7 @@ function botReply(user) {
         onError: function(msg) {
             botStreamClear();
             if (tEl) tEl.style.display = 'none';
-            xalert('机器人回复失败：' + msg);
+            xalert(T('bot_reply_fail', '机器人回复失败：%s').replace('%s', msg));
         }
     });
 }
@@ -1475,12 +1475,12 @@ function botReplyPseudo(user) {
     var cfg = {};
     try { cfg = JSON.parse(localStorage.getItem('chatapp_ds_cfg') || '{}') || {}; } catch (e) { cfg = {}; }
     if (!cfg.key) {
-        xalert('伪人也要用你自己的 DeepSeek API Key 🤖\n\n请先去 /apps/deepseek/ 的设置里填 Key（服务端不会存你的 Key）。');
+        xalert(T('bot_need_key_pseudo', '伪人也要用你自己的 DeepSeek API Key 🤖\n\n请先去 /apps/deepseek/ 的设置里填 Key（服务端不会存你的 Key）。'));
         return;
     }
     var body = { action: 'stream', username: user, key: cfg.key, model: cfg.model || 'deepseek-v4-flash',
                  temperature: (cfg.temp != null ? cfg.temp : 1.1) };
-    if (tEl && D === user) { tEl.style.display = 'block'; tEl.textContent = (_contactNotes[user] || user) + ' 正在输入…'; }
+    if (tEl && D === user) { tEl.style.display = 'block'; tEl.textContent = T('bot_typing_now', '%s 正在输入…').replace('%s', _contactNotes[user] || user); }
     var acc = '';
     var think = pseudoThinkOn(user) ? pseudoThinkCard(user) : null;
     fetch('../../api/bots.php', {
@@ -1505,7 +1505,7 @@ function botReplyPseudo(user) {
                     if (payload === '' || payload === '[DONE]') continue;
                     var j = null;
                     try { j = JSON.parse(payload); } catch (e) { continue; }
-                    if (curEvent === 'error' || (j && j.error)) throw new Error((j && j.error) || '生成失败');
+                    if (curEvent === 'error' || (j && j.error)) throw new Error((j && j.error) || T('bot_gen_fail', '生成失败'));
                     if (curEvent === 'stage') { if (think) think.stage(j.label || ''); return pump(); }
                     if (curEvent === 'inner') { if (think) think.inner(j.delta || ''); return pump(); }
                     if (curEvent === 'mood') { if (think) think.mood(j); return pump(); }
@@ -1536,7 +1536,7 @@ function botReplyPseudo(user) {
         botStreamClear();
         if (think) think.done();
         if (tEl) { tEl.style.display = 'none'; tEl.textContent = ''; }
-        xalert('伪人回复失败：' + ((e && e.message) || '未知错误'));
+        xalert(T('bot_pseudo_reply_fail', '伪人回复失败：%s').replace('%s', (e && e.message) || T('bot_unknown_err', '未知错误')));
     });
 }
 
@@ -1552,8 +1552,8 @@ function togglePseudoThink() {
     try { localStorage.setItem('chatapp_pseudo_think_' + u, on ? '1' : '0'); } catch (e) {}
     updateDmOptionsMenu();
     pseudoThinkNote(u, on
-        ? '已开启：下次它回复时，会把思考过程显示在聊天气泡上面（只对你可见，不会写进聊天记录）。'
-        : '已关闭思考过程显示。');
+        ? T('bot_think_on', '已开启：下次它回复时，会把思考过程显示在聊天气泡上面（只对你可见，不会写进聊天记录）。')
+        : T('bot_think_off', '已关闭思考过程显示。'));
 }
 
 /* 在聊天流里给一条小提示（不写库） */
@@ -1575,8 +1575,8 @@ function pseudoThinkCard(u) {
     if (!area) return null;
     var el = document.createElement('div');
     el.className = 'ds-analysis ds-think open';
-    el.innerHTML = '<div class="ds-an-head"><span class="ds-an-ico">🧠</span><span class="ds-an-title">在想…</span>'
-        + '<span class="ds-an-toggle" onclick="this.parentNode.parentNode.classList.toggle(\'open\')">收起</span></div>'
+    el.innerHTML = '<div class="ds-an-head"><span class="ds-an-ico">🧠</span><span class="ds-an-title">' + T('bot_think_title', '在想…') + '</span>'
+        + '<span class="ds-an-toggle" onclick="this.parentNode.parentNode.classList.toggle(\'open\')">' + T('bot_collapse', '收起') + '</span></div>'
         + '<div class="ds-an-body">'
         + '  <div class="ds-an-phase"></div>'
         + '  <div class="ds-an-inner"></div>'
@@ -1599,7 +1599,7 @@ function pseudoThinkCard(u) {
         inner: function (s) {
             txt += s;
             innerEl.textContent = txt;
-            title.textContent = '在想… ' + txt.length + ' 字';
+            title.textContent = T('bot_think_live', '在想… %s 字').replace('%s', txt.length);
             el.scrollTop = el.scrollHeight;
             scrollChatToBottom(area);
         },
@@ -1608,25 +1608,25 @@ function pseudoThinkCard(u) {
             var h = '';
             var v = (m.valence || 0), e = (m.energy != null ? m.energy : 0.5);
             var tone = v <= -0.25 ? 'neg' : (v >= 0.25 ? 'pos' : 'mid');
-            h += '<div class="ds-mood"><span class="ds-mood-chip ' + tone + '">心情：' + eh(m.mood || '平静') + '</span>'
-               + '<span class="ds-mood-meta">情绪 ' + (v >= 0 ? '+' : '') + v + ' · 精力 ' + e + '</span></div>';
+            h += '<div class="ds-mood"><span class="ds-mood-chip ' + tone + '">' + T('bot_mood', '心情：%s').replace('%s', eh(m.mood || T('bot_mood_calm', '平静'))) + '</span>'
+               + '<span class="ds-mood-meta">' + T('bot_mood_meta', '情绪 %s · 精力 %s').replace('%s', (v >= 0 ? '+' : '') + v).replace('%s', e) + '</span></div>';
             if (m.why) h += '<div class="ds-an-line dim">' + eh(m.why) + '</div>';
             if (m.thoughts && m.thoughts.length) {
-                h += '<div class="ds-an-line"><b>在想</b></div><ul class="ds-th">'
+                h += '<div class="ds-an-line"><b>' + T('bot_think_head', '在想') + '</b></div><ul class="ds-th">'
                    + m.thoughts.map(function (t) { return '<li>' + eh(t) + '</li>'; }).join('') + '</ul>';
             }
-            if (m.memory_flash) h += '<div class="ds-an-line mem">⚡ 突然想起：' + eh(m.memory_flash) + '</div>';
+            if (m.memory_flash) h += '<div class="ds-an-line mem">' + T('bot_memory_flash', '⚡ 突然想起：%s').replace('%s', eh(m.memory_flash)) + '</div>';
             if (m.hold_back && m.hold_back.length) {
-                h += '<div class="ds-an-line"><b>忍住没说</b></div><ul class="ds-th hold">'
+                h += '<div class="ds-an-line"><b>' + T('bot_hold_head', '忍住没说') + '</b></div><ul class="ds-th hold">'
                    + m.hold_back.map(function (t) { return '<li>' + eh(t) + '</li>'; }).join('') + '</ul>';
             }
-            if (m.intent) h += '<div class="ds-an-line dim">打算：' + eh(m.intent) + (m.urge != null ? '（想回的冲动 ' + m.urge + '）' : '') + '</div>';
+            if (m.intent) h += '<div class="ds-an-line dim">' + T('bot_intent', '打算：%s').replace('%s', eh(m.intent)) + (m.urge != null ? T('bot_urge', '（想回的冲动 %s）').replace('%s', m.urge) : '') + '</div>';
             stateEl.innerHTML = h;
             scrollChatToBottom(area);
         },
         done: function () {
-            title.textContent = '内心戏（' + txt.length + ' 字）';
-            if (!txt) title.textContent = '这次没留下内心戏';
+            title.textContent = T('bot_inner_title', '内心戏（%s 字）').replace('%s', txt.length);
+            if (!txt) title.textContent = T('bot_inner_none', '这次没留下内心戏');
             phaseEl.textContent = '';
         }
     };
@@ -1648,12 +1648,12 @@ function pseudoAnalyze(u, force) {
     var cfg = {};
     try { cfg = JSON.parse(localStorage.getItem('chatapp_ds_cfg') || '{}') || {}; } catch (e) { cfg = {}; }
     if (!cfg.key) {
-        xalert('分析 ta 的聊天记录需要你的 DeepSeek API Key —— 先去 /apps/deepseek/ 设置里填一下。');
+        xalert(T('bot_analyze_need_key', '分析 ta 的聊天记录需要你的 DeepSeek API Key —— 先去 /apps/deepseek/ 设置里填一下。'));
         return;
     }
     if (_dsAnalysisCard) closeAnalysisCard();
     var card = openAnalysisCard(u);
-    card.setState('正在读取聊天记录…');
+    card.setState(T('bot_reading', '正在读取聊天记录…'));
 
     var body = { action: 'analyze', username: u, key: cfg.key, model: cfg.model || 'deepseek-v4-flash', stream: 1, force: force ? 1 : 0 };
     var raw = '', reasoning = '';
@@ -1680,14 +1680,14 @@ function pseudoAnalyze(u, force) {
                     var j = null;
                     try { j = JSON.parse(payload); } catch (e) { continue; }
                     if (curEvent === 'start') {
-                        card.setState('正在分析「' + (j.target || u) + '」的 ' + (j.samples || 0) + ' 条记录（' + (j.chars || 0) + ' 字）…');
+                        card.setState(T('bot_analyzing', '正在分析「%1$s」的 %2$s 条记录（%3$s 字）…').replace('%1$s', j.target || u).replace('%2$s', j.samples || 0).replace('%3$s', j.chars || 0));
                         continue;
                     }
                     if (curEvent === 'stage') {
-                        card.setState((j && j.note) || '处理中…');
+                        card.setState((j && j.note) || T('bot_processing', '处理中…'));
                         continue;
                     }
-                    if (curEvent === 'error' || (j && j.error)) throw new Error((j && j.error) || '分析失败');
+                    if (curEvent === 'error' || (j && j.error)) throw new Error((j && j.error) || T('bot_analyze_fail', '分析失败'));
                     if (curEvent === 'done') { card.finish(j); return; }
                     var delta = (j.choices && j.choices[0] && j.choices[0].delta) || {};
                     if (delta.reasoning_content) { reasoning += delta.reasoning_content; card.setThinking(reasoning); }
@@ -1698,7 +1698,7 @@ function pseudoAnalyze(u, force) {
         }
         return pump();
     }).catch(function(e) {
-        card.fail((e && e.message) || '网络错误');
+        card.fail((e && e.message) || T('bot_net_err', '网络错误'));
     });
 }
 
@@ -1719,7 +1719,7 @@ function openAnalysisCard(u) {
     el.className = 'ds-analysis';
     el.innerHTML =
         '<div class="ds-an-head"><span class="ds-an-ico">🔍</span><span class="ds-an-title"></span>'
-        + '<span class="ds-an-toggle" onclick="this.parentNode.parentNode.classList.toggle(\'open\')">详情</span></div>'
+        + '<span class="ds-an-toggle" onclick="this.parentNode.parentNode.classList.toggle(\'open\')">' + T('bot_detail', '详情') + '</span></div>'
         + '<div class="ds-an-body"><div class="ds-an-thinking"></div><pre class="ds-an-raw"></pre></div>'
         + '<div class="ds-an-sum"></div>';
     area.appendChild(el);
@@ -1734,34 +1734,34 @@ function openAnalysisCard(u) {
         setThinking: function(t) { thinkEl.textContent = t.slice(-600); el.classList.add('open'); scrollChatToBottom(area); },
         setRaw: function(t) { rawEl.textContent = t; scrollChatToBottom(area); },
         finish: function(d) {
-            if (d.skipped === 'recent') { title.textContent = '刚刚分析过（10 分钟内不重复跑）'; return; }
+            if (d.skipped === 'recent') { title.textContent = T('bot_analyze_recent', '刚刚分析过（10 分钟内不重复跑）'); return; }
             _botInfo[u] = _botInfo[u] || {};
             _botInfo[u].has_profile = true;
             var p = d.profile || {}, s = d.stats || {};
-            title.textContent = '分析完成' + (d.repaired ? '（修复过 JSON）' : '') + '：' + (s.samples || 0) + ' 条样本';
+            title.textContent = T('bot_analyze_done', '分析完成%1$s：%2$s 条样本').replace('%1$s', d.repaired ? T('bot_analyze_fixed', '（修复过 JSON）') : '').replace('%2$s', s.samples || 0);
             el.classList.add('done');
             var h = [];
-            if (p.summary) h.push('<div class="ds-an-line"><b>画像</b>' + eh(p.summary) + '</div>');
-            if (p.habits && p.habits.length) h.push('<div class="ds-an-line"><b>习惯</b>' + p.habits.map(eh).join('、') + '</div>');
+            if (p.summary) h.push('<div class="ds-an-line"><b>' + T('bot_lbl_profile', '画像') + '</b>' + eh(p.summary) + '</div>');
+            if (p.habits && p.habits.length) h.push('<div class="ds-an-line"><b>' + T('bot_lbl_habits', '习惯') + '</b>' + p.habits.map(eh).join(T('bot_list_sep', '、')) + '</div>');
             if (p.psych) {
                 var ks = Object.keys(p.psych).filter(function(k) { return p.psych[k]; });
-                if (ks.length) h.push('<div class="ds-an-line"><b>心理</b>' + ks.map(function(k) { return eh(k) + '：' + eh(String(p.psych[k])); }).join('；') + '</div>');
+                if (ks.length) h.push('<div class="ds-an-line"><b>' + T('bot_psych', '心理') + '</b>' + ks.map(function(k) { return eh(k) + T('bot_colon', '：') + eh(String(p.psych[k])); }).join(T('bot_habits_sep', '；')) + '</div>');
             }
-            if (p.emoji_meanings && p.emoji_meanings.length) h.push('<div class="ds-an-line"><b>表情包</b>' + p.emoji_meanings.map(function(e2) { return eh((e2 && e2.code) || '') + '＝' + eh((e2 && e2.meaning) || ''); }).join('；') + '</div>');
-            if (p.taboos && p.taboos.length) h.push('<div class="ds-an-line"><b>禁区</b>' + p.taboos.map(eh).join('、') + '</div>');
-            if (s.avg_len) h.push('<div class="ds-an-line dim">平均 ' + s.avg_len + ' 字 / 不用句号 ' + (s.no_period_pct || 0) + '% / 表情包 ' + (s.emoji_pct || 0) + '% / 连发 ' + (s.burst_avg || 1) + ' 条</div>');
-            h.push('<div class="ds-an-actions"><button class="bsm" onclick="pseudoAnalyze(\'' + u + '\', true)">重新分析</button>'
-                + '<button class="bsm" onclick="closeAnalysisCard()">收起</button></div>');
+            if (p.emoji_meanings && p.emoji_meanings.length) h.push('<div class="ds-an-line"><b>' + T('bot_lbl_emoji', '表情包') + '</b>' + p.emoji_meanings.map(function(e2) { return eh((e2 && e2.code) || '') + T('bot_eq', '＝') + eh((e2 && e2.meaning) || ''); }).join(T('bot_habits_sep', '；')) + '</div>');
+            if (p.taboos && p.taboos.length) h.push('<div class="ds-an-line"><b>' + T('bot_taboo', '禁区') + '</b>' + p.taboos.map(eh).join(T('bot_list_sep', '、')) + '</div>');
+            if (s.avg_len) h.push('<div class="ds-an-line dim">' + T('bot_avg_stats', '平均 %s 字 / 不用句号 %s% / 表情包 %s% / 连发 %s 条').replace('%s', s.avg_len).replace('%s', (s.no_period_pct || 0)).replace('%s', (s.emoji_pct || 0)).replace('%s', (s.burst_avg || 1)) + '</div>');
+            h.push('<div class="ds-an-actions"><button class="bsm" onclick="pseudoAnalyze(\'' + u + '\', true)">' + T('bot_reanalyze', '重新分析') + '</button>'
+                + '<button class="bsm" onclick="closeAnalysisCard()">' + T('bot_collapse', '收起') + '</button></div>');
             sumEl.innerHTML = h.join('');
             scrollChatToBottom(area);
             updateUnreads();
         },
         fail: function(msg) {
-            title.textContent = '分析失败';
+            title.textContent = T('bot_analyze_fail', '分析失败');
             el.classList.add('err', 'open');
             sumEl.innerHTML = '<div class="ds-an-line err">' + eh(msg) + '</div>'
-                + '<div class="ds-an-actions"><button class="bsm" onclick="pseudoAnalyze(\'' + u + '\', true)">重试（强制）</button>'
-                + '<button class="bsm" onclick="closeAnalysisCard()">收起</button></div>';
+                + '<div class="ds-an-actions"><button class="bsm" onclick="pseudoAnalyze(\'' + u + '\', true)">' + T('bot_retry_force', '重试（强制）') + '</button>'
+                + '<button class="bsm" onclick="closeAnalysisCard()">' + T('bot_collapse', '收起') + '</button></div>';
             scrollChatToBottom(area);
         }
     };
@@ -1776,10 +1776,10 @@ function botReplyOld(user) {
     if (BotRuntime.isBusy(u)) return;
     var tEl = document.getElementById('typingIndicator');
     BotRuntime.reply(u, {
-        onStart: function() { if (tEl && D === u) { tEl.style.display = 'block'; tEl.textContent = (_contactNotes[u] || u) + ' 正在思考…'; } },
+        onStart: function() { if (tEl && D === u) { tEl.style.display = 'block'; tEl.textContent = T('bot_thinking_now', '%s 正在思考…').replace('%s', _contactNotes[u] || u); } },
         onText: function(t) { botStreamPaint(u, t); },
         onDone: function() { botStreamClear(); if (tEl) tEl.style.display = 'none'; if (D === u) loadDmMessages(); updateUnreads(); },
-        onError: function(msg) { botStreamClear(); if (tEl) tEl.style.display = 'none'; xalert('机器人回复失败：' + msg); }
+        onError: function(msg) { botStreamClear(); if (tEl) tEl.style.display = 'none'; xalert(T('bot_reply_fail', '机器人回复失败：%s').replace('%s', msg)); }
     });
 }
 
@@ -2252,12 +2252,12 @@ function xconfirm(m) {
 
 // 外部链接警告：点外部链接先弹确认（No/Yes），确认后才新标签打开
 function confirmExternal(url) {
-    var p = customDialog('外部链接', '你即将要前往外部链接，是否确认？\n链接: ' + url, 'confirm');
+    var p = customDialog(T('dlg_ext_title', '外部链接'), T('dlg_ext_msg', '你即将要前往外部链接，是否确认？\n链接: %s').replace('%s', url), 'confirm');
     var msg = document.getElementById('cdMsg');
     if (msg) msg.style.whiteSpace = 'pre-wrap'; // 保留 \n 换行
     var ok = document.getElementById('cdOk'), cancel = document.getElementById('cdCancel');
-    if (ok) ok.textContent = 'Yes';
-    if (cancel) cancel.textContent = 'No';
+    if (ok) ok.textContent = T('dlg_yes', '是');
+    if (cancel) cancel.textContent = T('dlg_no', '否');
     return p.then(function (v) { if (v) window.open(url, '_blank', 'noopener'); });
 }
 
@@ -2991,7 +2991,7 @@ function updateDmOptionsMenu() {
     if (thinkBtn) {
         var isPseudo = !isGrp && isBot && ((_botInfo[D] || {}).kind === 'pseudo');
         thinkBtn.style.display = isPseudo ? '' : 'none';
-        if (isPseudo) thinkBtn.textContent = (pseudoThinkOn(D) ? '✓ ' : '') + '展示思考过程';
+        if (isPseudo) thinkBtn.textContent = (pseudoThinkOn(D) ? '✓ ' : '') + T('bot_think_btn', '展示思考过程');
     }
     if (!isGrp && isBot) {
         var hideIds = ['dmE2eeBtn', 'dmSpecialBtn'];
@@ -3065,7 +3065,7 @@ function openSafetyVerify() {
     if (window.E2EE && typeof E2EE.safetyNumber === 'function') {
         E2EE.safetyNumber(D).then(function (s) {
             _safetyNumberText = s || '';
-            if (numEl) numEl.textContent = s || '（无）';
+            if (numEl) numEl.textContent = s || T('bot_tool_none', '（无）');
         }).catch(function () {
             if (numEl) numEl.textContent = T('sv_error');
         });
@@ -4937,7 +4937,7 @@ function showCreateTicket() {
     document.getElementById('ticketContent').value = '';
     if (RSTR) {
         document.getElementById('ticketType').value = 'account_issue';
-        document.getElementById('ticketSubject').value = '账号解封请求';
+        document.getElementById('ticketSubject').value = T('ticket_unban_subject', '账号解封请求');
     }
     document.getElementById('createTicketModal').classList.add('active');
 }
@@ -6985,8 +6985,8 @@ function _doFlashUpload(file, target) {
         _removeFlashOpt({ optCard: opt && opt.row });
         if (err && err.server && err.server.error) {
             var s = err.server, extra = '';
-            if (s.active_count != null && s.max_active) extra = '（已有 ' + s.active_count + ' 个，上限 ' + s.max_active + ' 个）';
-            else if (s.max_size && s.error === 'File too large') extra = '（上限 ' + fmtSize(s.max_size) + '）';
+            if (s.active_count != null && s.max_active) extra = T('flash_limit_count', '（已有 %s 个，上限 %s 个）').replace('%s', s.active_count).replace('%s', s.max_active);
+            else if (s.max_size && s.error === 'File too large') extra = T('flash_limit_size', '（上限 %s）').replace('%s', fmtSize(s.max_size));
             xalert(T('flash_fail', '闪传失败') + '：' + s.error + extra);
             return;
         }
@@ -8149,7 +8149,7 @@ function loadWssSettings() {
         }
         var mode = wssDetectMode();
         var am = document.getElementById('wssActiveMode');
-        if (am) am.textContent = '当前检测: ' + ({local:'🖥 本地', private:'🏠 私网', public:'🌐 公网'})[mode] + ' → ' + (d[mode] || '(未配置)');
+        if (am) am.textContent = T('dbg_cur_probe', '当前检测: %s → %s').replace('%s', ({local:T('dbg_mode_local', '🖥 本地'), private:T('dbg_mode_private', '🏠 私网'), public:T('dbg_mode_public', '🌐 公网')})[mode]).replace('%s', d[mode] || T('dbg_not_set', '(未配置)'));
     }).catch(function() {});
 }
 function saveWssSettings() {
@@ -8165,39 +8165,39 @@ function saveWssSettings() {
         var st = document.getElementById('wssSaveStatus');
         if (!st) return;
         if (d.success) {
-            st.textContent = '✓ Saved — 前端按来源自动选择 local/private/public';
+            st.textContent = T('dbg_saved_src', '✓ Saved — 前端按来源自动选择 local/private/public');
             st.style.color = '#7ddb9a';
             var mode = wssDetectMode();
             var am = document.getElementById('wssActiveMode');
-            if (am) am.textContent = '当前检测: ' + ({local:'🖥 本地', private:'🏠 私网', public:'🌐 公网'})[mode] + ' → ' + (d[mode] || '(未配置)');
+            if (am) am.textContent = T('dbg_cur_probe', '当前检测: %s → %s').replace('%s', ({local:T('dbg_mode_local', '🖥 本地'), private:T('dbg_mode_private', '🏠 私网'), public:T('dbg_mode_public', '🌐 公网')})[mode]).replace('%s', d[mode] || T('dbg_not_set', '(未配置)'));
         } else { st.textContent = d.error || 'Failed'; st.style.color = '#ff8a8a'; }
     }).catch(function() {});
 }
 // 重新运行 OOBE（root only，需验证当前管理员密码）
 function rerunOobe() {
-    var cur = prompt('请输入当前管理员密码以重新运行 OOBE：');
-    if (cur === null || cur === '') { xalert('已取消。'); return; }
+    var cur = prompt(T('dbg_oobe_pw', '请输入当前管理员密码以重新运行 OOBE：'));
+    if (cur === null || cur === '') { xalert(T('dbg_cancelled', '已取消。')); return; }
     var f = new URLSearchParams();
     f.append('action', 'oobe_rerun');
     f.append('password', cur);
     fetch('../../api/admin.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() })
     .then(function(r) { return r.json(); }).then(function(d) {
         if (d.success) window.location.href = 'oobe.php';
-        else xalert('无法重新运行 OOBE：' + (d.error || ''));
-    }).catch(function() { xalert('无法重新运行 OOBE。'); });
+        else xalert(T('dbg_oobe_fail', '无法重新运行 OOBE：%s').replace('%s', (d.error || '')));
+    }).catch(function() { xalert(T('dbg_oobe_err', '无法重新运行 OOBE。')); });
 }
 
 function dbLoadTables() {
     var sel = document.getElementById('dbTableSelect');
     fetch('../../api/admin.php?action=db_tables').then(function(r) { return r.json(); }).then(function(d) {
-        if (!d.success) { sel.innerHTML = '<option value="">-- 加载失败 --</option>'; return; }
-        var h = '<option value="">-- 选择表 --</option>';
+        if (!d.success) { sel.innerHTML = '<option value="">' + T('dbg_load_fail_ph', '-- 加载失败 --') + '</option>'; return; }
+        var h = '<option value="">' + T('dbg_pick_table_ph', '-- 选择表 --') + '</option>';
         for (var i = 0; i < d.tables.length; i++) {
             h += '<option value="' + d.tables[i] + '">' + d.tables[i] + '</option>';
         }
         sel.innerHTML = h;
     }).catch(function() {
-        sel.innerHTML = '<option value="">-- 加载失败 --</option>';
+        sel.innerHTML = '<option value="">' + T('dbg_load_fail_ph', '-- 加载失败 --') + '</option>';
     });
 }
 
@@ -8208,11 +8208,11 @@ function dbShowTable() {
     var createEl = document.getElementById('dbCreateSQL');
     var colsEl = document.getElementById('dbColumns');
     var structDiv = document.getElementById('dbStructure');
-    info.textContent = 'Loading...';
+    info.textContent = T('dbg_loading', 'Loading...');
     structDiv.style.display = 'block';
     fetch('../../api/admin.php?action=db_structure&table=' + encodeURIComponent(table)).then(function(r) { return r.json(); }).then(function(d) {
-        if (!d.success) { info.textContent = 'Error: ' + (d.error || 'unknown'); return; }
-        info.textContent = '表名: ' + d.table + ' | 行数: ' + d.row_count;
+        if (!d.success) { info.textContent = T('dbg_error', '错误: %s').replace('%s', (d.error || 'unknown')); return; }
+        info.textContent = T('dbg_table_info', '表名: %s | 行数: %s').replace('%s', d.table).replace('%s', d.row_count);
         createEl.textContent = d.create_sql;
         var h = '';
         for (var i = 0; i < d.columns.length; i++) {
@@ -8226,13 +8226,13 @@ function dbShowTable() {
         }
         colsEl.innerHTML = h;
     }).catch(function() {
-        info.textContent = '加载失败';
+        info.textContent = T('dbg_load_fail', '加载失败');
     });
 }
 
 function dbExport() {
     var table = document.getElementById('dbTableSelect').value;
-    if (!table) { xalert('请先选择表'); return; }
+    if (!table) { xalert(T('dbg_pick_table', '请先选择表')); return; }
     // Navigate to download URL directly
     window.open('../../api/admin.php?action=db_export&table=' + encodeURIComponent(table) + '&csrf=' + encodeURIComponent(window.CSRF || ''), '_blank');
 }
@@ -8243,8 +8243,8 @@ function dbRunQuery() {
     var table = document.getElementById('dbResultTable');
     var head = document.getElementById('dbResultHead');
     var body = document.getElementById('dbResultBody');
-    if (!sql) { statusEl.textContent = '请输入 SQL'; return; }
-    statusEl.textContent = '执行中...';
+    if (!sql) { statusEl.textContent = T('dbg_enter_sql', '请输入 SQL'); return; }
+    statusEl.textContent = T('dbg_running', '执行中...');
     table.style.display = 'none';
     var form = new URLSearchParams();
     form.append('action', 'db_query');
@@ -8256,10 +8256,10 @@ function dbRunQuery() {
         body: form.toString()
     }).then(function(r) { return r.json(); }).then(function(d) {
         if (!d.success) {
-            statusEl.textContent = '错误: ' + (d.error || 'unknown');
+            statusEl.textContent = T('dbg_error', '错误: %s').replace('%s', (d.error || 'unknown'));
             return;
         }
-        statusEl.textContent = '返回 ' + d.row_count + ' 行';
+        statusEl.textContent = T('dbg_rows', '返回 %s 行').replace('%s', d.row_count);
         var h = '<tr>';
         for (var i = 0; i < d.columns.length; i++) {
             h += '<th style="padding:4px 8px;text-align:left;border-bottom:1px solid #444;background:#252525">' + eh(d.columns[i]) + '</th>';
@@ -8278,7 +8278,7 @@ function dbRunQuery() {
         body.innerHTML = b;
         table.style.display = 'table';
     }).catch(function() {
-        statusEl.textContent = '请求失败';
+        statusEl.textContent = T('dbg_req_fail', '请求失败');
     });
 }
 
@@ -8292,8 +8292,8 @@ function dbFormatCell(val) {
     if (dbIsBase64Image(val)) {
         var prefix = val.substring(0, 80);
         var totalLen = val.length;
-        return '<span class="db-b64" onclick="dbToggleB64(this)" title="点击展开/折叠" style="cursor:pointer;color:#e0a040">'
-            + '<span class="db-b64-label" style="font-weight:bold">[图片数据]</span> '
+        return '<span class="db-b64" onclick="dbToggleB64(this)" title="' + T('dbg_toggle', '点击展开/折叠') + '" style="cursor:pointer;color:#e0a040">'
+            + '<span class="db-b64-label" style="font-weight:bold">' + T('dbg_img_data', '[图片数据]') + '</span> '
             + '<span class="db-b64-preview" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px;display:inline-block;vertical-align:bottom">' + eh(prefix) + '...</span>'
             + '<span class="db-b64-full" style="display:none;word-break:break-all;white-space:pre-wrap">' + eh(val) + '</span>'
             + ' <span class="db-b64-meta" style="color:#888">(' + totalLen + ' chars)</span>'
@@ -8522,7 +8522,7 @@ function toggleSpecialContact(u) {
                 refreshSpecialBtn('ctxSpecialBtn', u);
                 if (D === u) refreshSpecialBtn('dmSpecialBtn', u);
             }
-            else alert('操作失败');
+            else alert(T('misc_op_fail', '操作失败'));
         });
 }
 function refreshSpecialBtn(btnId, u) {
@@ -9022,7 +9022,7 @@ async function sendDoodle() {
         });
         playDoodle(strokes); // 发送后自己也整屏看到（历史批量加载已抑制自动回放，不会重复）
     } else {
-        xalert((d && d.error) || '发送失败');
+        xalert((d && d.error) || T('misc_send_fail', '发送失败'));
     }
 }
 
@@ -9335,12 +9335,12 @@ var LiveDraw = (function () {
     // ---------- 发起流程 ----------
     var _selSize = 'mine';
     function openSetup() {
-        if (!window.wssSendLiveDraw) { xalert('需要 WebSocket 连接才能发起 Live Draw'); return; }
+        if (!window.wssSendLiveDraw) { xalert(T('lvd_need_ws', '需要 WebSocket 连接才能发起 Live Draw')); return; }
         // 直接用当前正在对话的对象（D），不需要选人
         var invitee = (typeof D !== 'undefined' && D) ? D : '';
         initSetup(); // 兜底：确保按钮监听已绑（等 DOM 就绪后第一次打开时也会绑）
-        byId('ldInvitee').textContent = invitee || '（未打开对话）';
-        byId('ldInviteeNote').textContent = invitee ? '' : '请先打开一个私聊对话，再点 Live Draw';
+        byId('ldInvitee').textContent = invitee || T('lvd_no_peer', '（未打开对话）');
+        byId('ldInviteeNote').textContent = invitee ? '' : T('lvd_open_dm_tip', '请先打开一个私聊对话，再点 Live Draw');
         byId('ldSetupStart').disabled = !invitee;
         selectSize('mine');
         byId('ldSetupOverlay').classList.add('active');
@@ -9350,12 +9350,12 @@ var LiveDraw = (function () {
         var btns = document.querySelectorAll('#ldSizeOpts .ld-size-btn');
         for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('active', btns[i].getAttribute('data-size') === kind);
         byId('ldCustomRow').style.display = (kind === 'custom') ? 'flex' : 'none';
-        byId('ldSizeNote').textContent = (kind === 'mine') ? ('当前窗口 ' + window.innerWidth + ' × ' + window.innerHeight) : '';
+        byId('ldSizeNote').textContent = (kind === 'mine') ? T('lvd_cur_win', '当前窗口 %s × %s').replace('%s', window.innerWidth).replace('%s', window.innerHeight) : '';
     }
     function startSession() {
         var recipient = (typeof D !== 'undefined') ? D : '';
-        if (!recipient) { xalert('请先打开一个私聊对话'); return; }
-        if (!window.wssSendLiveDraw) { xalert('WebSocket 未连接，无法发起'); return; }
+        if (!recipient) { xalert(T('lvd_open_dm', '请先打开一个私聊对话')); return; }
+        if (!window.wssSendLiveDraw) { xalert(T('lvd_ws_off', 'WebSocket 未连接，无法发起')); return; }
 
         var w, h;
         if (_selSize === 'mine') { w = window.innerWidth; h = window.innerHeight; }
@@ -9364,13 +9364,13 @@ var LiveDraw = (function () {
         else if (_selSize === 'custom') {
             w = parseFloat(byId('ldCustomW').value);
             h = parseFloat(byId('ldCustomH').value);
-            if (!w || !h || w < 64 || h < 64) { xalert('请输入有效的宽高（≥64）'); return; }
+            if (!w || !h || w < 64 || h < 64) { xalert(T('lvd_bad_size', '请输入有效的宽高（≥64）')); return; }
         } else if (_selSize === 'peer') {
             var btn = byId('ldSetupStart');
-            btn.disabled = true; btn.textContent = '等待对方窗口大小…';
+            btn.disabled = true; btn.textContent = T('lvd_wait_peer', '等待对方窗口大小…');
             requestPeerSize(recipient, function (pw, ph) {
-                btn.disabled = false; btn.textContent = '发起';
-                if (!pw || !ph) { xalert('获取对方窗口大小失败，请重试'); return; }
+                btn.disabled = false; btn.textContent = T('lvd_start', '发起');
+                if (!pw || !ph) { xalert(T('lvd_size_fail', '获取对方窗口大小失败，请重试')); return; }
                 doStart(recipient, pw, ph);
             });
             return;
@@ -9380,7 +9380,7 @@ var LiveDraw = (function () {
     function doStart(recipient, w, h) {
         byId('ldSetupOverlay').classList.remove('active');
         var sent = window.wssSendLiveDraw(recipient, 'invite', { board: { w: w, h: h } });
-        if (!sent) { xalert('WebSocket 未连接，无法发起'); return; }
+        if (!sent) { xalert(T('lvd_ws_off', 'WebSocket 未连接，无法发起')); return; }
         // 等对方同意后才进画板（不能发完邀请就直接进）
         _waiting = { recipient: recipient, w: w, h: h };
         showWaitOverlay(recipient);
@@ -9446,15 +9446,15 @@ var LiveDraw = (function () {
         pen.style.cssText = 'width:14px;height:14px;vertical-align:-2px;margin-right:4px';
         info.appendChild(pen);
         info.appendChild(b);
-        info.appendChild(document.createTextNode(' 邀请你一起画板（' + Math.round(board.w) + ' × ' + Math.round(board.h) + '）'));
+        info.appendChild(document.createTextNode(T('lvd_invite', ' 邀请你一起画板（%s × %s）').replace('%s', Math.round(board.w)).replace('%s', Math.round(board.h))));
 
         var actions = document.createElement('div');
         actions.className = 'ld-invite-actions';
         var ok = document.createElement('button');
-        ok.type = 'button'; ok.className = 'bsm ld-invite-ok'; ok.textContent = '同意';
+        ok.type = 'button'; ok.className = 'bsm ld-invite-ok'; ok.textContent = T('lvd_accept', '同意');
         ok.style.background = '#2a4a2a'; ok.style.borderColor = '#3a6a3a';
         var no = document.createElement('button');
-        no.type = 'button'; no.className = 'bsm ld-invite-no'; no.textContent = '拒绝';
+        no.type = 'button'; no.className = 'bsm ld-invite-no'; no.textContent = T('lvd_decline', '拒绝');
         no.style.background = '#4a2020'; no.style.borderColor = '#5c2a2a';
         actions.appendChild(ok); actions.appendChild(no);
 
@@ -9508,7 +9508,7 @@ var LiveDraw = (function () {
         if (!_waiting || from !== _waiting.recipient) return;
         var recipient = _waiting.recipient;
         hideWaitOverlay();
-        xalert(recipient + ' 拒绝了邀请');
+        xalert(T('lvd_declined', '%s 拒绝了邀请').replace('%s', recipient));
     }
     function onSnapshot(data) {
         strokes = (data && data.strokes) || [];
@@ -9531,7 +9531,7 @@ var LiveDraw = (function () {
         if (b) b.style.display = 'none';
     }
     function onClose() {
-        showBanner('对方已退出画板');
+        showBanner(T('lvd_peer_left', '对方已退出画板'));
         teardown();
         setTimeout(hideBanner, 2200);
     }
@@ -10439,8 +10439,8 @@ var ChatShare = (function () {
             }
             _shPrevOut = outBytes; _shPrevIn = inBytes; _shPrevTime = now;
             var pTxt = ping !== null ? Math.round(ping) + 'ms' : '--';
-            el.innerHTML = '<span>自己 ↑' + fmtSpeed(outSpd) + ' ↓' + fmtSpeed(inSpd) + '</span>'
-                + '<span>对方 ↑' + fmtSpeed(inSpd) + ' ↓' + fmtSpeed(outSpd) + '</span>'
+            el.innerHTML = '<span>' + T('shspd_self', '自己 ↑%s ↓%s').replace('%s', fmtSpeed(outSpd)).replace('%s', fmtSpeed(inSpd)) + '</span>'
+                + '<span>' + T('shspd_peer', '对方 ↑%s ↓%s').replace('%s', fmtSpeed(inSpd)).replace('%s', fmtSpeed(outSpd)) + '</span>'
                 + '<span>ping ' + pTxt + '</span>';
             el.style.display = 'flex';
         }).catch(function () {});
@@ -10554,9 +10554,9 @@ function showReloadStatusDialog(toLabel, ackTarget) {
     _reloadPendingTo = ackTarget;
     var dlg = document.getElementById('customDialog');
     if (!dlg) return;
-    document.getElementById('cdTitle').textContent = '客户端版本过时';
+    document.getElementById('cdTitle').textContent = T('rld_title', '客户端版本过时');
     var msg = document.getElementById('cdMsg');
-    msg.textContent = '正在发送Reload命令...\n\n' + toLabel;
+    msg.textContent = T('rld_sending', '正在发送Reload命令...\n\n%s').replace('%s', toLabel);
     msg.style.whiteSpace = 'pre-line';
     var inp = document.getElementById('cdInput'),
         ok = document.getElementById('cdOk'),
@@ -10565,7 +10565,7 @@ function showReloadStatusDialog(toLabel, ackTarget) {
     cancel.style.display = 'none';
     ok.style.display = 'block';
     ok.disabled = true;
-    ok.textContent = '确认';
+    ok.textContent = T('rld_confirm', '确认');
     ok.onclick = function() { _reloadPendingTo = null; ok.disabled = true; dlg.classList.remove('active'); };
     _reloadStatusOk = ok;
     dlg.classList.add('active');
@@ -10575,7 +10575,7 @@ function showReloadStatusDialog(toLabel, ackTarget) {
         if (_reloadPendingTo !== null) {
             _reloadPendingTo = null;
             if (dlg.classList.contains('active')) {
-                msg.textContent = '无响应，对方客户端可能太旧或网络极其不稳定。';
+                msg.textContent = T('rld_no_resp', '无响应，对方客户端可能太旧或网络极其不稳定。');
                 msg.style.whiteSpace = 'normal';
                 ok.disabled = false;
             }
@@ -10589,7 +10589,7 @@ function _reloadAckReceived() {
     var dlg = document.getElementById('customDialog');
     if (dlg && dlg.classList.contains('active')) {
         var msg = document.getElementById('cdMsg');
-        msg.textContent = '已发送Reload命令！';
+        msg.textContent = T('rld_sent', '已发送Reload命令！');
         msg.style.whiteSpace = 'normal';
         if (_reloadStatusOk) _reloadStatusOk.disabled = false;
     }
@@ -10606,7 +10606,7 @@ window.handleReloadAck = function(d) {
 function reloadClient(username) {
     if (typeof ADMIN === 'undefined' || !ADMIN) return;
     if (!window.wssSendReload || !window.wssSendReload(username)) {
-        xalert('WebSocket 未连接，无法发送 Reload');
+        xalert(T('rld_ws_off', 'WebSocket 未连接，无法发送 Reload'));
         return;
     }
     showReloadStatusDialog('To: ' + username, username);
@@ -10618,10 +10618,10 @@ function reloadDmClient() {
 function reloadAllClients() {
     if (typeof IS_ROOT === 'undefined' || !IS_ROOT) return;
     if (!window.wssSendReload || !window.wssSendReload('*')) {
-        xalert('WebSocket 未连接，无法发送 Reload');
+        xalert(T('rld_ws_off', 'WebSocket 未连接，无法发送 Reload'));
         return;
     }
-    showReloadStatusDialog('To: 所有在线客户端', '*');
+    showReloadStatusDialog(T('rld_to_all', 'To: 所有在线客户端'), '*');
 }
 // ================================================================
 // 客户端过时全局锁定：收到 wss reload 后禁用一切功能，只能刷新页面。
@@ -10751,9 +10751,9 @@ function showClientReloadDialog() {
     var dlg = document.getElementById('customDialog');
     if (!dlg) { window.location.reload(); return; }
     dlg.classList.add('cd-danger'); // 过时窗口：红色主题、无关闭符号、只能 Reload
-    document.getElementById('cdTitle').textContent = '客户端版本过时';
+    document.getElementById('cdTitle').textContent = T('rld_title', '客户端版本过时');
     var msg = document.getElementById('cdMsg');
-    msg.textContent = '你正在使用的客户端已经过时，请重新加载页面以获取最新客户端。';
+    msg.textContent = T('rld_client_old', '你正在使用的客户端已经过时，请重新加载页面以获取最新客户端。');
     msg.style.whiteSpace = 'normal';
     var inp = document.getElementById('cdInput'),
         ok = document.getElementById('cdOk'),
