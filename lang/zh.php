@@ -894,6 +894,7 @@ return [
     'sup_prev' => '上一页',
     'sup_next' => '下一页',
     'sup_showing' => '显示 %s-%s / 共 %s',
+    'sup_filter_ph' => '按标题或 ID 过滤…',
     // ---- Uninstall ChatApp ----
     'un_title' => '卸载 ChatApp',
     'un_desc1' => '将从本服务器<b>移除 ChatApp</b>：删除部署文件（<b>/var/www/html</b>）、<b>chatapp 数据库</b>（除非下方取消勾选）以及 <b>WebSocket systemd 服务</b>。若本服务器没有托管其它网站，<b>Apache 将被停止</b>。',

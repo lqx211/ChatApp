@@ -893,6 +893,7 @@ return [
     'sup_prev' => '上一頁',
     'sup_next' => '下一頁',
     'sup_showing' => '顯示 %s-%s / 共 %s',
+    'sup_filter_ph' => '依題目或ID篩之…',
     'role_admin' => '管理員',
     'role_root' => '站主',
     /* AI 工具確認卡 */

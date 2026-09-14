@@ -1080,6 +1080,7 @@ return [
     'sup_prev' => 'Prev',
     'sup_next' => 'Next',
     'sup_showing' => 'Showing %s-%s of %s',
+    'sup_filter_ph' => 'Filter by subject or ID...',
     // ---- Uninstall ChatApp ----
     'un_title' => 'Uninstall ChatApp',
     'un_desc1' => 'This will <b>remove ChatApp from this server</b>: delete the deployed files (<b>/var/www/html</b>), the <b>chatapp database</b> (unless you uncheck below) and the <b>WebSocket systemd service</b>. If this server hosts no other website, <b>Apache will be stopped</b>.',

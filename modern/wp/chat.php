@@ -251,8 +251,8 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
    <button onclick="loadSupportTickets('closed')"><?php echo t('btn_closed_tickets');?></button>
   </div>
   <div class="support-bar">
-   <input type="text" id="supSearch" placeholder="Filter by subject or ID...">
-   <button class="bsm" onclick="loadSupportTickets(supTab)">Search</button>
+   <input type="text" id="supSearch" placeholder="<?php echo t('sup_filter_ph', '按标题或 ID 过滤…');?>">
+   <button class="bsm" onclick="loadSupportTickets(supTab)"><?php echo t('btn_search', '搜索');?></button>
    <select style="padding:6px 8px;background:#1e1e1e;border:1px solid #444;color:#ccc;font-family:inherit;font-size:.8em;margin-left:8px" onchange="changeSupPerPage(this.value)">
     <option value="10" selected>10</option>
     <option value="16">16</option>
