@@ -143,19 +143,26 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         }
 
         case 'repair_scan': {
-            // 列出与 HEAD 不一致的跟踪文件（内部文件被改 / 被删 / 损坏）
+            // 只列出「当前版本（HEAD）里有、但工作区被改坏/误删」的跟踪文件。
+            // 过滤噪音：?? 未跟踪（用户自己的文件/备份/.gitkeep 占位）与 X='A' 的
+            // 索引残留（旧版目录结构大迁移后软重置留下的条目，HEAD 里根本没有
+            // 这些文件）——它们不是损坏，修复也不会/不该碰它们。
             $out = rescue_git("-c core.quotepath=false status --porcelain -- . ':!config' ':!data' ':!bkup' ':!maintenance/config.php' ':!rescue'");
             if (strpos($out, 'fatal:') !== false) rc_json(['success' => false, 'error' => substr($out, 0, 200)]);
             $files = [];
+            $skipped = 0;
             foreach (preg_split('/\r?\n/', $out) as $line) {
                 if ($line === '') continue;
-                $code = trim(substr($line, 0, 2));
+                $x = $line[0];
+                $y = $line[1] ?? ' ';
                 $path = ltrim(substr($line, 2));
-                if ($path === '' || $path[0] === '"') $path = trim($path, '"'); // quotepath 关闭后仍兜底
                 if ($path === '') continue;
-                $files[] = ['code' => $code, 'path' => $path];
+                if ($path[0] === '"') $path = trim($path, '"'); // quotepath 关闭后仍兜底
+                if ($path === '') continue;
+                if ($x === '?' || $x === '!' || $x === 'A') { $skipped++; continue; }
+                $files[] = ['code' => ($x !== ' ') ? $x : $y, 'path' => $path];
             }
-            rc_json(['success' => true, 'files' => $files]);
+            rc_json(['success' => true, 'files' => $files, 'skipped' => $skipped]);
         }
 
         case 'perform_upgrade':
@@ -860,25 +867,31 @@ function rpScan(){
       ok.style.color = '#7ddb9a';
       ok.textContent = RT.repair_none;
       el.appendChild(ok);
-      return;
+    } else {
+      var head = document.createElement('div');
+      head.className = 'note';
+      head.textContent = RT.repair_found.replace('%s', d.files.length);
+      el.appendChild(head);
+      var stMap = { 'M': RT.st_m, 'D': RT.st_d, 'R': RT.st_r, 'C': RT.st_c, 'A': RT.st_a, 'U': RT.st_u };
+      for (var i = 0; i < d.files.length; i++) {
+        var f = d.files[i];
+        var row = document.createElement('div');
+        row.className = 'rp-row';
+        var tag = document.createElement('span');
+        tag.className = 'rp-tag';
+        tag.textContent = stMap[f.code] || f.code;
+        var pth = document.createElement('span');
+        pth.className = 'rp-path';
+        pth.textContent = f.path;
+        row.appendChild(tag); row.appendChild(pth);
+        el.appendChild(row);
+      }
     }
-    var head = document.createElement('div');
-    head.className = 'note';
-    head.textContent = RT.repair_found.replace('%s', d.files.length);
-    el.appendChild(head);
-    var stMap = { 'M': RT.st_m, 'D': RT.st_d, 'R': RT.st_r, 'C': RT.st_c, 'A': RT.st_a, 'U': RT.st_u, '??': RT.st_n };
-    for (var i = 0; i < d.files.length; i++) {
-      var f = d.files[i];
-      var row = document.createElement('div');
-      row.className = 'rp-row';
-      var tag = document.createElement('span');
-      tag.className = 'rp-tag';
-      tag.textContent = stMap[f.code] || f.code;
-      var pth = document.createElement('span');
-      pth.className = 'rp-path';
-      pth.textContent = f.path;
-      row.appendChild(tag); row.appendChild(pth);
-      el.appendChild(row);
+    if (d.skipped > 0) {
+      var sk = document.createElement('div');
+      sk.className = 'note';
+      sk.textContent = RT.repair_skipped.replace('%s', d.skipped);
+      el.appendChild(sk);
     }
   });
 }

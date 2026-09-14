@@ -94,3 +94,9 @@ __pycache__/
 
 # WSS runtime
 wss/wss.pid
+
+# rescue panel runtime files
+rescue/data_progress.tmp
+data/rescue_progress.json
+data/rescue.lock
+data/rescue_worker.log
