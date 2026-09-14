@@ -22,6 +22,7 @@
 require_once __DIR__ . '/../api/config.php';
 require_once __DIR__ . '/creds.php';
 require_once __DIR__ . '/status_loader.php';
+require_once __DIR__ . '/lang.php';   // English / 简体中文（cookie: maint_lang）
 
 // 2) 鉴权：维护门户 token（MT_TOKEN / ?token=）或已登录的 ChatApp 管理员（uid 10000）
 $__authed = false;
@@ -130,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $st['allow_mt_login'] = (($_POST['allow_mt_login'] ?? '') === '1');
         $st['mt_login_use_mysql_creds'] = (($_POST['mt_login_use_mysql_creds'] ?? '') === '1');
         if (!chatapp_portal_write_status($st)) {
-            echo json_encode(['success' => false, 'error' => 'Could not write status config (data/ not writable?).']); exit;
+            echo json_encode(['success' => false, 'error' => mt('err_status_write')]); exit;
         }
         echo json_encode(['success' => true, 'status' => $st]);
         exit;
@@ -140,13 +141,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cur = (string)($_POST['current_password'] ?? '');
         $mu  = trim($_POST['maint_user'] ?? '');
         $mp  = (string)($_POST['maint_pass'] ?? '');
-        if ($cur === '') { echo json_encode(['success' => false, 'error' => 'Current admin password is required.']); exit; }
+        if ($cur === '') { echo json_encode(['success' => false, 'error' => mt('err_cur_pwd_required')]); exit; }
         $adm = db()->query('SELECT password FROM users WHERE user_id=10000')->fetch();
         if (!$adm || !password_verify($cur, (string)($adm['password'] ?? ''))) {
-            echo json_encode(['success' => false, 'error' => 'Current admin password incorrect.']); exit;
+            echo json_encode(['success' => false, 'error' => mt('err_cur_pwd_wrong')]); exit;
         }
-        if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $mu)) { echo json_encode(['success' => false, 'error' => 'Invalid maintenance username.']); exit; }
-        if (strlen($mp) < 8) { echo json_encode(['success' => false, 'error' => 'Maintenance password min 8.']); exit; }
+        if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $mu)) { echo json_encode(['success' => false, 'error' => mt('err_bad_m_user')]); exit; }
+        if (strlen($mp) < 8) { echo json_encode(['success' => false, 'error' => mt('err_bad_m_pass')]); exit; }
         $body = "<?php\n/**\n * ChatApp — Maintenance admin credentials\n *\n * AUTO-GENERATED during OOBE / Maintenance Portal.\n * Override via MAINT_USER / MAINT_PASS / MAINT_SECRET env vars if needed.\n */\n"
             . "\$MAINT_USER   = getenv('MAINT_USER') ?: " . var_export($mu, true) . ";\n"
             . "\$MAINT_PASS   = getenv('MAINT_PASS') ?: " . var_export($mp, true) . ";\n"
@@ -159,7 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $ok = @file_put_contents(__DIR__ . '/config.php', $body);
         }
-        if ($ok === false) { echo json_encode(['success' => false, 'error' => 'Could not write maintenance config.']); exit; }
+        if ($ok === false) { echo json_encode(['success' => false, 'error' => mt('err_creds_write')]); exit; }
         // 凭据变更 → 使旧 MT_TOKEN 失效（强制重新登录）
         setcookie('MT_TOKEN', '', time() - 42000, '/', '', false, true);
         echo json_encode(['success' => true, 'relogin' => true]);
@@ -168,14 +169,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     /* ================= 账号锁定管理 ================= */
     if ($action === 'user_lookup') {
-        if (!chatapp_portal_mysql_ok()) { echo json_encode(['success' => false, 'error' => 'Database unreachable']); exit; }
+        if (!chatapp_portal_mysql_ok()) { echo json_encode(['success' => false, 'error' => mt('err_db_down')]); exit; }
         $q = trim((string)($_POST['q'] ?? ''));
-        if ($q === '') { echo json_encode(['success' => false, 'error' => 'Enter a username or UID']); exit; }
+        if ($q === '') { echo json_encode(['success' => false, 'error' => mt('need_query')]); exit; }
         $where = is_numeric($q) ? 'user_id = ?' : 'username = ?';
         $stmt = db()->prepare("SELECT user_id, username, display_name, enabled, placeholder, failed_attempts, locked_until, role, restricted, last_login FROM users WHERE $where LIMIT 1");
         $stmt->execute([$q]);
         $u = $stmt->fetch();
-        if (!$u) { echo json_encode(['success' => false, 'error' => 'User not found']); exit; }
+        if (!$u) { echo json_encode(['success' => false, 'error' => mt('err_user_not_found')]); exit; }
         $until = !empty($u['locked_until']) ? strtotime($u['locked_until']) : 0;
         echo json_encode(['success' => true, 'user' => [
             'uid'             => (int)$u['user_id'],
@@ -195,14 +196,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'user_unlock') {
-        if (!chatapp_portal_mysql_ok()) { echo json_encode(['success' => false, 'error' => 'Database unreachable']); exit; }
+        if (!chatapp_portal_mysql_ok()) { echo json_encode(['success' => false, 'error' => mt('err_db_down')]); exit; }
         $q = trim((string)($_POST['q'] ?? ''));
-        if ($q === '') { echo json_encode(['success' => false, 'error' => 'Enter a username or UID']); exit; }
+        if ($q === '') { echo json_encode(['success' => false, 'error' => mt('need_query')]); exit; }
         $where = is_numeric($q) ? 'user_id = ?' : 'username = ?';
         $stmt = db()->prepare("SELECT user_id FROM users WHERE $where LIMIT 1");
         $stmt->execute([$q]);
         $uid = (int)$stmt->fetchColumn();
-        if ($uid <= 0) { echo json_encode(['success' => false, 'error' => 'User not found']); exit; }
+        if ($uid <= 0) { echo json_encode(['success' => false, 'error' => mt('err_user_not_found')]); exit; }
         db()->prepare("UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE user_id = ?")->execute([$uid]);
         chatapp_log('security_logs', [
             'event_type' => 'portal_user_unlock',
@@ -213,18 +214,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'user_lock') {
-        if (!chatapp_portal_mysql_ok()) { echo json_encode(['success' => false, 'error' => 'Database unreachable']); exit; }
+        if (!chatapp_portal_mysql_ok()) { echo json_encode(['success' => false, 'error' => mt('err_db_down')]); exit; }
         $q = trim((string)($_POST['q'] ?? ''));
         $minutes = (int)($_POST['minutes'] ?? 0);
-        if ($q === '') { echo json_encode(['success' => false, 'error' => 'Enter a username or UID']); exit; }
+        if ($q === '') { echo json_encode(['success' => false, 'error' => mt('need_query')]); exit; }
         if ($minutes < 1 || $minutes > 10080) $minutes = 1440;   // 默认 24h，上限 7 天
         $where = is_numeric($q) ? 'user_id = ?' : 'username = ?';
         $stmt = db()->prepare("SELECT user_id, username FROM users WHERE $where LIMIT 1");
         $stmt->execute([$q]);
         $row = $stmt->fetch();
-        if (!$row) { echo json_encode(['success' => false, 'error' => 'User not found']); exit; }
+        if (!$row) { echo json_encode(['success' => false, 'error' => mt('err_user_not_found')]); exit; }
         $uid = (int)$row['user_id'];
-        if ($uid === 10000) { echo json_encode(['success' => false, 'error' => 'Cannot lock the root account']); exit; }
+        if ($uid === 10000) { echo json_encode(['success' => false, 'error' => mt('err_root_lock')]); exit; }
         $until = date('Y-m-d H:i:s', time() + $minutes * 60);
         db()->prepare("UPDATE users SET failed_attempts = GREATEST(failed_attempts, 5), locked_until = ? WHERE user_id = ?")->execute([$until, $uid]);
         chatapp_log('security_logs', [
@@ -241,7 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    echo json_encode(['success' => false, 'error' => 'unknown action']); exit;
+    echo json_encode(['success' => false, 'error' => mt('err_unknown_action')]); exit;
 }
 
 $__st = chatapp_maint_status();
@@ -251,10 +252,10 @@ $__dfTxt = ($__df === false) ? '?' : number_format($__df / 1073741824, 2) . ' GB
 $__mysqlOk = chatapp_portal_mysql_ok();
 ?>
 <!DOCTYPE html>
-<html lang="zh-Hans">
+<html lang="<?php echo $GLOBALS['MAINT_LANG'] === 'zh' ? 'zh-Hans' : 'en'; ?>">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Maintenance Portal</title>
+<title><?php echo mt('portal_name'); ?></title>
 <link rel="stylesheet" href="../css/global.css">
 <link rel="stylesheet" href="../modern/style/chat.css?v=<?php echo time();?>">
 <style>
@@ -300,32 +301,38 @@ $__mysqlOk = chatapp_portal_mysql_ok();
   .flash{position:fixed;top:16px;right:16px;z-index:1000;padding:10px 16px;border-radius:0;font-size:.84em;display:none}
   .flash.ok{background:#2e5d43;color:#c8f5d8;border:1px solid #3a704f}
   .flash.err{background:#6e2d2d;color:#ffd0d0;border:1px solid #8a3a3a}
+  /* 左下角语言选择器 */
+  .lang-pick{display:flex;align-items:center;gap:8px;padding:8px 12px;margin:0 8px 6px;background:rgba(30,30,30,.6);border:1px solid #3a3a3a;font-size:.78em;color:#999}
+  .lang-pick span{flex-shrink:0}
+  .lang-pick select{flex:1;min-width:0;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-size:1em;font-family:inherit;padding:5px 8px;outline:none;border-radius:0;cursor:pointer}
+  .lang-pick select:focus{border-color:#4a6a8e}
 </style>
 </head>
 <body>
  <!-- 加载动画 -->
- <div id="loader-wrapper"><div class="loader"><div class="circle"></div><div style="margin-top:26px">Maintenance Portal</div></div></div>
+ <div id="loader-wrapper"><div class="loader"><div class="circle"></div><div style="margin-top:26px"><?php echo mt('portal_name'); ?></div></div></div>
 
  <!-- ============ 侧边栏（与 chat.php 完全一致的类与结构，无 emoji） ============ -->
  <div class="sidebar">
    <div class="sidebar-profile">
     <div class="sa"></div>
-    <div class="sun">Maintenance Portal</div>
-    <div class="sdnd <?php echo $__st['is_maintenance'] ? 'rstr' : 'on'; ?>" id="maintStatusBadge"><?php echo $__st['is_maintenance'] ? 'Maintenance' : 'Online'; ?></div>
+    <div class="sun"><?php echo mt('portal_name'); ?></div>
+    <div class="sdnd <?php echo $__st['is_maintenance'] ? 'rstr' : 'on'; ?>" id="maintStatusBadge"><?php echo $__st['is_maintenance'] ? mt('badge_maint') : mt('badge_online'); ?></div>
    </div>
    <div class="sidebar-nav">
-    <div class="ng"><div class="ngh" onclick="showPanel('dash')" style="cursor:pointer"><span>Dashboard</span></div></div>
-    <div class="ng"><div class="ngh" onclick="showPanel('settings')" style="cursor:pointer"><span>Settings</span></div></div>
-    <div class="ng"><div class="ngh" onclick="showPanel('creds')" style="cursor:pointer"><span>Credentials</span></div></div>
-    <div class="ng"><div class="ngh" onclick="showPanel('accounts')" style="cursor:pointer"><span>Accounts</span></div></div>
-    <div class="ng"><div class="ngh" onclick="showPanel('upgrade')" style="cursor:pointer"><span>Upgrade</span></div></div>
-    <div class="ng"><div class="ngh" onclick="showPanel('downgrade')" style="cursor:pointer"><span>Downgrade</span></div></div>
-    <div class="ng"><div class="ngh" onclick="showPanel('factory')" style="cursor:pointer"><span>Factory Reset</span></div></div>
-    <div class="ng"><div class="ngh" onclick="showPanel('uninstall')" style="cursor:pointer"><span>Uninstall</span></div></div>
-    <div class="ng"><div class="ngh" onclick="showPanel('links')" style="cursor:pointer"><span>Quick Links</span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('dash')" style="cursor:pointer"><span><?php echo mt('nav_dash'); ?></span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('settings')" style="cursor:pointer"><span><?php echo mt('nav_settings'); ?></span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('creds')" style="cursor:pointer"><span><?php echo mt('nav_creds'); ?></span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('accounts')" style="cursor:pointer"><span><?php echo mt('nav_accounts'); ?></span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('upgrade')" style="cursor:pointer"><span><?php echo mt('nav_upgrade'); ?></span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('downgrade')" style="cursor:pointer"><span><?php echo mt('nav_downgrade'); ?></span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('factory')" style="cursor:pointer"><span><?php echo mt('nav_factory'); ?></span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('uninstall')" style="cursor:pointer"><span><?php echo mt('nav_uninstall'); ?></span></div></div>
+    <div class="ng"><div class="ngh" onclick="showPanel('links')" style="cursor:pointer"><span><?php echo mt('nav_links'); ?></span></div></div>
    </div>
    <div class="sidebar-footer">
-    <div class="ngh" onclick="doLogout()" style="cursor:pointer"><span>Logout</span></div>
+    <div class="lang-pick"><span><?php echo mt('lang_label'); ?></span><?php echo maint_lang_select(''); ?></div>
+    <div class="ngh" onclick="doLogout()" style="cursor:pointer"><span><?php echo mt('logout'); ?></span></div>
    </div>
   </div>
 
@@ -334,38 +341,38 @@ $__mysqlOk = chatapp_portal_mysql_ok();
 
    <!-- 仪表盘 -->
    <div class="panel active" id="panel-dash">
-    <div class="ch"><h2>Dashboard</h2><span style="color:#666;font-size:.75em">Maintenance Portal</span></div>
+    <div class="ch"><h2><?php echo mt('nav_dash'); ?></h2><span style="color:#666;font-size:.75em"><?php echo mt('portal_name'); ?></span></div>
     <div class="portal">
      <div class="pcard">
-      <h3>Maintenance Mode</h3>
+      <h3><?php echo mt('card_maint_mode'); ?></h3>
       <div class="stat-big">
-       <span class="pill <?php echo $__st['is_maintenance'] ? 'on' : 'off'; ?>" id="dashPill"><?php echo $__st['is_maintenance'] ? 'Maintenance' : 'Online'; ?></span>
-       <button class="pbtn <?php echo $__st['is_maintenance'] ? 'green' : 'red'; ?>" id="dashToggle" onclick="toggleMaint()"><?php echo $__st['is_maintenance'] ? 'Disable Maintenance' : 'Enable Maintenance'; ?></button>
-       <span class="note" style="margin-left:6px">All visitors see the maintenance page. Portal and admin credentials can still log in.</span>
+       <span class="pill <?php echo $__st['is_maintenance'] ? 'on' : 'off'; ?>" id="dashPill"><?php echo $__st['is_maintenance'] ? mt('badge_maint') : mt('badge_online'); ?></span>
+       <button class="pbtn <?php echo $__st['is_maintenance'] ? 'green' : 'red'; ?>" id="dashToggle" onclick="toggleMaint()"><?php echo $__st['is_maintenance'] ? mt('btn_disable_maint') : mt('btn_enable_maint'); ?></button>
+       <span class="note" style="margin-left:6px"><?php echo mt('note_visitors'); ?></span>
       </div>
      </div>
      <div class="grid2">
-      <div class="pcard"><h3>Current Settings</h3>
-       <div class="prow"><span class="k">Return Code</span><span class="v" id="dashCode"><?php echo (int)$__st['mt_return_code']; ?></span></div>
-       <div class="prow"><span class="k">Maintenance Page</span><span class="v" id="dashPage"><?php echo htmlspecialchars($__st['maintenance_page']); ?></span></div>
-       <div class="prow"><span class="k">Allow Maintenance Login</span><span class="v" id="dashAllowLogin"><?php echo $__st['allow_mt_login'] ? 'Yes' : 'No'; ?></span></div>
-       <div class="prow"><span class="k">Use MySQL Credentials</span><span class="v" id="dashMysqlCreds"><?php echo $__st['mt_login_use_mysql_creds'] ? 'Yes' : 'No'; ?></span></div>
+      <div class="pcard"><h3><?php echo mt('card_current_settings'); ?></h3>
+       <div class="prow"><span class="k"><?php echo mt('k_return_code'); ?></span><span class="v" id="dashCode"><?php echo (int)$__st['mt_return_code']; ?></span></div>
+       <div class="prow"><span class="k"><?php echo mt('k_maint_page'); ?></span><span class="v" id="dashPage"><?php echo htmlspecialchars($__st['maintenance_page']); ?></span></div>
+       <div class="prow"><span class="k"><?php echo mt('k_allow_login'); ?></span><span class="v" id="dashAllowLogin"><?php echo mt($__st['allow_mt_login'] ? 'yes' : 'no'); ?></span></div>
+       <div class="prow"><span class="k"><?php echo mt('k_use_mysql'); ?></span><span class="v" id="dashMysqlCreds"><?php echo mt($__st['mt_login_use_mysql_creds'] ? 'yes' : 'no'); ?></span></div>
       </div>
-      <div class="pcard"><h3>Server Info</h3>
+      <div class="pcard"><h3><?php echo mt('card_server_info'); ?></h3>
        <div class="prow"><span class="k">PHP</span><span class="v"><?php echo htmlspecialchars(PHP_VERSION); ?></span></div>
-       <div class="prow"><span class="k">MySQL</span><span class="v"><span class="ok-dot <?php echo $__mysqlOk ? 'g' : 'r'; ?>"></span><?php echo $__mysqlOk ? 'Reachable' : 'Down'; ?></span></div>
-       <div class="prow"><span class="k">Git HEAD</span><span class="v"><?php echo htmlspecialchars($__git ?: '?'); ?></span></div>
-       <div class="prow"><span class="k">Free Disk</span><span class="v"><?php echo htmlspecialchars($__dfTxt); ?></span></div>
-       <div class="prow"><span class="k">Server Time</span><span class="v"><?php echo date('Y-m-d H:i:s'); ?></span></div>
+       <div class="prow"><span class="k">MySQL</span><span class="v"><span class="ok-dot <?php echo $__mysqlOk ? 'g' : 'r'; ?>"></span><?php echo mt($__mysqlOk ? 'reachable' : 'down'); ?></span></div>
+       <div class="prow"><span class="k"><?php echo mt('k_git'); ?></span><span class="v"><?php echo htmlspecialchars($__git ?: '?'); ?></span></div>
+       <div class="prow"><span class="k"><?php echo mt('k_disk'); ?></span><span class="v"><?php echo htmlspecialchars($__dfTxt); ?></span></div>
+       <div class="prow"><span class="k"><?php echo mt('k_time'); ?></span><span class="v"><?php echo date('Y-m-d H:i:s'); ?></span></div>
       </div>
      </div>
-     <div class="pcard"><h3>Quick Actions</h3>
+     <div class="pcard"><h3><?php echo mt('card_quick_actions'); ?></h3>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-       <button class="pbtn" onclick="showPanel('upgrade')">Upgrade</button>
-       <button class="pbtn" onclick="showPanel('downgrade')">Downgrade</button>
-       <button class="pbtn red" onclick="showPanel('factory')">Factory Reset</button>
-       <button class="pbtn red" onclick="showPanel('uninstall')">Uninstall</button>
-       <a class="pbtn gray" href="index.php">Maintenance Login</a>
+       <button class="pbtn" onclick="showPanel('upgrade')"><?php echo mt('nav_upgrade'); ?></button>
+       <button class="pbtn" onclick="showPanel('downgrade')"><?php echo mt('nav_downgrade'); ?></button>
+       <button class="pbtn red" onclick="showPanel('factory')"><?php echo mt('nav_factory'); ?></button>
+       <button class="pbtn red" onclick="showPanel('uninstall')"><?php echo mt('nav_uninstall'); ?></button>
+       <a class="pbtn gray" href="index.php"><?php echo mt('link_maint_login'); ?></a>
       </div>
      </div>
     </div>
@@ -373,36 +380,36 @@ $__mysqlOk = chatapp_portal_mysql_ok();
 
    <!-- 维护设置 -->
    <div class="panel" id="panel-settings">
-    <div class="ch"><h2>Settings</h2></div>
+    <div class="ch"><h2><?php echo mt('nav_settings'); ?></h2></div>
     <div class="portal">
      <div class="pcard" style="max-width:520px">
-      <h3>Maintenance Mode Settings</h3>
-      <div class="pfield"><label>Maintenance Mode</label>
+      <h3><?php echo mt('set_card'); ?></h3>
+      <div class="pfield"><label><?php echo mt('lbl_maint_mode'); ?></label>
        <select id="setIsMaint">
-        <option value="0" <?php echo $__st['is_maintenance'] ? '' : 'selected'; ?>>Running (disable maintenance)</option>
-        <option value="1" <?php echo $__st['is_maintenance'] ? 'selected' : ''; ?>>Maintenance (enable maintenance)</option>
+        <option value="0" <?php echo $__st['is_maintenance'] ? '' : 'selected'; ?>><?php echo mt('opt_running'); ?></option>
+        <option value="1" <?php echo $__st['is_maintenance'] ? 'selected' : ''; ?>><?php echo mt('opt_maintenance'); ?></option>
        </select>
       </div>
-      <div class="pfield"><label>Return Code</label>
+      <div class="pfield"><label><?php echo mt('k_return_code'); ?></label>
        <select id="setCode">
         <?php foreach ($__codes as $__c): ?>
         <option value="<?php echo $__c; ?>" <?php echo (int)$__st['mt_return_code'] === $__c ? 'selected' : ''; ?>><?php echo $__c; ?> — <?php echo ['200'=>'OK','401'=>'Unauthorized','403'=>'Forbidden','429'=>'Too Many Requests','500'=>'Internal Server Error','503'=>'Service Unavailable'][$__c]; ?></option>
         <?php endforeach; ?>
        </select>
       </div>
-      <div class="pfield"><label>Maintenance Page</label>
+      <div class="pfield"><label><?php echo mt('k_maint_page'); ?></label>
        <select id="setPage">
         <?php foreach ($__maintPages as $__p => $__pl): ?>
         <option value="<?php echo $__p; ?>" <?php echo $__st['maintenance_page'] === $__p ? 'selected' : ''; ?>><?php echo $__pl; ?></option>
         <?php endforeach; ?>
        </select>
       </div>
-      <label class="pcheck"><input type="checkbox" id="setAllowLogin" <?php echo $__st['allow_mt_login'] ? 'checked' : ''; ?>> Allow maintenance login (shows the Admin Login link on the maintenance page)</label>
-      <label class="pcheck"><input type="checkbox" id="setMysqlCreds" <?php echo $__st['mt_login_use_mysql_creds'] ? 'checked' : ''; ?>> Use MySQL credentials for maintenance login (validate account in DB)</label>
+      <label class="pcheck"><input type="checkbox" id="setAllowLogin" <?php echo $__st['allow_mt_login'] ? 'checked' : ''; ?>> <?php echo mt('chk_allow_login'); ?></label>
+      <label class="pcheck"><input type="checkbox" id="setMysqlCreds" <?php echo $__st['mt_login_use_mysql_creds'] ? 'checked' : ''; ?>> <?php echo mt('chk_mysql_creds'); ?></label>
       <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
-       <button class="pbtn green" onclick="saveSettings()">Save</button>
-       <button class="pbtn gray" onclick="previewPage()">Preview Page</button>
-       <span class="note">Changes take effect immediately. Preview opens the selected page in a new tab.</span>
+       <button class="pbtn green" onclick="saveSettings()"><?php echo mt('btn_save'); ?></button>
+       <button class="pbtn gray" onclick="previewPage()"><?php echo mt('btn_preview'); ?></button>
+       <span class="note"><?php echo mt('note_changes'); ?></span>
       </div>
      </div>
     </div>
@@ -410,30 +417,30 @@ $__mysqlOk = chatapp_portal_mysql_ok();
 
    <!-- 门户凭据 -->
    <div class="panel" id="panel-creds">
-    <div class="ch"><h2>Credentials</h2></div>
+    <div class="ch"><h2><?php echo mt('nav_creds'); ?></h2></div>
     <div class="portal">
      <div class="pcard" style="max-width:520px">
-      <h3>Change Maintenance Portal Username / Password</h3>
-      <p class="note" style="margin-top:0">You must verify the current administrator password (uid 10000). Saving invalidates old maintenance tokens and you will need to log in again.</p>
-      <div class="pfield"><label>Current Admin Password (required)</label><input type="password" id="cCur" autocomplete="current-password"></div>
-      <div class="pfield"><label>Maintenance Username (3-20)</label><input type="text" id="cUser" autocomplete="off" placeholder="admin"></div>
-      <div class="pfield"><label>Maintenance Password (≥8)</label><input type="password" id="cPass" autocomplete="new-password"></div>
-      <button class="pbtn green" onclick="saveCreds()">Save &amp; Re-login</button>
+      <h3><?php echo mt('creds_card'); ?></h3>
+      <p class="note" style="margin-top:0"><?php echo mt('creds_note'); ?></p>
+      <div class="pfield"><label><?php echo mt('lbl_cur_pwd'); ?></label><input type="password" id="cCur" autocomplete="current-password"></div>
+      <div class="pfield"><label><?php echo mt('lbl_m_user'); ?></label><input type="text" id="cUser" autocomplete="off" placeholder="admin"></div>
+      <div class="pfield"><label><?php echo mt('lbl_m_pass'); ?></label><input type="password" id="cPass" autocomplete="new-password"></div>
+      <button class="pbtn green" onclick="saveCreds()"><?php echo mt('btn_save_relogin'); ?></button>
      </div>
     </div>
    </div>
 
    <!-- 账号锁定管理 -->
    <div class="panel" id="panel-accounts">
-    <div class="ch"><h2>Accounts</h2></div>
+    <div class="ch"><h2><?php echo mt('nav_accounts'); ?></h2></div>
     <div class="portal">
      <div class="pcard" style="max-width:620px">
-      <h3>Account Lock Manager</h3>
-      <p class="note" style="margin-top:0">Look up any account by username or UID, view its current lock status (failed attempts / locked until), then unlock or manually lock it.</p>
-      <div class="pfield"><label>Username or UID</label>
+      <h3><?php echo mt('acc_card'); ?></h3>
+      <p class="note" style="margin-top:0"><?php echo mt('acc_note'); ?></p>
+      <div class="pfield"><label><?php echo mt('lbl_query'); ?></label>
        <div style="display:flex;gap:10px;align-items:center">
-        <input type="text" id="acQuery" placeholder="e.g. admin or 10001" style="flex:1" onkeydown="if(event.key==='Enter')acLookup()">
-        <button class="pbtn" onclick="acLookup()">Look up</button>
+        <input type="text" id="acQuery" placeholder="<?php echo mt('ph_query'); ?>" style="flex:1" onkeydown="if(event.key==='Enter')acLookup()">
+        <button class="pbtn" onclick="acLookup()"><?php echo mt('btn_lookup'); ?></button>
        </div>
       </div>
       <div id="acResult" style="margin-top:14px"></div>
@@ -443,39 +450,39 @@ $__mysqlOk = chatapp_portal_mysql_ok();
 
    <!-- 快捷链接 -->
    <div class="panel" id="panel-links">
-    <div class="ch"><h2>Quick Links</h2></div>
+    <div class="ch"><h2><?php echo mt('nav_links'); ?></h2></div>
     <div class="portal">
      <div class="pcard">
-      <h3>Shortcuts</h3>
-      <a class="linkbtn" href="index.php"><span>Maintenance Login (re-login)</span><span>→</span></a>
-      <p class="note">Danger operations (Upgrade / Downgrade / Factory Reset / Uninstall) are handled directly in this portal via the sidebar.</p>
+      <h3><?php echo mt('links_card'); ?></h3>
+      <a class="linkbtn" href="index.php"><span><?php echo mt('link_relogin'); ?></span><span>→</span></a>
+      <p class="note"><?php echo mt('links_note'); ?></p>
      </div>
     </div>
    </div>
 
    <!-- Upgrade -->
    <div class="panel" id="panel-upgrade">
-    <div class="ch"><h2>Upgrade</h2></div>
+    <div class="ch"><h2><?php echo mt('nav_upgrade'); ?></h2></div>
     <div class="portal">
      <div class="pcard" style="max-width:560px">
-      <h3>Upgrade ChatApp</h3>
-      <p class="note" style="margin-top:0">Pulls from github.com/lqx211/ChatApp and overwrites code. config/ data/ maintenance/ are kept. Uncommitted changes will be overwritten.</p>
-      <div class="prow"><span class="k">Branch</span><span class="v" id="upBranch">…</span></div>
-      <div class="prow"><span class="k">Current</span><span class="v" id="upLocal">…</span></div>
-      <div class="prow"><span class="k">Remote</span><span class="v" id="upRemote">…</span></div>
-      <div class="prow"><span class="k">Uncommitted</span><span class="v" id="upDirty">…</span></div>
-      <div style="margin-top:12px"><button class="pbtn" id="upCheckBtn" onclick="upgradeCheck()">Check for updates</button></div>
+      <h3><?php echo mt('up_card'); ?></h3>
+      <p class="note" style="margin-top:0"><?php echo mt('up_note'); ?></p>
+      <div class="prow"><span class="k"><?php echo mt('k_branch'); ?></span><span class="v" id="upBranch">…</span></div>
+      <div class="prow"><span class="k"><?php echo mt('k_current'); ?></span><span class="v" id="upLocal">…</span></div>
+      <div class="prow"><span class="k"><?php echo mt('k_remote'); ?></span><span class="v" id="upRemote">…</span></div>
+      <div class="prow"><span class="k"><?php echo mt('k_uncommitted'); ?></span><span class="v" id="upDirty">…</span></div>
+      <div style="margin-top:12px"><button class="pbtn" id="upCheckBtn" onclick="upgradeCheck()"><?php echo mt('btn_check_updates'); ?></button></div>
       <div id="upForm" style="display:none;margin-top:16px">
-       <div class="pfield"><label>Administrator Password (10000)</label><input type="password" id="upPwd" autocomplete="current-password"></div>
-       <div class="pfield"><label>Maintenance Username</label><input type="text" id="upMUser" autocomplete="off"></div>
-       <div class="pfield"><label>Maintenance Passphrase</label><input type="password" id="upMSecret" autocomplete="off"></div>
-       <div class="pfield"><label>Current git hash</label><input type="text" id="upHash1" spellcheck="false" placeholder="git log -1 --format=%H"></div>
-       <div class="pfield"><label>Re-enter git hash</label><input type="text" id="upHash2" spellcheck="false"></div>
-       <label class="pcheck"><input type="checkbox" id="upConfirm"> I understand and accept the risk</label>
-       <div style="margin-top:12px"><button class="pbtn red" onclick="upgradeRun()">Upgrade now</button></div>
+       <div class="pfield"><label><?php echo mt('lbl_admin_pwd'); ?></label><input type="password" id="upPwd" autocomplete="current-password"></div>
+       <div class="pfield"><label><?php echo mt('lbl_m_user'); ?></label><input type="text" id="upMUser" autocomplete="off"></div>
+       <div class="pfield"><label><?php echo mt('lbl_m_secret'); ?></label><input type="password" id="upMSecret" autocomplete="off"></div>
+       <div class="pfield"><label><?php echo mt('lbl_git1'); ?></label><input type="text" id="upHash1" spellcheck="false" placeholder="git log -1 --format=%H"></div>
+       <div class="pfield"><label><?php echo mt('lbl_git2'); ?></label><input type="text" id="upHash2" spellcheck="false"></div>
+       <label class="pcheck"><input type="checkbox" id="upConfirm"> <?php echo mt('chk_risk'); ?></label>
+       <div style="margin-top:12px"><button class="pbtn red" onclick="upgradeRun()"><?php echo mt('btn_upgrade_now'); ?></button></div>
       </div>
       <div id="upProgress" style="display:none;margin-top:16px">
-       <div id="upStep" style="color:#6fa8dc;font-weight:700">Starting…</div>
+       <div id="upStep" style="color:#6fa8dc;font-weight:700"><?php echo mt('up_starting'); ?></div>
        <div style="height:14px;border:1px solid #3a6a8a;margin:10px 0"><div id="upBar" style="height:100%;width:0%;background:#4a9dd8"></div></div>
        <div id="upPct" style="color:#888;font-size:.8em">0%</div>
       </div>
@@ -485,20 +492,20 @@ $__mysqlOk = chatapp_portal_mysql_ok();
 
    <!-- Downgrade -->
    <div class="panel" id="panel-downgrade">
-    <div class="ch"><h2>Downgrade</h2></div>
+    <div class="ch"><h2><?php echo mt('nav_downgrade'); ?></h2></div>
     <div class="portal">
      <div class="pcard" style="max-width:560px">
-      <h3>Downgrade System</h3>
-      <p class="note" style="margin-top:0;color:#ff9a9a">EXTREMELY DANGEROUS: reverts the entire codebase to an older version. Database schema and code may become incompatible. Effectively one-way.</p>
-      <div class="pfield"><label>Current version</label><input type="text" id="dgHead" readonly placeholder="Loading versions…"></div>
-      <div class="pfield"><label>Select target version</label><select id="dgTarget" style="width:100%;padding:8px 12px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-size:.85em;font-family:inherit;outline:none"></select></div>
-      <div class="pfield"><label>Administrator Password (10000)</label><input type="password" id="dgPwd" autocomplete="current-password"></div>
-      <div class="pfield"><label>Maintenance Username</label><input type="text" id="dgMUser" autocomplete="off"></div>
-      <div class="pfield"><label>Maintenance Passphrase</label><input type="password" id="dgMSecret" autocomplete="off"></div>
-      <div class="pfield"><label>Current git hash</label><input type="text" id="dgHash1" spellcheck="false" placeholder="git log -1 --format=%H"></div>
-      <div class="pfield"><label>Re-enter git hash</label><input type="text" id="dgHash2" spellcheck="false"></div>
-      <label class="pcheck"><input type="checkbox" id="dgConfirm"> I understand this is extremely dangerous</label>
-      <div style="margin-top:12px"><button class="pbtn red" onclick="downgradeRun()">Downgrade now</button></div>
+      <h3><?php echo mt('dg_card'); ?></h3>
+      <p class="note" style="margin-top:0;color:#ff9a9a"><?php echo mt('dg_note'); ?></p>
+      <div class="pfield"><label><?php echo mt('lbl_current_ver'); ?></label><input type="text" id="dgHead" readonly placeholder="<?php echo mt('dg_loading'); ?>"></div>
+      <div class="pfield"><label><?php echo mt('lbl_target_ver'); ?></label><select id="dgTarget" style="width:100%;padding:8px 12px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-size:.85em;font-family:inherit;outline:none"></select></div>
+      <div class="pfield"><label><?php echo mt('lbl_admin_pwd'); ?></label><input type="password" id="dgPwd" autocomplete="current-password"></div>
+      <div class="pfield"><label><?php echo mt('lbl_m_user'); ?></label><input type="text" id="dgMUser" autocomplete="off"></div>
+      <div class="pfield"><label><?php echo mt('lbl_m_secret'); ?></label><input type="password" id="dgMSecret" autocomplete="off"></div>
+      <div class="pfield"><label><?php echo mt('lbl_git1'); ?></label><input type="text" id="dgHash1" spellcheck="false" placeholder="git log -1 --format=%H"></div>
+      <div class="pfield"><label><?php echo mt('lbl_git2'); ?></label><input type="text" id="dgHash2" spellcheck="false"></div>
+      <label class="pcheck"><input type="checkbox" id="dgConfirm"> <?php echo mt('chk_dg_risk'); ?></label>
+      <div style="margin-top:12px"><button class="pbtn red" onclick="downgradeRun()"><?php echo mt('btn_downgrade_now'); ?></button></div>
       <div id="dgResult" style="display:none;margin-top:10px;color:#7ddb9a"></div>
      </div>
     </div>
@@ -506,22 +513,22 @@ $__mysqlOk = chatapp_portal_mysql_ok();
 
    <!-- Factory Reset -->
    <div class="panel" id="panel-factory">
-    <div class="ch"><h2>Factory Reset</h2></div>
+    <div class="ch"><h2><?php echo mt('nav_factory'); ?></h2></div>
     <div class="portal">
      <div class="pcard" style="max-width:560px">
-      <h3>Factory Reset ChatApp</h3>
-      <p class="note" style="margin-top:0;color:#ff9a9a">Drops and rebuilds the database, creates a new administrator, and wipes all users/data. A mysqldump backup is taken automatically unless skipped.</p>
-      <div class="pfield"><label>Administrator Password (10000)</label><input type="password" id="frPwd" autocomplete="current-password"></div>
-      <div class="pfield"><label>Maintenance Username</label><input type="text" id="frMUser" autocomplete="off"></div>
-      <div class="pfield"><label>Maintenance Passphrase</label><input type="password" id="frMSecret" autocomplete="off"></div>
-      <div class="pfield"><label>Current git hash</label><input type="text" id="frHash" spellcheck="false" placeholder="git log -1 --format=%H"></div>
-      <div class="pfield"><label>New Admin Username (3-20)</label><input type="text" id="frNewUser" autocomplete="off"></div>
-      <div class="pfield"><label>New Admin Password (min 8)</label><input type="password" id="frNewPass" autocomplete="new-password"></div>
-      <div class="pfield"><label>New Maintenance Username (optional)</label><input type="text" id="frNewMUser" autocomplete="off"></div>
-      <div class="pfield"><label>New Maintenance Password (optional)</label><input type="password" id="frNewMPass" autocomplete="new-password"></div>
-      <label class="pcheck"><input type="checkbox" id="frSkipDump"> Skip automatic database backup</label>
-      <label class="pcheck"><input type="checkbox" id="frConfirm"> I understand all data will be wiped</label>
-      <div style="margin-top:12px"><button class="pbtn red" onclick="factoryRun()">Factory Reset now</button></div>
+      <h3><?php echo mt('fr_card'); ?></h3>
+      <p class="note" style="margin-top:0;color:#ff9a9a"><?php echo mt('fr_note'); ?></p>
+      <div class="pfield"><label><?php echo mt('lbl_admin_pwd'); ?></label><input type="password" id="frPwd" autocomplete="current-password"></div>
+      <div class="pfield"><label><?php echo mt('lbl_m_user'); ?></label><input type="text" id="frMUser" autocomplete="off"></div>
+      <div class="pfield"><label><?php echo mt('lbl_m_secret'); ?></label><input type="password" id="frMSecret" autocomplete="off"></div>
+      <div class="pfield"><label><?php echo mt('lbl_git1'); ?></label><input type="text" id="frHash" spellcheck="false" placeholder="git log -1 --format=%H"></div>
+      <div class="pfield"><label><?php echo mt('lbl_new_admin'); ?></label><input type="text" id="frNewUser" autocomplete="off"></div>
+      <div class="pfield"><label><?php echo mt('lbl_new_admin_pw'); ?></label><input type="password" id="frNewPass" autocomplete="new-password"></div>
+      <div class="pfield"><label><?php echo mt('lbl_new_m_user'); ?></label><input type="text" id="frNewMUser" autocomplete="off"></div>
+      <div class="pfield"><label><?php echo mt('lbl_new_m_pass'); ?></label><input type="password" id="frNewMPass" autocomplete="new-password"></div>
+      <label class="pcheck"><input type="checkbox" id="frSkipDump"> <?php echo mt('chk_skip_dump'); ?></label>
+      <label class="pcheck"><input type="checkbox" id="frConfirm"> <?php echo mt('chk_fr_risk'); ?></label>
+      <div style="margin-top:12px"><button class="pbtn red" onclick="factoryRun()"><?php echo mt('btn_factory_now'); ?></button></div>
       <div id="frProgress" style="display:none;margin-top:12px;color:#6fa8dc;font-weight:700"></div>
      </div>
     </div>
@@ -529,20 +536,20 @@ $__mysqlOk = chatapp_portal_mysql_ok();
 
    <!-- Uninstall -->
    <div class="panel" id="panel-uninstall">
-    <div class="ch"><h2>Uninstall</h2></div>
+    <div class="ch"><h2><?php echo mt('nav_uninstall'); ?></h2></div>
     <div class="portal">
      <div class="pcard" style="max-width:560px">
-      <h3>Uninstall ChatApp</h3>
-      <p class="note" style="margin-top:0;color:#ff9a9a">Permanently removes ChatApp from this server: deployed files, database (unless unchecked), and the WebSocket service. This cannot be undone.</p>
-      <div class="pfield"><label>Administrator Password (10000)</label><input type="password" id="unPwd" autocomplete="current-password"></div>
-      <div class="pfield"><label>Maintenance Username</label><input type="text" id="unMUser" autocomplete="off"></div>
-      <div class="pfield"><label>Maintenance Passphrase</label><input type="password" id="unMSecret" autocomplete="off"></div>
-      <div class="pfield"><label>Current git hash</label><input type="text" id="unHash1" spellcheck="false" placeholder="git log -1 --format=%H"></div>
-      <div class="pfield"><label>Re-enter git hash</label><input type="text" id="unHash2" spellcheck="false"></div>
-      <label class="pcheck"><input type="checkbox" id="unDbDel" checked> Delete database chatapp (uncheck to keep data)</label>
-      <label class="pcheck"><input type="checkbox" id="unConfirm"> I understand: everything will be deleted</label>
-      <div style="margin-top:12px"><button class="pbtn red" onclick="uninstallRun()">Uninstall ChatApp</button></div>
-      <div id="unDone" style="display:none;margin-top:14px;color:#7ddb9a;font-weight:700;text-align:center">ChatApp has been uninstalled.<br><span style="color:#bbb;font-weight:400;font-size:.8em">Remaining files are being removed in the background. You can close this page now.</span></div>
+      <h3><?php echo mt('un_card'); ?></h3>
+      <p class="note" style="margin-top:0;color:#ff9a9a"><?php echo mt('un_note'); ?></p>
+      <div class="pfield"><label><?php echo mt('lbl_admin_pwd'); ?></label><input type="password" id="unPwd" autocomplete="current-password"></div>
+      <div class="pfield"><label><?php echo mt('lbl_m_user'); ?></label><input type="text" id="unMUser" autocomplete="off"></div>
+      <div class="pfield"><label><?php echo mt('lbl_m_secret'); ?></label><input type="password" id="unMSecret" autocomplete="off"></div>
+      <div class="pfield"><label><?php echo mt('lbl_git1'); ?></label><input type="text" id="unHash1" spellcheck="false" placeholder="git log -1 --format=%H"></div>
+      <div class="pfield"><label><?php echo mt('lbl_git2'); ?></label><input type="text" id="unHash2" spellcheck="false"></div>
+      <label class="pcheck"><input type="checkbox" id="unDbDel" checked> <?php echo mt('chk_un_db'); ?></label>
+      <label class="pcheck"><input type="checkbox" id="unConfirm"> <?php echo mt('chk_un_risk'); ?></label>
+      <div style="margin-top:12px"><button class="pbtn red" onclick="uninstallRun()"><?php echo mt('btn_uninstall'); ?></button></div>
+      <div id="unDone" style="display:none;margin-top:14px;color:#7ddb9a;font-weight:700;text-align:center"><?php echo mt('un_done_title'); ?><br><span style="color:#bbb;font-weight:400;font-size:.8em"><?php echo mt('un_done_sub'); ?></span></div>
      </div>
     </div>
    </div>
@@ -552,6 +559,8 @@ $__mysqlOk = chatapp_portal_mysql_ok();
  <div class="flash" id="flash"></div>
 
 <script>
+function maintSetLang(v){ document.cookie = 'maint_lang=' + (v === 'en' ? 'en' : 'zh') + ';path=/;max-age=31536000'; location.reload(); }
+var MT = <?php echo maint_lang_js(); ?>;
 var STATUS = <?php echo json_encode($__st); ?>;
 var PAGES  = <?php echo json_encode($__maintPages); ?>;
 function showPanel(id){
@@ -574,29 +583,29 @@ function api(action, extra, cb){
   fetch('portal.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:fd.toString(), credentials:'same-origin' })
     .then(function(r){ return r.json(); })
     .then(function(d){ cb(d); })
-    .catch(function(){ flash('Network error / no response', false); });
+    .catch(function(){ flash(MT.net_err, false); });
 }
 function applyStatus(d){
   STATUS = d.status || STATUS;
   var mt = !!STATUS.is_maintenance;
   var pill = document.getElementById('dashPill');
-  pill.textContent = mt ? 'Maintenance' : 'Online';
+  pill.textContent = mt ? MT.badge_maint : MT.badge_online;
   pill.className = 'pill ' + (mt ? 'on' : 'off');
-  document.getElementById('dashToggle').textContent = mt ? 'Disable Maintenance' : 'Enable Maintenance';
+  document.getElementById('dashToggle').textContent = mt ? MT.btn_disable_maint : MT.btn_enable_maint;
   document.getElementById('dashToggle').className = 'pbtn ' + (mt ? 'green' : 'red');
   var b = document.getElementById('maintStatusBadge');
-  b.textContent = mt ? 'Maintenance' : 'Online';
+  b.textContent = mt ? MT.badge_maint : MT.badge_online;
   b.className = 'sdnd ' + (mt ? 'rstr' : 'on');
   document.getElementById('dashCode').textContent = STATUS.mt_return_code;
   document.getElementById('dashPage').textContent = STATUS.maintenance_page;
-  document.getElementById('dashAllowLogin').textContent = STATUS.allow_mt_login ? 'Yes' : 'No';
-  document.getElementById('dashMysqlCreds').textContent = STATUS.mt_login_use_mysql_creds ? 'Yes' : 'No';
+  document.getElementById('dashAllowLogin').textContent = STATUS.allow_mt_login ? MT.yes : MT.no;
+  document.getElementById('dashMysqlCreds').textContent = STATUS.mt_login_use_mysql_creds ? MT.yes : MT.no;
 }
 function toggleMaint(){
   var next = !STATUS.is_maintenance;
   api('set', [['is_maintenance', next ? '1' : '0']], function(d){
-    if (d.success){ applyStatus(d); flash(next ? 'Maintenance mode enabled' : 'Maintenance mode disabled', true); }
-    else flash(d.error || 'Failed', false);
+    if (d.success){ applyStatus(d); flash(next ? MT.maint_on : MT.maint_off, true); }
+    else flash(d.error || MT.failed, false);
   });
 }
 function saveSettings(){
@@ -607,8 +616,8 @@ function saveSettings(){
     ['allow_mt_login', document.getElementById('setAllowLogin').checked ? '1' : '0'],
     ['mt_login_use_mysql_creds', document.getElementById('setMysqlCreds').checked ? '1' : '0'],
   ], function(d){
-    if (d.success){ applyStatus(d); flash('Settings saved', true); }
-    else flash(d.error || 'Save failed', false);
+    if (d.success){ applyStatus(d); flash(MT.settings_saved, true); }
+    else flash(d.error || MT.save_failed, false);
   });
 }
 function previewPage(){
@@ -619,12 +628,12 @@ function saveCreds(){
   var cur = document.getElementById('cCur').value;
   var mu  = document.getElementById('cUser').value.trim();
   var mp  = document.getElementById('cPass').value;
-  if (!cur){ flash('Please enter the current admin password', false); return; }
-  if (!/^[a-zA-Z0-9_]{3,20}$/.test(mu)){ flash('Maintenance username must be 3-20 letters/numbers/underscore', false); return; }
-  if (mp.length < 8){ flash('Maintenance password must be at least 8 chars', false); return; }
+  if (!cur){ flash(MT.need_cur_pwd, false); return; }
+  if (!/^[a-zA-Z0-9_]{3,20}$/.test(mu)){ flash(MT.bad_m_user, false); return; }
+  if (mp.length < 8){ flash(MT.bad_m_pass, false); return; }
   api('set_creds', [['current_password', cur], ['maint_user', mu], ['maint_pass', mp]], function(d){
-    if (d.success && d.relogin){ flash('Credentials updated, re-logging in...', true); setTimeout(function(){ location.href = 'index.php'; }, 900); }
-    else flash(d.error || 'Failed', false);
+    if (d.success && d.relogin){ flash(MT.creds_updated, true); setTimeout(function(){ location.href = 'index.php'; }, 900); }
+    else flash(d.error || MT.failed, false);
   });
 }
 function doLogout(){
@@ -640,38 +649,38 @@ function escHtml(s){
 }
 function acLookup(){
   var q = document.getElementById('acQuery').value.trim();
-  if (!q){ flash('Enter a username or UID', false); return; }
+  if (!q){ flash(MT.need_query, false); return; }
   AC_QUERY = q;
   api('user_lookup', [['q', q]], function(d){
     var box = document.getElementById('acResult');
-    if (!d.success){ box.innerHTML = '<div class="note" style="color:#ff9a9a">' + escHtml(d.error || 'Not found') + '</div>'; return; }
+    if (!d.success){ box.innerHTML = '<div class="note" style="color:#ff9a9a">' + escHtml(d.error || MT.not_found) + '</div>'; return; }
     var u = d.user;
     var lockHtml = u.locked
-      ? '<span style="color:#ff9a9a;font-weight:700">LOCKED</span> — until ' + escHtml(u.locked_until) + ' (' + Math.ceil(u.lock_seconds/60) + ' min left)'
-      : '<span style="color:#7ddb9a">Not locked</span>';
-    var roleTxt = { root:'Owner', admin:'Administrator' }[u.role] || 'User';
+      ? '<span style="color:#ff9a9a;font-weight:700">' + MT.ac_locked + '</span> ' + MT.ac_until + ' ' + escHtml(u.locked_until) + ' (' + Math.ceil(u.lock_seconds/60) + ' ' + MT.ac_min_left + ')'
+      : '<span style="color:#7ddb9a">' + MT.ac_not_locked + '</span>';
+    var roleTxt = { root: MT.role_owner, admin: MT.role_admin }[u.role] || MT.role_user;
     box.innerHTML =
       '<div class="pcard" style="margin:0">'
-      + '<div class="prow"><span class="k">Account</span><span class="v">' + escHtml(u.username) + ' <span style="color:#666">(UID ' + u.uid + ')</span></span></div>'
-      + '<div class="prow"><span class="k">Display name</span><span class="v">' + escHtml(u.display_name) + '</span></div>'
-      + '<div class="prow"><span class="k">Role</span><span class="v">' + roleTxt + '</span></div>'
-      + '<div class="prow"><span class="k">Enabled / Placeholder</span><span class="v">' + (u.enabled ? 'Yes' : 'No') + ' / ' + (u.placeholder ? 'Yes' : 'No') + '</span></div>'
-      + '<div class="prow"><span class="k">Restricted</span><span class="v">' + (u.restricted ? 'Yes' : 'No') + '</span></div>'
-      + '<div class="prow"><span class="k">Failed attempts</span><span class="v">' + u.failed_attempts + ' / 5</span></div>'
-      + '<div class="prow"><span class="k">Lock status</span><span class="v">' + lockHtml + '</span></div>'
-      + '<div class="prow"><span class="k">Last login</span><span class="v">' + escHtml(u.last_login || '-') + '</span></div>'
+      + '<div class="prow"><span class="k">' + MT.ac_account + '</span><span class="v">' + escHtml(u.username) + ' <span style="color:#666">(UID ' + u.uid + ')</span></span></div>'
+      + '<div class="prow"><span class="k">' + MT.ac_display + '</span><span class="v">' + escHtml(u.display_name) + '</span></div>'
+      + '<div class="prow"><span class="k">' + MT.ac_role + '</span><span class="v">' + roleTxt + '</span></div>'
+      + '<div class="prow"><span class="k">' + MT.ac_enabled + '</span><span class="v">' + (u.enabled ? MT.yes : MT.no) + ' / ' + (u.placeholder ? MT.yes : MT.no) + '</span></div>'
+      + '<div class="prow"><span class="k">' + MT.ac_restricted + '</span><span class="v">' + (u.restricted ? MT.yes : MT.no) + '</span></div>'
+      + '<div class="prow"><span class="k">' + MT.ac_failed + '</span><span class="v">' + u.failed_attempts + ' / 5</span></div>'
+      + '<div class="prow"><span class="k">' + MT.ac_lock_status + '</span><span class="v">' + lockHtml + '</span></div>'
+      + '<div class="prow"><span class="k">' + MT.ac_last_login + '</span><span class="v">' + escHtml(u.last_login || '-') + '</span></div>'
       + '<div style="display:flex;gap:12px;align-items:center;margin-top:14px;flex-wrap:wrap">'
-      + '<label style="color:#999;font-size:.78em">Lock for</label>'
+      + '<label style="color:#999;font-size:.78em">' + MT.ac_lock_for + '</label>'
       + '<select id="acMinutes" style="padding:8px 12px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-size:.85em;font-family:inherit;outline:none">'
-      + '<option value="15">15 minutes</option>'
-      + '<option value="30">30 minutes</option>'
-      + '<option value="60">1 hour</option>'
-      + '<option value="180">3 hours</option>'
-      + '<option value="1440" selected>24 hours</option>'
-      + '<option value="10080">7 days</option>'
+      + '<option value="15">' + MT.ac_min15 + '</option>'
+      + '<option value="30">' + MT.ac_min30 + '</option>'
+      + '<option value="60">' + MT.ac_hour1 + '</option>'
+      + '<option value="180">' + MT.ac_hour3 + '</option>'
+      + '<option value="1440" selected>' + MT.ac_hour24 + '</option>'
+      + '<option value="10080">' + MT.ac_day7 + '</option>'
       + '</select>'
-      + '<button class="pbtn red" onclick="acLock()">Lock account</button>'
-      + (u.locked ? '<button class="pbtn green" onclick="acUnlock()">Unlock account</button>' : '')
+      + '<button class="pbtn red" onclick="acLock()">' + MT.ac_lock_btn + '</button>'
+      + (u.locked ? '<button class="pbtn green" onclick="acUnlock()">' + MT.ac_unlock_btn + '</button>' : '')
       + '</div>'
       + '</div>';
   });
@@ -679,15 +688,15 @@ function acLookup(){
 function acLock(){
   var mins = document.getElementById('acMinutes') ? document.getElementById('acMinutes').value : '1440';
   api('user_lock', [['q', AC_QUERY], ['minutes', mins]], function(d){
-    if (d.success){ flash('Locked until ' + d.locked_until, true); acLookup(); }
-    else flash(d.error || 'Lock failed', false);
+    if (d.success){ flash(MT.ac_locked_until + d.locked_until, true); acLookup(); }
+    else flash(d.error || MT.ac_lock_failed, false);
   });
 }
 function acUnlock(){
-  if (!window.confirm('Unlock this account and reset failed attempts?')) return;
+  if (!window.confirm(MT.ac_confirm_unlock)) return;
   api('user_unlock', [['q', AC_QUERY]], function(d){
-    if (d.success){ flash('Account unlocked', true); acLookup(); }
-    else flash(d.error || 'Unlock failed', false);
+    if (d.success){ flash(MT.ac_unlocked, true); acLookup(); }
+    else flash(d.error || MT.ac_unlock_failed, false);
   });
 }
 
@@ -705,36 +714,36 @@ function dangerApi(ep, action, extra){
 /* ---- Upgrade ---- */
 function upgradeCheck(){
   var btn = $('upCheckBtn');
-  btn.disabled = true; btn.textContent = 'Checking...';
+  btn.disabled = true; btn.textContent = MT.btn_checking;
   dangerApi('upgrade', 'check').then(function(d){
-    btn.disabled = false; btn.textContent = 'Check for updates';
-    if (!d.success){ flash(d.error || 'Check failed', false); return; }
+    btn.disabled = false; btn.textContent = MT.btn_check_updates;
+    if (!d.success){ flash(d.error || MT.up_check_failed, false); return; }
     $('upBranch').textContent = d.branch || 'main';
     $('upLocal').textContent = (d.local || '').slice(0, 12);
     $('upRemote').textContent = d.remote ? d.remote.slice(0, 12) : '?';
     $('upDirty').textContent = d.dirty_count;
-    if (d.has_update){ $('upForm').style.display = 'block'; flash('Update available → ' + (d.remote || '').slice(0, 12), true); }
-    else { $('upForm').style.display = 'none'; flash('Already up to date', true); }
-  }).catch(function(){ btn.disabled = false; btn.textContent = 'Check for updates'; flash('Network error', false); });
+    if (d.has_update){ $('upForm').style.display = 'block'; flash(MT.up_available + (d.remote || '').slice(0, 12), true); }
+    else { $('upForm').style.display = 'none'; flash(MT.up_to_date, true); }
+  }).catch(function(){ btn.disabled = false; btn.textContent = MT.btn_check_updates; flash(MT.net_err, false); });
 }
 function upgradeRun(){
   var pwd = $('upPwd').value, mu = $('upMUser').value.trim(), ms = $('upMSecret').value;
   var h1 = $('upHash1').value.trim().toUpperCase(), h2 = $('upHash2').value.trim().toUpperCase();
-  if (!pwd || !mu || !ms || !h1 || !h2){ flash('All fields are required', false); return; }
-  if (h1 !== h2){ flash('Git hash mismatch', false); return; }
-  if (!$('upConfirm').checked){ flash('Please accept the risk', false); return; }
+  if (!pwd || !mu || !ms || !h1 || !h2){ flash(MT.all_fields_required, false); return; }
+  if (h1 !== h2){ flash(MT.git_hash_mismatch, false); return; }
+  if (!$('upConfirm').checked){ flash(MT.up_accept_risk, false); return; }
   dangerApi('upgrade', 'perform', [['password', pwd], ['maint_user', mu], ['maint_secret', ms], ['git_hash', h1], ['git_hash2', h2]]).then(function(d){
-    if (d.success){ $('upForm').style.display = 'none'; $('upCheckBtn').style.display = 'none'; $('upProgress').style.display = 'block'; flash('Upgrade started — maintenance armed', true); upgradePoll(); }
-    else flash(d.error || 'Upgrade failed', false);
-  }).catch(function(){ flash('Network error', false); });
+    if (d.success){ $('upForm').style.display = 'none'; $('upCheckBtn').style.display = 'none'; $('upProgress').style.display = 'block'; flash(MT.up_started, true); upgradePoll(); }
+    else flash(d.error || MT.up_step_failed, false);
+  }).catch(function(){ flash(MT.net_err, false); });
 }
 function upgradePoll(){
   dangerApi('upgrade', 'progress').then(function(d){
     if (!d.success){ setTimeout(upgradePoll, 1500); return; }
     if (d.step) $('upStep').textContent = d.step;
     if (typeof d.pct === 'number'){ $('upBar').style.width = d.pct + '%'; $('upPct').textContent = d.pct + '%'; }
-    if (d.status === 'done'){ $('upStep').textContent = 'Upgrade complete'; $('upBar').style.width = '100%'; $('upPct').textContent = '100%'; flash('Upgrade complete — service restored', true); setTimeout(function(){ location.reload(); }, 2500); return; }
-    if (d.status === 'error'){ $('upStep').textContent = 'Upgrade failed'; $('upCheckBtn').style.display = 'block'; flash('Upgrade failed — maintenance released', false); return; }
+    if (d.status === 'done'){ $('upStep').textContent = MT.up_step_done; $('upBar').style.width = '100%'; $('upPct').textContent = '100%'; flash(MT.up_complete, true); setTimeout(function(){ location.reload(); }, 2500); return; }
+    if (d.status === 'error'){ $('upStep').textContent = MT.up_step_failed; $('upCheckBtn').style.display = 'block'; flash(MT.up_released, false); return; }
     setTimeout(upgradePoll, 1000);
   }).catch(function(){ setTimeout(upgradePoll, 2000); });
 }
@@ -742,7 +751,7 @@ function upgradePoll(){
 /* ---- Downgrade ---- */
 function downgradeLoad(){
   dangerApi('downgrade', 'list').then(function(d){
-    if (!d.success){ flash(d.error || 'Failed to load versions', false); return; }
+    if (!d.success){ flash(d.error || MT.dg_load_failed, false); return; }
     $('dgHead').value = d.head ? d.head.slice(0, 12) : '';
     var sel = $('dgTarget');
     sel.innerHTML = '';
@@ -752,62 +761,62 @@ function downgradeLoad(){
       o.textContent = (c.current ? '★ ' : '') + c.short + '  ' + c.subject + '  (' + c.date + ')';
       sel.appendChild(o);
     });
-  }).catch(function(){ flash('Failed to load versions', false); });
+  }).catch(function(){ flash(MT.dg_load_failed, false); });
 }
 function downgradeRun(){
   var pwd = $('dgPwd').value, mu = $('dgMUser').value.trim(), ms = $('dgMSecret').value;
   var h1 = $('dgHash1').value.trim().toUpperCase(), h2 = $('dgHash2').value.trim().toUpperCase();
   var target = $('dgTarget').value;
-  if (!pwd || !mu || !ms || !h1 || !h2 || !target){ flash('All fields are required', false); return; }
-  if (h1 !== h2){ flash('Git hash mismatch', false); return; }
-  if (!$('dgConfirm').checked){ flash('Please confirm before downgrading', false); return; }
+  if (!pwd || !mu || !ms || !h1 || !h2 || !target){ flash(MT.all_fields_required, false); return; }
+  if (h1 !== h2){ flash(MT.git_hash_mismatch, false); return; }
+  if (!$('dgConfirm').checked){ flash(MT.dg_confirm, false); return; }
   dangerApi('downgrade', 'perform', [['password', pwd], ['maint_user', mu], ['maint_secret', ms], ['git_hash', h1], ['git_hash2', h2], ['target', target]]).then(function(d){
-    if (d.success){ $('dgResult').style.display = 'block'; $('dgResult').textContent = 'Downgrade done: ' + (d.from || '').slice(0, 8) + ' → ' + (d.to || '').slice(0, 8); flash('Downgrade complete', true); setTimeout(function(){ location.reload(); }, 1800); }
-    else flash(d.error || 'Downgrade failed', false);
-  }).catch(function(){ flash('Network error', false); });
+    if (d.success){ $('dgResult').style.display = 'block'; $('dgResult').textContent = MT.dg_done + ' ' + (d.from || '').slice(0, 8) + ' → ' + (d.to || '').slice(0, 8); flash(MT.dg_complete, true); setTimeout(function(){ location.reload(); }, 1800); }
+    else flash(d.error || MT.dg_failed, false);
+  }).catch(function(){ flash(MT.net_err, false); });
 }
 
 /* ---- Factory Reset ---- */
 function factoryRun(){
   var pwd = $('frPwd').value, mu = $('frMUser').value.trim(), ms = $('frMSecret').value, h = $('frHash').value.trim().toUpperCase();
   var nu = $('frNewUser').value.trim(), np = $('frNewPass').value;
-  if (!pwd || !mu || !ms || !h){ flash('All fields are required', false); return; }
-  if (!/^[a-zA-Z0-9_]{3,20}$/.test(nu)){ flash('New admin username 3-20 letters/numbers/underscore', false); return; }
-  if (np.length < 8){ flash('New admin password min 8', false); return; }
-  if (!$('frConfirm').checked){ flash('Please confirm before factory reset', false); return; }
-  var st = $('frProgress'); st.style.display = 'block'; st.textContent = 'Step 1/4: verifying credentials...';
+  if (!pwd || !mu || !ms || !h){ flash(MT.all_fields_required, false); return; }
+  if (!/^[a-zA-Z0-9_]{3,20}$/.test(nu)){ flash(MT.fr_bad_user, false); return; }
+  if (np.length < 8){ flash(MT.fr_bad_pass, false); return; }
+  if (!$('frConfirm').checked){ flash(MT.fr_confirm, false); return; }
+  var st = $('frProgress'); st.style.display = 'block'; st.textContent = MT.fr_step1;
   dangerApi('factory_reset', 'start', [['password', pwd], ['maint_user', mu], ['maint_secret', ms], ['git_hash', h]]).then(function(d){
-    if (!d.success){ st.style.display = 'none'; flash(d.error || 'Verify failed', false); return; }
-    st.textContent = 'Step 2/4: expiring all session tokens...';
+    if (!d.success){ st.style.display = 'none'; flash(d.error || MT.fr_verify_failed, false); return; }
+    st.textContent = MT.fr_step2;
     return dangerApi('factory_reset', 'expire_tokens').then(function(d2){
-      if (!d2.success){ st.style.display = 'none'; flash(d2.error || 'Step 2 failed', false); throw 'stop'; }
-      st.textContent = 'Step 3/4: setting new administrator...';
+      if (!d2.success){ st.style.display = 'none'; flash(d2.error || MT.fr_step2_failed, false); throw 'stop'; }
+      st.textContent = MT.fr_step3;
       return dangerApi('factory_reset', 'setup_creds', [['username', nu], ['password', np], ['skip_dump', $('frSkipDump').checked ? '1' : '0'], ['maint_user', $('frNewMUser').value.trim()], ['maint_pass', $('frNewMPass').value]]);
     }).then(function(d3){
-      if (!d3.success){ st.style.display = 'none'; flash(d3.error || 'Step 3 failed', false); throw 'stop'; }
-      st.textContent = 'Step 4/4: rebuilding database...';
+      if (!d3.success){ st.style.display = 'none'; flash(d3.error || MT.fr_step3_failed, false); throw 'stop'; }
+      st.textContent = MT.fr_step4;
       return dangerApi('factory_reset', 'rebuild');
     }).then(function(d4){
-      if (!d4.success){ st.style.display = 'none'; flash(d4.error || 'Rebuild failed', false); return; }
-      st.textContent = 'Factory reset complete ✓';
-      flash('Factory reset complete', true);
+      if (!d4.success){ st.style.display = 'none'; flash(d4.error || MT.fr_rebuild_failed, false); return; }
+      st.textContent = MT.fr_complete_check;
+      flash(MT.fr_complete, true);
       setTimeout(function(){ location.reload(); }, 2000);
     });
-  }).catch(function(e){ if (e !== 'stop'){ st.style.display = 'none'; flash('Network error', false); } });
+  }).catch(function(e){ if (e !== 'stop'){ st.style.display = 'none'; flash(MT.net_err, false); } });
 }
 
 /* ---- Uninstall ---- */
 function uninstallRun(){
   var pwd = $('unPwd').value, mu = $('unMUser').value.trim(), ms = $('unMSecret').value;
   var h1 = $('unHash1').value.trim().toUpperCase(), h2 = $('unHash2').value.trim().toUpperCase();
-  if (!pwd || !mu || !ms || !h1 || !h2){ flash('All fields are required', false); return; }
-  if (h1 !== h2){ flash('Git hash mismatch', false); return; }
-  if (!$('unConfirm').checked){ flash('Please confirm before uninstalling', false); return; }
-  if (!confirm('Are you absolutely sure? This permanently deletes ChatApp and (by default) its database. This cannot be undone.')) return;
+  if (!pwd || !mu || !ms || !h1 || !h2){ flash(MT.all_fields_required, false); return; }
+  if (h1 !== h2){ flash(MT.git_hash_mismatch, false); return; }
+  if (!$('unConfirm').checked){ flash(MT.un_confirm, false); return; }
+  if (!confirm(MT.un_confirm2)) return;
   dangerApi('uninstall', 'perform', [['password', pwd], ['maint_user', mu], ['maint_secret', ms], ['git_hash', h1], ['git_hash2', h2], ['db_delete', $('unDbDel').checked ? '1' : '0']]).then(function(d){
-    if (d.success){ $('unDone').style.display = 'block'; flash('ChatApp has been uninstalled', true); }
-    else flash(d.error || 'Uninstall failed', false);
-  }).catch(function(){ flash('Network error', false); });
+    if (d.success){ $('unDone').style.display = 'block'; flash(MT.un_done_flash, true); }
+    else flash(d.error || MT.un_failed, false);
+  }).catch(function(){ flash(MT.net_err, false); });
 }
 window.addEventListener('load', function(){
   var w = document.getElementById('loader-wrapper');

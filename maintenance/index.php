@@ -9,6 +9,7 @@
  * 跳转 /maintenance/portal.php
  */
 require_once __DIR__ . '/creds.php';
+require_once __DIR__ . '/lang.php';   // English / 简体中文（cookie: maint_lang）
 require_once __DIR__ . '/../api/pow.php';
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -38,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $__u = trim($_POST['login'] ?? '');
     $__p = (string)($_POST['password'] ?? '');
     if (!chatapp_verify_pow((string)($_POST['pow_challenge'] ?? ''), (string)($_POST['pow_nonce'] ?? ''), 'maint_pow')) {
-        echo json_encode(['success' => false, 'error' => 'Invalid or expired challenge. Please reload and try again.']);
+        echo json_encode(['success' => false, 'error' => mt('login_pow_fail')]);
         exit;
     }
     if ($__creds['user'] !== '' && $__creds['pass'] !== ''
@@ -49,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode(['success' => true, 'portal' => true]);
         exit;
     }
-    echo json_encode(['success' => false, 'error' => 'Invalid maintenance username or password.']);
+    echo json_encode(['success' => false, 'error' => mt('login_bad')]);
     exit;
 }
 
@@ -58,11 +59,11 @@ $__pow = chatapp_pow_issue('maint_pow');
 $__pow['target'] = chatapp_pow_target((int)$__pow['target_bits']);
 $__wallpaper = rand(1, 10);
 ?><!DOCTYPE html>
-<html lang="en">
+<html lang="<?php echo $GLOBALS['MAINT_LANG'] === 'zh' ? 'zh-Hans' : 'en'; ?>">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Maintenance Portal Login</title><link rel="stylesheet" href="../css/global.css">
+<title><?php echo mt('login_title'); ?></title><link rel="stylesheet" href="../css/global.css">
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -126,34 +127,43 @@ $__wallpaper = rand(1, 10);
     .back-link { display: block; text-align: center; margin-top: 20px; color: #777; text-decoration: none; font-size: 0.85em; }
     .back-link:hover { color: #aaa; }
     .foot-note { text-align: center; color: #555; font-size: 0.72em; margin-top: 14px; line-height: 1.6; }
+    /* 左下角语言选择器 */
+    .lang-pick { position: fixed; left: 16px; bottom: 16px; display: flex; align-items: center; gap: 8px;
+        background: rgba(30, 30, 30, 0.85); border: 1px solid #3a3a3a; padding: 7px 10px;
+        font-size: 0.8em; color: #999; }
+    .lang-pick select { background: #1e1e1e; border: 1px solid #444; color: #e0e0e0; font-family: inherit;
+        font-size: 1em; padding: 4px 8px; outline: none; cursor: pointer; }
 </style>
 </head>
 <body>
 <div class="auth-container">
-    <div style="text-align:center"><span class="maint-badge">Maintenance Mode</span></div>
-    <h1>Maintenance Portal</h1>
-    <p class="subtitle">Admin Login for Maintenance Mode</p>
+    <div style="text-align:center"><span class="maint-badge"><?php echo mt('card_maint_mode'); ?></span></div>
+    <h1><?php echo mt('login_h1'); ?></h1>
+    <p class="subtitle"><?php echo mt('login_sub'); ?></p>
 
     <div class="error-msg" id="errorMsg"></div>
 
     <form id="loginPanel" onsubmit="handleLogin(event)">
         <div class="form-group">
-            <label for="loginUsername">Maintenance Username</label>
+            <label for="loginUsername"><?php echo mt('login_user'); ?></label>
             <input type="text" id="loginUsername" maxlength="100" required autocomplete="username">
         </div>
         <div class="form-group">
-            <label for="loginPassword">Maintenance Password</label>
+            <label for="loginPassword"><?php echo mt('login_pass'); ?></label>
             <input type="password" id="loginPassword" required autocomplete="current-password">
         </div>
-        <button type="submit" class="btn-primary" id="loginBtn">Log In</button>
+        <button type="submit" class="btn-primary" id="loginBtn"><?php echo mt('login_btn'); ?></button>
     </form>
 
-    <a href="../../index.php" class="back-link">&#8592; Back to ChatApp</a>
-    <p class="foot-note">This login is used when the site is in maintenance mode.<br>Once logged in, you can control maintenance from the portal.</p>
+    <a href="../../index.php" class="back-link"><?php echo mt('back_chat'); ?></a>
+    <p class="foot-note"><?php echo mt('login_foot'); ?></p>
 </div>
+<div class="lang-pick"><span><?php echo mt('lang_label'); ?></span><?php echo maint_lang_select(''); ?></div>
 
 <script src="../modern/scripts/pow.js?v=<?php echo time();?>"></script>
 <script>
+function maintSetLang(v){ document.cookie = 'maint_lang=' + (v === 'en' ? 'en' : 'zh') + ';path=/;max-age=31536000'; location.reload(); }
+var MT = <?php echo maint_lang_js(); ?>;
 var POW = { challenge: <?php echo json_encode($__pow['challenge']); ?>, target: <?php echo json_encode($__pow['target']); ?> };
 
 function showError(t){
@@ -169,13 +179,13 @@ function handleLogin(e){
     hideError();
     var btn = document.getElementById('loginBtn');
     btn.classList.add('pow-working');
-    btn.textContent = 'Logging in...';
+    btn.textContent = MT.login_doing;
     ChatAppPow.solve(POW.challenge, POW.target, function(kHps){
-        btn.textContent = 'Logging in... (' + Math.round(kHps) + ' kH/s)';
+        btn.textContent = MT.login_doing + ' (' + Math.round(kHps) + ' kH/s)';
     }).then(function(solved){
         if (!solved){
-            btn.classList.remove('pow-working'); btn.textContent = 'Log In';
-            showError('Challenge failed. Please reload the page.');
+            btn.classList.remove('pow-working'); btn.textContent = MT.login_btn;
+            showError(MT.login_pow_fail);
             return;
         }
         var fd = new URLSearchParams();
@@ -189,15 +199,15 @@ function handleLogin(e){
             body: fd.toString(),
             credentials: 'same-origin'
         }).then(function(r){ return r.json(); }).then(function(d){
-            btn.classList.remove('pow-working'); btn.textContent = 'Log In';
+            btn.classList.remove('pow-working'); btn.textContent = MT.login_btn;
             if (d.success && d.portal){
                 window.location.href = '/maintenance/portal.php';
             } else {
-                showError(d.error || 'Login failed.');
+                showError(d.error || MT.login_failed);
             }
         }).catch(function(){
-            btn.classList.remove('pow-working'); btn.textContent = 'Log In';
-            showError('Network error. Please try again.');
+            btn.classList.remove('pow-working'); btn.textContent = MT.login_btn;
+            showError(MT.login_net);
         });
     });
 }
