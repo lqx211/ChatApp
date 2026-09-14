@@ -22,7 +22,7 @@ chatapp_read_actions(['discover', 'get_blocks', 'get_background', 'get_bg_privac
  */
 function settings_toggle_col(string $col): void {
     $pdo = db();
-    $colSafe = preg_replace('/[^a-zA-Z_]/', '', $col);
+    $colSafe = preg_replace('/[^a-zA-Z0-9_]/', '', $col);
     $stmt = $pdo->prepare("SELECT $colSafe FROM users WHERE username = ?");
     $stmt->execute([$_SESSION['username']]);
     $row = $stmt->fetch();

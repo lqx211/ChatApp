@@ -536,17 +536,59 @@ function t(string $key, $default = null, ...$args): string {
 
 function db_add_column_if_missing(string $table, string $column, string $definition): void {
     $pdo = db();
-    $table = preg_replace('/[^a-zA-Z_]/', '', $table);
-    $column = preg_replace('/[^a-zA-Z_]/', '', $column);
-    // 用 fetch() 判断列是否存在：rowCount() 对 SHOW COLUMNS 在某些驱动上恒为 0，
-    // 会把已存在的列误判为缺失 → 重复 ALTER → "Duplicate column" 500。
-    $result = $pdo->query("SHOW COLUMNS FROM `$table` LIKE '$column'");
-    if ($result && $result->fetch() === false) {
+    // 注意：保留数字！历史 bug 曾把 e2ee_enabled 洗成 eee_enabled（数字被删）。
+    $table = preg_replace('/[^a-zA-Z0-9_]/', '', $table);
+    $column = preg_replace('/[^a-zA-Z0-9_]/', '', $column);
+    // 每请求列缓存：init_db 里有上百个 ensure，逐条 SHOW COLUMNS 太浪费；
+    // 每张表只查一次全列，之后 O(1) 判断（也兼容并发场景）。
+    if (!isset($GLOBALS['__ca_col_cache'])) { $GLOBALS['__ca_col_cache'] = []; }
+    if (!array_key_exists($table, $GLOBALS['__ca_col_cache'])) {
+        try {
+            $cols = $pdo->query("SHOW COLUMNS FROM `$table`")->fetchAll(PDO::FETCH_COLUMN, 0);
+            $GLOBALS['__ca_col_cache'][$table] = array_map('strtolower', $cols);
+        } catch (\PDOException $e) {
+            // 表不存在（1146）：init_db 里部分 ensure 排在 CREATE TABLE 之前，或历史库
+            // 整表缺失 / 上次初始化中途失败。先记账，init_db 末尾统一重试，绝不能 500。
+            if ((int)($e->errorInfo[1] ?? 0) === 1146) {
+                $GLOBALS['__ca_col_cache'][$table] = false;
+                $GLOBALS['__ca_pending_ensures'][] = [$table, $column, $definition];
+                return;
+            }
+            throw $e;
+        }
+    }
+    if ($GLOBALS['__ca_col_cache'][$table] === false) {
+        // 表仍缺失（尚未走到它的 CREATE TABLE）→ 继续记账
+        $GLOBALS['__ca_pending_ensures'][] = [$table, $column, $definition];
+        return;
+    }
+    if (!in_array(strtolower($column), $GLOBALS['__ca_col_cache'][$table], true)) {
         try {
             $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
+            $GLOBALS['__ca_col_cache'][$table][] = strtolower($column);
         } catch (\PDOException $e) {
-            // 并发 init_db 竞态：列可能刚被别的进程加上 → 忽略 Duplicate column (1060)
-            if (!in_array((int)$e->getCode(), [1060, 1061], true)) { throw $e; }
+            // 并发 init_db 竞态：列可能刚被别的进程加上 → 忽略 Duplicate column (1060/1061)
+            $drv = (int)($e->errorInfo[1] ?? 0);
+            if (!in_array($drv, [1060, 1061], true) && !in_array((int)$e->getCode(), [1060, 1061], true)) { throw $e; }
+        }
+    }
+}
+
+/**
+ * 重放 init_db 期间因「表尚未创建」被跳过的列确保（多轮直到稳定）。
+ * 保证「从极老/半残数据库直接跳最新」时，单个请求内就自愈到完整 schema。
+ */
+function db_flush_pending_ensures(): void {
+    for ($pass = 0; $pass < 4; $pass++) {
+        $pending = $GLOBALS['__ca_pending_ensures'] ?? [];
+        if (!$pending) return;
+        $GLOBALS['__ca_pending_ensures'] = [];
+        foreach ($pending as $entry) {
+            // 表可能已在本轮 init_db 里被创建 → 清掉“缺失”缓存再重试
+            if (($GLOBALS['__ca_col_cache'][$entry[0]] ?? null) === false) {
+                unset($GLOBALS['__ca_col_cache'][$entry[0]]);
+            }
+            db_add_column_if_missing($entry[0], $entry[1], $entry[2]);
         }
     }
 }
@@ -557,8 +599,8 @@ function db_add_column_if_missing(string $table, string $column, string $definit
  * （如 space_ears 老库默认 1，正确应为注册默认关闭 = 0）。
  */
 function db_fix_column_default(string $table, string $column, string $expected): void {
-    $table = preg_replace('/[^a-zA-Z_]/', '', $table);
-    $column = preg_replace('/[^a-zA-Z_]/', '', $column);
+    $table = preg_replace('/[^a-zA-Z0-9_]/', '', $table);
+    $column = preg_replace('/[^a-zA-Z0-9_]/', '', $column);
     try {
         $stmt = db()->prepare('SELECT COLUMN_DEFAULT FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
         $stmt->execute([$table, $column]);
@@ -599,8 +641,8 @@ function chatapp_ensure_bot_columns(): void {
 /** 删除列（幂等；列不存在时静默跳过）。 */
 function db_drop_column_if_exists(string $table, string $column): void {
     $pdo = db();
-    $table = preg_replace('/[^a-zA-Z_]/', '', $table);
-    $column = preg_replace('/[^a-zA-Z_]/', '', $column);
+    $table = preg_replace('/[^a-zA-Z0-9_]/', '', $table);
+    $column = preg_replace('/[^a-zA-Z0-9_]/', '', $column);
     try {
         $result = $pdo->query("SHOW COLUMNS FROM `$table` LIKE '$column'");
         if ($result && $result->fetch() !== false) {
@@ -1605,6 +1647,359 @@ function init_db(): void {
         INDEX idx_sec_type (event_type),
         INDEX idx_sec_created (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    // ================= 历史懒建表的中央自愈 =================
+    // 这些表历史上由各功能端点“首次使用时”才创建（e2ee/space/ws_token/ai_tool_logs…
+    // 甚至 app_settings/public_emoji/reports 曾经完全没有创建者）。极端场景：从首版
+    // 数据库直跳最新、或某次初始化中途失败 → 表缺失 → 相关功能 500。这里统一补全，
+    // 单个请求内自愈完毕（CREATE 幂等；列兜底防老变体缺列）。
+    $lateTables = [
+        "CREATE TABLE IF NOT EXISTS ai_tool_logs (
+            id INT NOT NULL AUTO_INCREMENT,
+            user_id INT NOT NULL,
+            username VARCHAR(64) NOT NULL,
+            tool VARCHAR(40) NOT NULL,
+            ok TINYINT(1) NOT NULL DEFAULT 1,
+            ms INT NOT NULL DEFAULT 0,
+            args_summary VARCHAR(255) DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_ai_log_user (user_id, created_at),
+            KEY idx_ai_log_tool (tool, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS app_settings (
+            k VARCHAR(64) NOT NULL,
+            v TEXT,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (k)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS dm_e2ee (
+            id INT NOT NULL AUTO_INCREMENT,
+            user_id INT NOT NULL,
+            peer_uid INT NOT NULL,
+            enabled TINYINT(1) NOT NULL DEFAULT 0,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uq_pair (user_id, peer_uid)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS profile_logs (
+            id INT NOT NULL AUTO_INCREMENT,
+            user_id INT NOT NULL,
+            username VARCHAR(50) NOT NULL DEFAULT '',
+            field VARCHAR(30) NOT NULL,
+            old_value TEXT,
+            new_value TEXT,
+            ip_address VARCHAR(45) DEFAULT NULL,
+            user_agent VARCHAR(255) DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_profile_user (user_id, created_at),
+            KEY idx_profile_field (field)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS public_emoji (
+            id INT NOT NULL AUTO_INCREMENT,
+            owner_uid INT NOT NULL,
+            hash CHAR(32) NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            filename VARCHAR(255) DEFAULT NULL,
+            size INT DEFAULT 0,
+            content_type VARCHAR(100) DEFAULT NULL,
+            ext VARCHAR(20) DEFAULT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY owner_uid (owner_uid, hash),
+            KEY idx_owner (owner_uid),
+            KEY idx_created (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS reports (
+            id INT NOT NULL AUTO_INCREMENT,
+            reporter_id INT NOT NULL,
+            target_id INT NOT NULL,
+            reason TEXT,
+            message_ids TEXT,
+            status ENUM('pending','resolved') NOT NULL DEFAULT 'pending',
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_reports_target (target_id),
+            KEY idx_reports_status (status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS space_feeds (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            user_id INT UNSIGNED NOT NULL,
+            content TEXT,
+            images TEXT,
+            visibility TINYINT NOT NULL DEFAULT 0,
+            visible_to TEXT,
+            likes INT NOT NULL DEFAULT 0,
+            liked_by TEXT,
+            enabled TINYINT(1) NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            edited_at DATETIME DEFAULT NULL,
+            PRIMARY KEY (id),
+            KEY idx_user (user_id),
+            KEY idx_time (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS space_comments (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            feed_id BIGINT UNSIGNED NOT NULL,
+            user_id INT UNSIGNED NOT NULL,
+            parent_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            content VARCHAR(1000) NOT NULL,
+            enabled TINYINT(1) NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_feed (feed_id),
+            KEY idx_user (user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS space_blogs (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            user_id INT UNSIGNED NOT NULL,
+            title VARCHAR(200) NOT NULL DEFAULT '',
+            content TEXT,
+            visibility TINYINT NOT NULL DEFAULT 0,
+            visible_to TEXT,
+            views INT NOT NULL DEFAULT 0,
+            enabled TINYINT(1) NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_user (user_id),
+            KEY idx_time (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS space_messages (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            to_uid INT UNSIGNED NOT NULL,
+            user_id INT UNSIGNED NOT NULL,
+            content VARCHAR(1000) NOT NULL,
+            enabled TINYINT(1) NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_to (to_uid),
+            KEY idx_user (user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS space_mentions (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            feed_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            mentioned_uid INT UNSIGNED NOT NULL,
+            by_uid INT UNSIGNED NOT NULL,
+            is_read TINYINT(1) NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            type VARCHAR(16) NOT NULL DEFAULT 'mention',
+            comment_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            PRIMARY KEY (id),
+            KEY idx_mentioned (mentioned_uid, is_read),
+            KEY idx_feed (feed_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS space_albums (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            user_id INT UNSIGNED NOT NULL,
+            name VARCHAR(60) NOT NULL,
+            description TEXT,
+            type VARCHAR(20) NOT NULL DEFAULT 'personal',
+            visibility TINYINT NOT NULL DEFAULT 4,
+            visible_to TEXT,
+            is_dynamic TINYINT(1) NOT NULL DEFAULT 0,
+            enabled TINYINT(1) NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_user (user_id),
+            KEY idx_dynamic (user_id, is_dynamic)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS space_album_photos (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            album_id BIGINT UNSIGNED NOT NULL,
+            user_id INT UNSIGNED NOT NULL,
+            media TEXT NOT NULL,
+            featured TINYINT(1) NOT NULL DEFAULT 0,
+            enabled TINYINT(1) NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_album (album_id),
+            KEY idx_featured (user_id, featured, enabled)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS space_visits (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            viewer_uid INT UNSIGNED NOT NULL,
+            target_uid INT UNSIGNED NOT NULL,
+            hidden TINYINT(1) NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_target (target_uid, hidden, created_at),
+            KEY idx_viewer (viewer_uid, hidden, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS user_keys (
+            id INT NOT NULL AUTO_INCREMENT,
+            user_id INT NOT NULL,
+            key_id VARCHAR(64) NOT NULL DEFAULT '',
+            ik_pub BLOB NOT NULL,
+            sig_pub BLOB NOT NULL,
+            spk_pub BLOB NOT NULL,
+            spk_sig BLOB NOT NULL,
+            spk_key_id VARCHAR(64) NOT NULL DEFAULT '',
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uq_user (user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS user_one_time_keys (
+            id INT NOT NULL AUTO_INCREMENT,
+            user_id INT NOT NULL,
+            opk_id VARCHAR(64) NOT NULL,
+            opk_pub BLOB NOT NULL,
+            used TINYINT(1) NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_user_used (user_id, used)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS ws_tokens (
+            token CHAR(64) NOT NULL,
+            user_id INT NOT NULL,
+            username VARCHAR(20) NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expires_at DATETIME NOT NULL,
+            PRIMARY KEY (token),
+            KEY idx_ws_tokens_user (user_id),
+            KEY idx_ws_tokens_expires (expires_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    ];
+    foreach ($lateTables as $ddl) {
+        $pdo->exec($ddl);
+    }
+    // 列兜底：老变体表可能缺列（definitions 与上表保持一致）
+    $lateCols = [
+        ['ai_tool_logs', 'user_id', 'INT NOT NULL'],
+        ['ai_tool_logs', 'username', "VARCHAR(64) NOT NULL DEFAULT ''"],
+        ['ai_tool_logs', 'tool', "VARCHAR(40) NOT NULL DEFAULT ''"],
+        ['ai_tool_logs', 'ok', 'TINYINT(1) NOT NULL DEFAULT 1'],
+        ['ai_tool_logs', 'ms', 'INT NOT NULL DEFAULT 0'],
+        ['ai_tool_logs', 'args_summary', 'VARCHAR(255) DEFAULT NULL'],
+        ['ai_tool_logs', 'created_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP'],
+        ['app_settings', 'v', 'TEXT'],
+        ['app_settings', 'updated_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'],
+        ['dm_e2ee', 'user_id', 'INT NOT NULL'],
+        ['dm_e2ee', 'peer_uid', 'INT NOT NULL'],
+        ['dm_e2ee', 'enabled', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        ['dm_e2ee', 'updated_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'],
+        ['profile_logs', 'user_id', 'INT NOT NULL'],
+        ['profile_logs', 'username', "VARCHAR(50) NOT NULL DEFAULT ''"],
+        ['profile_logs', 'field', "VARCHAR(30) NOT NULL DEFAULT ''"],
+        ['profile_logs', 'old_value', 'TEXT'],
+        ['profile_logs', 'new_value', 'TEXT'],
+        ['profile_logs', 'ip_address', 'VARCHAR(45) DEFAULT NULL'],
+        ['profile_logs', 'user_agent', 'VARCHAR(255) DEFAULT NULL'],
+        ['profile_logs', 'created_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP'],
+        ['public_emoji', 'owner_uid', 'INT NOT NULL DEFAULT 0'],
+        ['public_emoji', 'hash', "CHAR(32) NOT NULL DEFAULT ''"],
+        ['public_emoji', 'created_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP'],
+        ['public_emoji', 'filename', 'VARCHAR(255) DEFAULT NULL'],
+        ['public_emoji', 'size', 'INT DEFAULT 0'],
+        ['public_emoji', 'content_type', 'VARCHAR(100) DEFAULT NULL'],
+        ['public_emoji', 'ext', 'VARCHAR(20) DEFAULT NULL'],
+        ['reports', 'reporter_id', 'INT NOT NULL DEFAULT 0'],
+        ['reports', 'target_id', 'INT NOT NULL DEFAULT 0'],
+        ['reports', 'reason', 'TEXT'],
+        ['reports', 'message_ids', 'TEXT'],
+        ['reports', 'status', "ENUM('pending','resolved') NOT NULL DEFAULT 'pending'"],
+        ['reports', 'created_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP'],
+        ['space_feeds', 'user_id', 'INT UNSIGNED NOT NULL DEFAULT 0'],
+        ['space_feeds', 'content', 'TEXT'],
+        ['space_feeds', 'images', 'TEXT'],
+        ['space_feeds', 'visibility', 'TINYINT NOT NULL DEFAULT 0'],
+        ['space_feeds', 'visible_to', 'TEXT'],
+        ['space_feeds', 'likes', 'INT NOT NULL DEFAULT 0'],
+        ['space_feeds', 'liked_by', 'TEXT'],
+        ['space_feeds', 'enabled', 'TINYINT(1) NOT NULL DEFAULT 1'],
+        ['space_feeds', 'created_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP'],
+        ['space_feeds', 'edited_at', 'DATETIME DEFAULT NULL'],
+        ['space_comments', 'feed_id', 'BIGINT UNSIGNED NOT NULL DEFAULT 0'],
+        ['space_comments', 'user_id', 'INT UNSIGNED NOT NULL DEFAULT 0'],
+        ['space_comments', 'parent_id', 'BIGINT UNSIGNED NOT NULL DEFAULT 0'],
+        ['space_comments', 'content', "VARCHAR(1000) NOT NULL DEFAULT ''"],
+        ['space_comments', 'enabled', 'TINYINT(1) NOT NULL DEFAULT 1'],
+        ['space_comments', 'created_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP'],
+        ['space_blogs', 'user_id', 'INT UNSIGNED NOT NULL DEFAULT 0'],
+        ['space_blogs', 'title', "VARCHAR(200) NOT NULL DEFAULT ''"],
+        ['space_blogs', 'content', 'TEXT'],
+        ['space_blogs', 'visibility', 'TINYINT NOT NULL DEFAULT 0'],
+        ['space_blogs', 'visible_to', 'TEXT'],
+        ['space_blogs', 'views', 'INT NOT NULL DEFAULT 0'],
+        ['space_blogs', 'enabled', 'TINYINT(1) NOT NULL DEFAULT 1'],
+        ['space_blogs', 'created_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP'],
+        ['space_blogs', 'updated_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'],
+        ['space_messages', 'to_uid', 'INT UNSIGNED NOT NULL DEFAULT 0'],
+        ['space_messages', 'user_id', 'INT UNSIGNED NOT NULL DEFAULT 0'],
+        ['space_messages', 'content', "VARCHAR(1000) NOT NULL DEFAULT ''"],
+        ['space_messages', 'enabled', 'TINYINT(1) NOT NULL DEFAULT 1'],
+        ['space_messages', 'created_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP'],
+        ['space_mentions', 'feed_id', 'BIGINT UNSIGNED NOT NULL DEFAULT 0'],
+        ['space_mentions', 'mentioned_uid', 'INT UNSIGNED NOT NULL DEFAULT 0'],
+        ['space_mentions', 'by_uid', 'INT UNSIGNED NOT NULL DEFAULT 0'],
+        ['space_mentions', 'is_read', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        ['space_mentions', 'created_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP'],
+        ['space_mentions', 'type', "VARCHAR(16) NOT NULL DEFAULT 'mention'"],
+        ['space_mentions', 'comment_id', 'BIGINT UNSIGNED NOT NULL DEFAULT 0'],
+        ['space_albums', 'user_id', 'INT UNSIGNED NOT NULL DEFAULT 0'],
+        ['space_albums', 'name', "VARCHAR(60) NOT NULL DEFAULT ''"],
+        ['space_albums', 'description', 'TEXT'],
+        ['space_albums', 'type', "VARCHAR(20) NOT NULL DEFAULT 'personal'"],
+        ['space_albums', 'visibility', 'TINYINT NOT NULL DEFAULT 4'],
+        ['space_albums', 'visible_to', 'TEXT'],
+        ['space_albums', 'is_dynamic', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        ['space_albums', 'enabled', 'TINYINT(1) NOT NULL DEFAULT 1'],
+        ['space_albums', 'created_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP'],
+        ['space_album_photos', 'album_id', 'BIGINT UNSIGNED NOT NULL DEFAULT 0'],
+        ['space_album_photos', 'user_id', 'INT UNSIGNED NOT NULL DEFAULT 0'],
+        ['space_album_photos', 'media', 'TEXT'],
+        ['space_album_photos', 'featured', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        ['space_album_photos', 'enabled', 'TINYINT(1) NOT NULL DEFAULT 1'],
+        ['space_album_photos', 'created_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP'],
+        ['space_visits', 'viewer_uid', 'INT UNSIGNED NOT NULL DEFAULT 0'],
+        ['space_visits', 'target_uid', 'INT UNSIGNED NOT NULL DEFAULT 0'],
+        ['space_visits', 'hidden', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        ['space_visits', 'created_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP'],
+        ['user_keys', 'user_id', 'INT NOT NULL'],
+        ['user_keys', 'key_id', "VARCHAR(64) NOT NULL DEFAULT ''"],
+        ['user_keys', 'ik_pub', 'BLOB'],
+        ['user_keys', 'sig_pub', 'BLOB'],
+        ['user_keys', 'spk_pub', 'BLOB'],
+        ['user_keys', 'spk_sig', 'BLOB'],
+        ['user_keys', 'spk_key_id', "VARCHAR(64) NOT NULL DEFAULT ''"],
+        ['user_keys', 'created_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP'],
+        ['user_keys', 'updated_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'],
+        ['user_one_time_keys', 'user_id', 'INT NOT NULL'],
+        ['user_one_time_keys', 'opk_id', "VARCHAR(64) NOT NULL DEFAULT ''"],
+        ['user_one_time_keys', 'opk_pub', 'BLOB'],
+        ['user_one_time_keys', 'used', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        ['user_one_time_keys', 'created_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP'],
+        ['ws_tokens', 'user_id', 'INT NOT NULL DEFAULT 0'],
+        ['ws_tokens', 'username', "VARCHAR(20) NOT NULL DEFAULT ''"],
+        ['ws_tokens', 'created_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP'],
+        ['ws_tokens', 'expires_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP'],
+        // users：历史上只在各端点懒加的列（auth/status/settings/deepseek/e2ee）
+        ['users', 'failed_attempts', 'INT NOT NULL DEFAULT 0'],
+        ['users', 'locked_until', 'DATETIME NULL DEFAULT NULL'],
+        ['users', 'last_ping', 'DATETIME DEFAULT NULL'],
+        ['users', 'typing_at', 'DATETIME DEFAULT NULL'],
+        ['users', 'typing_to', 'VARCHAR(20) DEFAULT NULL'],
+        ['users', 'bg_pos_x', 'INT NOT NULL DEFAULT 50'],
+        ['users', 'bg_pos_y', 'INT NOT NULL DEFAULT 0'],
+        ['users', 'bg_zoom', 'DECIMAL(4,2) NOT NULL DEFAULT 1.00'],
+        ['users', 'bg_flip', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        ['users', 'ai_level', 'TINYINT NOT NULL DEFAULT 0'],
+        ['users', 'ai_send_dm', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        ['users', 'ai_read_chats', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        ['users', 'e2ee_enabled', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        // temp_uploads：WSS 断点续传进度列（历史上由 WSS 侧写库，无代码建列）
+        ['temp_uploads', 'status', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        ['temp_uploads', 'uploaded_bytes', 'BIGINT NOT NULL DEFAULT 0'],
+    ];
+    foreach ($lateCols as $lc) {
+        db_add_column_if_missing($lc[0], $lc[1], $lc[2]);
+    }
+    // 机器人列（is_bot / bot_*）历史上只在 bots/联系人/聊天端点懒加 → 集中补全
+    chatapp_ensure_bot_columns();
+
+    // 收尾：重放所有因「建表尚未执行」被推迟的列确保（极端老库/半残库自愈关键）
+    db_flush_pending_ensures();
 }
 
 // ================= Level system core =================
