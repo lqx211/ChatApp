@@ -112,6 +112,7 @@ $RESCUE_MT = [
         /* 表单（与维护面板一致的三重验证） */
         'lbl_admin_pwd' => 'Administrator Password (10000)',
         'admin_db_down_note' => 'Database unreachable — the administrator password cannot be verified; this operation will rely on the maintenance credentials only.',
+        'admin_missing_note' => 'No administrator (uid 10000) password record found — the administrator password cannot be verified; this operation will rely on the maintenance credentials only.',
         'lbl_m_user'    => 'Maintenance Username',
         'lbl_m_pass'    => 'Maintenance Passphrase',
         'lbl_git1'      => 'Current git hash',
@@ -195,6 +196,7 @@ $RESCUE_MT = [
         /* 表单 */
         'lbl_admin_pwd' => '管理员密码（UID 10000）',
         'admin_db_down_note' => '数据库不可达 —— 无法校验管理员密码，本次操作仅凭维护凭据确认。',
+        'admin_missing_note' => '查不到管理员（UID 10000）密码记录 —— 无法校验管理员密码，本次操作仅凭维护凭据确认。',
         'lbl_m_user'    => '维护用户名',
         'lbl_m_pass'    => '维护口令',
         'lbl_git1'      => '当前 git 哈希',

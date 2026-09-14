@@ -125,22 +125,20 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $head = strtoupper(trim(rescue_git('rev-parse HEAD')));
             if ($head === '' || $head !== $h1) rc_json(['success' => false, 'error' => rt('git_hash_mismatch') . ' (HEAD: ' . substr($head, 0, 10) . ')']);
 
-            // 2) 管理员密码（DB 可达才校验；不可达 → 提示并跳过，救援场景必须放行）
-            $db = rescue_db_status();
-            if ($db['ok']) {
+            // 2) 管理员密码：DB 可达且 uid 10000 有密码才校验；数据库炸了 /
+            //    管理员记录或密码不存在 → 跳过（救援场景仅凭维护凭据放行）
+            $gate = rescue_admin_verifiable();
+            if ($gate['ok']) {
                 if ($pwd === '') rc_json(['success' => false, 'error' => rt('err_admin_required')]);
                 $okAdmin = false;
                 try {
-                    // 用 lib 同款方式解析 DB 凭据（不执行 api/config.php）
-                    $src = (string)@file_get_contents(rescue_root() . '/api/config.php');
-                    $du = 'root'; $dp = '';
-                    if (preg_match("/define\(\s*'DB_USER'\s*,\s*'((?:[^'\\\\]|\\\\.)*)'\s*\)/", $src, $m)) $du = stripcslashes($m[1]);
-                    if (preg_match("/define\(\s*'DB_PASS'\s*,\s*'((?:[^'\\\\]|\\\\.)*)'\s*\)/", $src, $m)) $dp = stripcslashes($m[1]);
-                    $pdo = new PDO('mysql:host=' . $db['host'] . ';dbname=' . $db['name'] . ';charset=utf8mb4', $du, $dp, [PDO::ATTR_TIMEOUT => 2]);
-                    $stmt = $pdo->prepare('SELECT password FROM users WHERE user_id = 10000');
-                    $stmt->execute();
-                    $row = $stmt->fetch();
-                    $okAdmin = $row && password_verify($pwd, $row['password']);
+                    $pdo = rescue_db_pdo();
+                    if ($pdo) {
+                        $stmt = $pdo->prepare('SELECT password FROM users WHERE user_id = 10000');
+                        $stmt->execute();
+                        $row = $stmt->fetch();
+                        $okAdmin = $row && password_verify($pwd, $row['password']);
+                    }
                 } catch (\Throwable $e) { $okAdmin = false; }
                 if (!$okAdmin) rc_json(['success' => false, 'error' => rt('err_admin_wrong')]);
             }
@@ -306,6 +304,9 @@ endif;
 
 // ==================== 主界面（已登录） ====================
 $__db = rescue_db_status();
+// 管理员密码此刻能不能校验（DB 可达 + uid 10000 有密码）；不能 → 表单不要求输入
+$__adminGate = rescue_admin_verifiable();
+$__adminNoteKey = ($__adminGate['why'] === 'admin') ? 'admin_missing_note' : 'admin_db_down_note';
 $__appGit = rescue_git('rev-parse HEAD');
 $__branch = rescue_git('rev-parse --abbrev-ref HEAD');
 $__cfgFiles = rescue_cred_files();
@@ -421,8 +422,8 @@ $__diskTxt = ($__disk === false) ? '?' : number_format($__disk / 1073741824, 2) 
         <div style="margin-top:10px"><button class="pbtn gray" id="upCheckBtn" onclick="upCheck()"><?php echo rt('btn_check'); ?></button></div>
       </div>
       <div class="pcard">
-        <?php if (!$__db['ok']): ?>
-        <div class="dnote">⚠ <?php echo rt('admin_db_down_note'); ?></div>
+        <?php if (!$__adminGate['ok']): ?>
+        <div class="dnote">⚠ <?php echo rt($__adminNoteKey); ?></div>
         <?php else: ?>
         <div class="pfield"><label><?php echo rt('lbl_admin_pwd'); ?></label><input type="password" id="upPwd" autocomplete="off"></div>
         <?php endif; ?>
@@ -451,8 +452,8 @@ $__diskTxt = ($__disk === false) ? '?' : number_format($__disk / 1073741824, 2) 
         <div class="pfield" style="margin-top:10px"><label><?php echo rt('lbl_target'); ?></label><select id="dgSel"><option value=""><?php echo rt('dg_ph_loading'); ?></option></select></div>
       </div>
       <div class="pcard">
-        <?php if (!$__db['ok']): ?>
-        <div class="dnote">⚠ <?php echo rt('admin_db_down_note'); ?></div>
+        <?php if (!$__adminGate['ok']): ?>
+        <div class="dnote">⚠ <?php echo rt($__adminNoteKey); ?></div>
         <?php else: ?>
         <div class="pfield"><label><?php echo rt('lbl_admin_pwd'); ?></label><input type="password" id="dgPwd" autocomplete="off"></div>
         <?php endif; ?>

@@ -143,13 +143,9 @@ if (!function_exists('rescue_bootstrap')) {
     }
 }
 
-if (!function_exists('rescue_db_status')) {
-    /**
-     * 尽力探测数据库：从 api/config.php 正则解析连接常量（不执行该文件！），
-     * 然后 2 秒超时 PDO 探测。DB 挂了也必须 graceful。
-     * 返回 ['ok'=>bool, 'error'=>string, 'host'=>string, 'name'=>string]
-     */
-    function rescue_db_status(): array {
+if (!function_exists('rescue_db_creds')) {
+    /** 解析 DB 连接信息（正则读 api/config.php，不执行该文件；失败用默认值） */
+    function rescue_db_creds(): array {
         $defs = ['DB_HOST' => '127.0.0.1', 'DB_NAME' => 'chatapp', 'DB_USER' => 'root', 'DB_PASS' => ''];
         $cfg = rescue_root() . '/api/config.php';
         if (is_file($cfg)) {
@@ -162,16 +158,62 @@ if (!function_exists('rescue_db_status')) {
                 }
             }
         }
+        return $defs;
+    }
+}
+
+if (!function_exists('rescue_db_pdo')) {
+    /** 连库（2s 超时）；失败返回 null（DB 挂了也必须 graceful） */
+    function rescue_db_pdo(): ?PDO {
+        $c = rescue_db_creds();
         try {
-            $pdo = new PDO('mysql:host=' . $defs['DB_HOST'] . ';dbname=' . $defs['DB_NAME'] . ';charset=utf8mb4', $defs['DB_USER'], $defs['DB_PASS'], [
+            return new PDO('mysql:host=' . $c['DB_HOST'] . ';dbname=' . $c['DB_NAME'] . ';charset=utf8mb4', $c['DB_USER'], $c['DB_PASS'], [
                 PDO::ATTR_TIMEOUT => 2,
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             ]);
+        } catch (\Throwable $e) { return null; }
+    }
+}
+
+if (!function_exists('rescue_db_status')) {
+    /**
+     * 尽力探测数据库可达性。
+     * 返回 ['ok'=>bool, 'error'=>string, 'host'=>string, 'name'=>string]
+     */
+    function rescue_db_status(): array {
+        $defs = rescue_db_creds();
+        $pdo = rescue_db_pdo();
+        if (!$pdo) return ['ok' => false, 'error' => 'connect failed', 'host' => $defs['DB_HOST'], 'name' => $defs['DB_NAME']];
+        try {
             $pdo->query('SELECT 1');
             return ['ok' => true, 'error' => '', 'host' => $defs['DB_HOST'], 'name' => $defs['DB_NAME']];
         } catch (\Throwable $e) {
             return ['ok' => false, 'error' => $e->getMessage(), 'host' => $defs['DB_HOST'], 'name' => $defs['DB_NAME']];
         }
+    }
+}
+
+if (!function_exists('rescue_admin_verifiable')) {
+    /**
+     * 管理员密码此刻「能不能校验」：DB 可达 + uid 10000 记录存在且密码非空。
+     * 不能校验（数据库炸了 / 管理员记录或密码不存在）→ 升级、降级不应要求输入
+     * 管理员密码，仅凭维护凭据确认（救援场景必须放行）。
+     * 返回 ['ok'=>bool, 'why'=>''|'db'|'admin']
+     */
+    function rescue_admin_verifiable(): array {
+        $pdo = rescue_db_pdo();
+        if (!$pdo) return ['ok' => false, 'why' => 'db'];
+        try {
+            $stmt = $pdo->prepare('SELECT password FROM users WHERE user_id = 10000');
+            $stmt->execute();
+            $row = $stmt->fetch();
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'why' => 'db'];
+        }
+        if (!$row || trim((string)($row['password'] ?? '')) === '') {
+            return ['ok' => false, 'why' => 'admin'];
+        }
+        return ['ok' => true, 'why' => ''];
     }
 }
 
