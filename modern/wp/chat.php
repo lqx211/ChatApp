@@ -154,7 +154,7 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
    <?php endif;?>
    <?php if($isRoot):?>
    <div class="ng"><div class="ngh" onclick="switchPanel('dbadmin')" style="cursor:pointer"><span><?php echo t('sb_dbadmin');?></span></div></div>
-   <div class="ng"><div class="ngh" onclick="switchPanel('wssettings');loadWssSettings()" style="cursor:pointer"><span>WebSocket Settings</span></div></div>
+   <div class="ng"><div class="ngh" onclick="switchPanel('wssettings');loadWssSettings()" style="cursor:pointer"><span><?php echo t('wss_title', 'WebSocket 设置');?></span></div></div>
    <div class="ng"><div class="ngh" onclick="switchPanel('oobe')" style="cursor:pointer"><span><?php echo t('sb_oobe_guide', 'OOBE 引导');?></span></div></div>
    <div class="ng"><div class="ngh" onclick="location.href='/maintenance/portal.php'" style="cursor:pointer"><span><?php echo svg_ic('wrench', 14);?> <?php echo t('sb_maint_portal', '维护门户');?></span></div></div>
    <?php endif;?>
@@ -323,7 +323,7 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
  <?php if($isRoot):?>
  <!-- Database Admin (root only) -->
  <div class="panel" id="panel-dbadmin">
-  <div class="ch"><h2><?php echo t('sb_dbadmin', '数据库管理');?></h2><span style="color:#e0a040;font-size:.75em;margin-left:12px">Root Only</span></div>
+  <div class="ch"><h2><?php echo t('sb_dbadmin', '数据库管理');?></h2><span style="color:#e0a040;font-size:.75em;margin-left:12px"><?php echo t('label_root_only', '仅站主');?></span></div>
   <div class="db-toolbar" style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;align-items:center">
    <select id="dbTableSelect" style="padding:6px 10px;background:#1e1e1e;border:1px solid #444;color:#e0e0e0;font-family:inherit;font-size:.8em;min-width:180px" onchange="dbShowTable()">
     <option value=""><?php echo t('db_sel_table', '-- 选择表 --');?></option>
@@ -358,7 +358,7 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
 
  <?php if($isRoot):?>
  <div class="panel" id="panel-wssettings">
-  <div class="ch"><h2>WebSocket Settings</h2><span style="color:#e0a040;font-size:.75em;margin-left:12px">Root Only</span></div>
+  <div class="ch"><h2><?php echo t('wss_title', 'WebSocket 设置');?></h2><span style="color:#e0a040;font-size:.75em;margin-left:12px"><?php echo t('label_root_only', '仅站主');?></span></div>
   <div style="padding:12px">
    <div style="font-size:.75em;color:#888;margin-bottom:10px"><?php echo t('wss_help', '三个通讯模式分别填地址（host:port 或完整 ws:// / wss:// URL）。前端按当前访问来源自动选择：localhost 走「本地」，私网 IP 走「私网」，公网域名走「公网」。留空 = 该模式不启用。');?></div>
    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px">
@@ -374,7 +374,7 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
   </div>
  </div>
  <div class="panel" id="panel-oobe">
-  <div class="ch"><h2><?php echo t('oobe_rerun_title', 'OOBE 首次引导');?></h2><span style="color:#e0a040;font-size:.75em;margin-left:12px">Root Only</span></div>
+  <div class="ch"><h2><?php echo t('oobe_rerun_title', 'OOBE 首次引导');?></h2><span style="color:#e0a040;font-size:.75em;margin-left:12px"><?php echo t('label_root_only', '仅站主');?></span></div>
   <div style="padding:12px">
    <div style="font-size:.75em;color:#888;margin-bottom:10px"><?php echo t('oobe_rerun_desc', '重新运行首次配置引导（语言 / 功能导览 / 安全初始化）。幂等操作，不会改动或删除任何数据。');?></div>
    <button class="bsm" onclick="rerunOobe()" style="background:#4a3a2a;border-color:#5a4a3a"><?php echo t('oobe_rerun_btn', '重新运行 OOBE');?></button>
@@ -384,27 +384,27 @@ if ($__wssUrls['local'] === '' && $__wssUrls['private'] === '' && $__wssUrls['pu
 
  <?php if($isAdmin):?>
  <div class="panel" id="panel-logs">
-  <div class="ch"><h2>Logs</h2></div>
+  <div class="ch"><h2><?php echo t('sb_logs', '日志');?></h2></div>
   <div class="support-tabs">
-   <button class="active" onclick="loadAdminLogs(1)">Admin Logs</button>
-   <button onclick="loadLoginLogs(1)">Login Logs</button>
-   <button onclick="loadExpLogs(1)">Exp Logs</button>
+   <button class="active" onclick="loadAdminLogs(1)"><?php echo t('log_tab_admin', '管理日志');?></button>
+   <button onclick="loadLoginLogs(1)"><?php echo t('log_tab_login', '登录日志');?></button>
+   <button onclick="loadExpLogs(1)"><?php echo t('log_tab_exp', '经验日志');?></button>
   </div>
   <div class="support-bar">
-   <input type="text" id="logSearch" placeholder="Filter...">
-   <button class="bsm" onclick="loadLogs(1)">Search</button>
+   <input type="text" id="logSearch" placeholder="<?php echo t('log_filter_ph', '过滤…');?>">
+   <button class="bsm" onclick="loadLogs(1)"><?php echo t('btn_search', '搜索');?></button>
   </div>
   <div class="adm-table-wrap" style="max-height:70vh;overflow-y:auto">
    <table style="width:100%;border-collapse:collapse;font-size:.75em">
     <thead><tr style="background:#252525">
-     <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #444">Time</th>
-     <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #444">Admin</th>
-     <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #444">Action</th>
-     <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #444">Target</th>
-     <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #444">Details</th>
+     <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #444"><?php echo t('th_time', '时间');?></th>
+     <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #444"><?php echo t('th_admin', '管理员');?></th>
+     <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #444"><?php echo t('th_action', '操作');?></th>
+     <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #444"><?php echo t('th_target', '对象');?></th>
+     <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #444"><?php echo t('th_details', '详情');?></th>
      <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #444">IP</th>
     </tr></thead>
-    <tbody id="logsTable"><tr><td colspan="6" style="text-align:center;color:#555;padding:12px">Loading...</td></tr></tbody>
+    <tbody id="logsTable"><tr><td colspan="6" style="text-align:center;color:#555;padding:12px"><?php echo t('msg_loading', '加载中');?></td></tr></tbody>
    </table>
   </div>
    <div class="srch-pagination" id="logPagination"><span id="logInfo"></span><span id="logBtns"></span></div>

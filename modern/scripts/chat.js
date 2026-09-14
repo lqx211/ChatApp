@@ -99,6 +99,12 @@ function T(key, fallback) {
     return fallback !== undefined ? fallback : key;
 }
 
+/* 分页信息：显示 X-Y / 共 Z（en: Showing X-Y of Z） */
+function pgInfo(start, end, total) {
+    var f = T('pg_showing', '显示 %s-%s / 共 %s');
+    return f.replace('%s', start).replace('%s', end).replace('%s', total);
+}
+
 
 function fmtSize(b) {
     if (b < 1024) return b + ' B';
@@ -692,10 +698,10 @@ function loadAppPanel(n) {
 
 var _logTab = 'admin', _logPage = 1;
 function _logHeaders(tabKind) {
-    var th = '<th>Time</th>';
-    if (tabKind === 'admin') th += '<th>Admin</th><th>Action</th><th>Target</th><th>Details</th><th>IP</th>';
-    else if (tabKind === 'exp') th += '<th>User</th><th>UID</th><th>Type</th><th>EXP</th><th>Detail</th>';
-    else th += '<th>User</th><th>UID</th><th>Success</th><th>IP</th><th>User Agent</th>';
+    var th = '<th>' + T('th_time', '时间') + '</th>';
+    if (tabKind === 'admin') th += '<th>' + T('th_admin', '管理员') + '</th><th>' + T('th_action', '操作') + '</th><th>' + T('th_target', '对象') + '</th><th>' + T('th_details', '详情') + '</th><th>IP</th>';
+    else if (tabKind === 'exp') th += '<th>' + T('th_user', '用户') + '</th><th>UID</th><th>' + T('th_type', '类型') + '</th><th>EXP</th><th>' + T('th_detail', '详情') + '</th>';
+    else th += '<th>' + T('th_user', '用户') + '</th><th>UID</th><th>' + T('th_success', '成功') + '</th><th>IP</th><th>' + T('th_user_agent', '用户代理') + '</th>';
     var tr = document.querySelector('#panel-logs table thead tr');
     if (tr) tr.innerHTML = th;
 }
@@ -717,7 +723,7 @@ function _logFetch(action, page) {
         if (!tb) return;
         var h = '';
         if (!d.logs || d.logs.length === 0) {
-            h = '<tr><td colspan="6" style="text-align:center;color:#555;padding:12px">No logs found.</td></tr>';
+            h = '<tr><td colspan="6" style="text-align:center;color:#555;padding:12px">' + T('log_none', '暂无日志') + '</td></tr>';
         } else {
             for (var i = 0; i < d.logs.length; i++) {
                 var r = d.logs[i];
@@ -726,16 +732,16 @@ function _logFetch(action, page) {
                 } else if (tabKind === 'exp') {
                     h += '<tr><td>' + eh(r.created_at) + '</td><td>' + eh(r.username || ('uid:' + r.user_id)) + '</td><td>' + eh(r.user_id) + '</td><td>' + eh(r.type) + '</td><td>+' + (r.exp || 0) + '</td><td>' + eh(r.detail || '') + '</td></tr>';
                 } else {
-                    h += '<tr><td>' + eh(r.created_at) + '</td><td>' + eh(r.username) + '</td><td>' + eh(r.user_id) + '</td><td>' + (r.success ? 'Yes' : 'No') + '</td><td>' + eh(r.ip_address || '') + '</td><td>' + eh(r.user_agent || '') + '</td></tr>';
+                    h += '<tr><td>' + eh(r.created_at) + '</td><td>' + eh(r.username) + '</td><td>' + eh(r.user_id) + '</td><td>' + (r.success ? T('log_yes', '成功') : T('log_no', '失败')) + '</td><td>' + eh(r.ip_address || '') + '</td><td>' + eh(r.user_agent || '') + '</td></tr>';
                 }
             }
         }
         tb.innerHTML = h;
         var tp = Math.ceil(d.total / d.per_page),
             pg = '',
-            info = 'Showing ' + ((_logPage - 1) * d.per_page + 1) + '-' + Math.min(_logPage * d.per_page, d.total) + ' of ' + d.total;
-        pg += '<button class="bsm" ' + (_logPage > 1 ? 'onclick="loadLogs(' + (_logPage - 1) + ')"' : 'disabled') + '>Prev</button> ';
-        pg += '<button class="bsm" ' + (_logPage < tp ? 'onclick="loadLogs(' + (_logPage + 1) + ')"' : 'disabled') + '>Next</button>';
+            info = pgInfo((_logPage - 1) * d.per_page + 1, Math.min(_logPage * d.per_page, d.total), d.total);
+        pg += '<button class="bsm" ' + (_logPage > 1 ? 'onclick="loadLogs(' + (_logPage - 1) + ')"' : 'disabled') + '>' + T('pg_prev', '上一页') + '</button> ';
+        pg += '<button class="bsm" ' + (_logPage < tp ? 'onclick="loadLogs(' + (_logPage + 1) + ')"' : 'disabled') + '>' + T('pg_next', '下一页') + '</button>';
         document.getElementById('logInfo').textContent = info;
         document.getElementById('logBtns').innerHTML = pg;
     });
@@ -1921,9 +1927,9 @@ function discoverUsers(page) {
         t.innerHTML = h;
         var tp = Math.ceil(d.total / d.per_page),
             pg = '',
-            info = 'Showing ' + ((dsPage - 1) * d.per_page + 1) + '-' + Math.min(dsPage * d.per_page, d.total) + ' of ' + d.total;
-        pg += '<button ' + (dsPage > 1 ? 'onclick="discoverUsers(' + (dsPage - 1) + ')"' : 'disabled') + '>Prev</button> ';
-        pg += '<button ' + (dsPage < tp ? 'onclick="discoverUsers(' + (dsPage + 1) + ')"' : 'disabled') + '>Next</button>';
+            info = pgInfo((dsPage - 1) * d.per_page + 1, Math.min(dsPage * d.per_page, d.total), d.total);
+        pg += '<button ' + (dsPage > 1 ? 'onclick="discoverUsers(' + (dsPage - 1) + ')"' : 'disabled') + '>' + T('pg_prev', '上一页') + '</button> ';
+        pg += '<button ' + (dsPage < tp ? 'onclick="discoverUsers(' + (dsPage + 1) + ')"' : 'disabled') + '>' + T('pg_next', '下一页') + '</button>';
         document.getElementById('discoverInfo').textContent = info;
         document.getElementById('discoverBtns').innerHTML = pg;
     });
@@ -2359,9 +2365,9 @@ function adminList(page) {
         t.innerHTML = h;
         var tp = Math.ceil(d.total / d.per_page),
             pg = '',
-            info = 'Showing ' + ((admPage - 1) * d.per_page + 1) + '-' + Math.min(admPage * d.per_page, d.total) + ' of ' + d.total;
-        pg += '<button ' + (admPage > 1 ? 'onclick="adminList(' + (admPage - 1) + ')"' : 'disabled') + '>Prev</button> ';
-        pg += '<button ' + (admPage < tp ? 'onclick="adminList(' + (admPage + 1) + ')"' : 'disabled') + '>Next</button>';
+            info = pgInfo((admPage - 1) * d.per_page + 1, Math.min(admPage * d.per_page, d.total), d.total);
+        pg += '<button ' + (admPage > 1 ? 'onclick="adminList(' + (admPage - 1) + ')"' : 'disabled') + '>' + T('pg_prev', '上一页') + '</button> ';
+        pg += '<button ' + (admPage < tp ? 'onclick="adminList(' + (admPage + 1) + ')"' : 'disabled') + '>' + T('pg_next', '下一页') + '</button>';
         document.getElementById('admInfo').textContent = info;
         document.getElementById('admBtns').innerHTML = pg;
     });
@@ -5258,11 +5264,11 @@ function searchMessages(page) {
         var tp = Math.ceil(d.total / d.per_page);
         var pg = '', info = '';
         if (tp > 1) {
-            info = 'Page ' + _msgSearchPage + ' of ' + tp + ' (' + d.total + ' results)';
-            pg += '<button class="bsm" ' + (_msgSearchPage > 1 ? 'onclick="searchMessages(' + (_msgSearchPage - 1) + ')"' : 'disabled') + '>Prev</button> ';
-            pg += '<button class="bsm" ' + (_msgSearchPage < tp ? 'onclick="searchMessages(' + (_msgSearchPage + 1) + ')"' : 'disabled') + '>Next</button>';
+            info = T('pg_page', '第 %s/%s 页（%s 条结果）').replace('%s', String(_msgSearchPage)).replace('%s', String(tp)).replace('%s', String(d.total));
+            pg += '<button class="bsm" ' + (_msgSearchPage > 1 ? 'onclick="searchMessages(' + (_msgSearchPage - 1) + ')"' : 'disabled') + '>' + T('pg_prev', '上一页') + '</button> ';
+            pg += '<button class="bsm" ' + (_msgSearchPage < tp ? 'onclick="searchMessages(' + (_msgSearchPage + 1) + ')"' : 'disabled') + '>' + T('pg_next', '下一页') + '</button>';
         } else {
-            info = d.total + ' results';
+            info = T('pg_results', '共 %s 条结果').replace('%s', String(d.total));
         }
         document.getElementById('msgSearchInfo').textContent = info;
         document.getElementById('msgSearchBtns').innerHTML = pg;
@@ -5321,11 +5327,11 @@ function dmSearchMessages(page) {
         var tp = Math.ceil(d.total / d.per_page);
         var pg = '', info = '';
         if (tp > 1) {
-            info = 'Page ' + _dmSearchPage + ' of ' + tp + ' (' + d.total + ' results)';
-            pg += '<button class="bsm" ' + (_dmSearchPage > 1 ? 'onclick="dmSearchMessages(' + (_dmSearchPage - 1) + ')"' : 'disabled') + '>Prev</button> ';
-            pg += '<button class="bsm" ' + (_dmSearchPage < tp ? 'onclick="dmSearchMessages(' + (_dmSearchPage + 1) + ')"' : 'disabled') + '>Next</button>';
+            info = T('pg_page', '第 %s/%s 页（%s 条结果）').replace('%s', String(_dmSearchPage)).replace('%s', String(tp)).replace('%s', String(d.total));
+            pg += '<button class="bsm" ' + (_dmSearchPage > 1 ? 'onclick="dmSearchMessages(' + (_dmSearchPage - 1) + ')"' : 'disabled') + '>' + T('pg_prev', '上一页') + '</button> ';
+            pg += '<button class="bsm" ' + (_dmSearchPage < tp ? 'onclick="dmSearchMessages(' + (_dmSearchPage + 1) + ')"' : 'disabled') + '>' + T('pg_next', '下一页') + '</button>';
         } else {
-            info = d.total + ' results';
+            info = T('pg_results', '共 %s 条结果').replace('%s', String(d.total));
         }
         document.getElementById('dmSearchInfo').textContent = info;
         document.getElementById('dmSearchBtns').innerHTML = pg;
@@ -5524,9 +5530,9 @@ function loadDonations(page) {
         document.getElementById('donationsTable').innerHTML = h || '<tr><td colspan="8" style="text-align:center;color:#555;padding:12px">No records</td></tr>';
         var tp = Math.ceil(d.total / d.per_page),
             pg = '',
-            info = 'Showing ' + ((donPage - 1) * 15 + 1) + '-' + Math.min(donPage * 15, d.total) + ' of ' + d.total;
-        pg += '<button class="bsm" ' + (donPage > 1 ? 'onclick="loadDonations(' + (donPage - 1) + ')"' : 'disabled') + '>Prev</button> ';
-        pg += '<button class="bsm" ' + (donPage < tp ? 'onclick="loadDonations(' + (donPage + 1) + ')"' : 'disabled') + '>Next</button>';
+            info = pgInfo((donPage - 1) * 15 + 1, Math.min(donPage * 15, d.total), d.total);
+        pg += '<button class="bsm" ' + (donPage > 1 ? 'onclick="loadDonations(' + (donPage - 1) + ')"' : 'disabled') + '>' + T('pg_prev', '上一页') + '</button> ';
+        pg += '<button class="bsm" ' + (donPage < tp ? 'onclick="loadDonations(' + (donPage + 1) + ')"' : 'disabled') + '>' + T('pg_next', '下一页') + '</button>';
         document.getElementById('donInfo').textContent = info;
         document.getElementById('donBtns').innerHTML = pg;
     });
