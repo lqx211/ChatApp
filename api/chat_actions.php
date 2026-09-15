@@ -332,6 +332,47 @@ if (!function_exists('chat_actions_valid_e2ee_envelope')) {
  * @param bool   $allowAttachment 是否允许附件（WSS 传 false，强制 HTTP）
  * @return array  ['success'=>true,'message_id'=>N] | ['success'=>false,'error'=>...]
  */
+if (!function_exists('chat_actions_ensure_bot_columns')) {
+    /**
+     * 确保 users 的机器人列存在（幂等，绝不抛错）。
+     * Web 环境复用 config.php 的 chatapp_ensure_bot_columns()；
+     * CLI（WSS）环境不加载 config.php，内置轻量实现（用注入的 $pdo）。
+     * ⚠️ 2026-09-15 事故：这里曾直接调用 chatapp_ensure_bot_columns()，
+     * WSS 环境未定义该函数 → 每次私聊发送都抛 Error 被 catch 香掉 →
+     * 静默返回 {success:false}，消息永远发不出去（重启 WSS 后爆发）。
+     */
+    function chat_actions_ensure_bot_columns(PDO $pdo): void {
+        if (function_exists('chatapp_ensure_bot_columns')) {
+            chatapp_ensure_bot_columns();
+            return;
+        }
+        $cols = [
+            'is_bot'          => 'TINYINT(1) NOT NULL DEFAULT 0',
+            'bot_owner_uid'   => 'INT UNSIGNED DEFAULT NULL',
+            'bot_persona'     => 'TEXT DEFAULT NULL',
+            'bot_kind'        => 'VARCHAR(10) DEFAULT NULL',
+            'bot_target_uid'  => 'INT UNSIGNED DEFAULT NULL',
+            'bot_profile'     => 'LONGTEXT DEFAULT NULL',
+            'bot_stats'       => 'LONGTEXT DEFAULT NULL',
+            'bot_analyzed_at' => 'DATETIME DEFAULT NULL',
+            'bot_state'       => 'LONGTEXT DEFAULT NULL',
+            'bot_state_at'    => 'DATETIME DEFAULT NULL',
+        ];
+        try {
+            $have = [];
+            foreach ($pdo->query('SHOW COLUMNS FROM users')->fetchAll(PDO::FETCH_COLUMN, 0) as $c) {
+                $have[strtolower((string)$c)] = true;
+            }
+            foreach ($cols as $name => $def) {
+                if (empty($have[$name])) {
+                    try { $pdo->exec("ALTER TABLE users ADD COLUMN `$name` $def"); }
+                    catch (\Throwable $e) { /* 并发已加/权限问题 → 忽略 */ }
+                }
+            }
+        } catch (\Throwable $e) { /* 表不存在等 → 交给后续查询报错 */ }
+    }
+}
+
 function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, bool $allowAttachment = true): array {
     if ($senderUid <= 0) return ['success' => false, 'error' => 'Not logged in'];
 
@@ -529,7 +570,7 @@ function chat_action_send(PDO $pdo, int $senderUid, string $username, array $p, 
 
             // 机器人联系人：只有 owner 能和自己的机器人私聊（不需要额外的好友关系校验）
             // 非 owner 一律当 not_friends 处理（防止蹭到别人的机器人）
-            chatapp_ensure_bot_columns();
+            chat_actions_ensure_bot_columns($pdo);
             $botStmt = $pdo->prepare('SELECT is_bot, bot_owner_uid FROM users WHERE user_id = ?');
             $botStmt->execute([$recipientId]);
             $botRow = $botStmt->fetch() ?: null;

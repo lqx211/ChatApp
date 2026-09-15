@@ -77,6 +77,9 @@ function apiRequest(action, params, opts) {
     return window.wssRequest(action, paramsObj, opts.timeoutMs || 3000).then(function(d) {
         // WSS 服务端返回 FORCE_HTTP（附件/闪传被拒）→ 降级 HTTP
         if (d && d.success === false && d.error === 'FORCE_HTTP') return httpFallback();
+        // 无错误信息的失败 = 服务端内部异常（如函数缺失被 catch 吞掉）→ 降级 HTTP 兜底，
+        // 绝不让消息静默丢失（client_msg_id 幂等保证不会重复入库）
+        if (d && d.success === false && !d.error) return httpFallback();
         // WSS 返回原始错误码，统一翻译（HTTP 路径已在 api/chat.php 翻译）
         if (d && d.success === false && d.error === 'not_friends') {
             d.error = T('msg_not_friends', 'You can only send messages to your friends.');
